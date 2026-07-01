@@ -31,8 +31,8 @@ class LandingPageController extends Controller
             'landing.getstarted_link_url'  => '',
 
             // ── SEO ─────────────────────────────────────────────────
-            'landing.seo_title'       => 'WhatsMine — One Inbox for WhatsApp, Messenger & Instagram',
-            'landing.seo_description' => 'WhatsMine unifies WhatsApp, Messenger and Instagram in one inbox with AI chatbots, no-code automation, bulk broadcasting and a built-in CRM. Start free — no credit card required.',
+            'landing.seo_title'       => 'WisperBot — One Inbox for WhatsApp, Messenger & Instagram',
+            'landing.seo_description' => 'WisperBot unifies WhatsApp, Messenger and Instagram in one inbox with AI chatbots, no-code automation, bulk broadcasting and a built-in CRM. Start free — no credit card required.',
             'landing.seo_keywords'    => 'WhatsApp Business API, team inbox, WhatsApp marketing, AI chatbot, Messenger, Instagram DM, bulk messaging, marketing automation, CRM',
             'landing.seo_og_image'    => '',
 
@@ -96,7 +96,7 @@ class LandingPageController extends Controller
             'landing.problem_2'        => 'Leads go cold while messages sit unanswered for hours',
             'landing.problem_3'        => 'No way to broadcast offers or automate follow-ups at scale',
             'landing.problem_4'        => 'Zero visibility into team performance or what is actually converting',
-            'landing.solution_title'   => 'WhatsMine fixes all of it',
+            'landing.solution_title'   => 'WisperBot fixes all of it',
             'landing.solution_desc'    => 'One platform to capture, automate and close every conversation.',
             'landing.solution_1'       => 'Unified inbox for every channel, shared across your team',
             'landing.solution_2'       => 'AI chatbots and automations that reply 24/7',
@@ -151,11 +151,11 @@ class LandingPageController extends Controller
             // ── Integrations strip ──────────────────────────────────
             'landing.integrations_strip_enabled'  => '1',
             'landing.integrations_strip_title'    => 'Works with the tools you already use',
-            'landing.integrations_strip_subtitle' => 'Connect WhatsMine to 100+ apps via native integrations, webhooks and our REST API.',
+            'landing.integrations_strip_subtitle' => 'Connect WisperBot to 100+ apps via native integrations, webhooks and our REST API.',
 
             // ── Why us ──────────────────────────────────────────────
             'landing.why_enabled'   => '1',
-            'landing.why_badge'     => 'Why WhatsMine',
+            'landing.why_badge'     => 'Why WisperBot',
             'landing.why_title'     => 'Built for teams who need results',
             'landing.why_subtitle'  => 'Powerful enough for enterprises, simple enough for everyone.',
             'landing.why_1_icon'    => 'shield-check',
@@ -199,7 +199,7 @@ class LandingPageController extends Controller
             'landing.testimonials_enabled'   => '1',
             'landing.testimonials_badge'     => 'Testimonials',
             'landing.testimonials_title'     => 'Loved by modern teams',
-            'landing.testimonials_subtitle'  => 'See what businesses are saying about WhatsMine.',
+            'landing.testimonials_subtitle'  => 'See what businesses are saying about WisperBot.',
             'landing.testimonial_1_name'     => 'Sarah Johnson',
             'landing.testimonial_1_role'     => 'Marketing Manager, Acme Corp',
             'landing.testimonial_1_text'     => 'We tripled our lead response rate in the first week. The AI chatbot handles the repetitive questions so my team can focus on closing.',
@@ -229,12 +229,12 @@ class LandingPageController extends Controller
             'landing.faq_enabled'   => '1',
             'landing.faq_badge'     => 'FAQ',
             'landing.faq_title'     => 'Frequently Asked Questions',
-            'landing.faq_subtitle'  => 'Everything you need to know about WhatsMine.',
-            'landing.faq_1_q'       => 'Which channels does WhatsMine support?',
+            'landing.faq_subtitle'  => 'Everything you need to know about WisperBot.',
+            'landing.faq_1_q'       => 'Which channels does WisperBot support?',
             'landing.faq_1_a'       => 'Connect WhatsApp Business, Facebook Messenger and Instagram DMs into one inbox, plus SMS and email broadcasting — all from a single dashboard.',
             'landing.faq_2_q'       => 'Do I need a WhatsApp Business API account?',
-            'landing.faq_2_a'       => 'Yes — WhatsMine connects through the official Meta WhatsApp Cloud API. Our guided setup walks you through it in minutes.',
-            'landing.faq_3_q'       => 'Can I try WhatsMine before paying?',
+            'landing.faq_2_a'       => 'Yes — WisperBot connects through the official Meta WhatsApp Cloud API. Our guided setup walks you through it in minutes.',
+            'landing.faq_3_q'       => 'Can I try WisperBot before paying?',
             'landing.faq_3_a'       => 'Absolutely. Every plan includes a 14-day free trial with no credit card required.',
             'landing.faq_4_q'       => 'Do the AI chatbots understand my business?',
             'landing.faq_4_a'       => 'Yes. Train chatbots on your own documents, FAQs and product catalog using RAG so answers are accurate and on-brand.',
@@ -244,16 +244,16 @@ class LandingPageController extends Controller
             // ── CTA ─────────────────────────────────────────────────
             'landing.cta_enabled'   => '1',
             'landing.cta_title'     => 'Ready to win every conversation?',
-            'landing.cta_subtitle'  => 'Join 12,000+ businesses growing faster with WhatsMine. Start free — no credit card required.',
+            'landing.cta_subtitle'  => 'Join 12,000+ businesses growing faster with WisperBot. Start free — no credit card required.',
             'landing.cta_primary'   => 'Start Free Trial',
             'landing.cta_secondary' => 'Talk to Sales',
 
             // ── About page ──────────────────────────────────────────
-            'landing.about_badge'       => 'About WhatsMine',
+            'landing.about_badge'       => 'About WisperBot',
             'landing.about_title'       => 'We are on a mission to make business conversations effortless',
-            'landing.about_subtitle'    => 'WhatsMine helps thousands of businesses turn everyday messages into lasting customer relationships.',
+            'landing.about_subtitle'    => 'WisperBot helps thousands of businesses turn everyday messages into lasting customer relationships.',
             'landing.about_story_title' => 'Our story',
-            'landing.about_story_body'  => "WhatsMine started with a simple frustration: customer conversations were scattered across too many apps, and great leads were slipping through the cracks.\n\nWe set out to build one platform where every WhatsApp, Messenger and Instagram conversation lives together — supercharged with AI and automation. Today, teams in over 60 countries use WhatsMine to reply faster, sell more and build relationships that last.",
+            'landing.about_story_body'  => "WisperBot started with a simple frustration: customer conversations were scattered across too many apps, and great leads were slipping through the cracks.\n\nWe set out to build one platform where every WhatsApp, Messenger and Instagram conversation lives together — supercharged with AI and automation. Today, teams in over 60 countries use WisperBot to reply faster, sell more and build relationships that last.",
             'landing.about_value_1_icon'  => 'zap',
             'landing.about_value_1_title' => 'Move Fast',
             'landing.about_value_1_desc'  => 'We ship quickly and obsess over making complex things feel simple.',
@@ -279,8 +279,8 @@ class LandingPageController extends Controller
 
             // ── Integrations page ───────────────────────────────────
             'landing.integrations_page_badge'    => 'Integrations',
-            'landing.integrations_page_title'    => 'Connect WhatsMine to your entire stack',
-            'landing.integrations_page_subtitle' => 'Native integrations, webhooks and a full REST API — bring WhatsMine into the tools your team already loves.',
+            'landing.integrations_page_title'    => 'Connect WisperBot to your entire stack',
+            'landing.integrations_page_subtitle' => 'Native integrations, webhooks and a full REST API — bring WisperBot into the tools your team already loves.',
             'landing.intcat_1_title' => 'Messaging Channels',
             'landing.intcat_1_items' => "WhatsApp Business\nFacebook Messenger\nInstagram Direct\nSMS\nEmail",
             'landing.intcat_2_title' => 'AI Providers',

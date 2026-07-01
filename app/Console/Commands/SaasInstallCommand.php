@@ -20,7 +20,7 @@ class SaasInstallCommand extends Command
         $this->info('  ██║███╗██║██╔══██║██╔══██║   ██║   ╚════██║');
         $this->info('  ╚███╔███╔╝██║  ██║██║  ██║   ██║   ███████║');
         $this->info('   ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝');
-        $this->info('  WhatsMine — Install Wizard');
+        $this->info('  WisperBot — Install Wizard');
         $this->info('');
 
         // 0. Ensure an .env / app key exists before anything touches the DB.

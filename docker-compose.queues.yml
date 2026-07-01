@@ -9,7 +9,7 @@
 version: "3.9"
 
 x-queue-defaults: &queue-defaults
-  image: ${APP_IMAGE:-whatsmine-app}
+  image: ${APP_IMAGE:-wisperbot-app}
   restart: unless-stopped
   depends_on:
     - redis

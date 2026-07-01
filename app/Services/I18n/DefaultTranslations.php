@@ -372,7 +372,7 @@ class DefaultTranslations
             'open_menu' => 'Open menu',
             'head.welcome' => 'Welcome',
             'head.admin' => 'Admin',
-            'app.name' => config('app.name', 'WhatsMine'),
+            'app.name' => config('app.name', 'WisperBot'),
             'impersonation.impersonating' => 'Impersonating: {{name}}',
             'impersonation.return_to_admin' => 'Return to Admin',
         ];

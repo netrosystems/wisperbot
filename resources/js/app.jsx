@@ -54,7 +54,7 @@ window.addEventListener('pageshow', (event) => {
     }
 });
 
-const appName = import.meta.env.VITE_APP_NAME || 'WhatsMine';
+const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
 
 // Wrapper cache keyed by page component. resolve() runs on every navigation;
 // returning a fresh wrapper function each time gives the page a new component

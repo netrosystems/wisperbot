@@ -902,10 +902,10 @@
         "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store",
             "duplicate": "Duplicate",
             "destroy": "Destroy",
-            "reorder": "Reorder"
+            "reorder": "Reorder",
+            "store": "Store"
         },
         "currencies": "Currencies",
         "admins": {
@@ -1002,7 +1002,7 @@
     },
     "open_menu": "মেনু খুলুন",
     "app": {
-        "name": "WhatsMine"
+        "name": "WisperBot"
     },
     "impersonation": {
         "return_to_admin": "অ্যাডমিনে ফিরে যান",
@@ -3955,13 +3955,17 @@
     "5": {
         "5": "5"
     },
-    "0": [
-        [
+    "0": {
+        "0": [
             {
                 "1": "1"
             }
-        ]
-    ],
+        ],
+        "01": "01",
+        "07em": "07Em",
+        "08em": "08Em",
+        "1em": "1Em"
+    },
     "12": {
         "01": "01"
     },

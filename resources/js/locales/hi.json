@@ -902,10 +902,10 @@
         "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store",
             "duplicate": "Duplicate",
             "destroy": "Destroy",
-            "reorder": "Reorder"
+            "reorder": "Reorder",
+            "store": "Store"
         },
         "currencies": "Currencies",
         "admins": {
@@ -1002,7 +1002,7 @@
     },
     "open_menu": "मेनू खोलें",
     "app": {
-        "name": "WhatsMine"
+        "name": "WisperBot"
     },
     "impersonation": {
         "return_to_admin": "एडमिन पर लौटें",
@@ -1610,7 +1610,7 @@
         "step2_title": "2. क्यू वर्कर चलाएं",
         "step2_desc": "बैकग्राउंड जॉब — कैंपेन, संदेश, सोशल पोस्ट — क्यू पर चलते हैं। एक स्थायी वर्कर शुरू करें, और इसे चालू रखने व स्वतः पुनः आरंभ करने के लिए प्रोडक्शन में Supervisor का उपयोग करें।",
         "supervisor_title": "Supervisor कॉन्फ़िगरेशन",
-        "supervisor_desc": "\/etc\/supervisor\/conf.d\/whatsmine-worker.conf के रूप में सहेजें, फिर चलाएं: supervisorctl reread && supervisorctl update।",
+        "supervisor_desc": "\/etc\/supervisor\/conf.d\/wisperbot-worker.conf के रूप में सहेजें, फिर चलाएं: supervisorctl reread && supervisorctl update।",
         "step3_title": "3. सत्यापित करें",
         "step3_desc": "यह पुष्टि करने के लिए कि शेड्यूलर और क्यू सही ढंग से जुड़े हैं, ये कमांड चलाएं।",
         "verify_run": "सभी देय निर्धारित कार्य तुरंत ट्रिगर करें:",
@@ -3955,13 +3955,17 @@
     "5": {
         "5": "5"
     },
-    "0": [
-        [
+    "0": {
+        "0": [
             {
                 "1": "1"
             }
-        ]
-    ],
+        ],
+        "01": "01",
+        "07em": "07Em",
+        "08em": "08Em",
+        "1em": "1Em"
+    },
     "12": {
         "01": "01"
     },
