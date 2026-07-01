@@ -10,7 +10,7 @@ export default function CmsPage({ page }) {
 
             <header className="sticky top-0 z-30 border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/80 backdrop-blur px-6 py-4">
                 <a href="/" className="font-bold text-lg text-brand-600 dark:text-brand-400">
-                    {import.meta.env.VITE_APP_NAME ?? 'WhatsMine'}
+                    {import.meta.env.VITE_APP_NAME ?? 'WisperBot'}
                 </a>
             </header>
 

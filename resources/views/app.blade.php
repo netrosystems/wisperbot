@@ -12,59 +12,63 @@
     }
 @endphp
 <html lang="{{ str_replace('_', '-', $locale) }}" dir="{{ $htmlDir }}">
-    <head>
-        <script>
-            (function() {
-                var server = @json($serverTheme);
-                var stored = localStorage.getItem('theme');
-                var pref = (stored === 'light' || stored === 'dark') ? stored : ((server === 'light' || server === 'dark') ? server : 'light');
-                document.documentElement.classList.toggle('dark', pref === 'dark');
-            })();
-        </script>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="csrf-token" content="{{ csrf_token() }}">
-        <meta name="vapid-public-key" content="{{ config('webpush.vapid_public_key') }}">
 
-        <title inertia>{{ config('app.name', 'WhatsMine') }}</title>
-        @php
-            try {
-                $faviconPath = \App\Models\SystemSetting::where('key', 'app_favicon_path')->value('value');
-                $faviconUrl  = $faviconPath ? \Illuminate\Support\Facades\Storage::disk('public')->url($faviconPath) : null;
-            } catch (\Throwable) {
-                $faviconUrl = null;
-            }
-        @endphp
-        @if($faviconUrl)
-            <link rel="icon" href="{{ $faviconUrl }}">
-            <link rel="apple-touch-icon" href="{{ $faviconUrl }}">
-        @else
-            {{-- Fallback brand icon: SVG for modern browsers, .ico for legacy,
-                 PNG apple-touch for iOS home-screen. See public/whatsmine-icon.svg. --}}
-            <link rel="icon" type="image/svg+xml" href="/whatsmine-icon.svg">
-            <link rel="alternate icon" href="/favicon.ico" sizes="any">
-            <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-        @endif
+<head>
+    <script>
+        (function() {
+            var server = @json($serverTheme);
+            var stored = localStorage.getItem('theme');
+            var pref = (stored === 'light' || stored === 'dark') ? stored : ((server === 'light' || server === 'dark') ?
+                server : 'light');
+            document.documentElement.classList.toggle('dark', pref === 'dark');
+        })();
+    </script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="vapid-public-key" content="{{ config('webpush.vapid_public_key') }}">
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=space-grotesk:400,500,600,700&display=swap" rel="stylesheet" />
-        {{-- Anek Bangla for Bengali script. The Bengali glyph files are lazy-loaded
+    <title inertia>{{ config('app.name', 'WisperBot') }}</title>
+    @php
+        try {
+            $faviconPath = \App\Models\SystemSetting::where('key', 'app_favicon_path')->value('value');
+            $faviconUrl = $faviconPath ? \Illuminate\Support\Facades\Storage::disk('public')->url($faviconPath) : null;
+        } catch (\Throwable) {
+            $faviconUrl = null;
+        }
+    @endphp
+    @if ($faviconUrl)
+        <link rel="icon" href="{{ $faviconUrl }}">
+        <link rel="apple-touch-icon" href="{{ $faviconUrl }}">
+    @else
+        {{-- Fallback brand icon: SVG for modern browsers, .ico for legacy,
+                 PNG apple-touch for iOS home-screen. See public/wisperbot-icon.svg. --}}
+        <link rel="icon" type="image/svg+xml" href="/wisperbot-icon.svg">
+        <link rel="alternate icon" href="/favicon.ico" sizes="any">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    @endif
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=space-grotesk:400,500,600,700&display=swap" rel="stylesheet" />
+    {{-- Anek Bangla for Bengali script. The Bengali glyph files are lazy-loaded
              by unicode-range, so they're only fetched when bn text actually renders
              (i.e. html[lang="bn"]); keeping the link unconditional means a client-side
              locale switch picks it up without a full page reload. --}}
-        <link href="https://fonts.bunny.net/css?family=anek-bangla:400,500,600,700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=anek-bangla:400,500,600,700&display=swap" rel="stylesheet" />
 
-        @if(config('services.onesignal.app_id'))
+    @if (config('services.onesignal.app_id'))
         <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
         <script>
             window.OneSignalDeferred = window.OneSignalDeferred || [];
 
-            OneSignalDeferred.push(async function (OneSignal) {
+            OneSignalDeferred.push(async function(OneSignal) {
                 try {
                     await OneSignal.init({
                         appId: "{{ config('services.onesignal.app_id') }}",
-                        notifyButton: { enable: false },
+                        notifyButton: {
+                            enable: false
+                        },
                         allowLocalhostAsSecureOrigin: {{ app()->environment('local') ? 'true' : 'false' }},
                     });
                 } catch (e) {
@@ -96,7 +100,7 @@
                         }
                         // else: let OneSignal display the notification
                     });
-                } catch(_) {}
+                } catch (_) {}
 
                 @auth
                 // Only login once we have a real push subscription (non-empty token).
@@ -107,7 +111,7 @@
                     try {
                         var sub = OneSignal.User?.PushSubscription;
                         var token = sub?.token;
-                        var subId  = sub?.id;
+                        var subId = sub?.id;
                         // A "local-" prefixed ID means the subscription hasn't been
                         // confirmed by OneSignal's server yet; calling login() in that
                         // state returns 400 "No aliases found".
@@ -141,35 +145,35 @@
 
                 // Login when the user grants permission later (e.g. after our prompt).
                 try {
-                    OneSignal.Notifications.addEventListener('permissionChange', function (granted) {
+                    OneSignal.Notifications.addEventListener('permissionChange', function(granted) {
                         if (granted) {
                             // Give the SW subscription a moment to generate a token
                             setTimeout(osLogin, 1000);
                         }
                     });
                 } catch (_) {}
-                @endauth
+            @endauth
             });
 
             // Suppress any unhandled SDK rejections so they don't pollute the console.
-            window.addEventListener('unhandledrejection', function (ev) {
+            window.addEventListener('unhandledrejection', function(ev) {
                 var stack = String(ev.reason?.stack ?? ev.reason ?? '');
                 if (stack.includes('OneSignal') || stack.includes('onesignal')) ev.preventDefault();
             });
         </script>
-        @endif
+    @endif
 
-        <!-- Facebook JS SDK — loaded eagerly when Meta App is configured -->
-        <div id="fb-root"></div>
-        @php
-            // Guarded: integration_configs may be unreadable during first-run install.
-            try {
-                $metaAppId = \App\Modules\Integrations\Services\CredentialResolver::system()->meta()?->appId();
-            } catch (\Throwable) {
-                $metaAppId = null;
-            }
-        @endphp
-        @if($metaAppId)
+    <!-- Facebook JS SDK — loaded eagerly when Meta App is configured -->
+    <div id="fb-root"></div>
+    @php
+        // Guarded: integration_configs may be unreadable during first-run install.
+        try {
+            $metaAppId = \App\Modules\Integrations\Services\CredentialResolver::system()->meta()?->appId();
+        } catch (\Throwable) {
+            $metaAppId = null;
+        }
+    @endphp
+    @if ($metaAppId)
         <script>
             window.fbAsyncInit = function() {
                 FB.init({
@@ -181,17 +185,18 @@
                 window.__fbSdkReady = true;
             };
         </script>
-        <script async defer crossorigin="anonymous"
-            src="https://connect.facebook.net/en_US/sdk.js"></script>
-        @endif
+        <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+    @endif
 
-        <!-- Scripts -->
-        @routes
-        @viteReactRefresh
-        @vite(['resources/js/app.jsx', 'resources/js/Pages/' . (isset($page['component']) ? $page['component'] : 'Dashboard') . '.jsx'])
-        @inertiaHead
-    </head>
-    <body class="font-sans antialiased">
-        @inertia
-    </body>
+    <!-- Scripts -->
+    @routes
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx', 'resources/js/Pages/' . (isset($page['component']) ? $page['component'] : 'Dashboard') . '.jsx'])
+    @inertiaHead
+</head>
+
+<body class="font-sans antialiased">
+    @inertia
+</body>
+
 </html>

@@ -78,7 +78,7 @@ export default function Sidebar({
     showCreateButton = true,
 }) {
     const { t } = useTranslation();
-    const appName = import.meta.env.VITE_APP_NAME || 'WhatsMine';
+    const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const { branding } = usePage().props;
     const logoUrl = branding?.logo_url;
 
@@ -91,7 +91,7 @@ export default function Sidebar({
                 ) : logo ? (
                     logo
                 ) : (
-                    <img src="/whatsmine-logo.png" alt={appName} className="h-10 w-auto max-w-[200px] object-contain" />
+                    <img src="/wisperbot-logo.png" alt={appName} className="h-10 w-auto max-w-[200px] object-contain" />
                 )}
             </div>
 

@@ -1587,7 +1587,7 @@ class DemoSeeder extends Seeder
     private function seedWebhooks(): void
     {
         $endpoint = WebhookEndpoint::firstOrCreate(
-            ['user_id' => $this->admin->id, 'url' => 'https://hooks.spagreen.net/incoming/whatsmine'],
+            ['user_id' => $this->admin->id, 'url' => 'https://hooks.spagreen.net/incoming/wisperbot'],
             [
                 'secret' => WebhookEndpoint::generateSecret(),
                 'events' => ['message.received', 'message.status', 'conversation.assigned', 'contact.created'],

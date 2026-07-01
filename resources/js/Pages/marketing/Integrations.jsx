@@ -16,7 +16,7 @@ function Badge({ text }) {
 
 export default function Integrations({ canRegister, landing = {} }) {
     const { t } = useTranslation();
-    const appName = import.meta.env.VITE_APP_NAME || 'WhatsMine';
+    const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const s = (key, def = '') => landing[`landing.${key}`] ?? def;
 
     const categories = [1, 2, 3, 4, 5, 6, 7].map((i) => ({
@@ -76,7 +76,7 @@ export default function Integrations({ canRegister, landing = {} }) {
                         {t('integrations_page.cta_title', { defaultValue: 'Need a custom integration?' })}
                     </h2>
                     <p className="mt-4 text-lg text-neutral-600 dark:text-neutral-400">
-                        {t('integrations_page.cta_subtitle', { defaultValue: 'Use our REST API and webhooks to connect WhatsMine to anything, or talk to our team.' })}
+                        {t('integrations_page.cta_subtitle', { defaultValue: 'Use our REST API and webhooks to connect WisperBot to anything, or talk to our team.' })}
                     </p>
                     <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
                         {canRegister && (

@@ -42,12 +42,12 @@ export default function LandingLayout({ children }) {
     const { t } = useTranslation();
 
     const NAV_LINKS = [
-        { label: t('nav.features'),     href: '/#features' },
-        { label: t('nav.use_cases'),    href: '/use-cases' },
+        { label: t('nav.features'), href: '/#features' },
+        { label: t('nav.use_cases'), href: '/use-cases' },
         { label: t('nav.integrations', { defaultValue: 'Integrations' }), href: '/integrations' },
-        { label: t('nav.pricing'),      href: '/pricing' },
-        { label: t('nav.faq'),          href: '/faq' },
-        { label: t('nav.contact'),      href: '/contact' },
+        { label: t('nav.pricing'), href: '/pricing' },
+        { label: t('nav.faq'), href: '/faq' },
+        { label: t('nav.contact'), href: '/contact' },
     ];
     const page = usePage();
     const auth = page.props.auth;
@@ -55,8 +55,8 @@ export default function LandingLayout({ children }) {
     const { locale: currentLocale, setLocale } = useLocale();
     const supportedLocales = page.props.supportedLocales ?? { en: 'English' };
     const localeEntries = Object.entries(supportedLocales);
-    const appName = page.props.branding?.app_name || import.meta.env.VITE_APP_NAME || 'WhatsMine';
-    const logoUrl = page.props.branding?.logo_url || '/whatsmine-logo.png';
+    const appName = page.props.branding?.app_name || import.meta.env.VITE_APP_NAME || 'WisperBot';
+    const logoUrl = page.props.branding?.logo_url || '/wisperbot-logo.png';
     const [mobileOpen, setMobileOpen] = useState(false);
     const landing = page.props.landing ?? {};
 

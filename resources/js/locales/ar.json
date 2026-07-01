@@ -902,10 +902,10 @@
         "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store",
             "duplicate": "Duplicate",
             "destroy": "Destroy",
-            "reorder": "Reorder"
+            "reorder": "Reorder",
+            "store": "Store"
         },
         "currencies": "Currencies",
         "admins": {
@@ -1002,7 +1002,7 @@
     },
     "open_menu": "فتح القائمة",
     "app": {
-        "name": "WhatsMine"
+        "name": "WisperBot"
     },
     "impersonation": {
         "return_to_admin": "العودة إلى الإدارة",
@@ -1610,7 +1610,7 @@
         "step2_title": "2. شغّل عمال الطابور",
         "step2_desc": "تعمل المهام في الخلفية — الحملات والرسائل ومنشورات التواصل الاجتماعي — على الطوابير. شغّل عاملاً دائمًا، واستخدم Supervisor في الإنتاج لإبقائه نشطًا وإعادة تشغيله تلقائيًا.",
         "supervisor_title": "إعداد Supervisor",
-        "supervisor_desc": "احفظه باسم \/etc\/supervisor\/conf.d\/whatsmine-worker.conf ثم شغّل: supervisorctl reread && supervisorctl update.",
+        "supervisor_desc": "احفظه باسم \/etc\/supervisor\/conf.d\/wisperbot-worker.conf ثم شغّل: supervisorctl reread && supervisorctl update.",
         "step3_title": "3. تحقّق",
         "step3_desc": "شغّل هذه الأوامر للتأكد من أن المجدول والطابور مُعدّان بشكل صحيح.",
         "verify_run": "شغّل جميع المهام المجدولة المستحقة فورًا:",
@@ -3955,13 +3955,17 @@
     "5": {
         "5": "5"
     },
-    "0": [
-        [
+    "0": {
+        "0": [
             {
                 "1": "1"
             }
-        ]
-    ],
+        ],
+        "01": "01",
+        "07em": "07Em",
+        "08em": "08Em",
+        "1em": "1Em"
+    },
     "12": {
         "01": "01"
     },

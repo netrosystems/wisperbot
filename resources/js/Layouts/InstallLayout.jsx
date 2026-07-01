@@ -176,7 +176,7 @@ function MobileProgress({ steps, current }) {
 }
 
 export default function InstallLayout({ steps = [], current = 0, title, subtitle, children }) {
-    const appName = import.meta.env.VITE_APP_NAME || 'WhatsMine';
+    const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const Icon = steps[current]?.icon;
 
     return (

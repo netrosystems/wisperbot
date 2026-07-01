@@ -119,11 +119,11 @@ function ChannelIcon({ name, className = 'h-6 w-6' }) {
 }
 
 const CHANNEL_STYLES = {
-    'whatsapp':  { bg: 'bg-[#25D366]/12', text: 'text-[#25D366]' },
+    'whatsapp': { bg: 'bg-[#25D366]/12', text: 'text-[#25D366]' },
     'messenger': { bg: 'bg-[#0084FF]/12', text: 'text-[#0084FF]' },
     'instagram': { bg: 'bg-[#E1306C]/12', text: 'text-[#E1306C]' },
-    'sms':       { bg: 'bg-[#5a8b38]/15', text: 'text-[#467235] dark:text-[#5a8b38]' },
-    'email':     { bg: 'bg-[#F59E0B]/12', text: 'text-[#F59E0B]' },
+    'sms': { bg: 'bg-[#5a8b38]/15', text: 'text-[#467235] dark:text-[#5a8b38]' },
+    'email': { bg: 'bg-[#F59E0B]/12', text: 'text-[#F59E0B]' },
 };
 
 // ─── Section Badge ─────────────────────────────────────────────────────────────
@@ -491,11 +491,10 @@ function PricingSection({ plans }) {
                         return (
                             <div
                                 key={plan.id}
-                                className={`relative rounded-2xl border p-7 flex flex-col ${
-                                    plan.is_featured
+                                className={`relative rounded-2xl border p-7 flex flex-col ${plan.is_featured
                                         ? 'border-[#5a8b38]/50 bg-[#162610] text-white shadow-2xl shadow-[#5a8b38]/10 lg:scale-105'
                                         : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
-                                }`}
+                                    }`}
                             >
                                 {plan.is_featured && (
                                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
@@ -539,11 +538,10 @@ function PricingSection({ plans }) {
 
                                 <Link
                                     href={route('register')}
-                                    className={`block text-center rounded-xl py-3 text-sm font-bold transition-all duration-200 ${
-                                        plan.is_featured
+                                    className={`block text-center rounded-xl py-3 text-sm font-bold transition-all duration-200 ${plan.is_featured
                                             ? 'text-white hover:opacity-90'
                                             : 'border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#5a8b38]/50 hover:text-[#467235] dark:hover:text-[#5a8b38]'
-                                    }`}
+                                        }`}
                                     style={plan.is_featured ? { background: '#5a8b38' } : {}}
                                 >
                                     {plan.is_featured ? t('welcome.get_started_plan') : t('welcome.upgrade')}
@@ -967,11 +965,11 @@ function SecuritySection({ landing }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Welcome({ auth, canLogin, canRegister, landing = {}, plans = [] }) {
-    const appName = import.meta.env.VITE_APP_NAME || 'WhatsMine';
+    const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const s = (key, def = '') => landing[`landing.${key}`] ?? def;
 
     const metaTitle = s('seo_title') || s('hero_title') || appName;
-    const metaDesc  = s('seo_description') || s('hero_subtitle') || '';
+    const metaDesc = s('seo_description') || s('hero_subtitle') || '';
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
     // ── JSON-LD structured data ────────────────────────────────────────────────

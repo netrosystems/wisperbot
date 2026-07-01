@@ -19,11 +19,10 @@ function SectionToggle({ label, enabled, onChange, t }) {
             <button
                 type="button"
                 onClick={() => onChange(!enabled)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    enabled
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${enabled
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                         : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                }`}
+                    }`}
             >
                 {enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                 {enabled ? t('landing_page_admin.enabled') : t('landing_page_admin.disabled')}
@@ -51,11 +50,10 @@ function MasterToggleCard({ enabled, onChange, t }) {
                     <button
                         type="button"
                         onClick={() => onChange(!enabled)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 ${
-                            enabled
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 ${enabled
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                                 : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                        }`}
+                            }`}
                     >
                         {enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                         {enabled ? t('landing_page_admin.enabled') : t('landing_page_admin.disabled')}
@@ -88,7 +86,7 @@ function Input({ value, onChange, placeholder, multiline = false, rows = 3 }) {
 
 function LinkTypeField({ label, typeKey, urlKey, data, setData, t }) {
     const type = data[typeKey] ?? 'dynamic';
-    const url  = data[urlKey] ?? '';
+    const url = data[urlKey] ?? '';
     return (
         <div className="space-y-3 p-4 rounded-soft border border-neutral-200 dark:border-neutral-700">
             <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{label}</p>
@@ -426,7 +424,7 @@ function WhyTab({ data, setData, t }) {
                         <Input value={s('why_badge')} onChange={(e) => set('why_badge', e.target.value)} placeholder="Why Choose Us" />
                     </Field>
                     <Field label={t('landing_page_admin.section_title')}>
-                        <Input value={s('why_title')} onChange={(e) => set('why_title', e.target.value)} placeholder="Why WhatsMine" />
+                        <Input value={s('why_title')} onChange={(e) => set('why_title', e.target.value)} placeholder="Why WisperBot" />
                     </Field>
                     <Field label={t('landing_page_admin.section_subtitle')}>
                         <Input value={s('why_subtitle')} onChange={(e) => set('why_subtitle', e.target.value)} placeholder="Built for scale, security, and results." />
@@ -602,7 +600,7 @@ function SeoTab({ data, setData, t }) {
             <Card.Body className="space-y-5">
                 <h3 className="font-semibold text-neutral-900 dark:text-neutral-100 pb-3 border-b border-neutral-100 dark:border-neutral-800">{t('landing_page_admin.seo_section', { defaultValue: 'Search Engine Optimization' })}</h3>
                 <Field label={t('landing_page_admin.seo_title', { defaultValue: 'Meta Title' })} hint={t('landing_page_admin.seo_title_hint', { defaultValue: 'Shown in browser tabs and search results (~60 chars).' })}>
-                    <Input value={s('seo_title')} onChange={(e) => set('seo_title', e.target.value)} placeholder="WhatsMine — One Inbox for WhatsApp, Messenger & Instagram" />
+                    <Input value={s('seo_title')} onChange={(e) => set('seo_title', e.target.value)} placeholder="WisperBot — One Inbox for WhatsApp, Messenger & Instagram" />
                 </Field>
                 <Field label={t('landing_page_admin.seo_description', { defaultValue: 'Meta Description' })} hint={t('landing_page_admin.seo_description_hint', { defaultValue: 'Shown under the title in search results (~155 chars).' })}>
                     <Input value={s('seo_description')} onChange={(e) => set('seo_description', e.target.value)} multiline rows={3} placeholder="Unify WhatsApp, Messenger and Instagram..." />
@@ -731,7 +729,7 @@ function IntegrationsStripTab({ data, setData, t }) {
                     <Input value={s('integrations_strip_title')} onChange={(e) => set('integrations_strip_title', e.target.value)} placeholder="Works with the tools you already use" />
                 </Field>
                 <Field label={t('landing_page_admin.section_subtitle')}>
-                    <Input value={s('integrations_strip_subtitle')} onChange={(e) => set('integrations_strip_subtitle', e.target.value)} multiline rows={2} placeholder="Connect WhatsMine to 100+ apps..." />
+                    <Input value={s('integrations_strip_subtitle')} onChange={(e) => set('integrations_strip_subtitle', e.target.value)} multiline rows={2} placeholder="Connect WisperBot to 100+ apps..." />
                 </Field>
             </Card.Body>
         </Card>
@@ -809,7 +807,7 @@ function AboutTab({ data, setData, t }) {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Field label={t('landing_page_admin.section_badge')}>
-                        <Input value={s('about_badge')} onChange={(e) => set('about_badge', e.target.value)} placeholder="About WhatsMine" />
+                        <Input value={s('about_badge')} onChange={(e) => set('about_badge', e.target.value)} placeholder="About WisperBot" />
                     </Field>
                     <div className="sm:col-span-2">
                         <Field label={t('landing_page_admin.headline')}>
@@ -899,7 +897,7 @@ function IntegrationsPageTab({ data, setData, t }) {
                     </Field>
                     <div className="sm:col-span-2">
                         <Field label={t('landing_page_admin.headline')}>
-                            <Input value={s('integrations_page_title')} onChange={(e) => set('integrations_page_title', e.target.value)} placeholder="Connect WhatsMine to your entire stack" />
+                            <Input value={s('integrations_page_title')} onChange={(e) => set('integrations_page_title', e.target.value)} placeholder="Connect WisperBot to your entire stack" />
                         </Field>
                     </div>
                 </div>
@@ -946,29 +944,29 @@ export default function LandingPageIndex({ settings: initialSettings }) {
     };
 
     const TABS = [
-        { key: 'navbar',             group: 'general', label: t('landing_page_admin.tab_navbar'),                                          C: NavbarTab },
-        { key: 'seo',                group: 'general', label: t('landing_page_admin.tab_seo', { defaultValue: 'SEO' }),                     C: SeoTab },
-        { key: 'hero',               group: 'home',    label: t('landing_page_admin.tab_hero'),                                            C: HeroTab },
-        { key: 'metrics',            group: 'home',    label: t('landing_page_admin.tab_metrics', { defaultValue: 'Metrics' }),            C: MetricsTab },
-        { key: 'trustedby',          group: 'home',    label: t('landing_page_admin.tab_trustedby'),                                       C: TrustedByTab },
-        { key: 'channels',           group: 'home',    label: t('landing_page_admin.tab_channels', { defaultValue: 'Channels' }),          C: ChannelsTab },
-        { key: 'problems',           group: 'home',    label: t('landing_page_admin.tab_problems'),                                        C: ProblemSolutionTab },
-        { key: 'features',           group: 'home',    label: t('landing_page_admin.tab_features'),                                        C: FeaturesTab },
-        { key: 'howitworks',         group: 'home',    label: t('landing_page_admin.tab_howitworks'),                                      C: HowItWorksTab },
-        { key: 'integrations_strip', group: 'home',    label: t('landing_page_admin.tab_integrations_strip', { defaultValue: 'Integrations Strip' }), C: IntegrationsStripTab },
-        { key: 'why',                group: 'home',    label: t('landing_page_admin.tab_why'),                                             C: WhyTab },
-        { key: 'security',           group: 'home',    label: t('landing_page_admin.tab_security', { defaultValue: 'Security' }),          C: SecurityTab },
-        { key: 'testimonials',       group: 'home',    label: t('landing_page_admin.tab_testimonials'),                                    C: TestimonialsTab },
-        { key: 'faq',                group: 'home',    label: t('landing_page_admin.tab_faq'),                                             C: FaqTab },
-        { key: 'cta',                group: 'home',    label: t('landing_page_admin.tab_cta'),                                             C: CtaTab },
-        { key: 'about',              group: 'pages',   label: t('landing_page_admin.tab_about', { defaultValue: 'About Page' }),           C: AboutTab },
-        { key: 'integrations_page',  group: 'pages',   label: t('landing_page_admin.tab_integrations_page', { defaultValue: 'Integrations Page' }), C: IntegrationsPageTab },
+        { key: 'navbar', group: 'general', label: t('landing_page_admin.tab_navbar'), C: NavbarTab },
+        { key: 'seo', group: 'general', label: t('landing_page_admin.tab_seo', { defaultValue: 'SEO' }), C: SeoTab },
+        { key: 'hero', group: 'home', label: t('landing_page_admin.tab_hero'), C: HeroTab },
+        { key: 'metrics', group: 'home', label: t('landing_page_admin.tab_metrics', { defaultValue: 'Metrics' }), C: MetricsTab },
+        { key: 'trustedby', group: 'home', label: t('landing_page_admin.tab_trustedby'), C: TrustedByTab },
+        { key: 'channels', group: 'home', label: t('landing_page_admin.tab_channels', { defaultValue: 'Channels' }), C: ChannelsTab },
+        { key: 'problems', group: 'home', label: t('landing_page_admin.tab_problems'), C: ProblemSolutionTab },
+        { key: 'features', group: 'home', label: t('landing_page_admin.tab_features'), C: FeaturesTab },
+        { key: 'howitworks', group: 'home', label: t('landing_page_admin.tab_howitworks'), C: HowItWorksTab },
+        { key: 'integrations_strip', group: 'home', label: t('landing_page_admin.tab_integrations_strip', { defaultValue: 'Integrations Strip' }), C: IntegrationsStripTab },
+        { key: 'why', group: 'home', label: t('landing_page_admin.tab_why'), C: WhyTab },
+        { key: 'security', group: 'home', label: t('landing_page_admin.tab_security', { defaultValue: 'Security' }), C: SecurityTab },
+        { key: 'testimonials', group: 'home', label: t('landing_page_admin.tab_testimonials'), C: TestimonialsTab },
+        { key: 'faq', group: 'home', label: t('landing_page_admin.tab_faq'), C: FaqTab },
+        { key: 'cta', group: 'home', label: t('landing_page_admin.tab_cta'), C: CtaTab },
+        { key: 'about', group: 'pages', label: t('landing_page_admin.tab_about', { defaultValue: 'About Page' }), C: AboutTab },
+        { key: 'integrations_page', group: 'pages', label: t('landing_page_admin.tab_integrations_page', { defaultValue: 'Integrations Page' }), C: IntegrationsPageTab },
     ];
 
     const GROUPS = [
         { key: 'general', label: t('landing_page_admin.group_general', { defaultValue: 'General' }) },
-        { key: 'home',    label: t('landing_page_admin.group_home', { defaultValue: 'Home Page' }) },
-        { key: 'pages',   label: t('landing_page_admin.group_pages', { defaultValue: 'Other Pages' }) },
+        { key: 'home', label: t('landing_page_admin.group_home', { defaultValue: 'Home Page' }) },
+        { key: 'pages', label: t('landing_page_admin.group_pages', { defaultValue: 'Other Pages' }) },
     ];
 
     const [activeKey, setActiveKey] = useState('hero');
@@ -1013,11 +1011,10 @@ export default function LandingPageIndex({ settings: initialSettings }) {
                                     key={x.key}
                                     type="button"
                                     onClick={() => setActiveKey(x.key)}
-                                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                                        activeKey === x.key
+                                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${activeKey === x.key
                                             ? 'bg-brand-600 text-white shadow-sm'
                                             : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
-                                    }`}
+                                        }`}
                                 >
                                     {x.label}
                                 </button>

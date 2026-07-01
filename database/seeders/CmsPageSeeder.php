@@ -17,7 +17,7 @@ class CmsPageSeeder extends Seeder
      */
     public function run(): void
     {
-        $app = config('app.name', 'WhatsMine');
+        $app = config('app.name', 'WisperBot');
 
         $notice = '<p style="padding:12px 16px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;color:#92400e;">'
             .'<strong>⚠️ Template notice:</strong> This is placeholder text generated for convenience. '

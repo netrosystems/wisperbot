@@ -20,7 +20,7 @@ const inputClass =
 export default function Contact({ landing = {} }) {
     const { t } = useTranslation();
     const { flash } = usePage().props;
-    const appName = import.meta.env.VITE_APP_NAME || 'WhatsMine';
+    const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const contactEmail = landing['landing.contact_email'] || `support@${appName.toLowerCase().replace(/\s+/g, '')}.com`;
 
     const { data, setData, post, processing, errors, recentlySuccessful } = useForm({

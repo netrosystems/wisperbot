@@ -16,7 +16,7 @@ function Badge({ text }) {
 
 export default function About({ canRegister, landing = {} }) {
     const { t } = useTranslation();
-    const appName = import.meta.env.VITE_APP_NAME || 'WhatsMine';
+    const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const s = (key, def = '') => landing[`landing.${key}`] ?? def;
 
     const values = [1, 2, 3, 4].map((i) => ({

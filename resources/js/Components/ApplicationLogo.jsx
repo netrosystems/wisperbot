@@ -20,7 +20,7 @@ export default function ApplicationLogo({ className, style, alt }) {
         );
     }
 
-    // Fallback brand mark: the WhatsMine chat bubble as a single-color silhouette.
+    // Fallback brand mark: the WisperBot chat bubble as a single-color silhouette.
     // The two text bars are knocked out via fill-rule="evenodd" so the whole glyph
     // takes a single `fill` — callers recolor it with `fill-current` + a text color
     // (white on the auth gradient, brand-600 in the topbar, etc.).
