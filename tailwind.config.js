@@ -15,9 +15,11 @@ export default {
         extend: {
             fontFamily: {
                 sans: ['Space Grotesk', ...defaultTheme.fontFamily.sans],
+                // Editorial serif for marketing landing display headings.
+                display: ['Fraunces', 'Georgia', ...defaultTheme.fontFamily.serif],
             },
-            // WisperBot palette — brand (forest-green #467235), accent (amber
-            // #FFBF00 / light-yellow #FFF78D), secondary (dark-green #283F24).
+            // WisperBot palette — brand (orange #FF762E), accent (amber
+            // #FFBF00 / light-yellow #FFF78D), secondary (warm charcoal).
             // Source of truth: ./.branding
             colors: {
                 surface: {
@@ -38,17 +40,17 @@ export default {
                     950: '#121d10',
                 },
                 brand: {
-                    50: '#f2f8ec',
-                    100: '#dfeecf',
-                    200: '#c0dca6',
-                    300: '#9bc476',
-                    400: '#76a84e',
-                    500: '#5a8b38',
-                    600: '#467235',
-                    700: '#38592a',
-                    800: '#2f4a25',
-                    900: '#283f24',
-                    950: '#162610',
+                    50: '#fff5ed',
+                    100: '#ffe8d4',
+                    200: '#ffcda8',
+                    300: '#ffab70',
+                    400: '#ff8a45',
+                    500: '#ff762e',
+                    600: '#f05a12',
+                    700: '#c74310',
+                    800: '#9e3615',
+                    900: '#7f2f14',
+                    950: '#451507',
                 },
                 // Accent (amber #FFBF00 at 500, light-yellow #FFF78D at 200)
                 accent: {
@@ -129,6 +131,61 @@ export default {
             },
             transitionTimingFunction: {
                 smooth: 'cubic-bezier(0.4, 0, 0.2, 1)',
+            },
+            // ── Landing-page animation system (WisperBot) ──
+            keyframes: {
+                'fade-up': {
+                    '0%': { opacity: '0', transform: 'translateY(28px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                },
+                'fade-in': {
+                    '0%': { opacity: '0' },
+                    '100%': { opacity: '1' },
+                },
+                'scale-in': {
+                    '0%': { opacity: '0', transform: 'scale(0.94)' },
+                    '100%': { opacity: '1', transform: 'scale(1)' },
+                },
+                float: {
+                    '0%, 100%': { transform: 'translateY(0)' },
+                    '50%': { transform: 'translateY(-18px)' },
+                },
+                'float-slow': {
+                    '0%, 100%': { transform: 'translate(0, 0)' },
+                    '50%': { transform: 'translate(0, -26px)' },
+                },
+                marquee: {
+                    '0%': { transform: 'translateX(0)' },
+                    '100%': { transform: 'translateX(-50%)' },
+                },
+                shimmer: {
+                    '0%': { backgroundPosition: '-200% 0' },
+                    '100%': { backgroundPosition: '200% 0' },
+                },
+                'gradient-pan': {
+                    '0%, 100%': { backgroundPosition: '0% 50%' },
+                    '50%': { backgroundPosition: '100% 50%' },
+                },
+                'pulse-ring': {
+                    '0%': { transform: 'scale(0.8)', opacity: '0.5' },
+                    '100%': { transform: 'scale(2.2)', opacity: '0' },
+                },
+                'spin-slow': {
+                    '0%': { transform: 'rotate(0deg)' },
+                    '100%': { transform: 'rotate(360deg)' },
+                },
+            },
+            animation: {
+                'fade-up': 'fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both',
+                'fade-in': 'fade-in 0.8s ease-out both',
+                'scale-in': 'scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both',
+                float: 'float 6s ease-in-out infinite',
+                'float-slow': 'float-slow 9s ease-in-out infinite',
+                marquee: 'marquee 32s linear infinite',
+                shimmer: 'shimmer 2.5s linear infinite',
+                'gradient-pan': 'gradient-pan 8s ease infinite',
+                'pulse-ring': 'pulse-ring 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                'spin-slow': 'spin-slow 24s linear infinite',
             },
         },
     },

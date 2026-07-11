@@ -12,7 +12,21 @@ use Inertia\Response;
 class PaymentGatewayConfigController extends Controller
 {
     /** Gateways the admin panel can configure. */
-    private const GATEWAYS = ['stripe', 'paypal', 'paddle', 'razorpay', 'cashfree', 'tap'];
+    private const GATEWAYS = ['stripe', 'paypal', 'paddle', 'razorpay', 'cashfree', 'tap', 'paystack', 'paymob', 'myfatoorah', 'xendit'];
+
+    /** Display labels (falls back to ucfirst for anything missing). */
+    private const LABELS = [
+        'stripe' => 'Stripe',
+        'paypal' => 'PayPal',
+        'paddle' => 'Paddle',
+        'razorpay' => 'Razorpay',
+        'cashfree' => 'Cashfree',
+        'tap' => 'Tap',
+        'paystack' => 'Paystack',
+        'paymob' => 'Paymob',
+        'myfatoorah' => 'MyFatoorah',
+        'xendit' => 'Xendit',
+    ];
 
     public function index(): Response
     {
@@ -24,7 +38,7 @@ class PaymentGatewayConfigController extends Controller
             $config = $configs->get($key);
             $list[] = [
                 'gateway' => $key,
-                'name' => ucfirst($key),
+                'name' => self::LABELS[$key] ?? ucfirst($key),
                 'enabled' => $config?->enabled ?? false,
                 'test_mode' => $config?->test_mode ?? true,
                 'configured' => $config?->hasActiveCredentials() ?? false,
@@ -60,7 +74,7 @@ class PaymentGatewayConfigController extends Controller
 
         $data = [
             'gateway' => $config->gateway,
-            'name' => ucfirst($config->gateway),
+            'name' => self::LABELS[$config->gateway] ?? ucfirst($config->gateway),
             'test_mode' => $config->test_mode,
             'enabled' => $config->enabled,
             'test_publishable_key' => $test['publishable_key'] ?? '',

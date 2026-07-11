@@ -6,12 +6,18 @@ import { useTranslation } from 'react-i18next';
 
 function formatPrice(cents, currency = 'USD') {
     if (cents == null) return '—';
-    return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency: currency || 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    }).format((cents || 0) / 100);
+    const amount = (cents || 0) / 100;
+    try {
+        return new Intl.NumberFormat(undefined, {
+            style: 'currency',
+            currency: currency || 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(amount);
+    } catch {
+        // Non-ISO / custom currency codes make Intl throw — fall back to code + amount.
+        return `${currency || ''} ${amount.toLocaleString()}`.trim();
+    }
 }
 
 function FeaturesSummary({ features = [], limits = {} }) {

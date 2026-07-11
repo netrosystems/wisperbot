@@ -20,7 +20,7 @@ const FOLDERS = [
     { key: 'snoozed',    labelKey: 'inbox.folder_snoozed',    icon: Clock },
 ];
 
-const ALL_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'sms', 'email'];
+const ALL_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'sms', 'email', 'webchat'];
 
 function StatusDot({ status }) {
     const colors = {

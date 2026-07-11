@@ -7,6 +7,8 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import i18n, { initI18n } from '@/i18n';
 import LocaleSync from '@/Components/LocaleSync';
+import BrandingFavicon from '@/Components/BrandingFavicon';
+import ErrorBoundary from '@/Components/ErrorBoundary';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { toast } from 'sonner';
 
@@ -76,6 +78,7 @@ createInertiaApp({
                     return (
                         <ThemeProvider>
                             <LocaleSync />
+                            <BrandingFavicon />
                             <Page {...props} />
                         </ThemeProvider>
                     );
@@ -93,7 +96,13 @@ createInertiaApp({
             i18n.changeLanguage(i18nProps.locale);
         }
         const root = createRoot(el);
-        root.render(<App {...props} />);
+        // Wrap the whole app so a render error in ANY page or layout shows a
+        // recoverable fallback instead of a blank white screen (full SPA unmount).
+        root.render(
+            <ErrorBoundary>
+                <App {...props} />
+            </ErrorBoundary>
+        );
     },
     progress: {
         color: '#4B5563',

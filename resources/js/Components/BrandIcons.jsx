@@ -11,6 +11,7 @@ export const CHANNEL_LABELS = {
     messenger: 'Messenger',
     sms: 'SMS',
     email: 'Email',
+    webchat: 'Website',
 };
 
 function SvgBrand({ name, className }) {
@@ -36,8 +37,18 @@ function SvgBrand({ name, className }) {
     );
 }
 
-/** WhatsApp, Instagram, Messenger, SMS (Twilio mark), Email (envelope icon) */
+/** WhatsApp, Instagram, Messenger, SMS (Twilio mark), Email (envelope icon), Website (chat bubble) */
 export function ChannelBrandIcon({ channel, className }) {
+    // The website live-chat channel has no vendor logo — render a brand-tinted
+    // chat bubble so it reads as "Website" in the inbox filters and headers.
+    if (channel === 'webchat') {
+        return (
+            <svg viewBox="0 0 24 24" className={className ?? 'h-4 w-4'} fill="#ff762e" aria-hidden>
+                <path d="M12 3C6.5 3 2 6.9 2 11.7c0 2.2 1 4.3 2.6 5.8-.1 1-.5 2.4-1.4 3.4 1.5-.2 3.2-.8 4.3-1.6 1.4.6 2.9.9 4.5.9 5.5 0 10-3.9 10-8.7S17.5 3 12 3z" />
+            </svg>
+        );
+    }
+
     const key =
         channel === 'whatsapp'
             ? 'whatsapp'

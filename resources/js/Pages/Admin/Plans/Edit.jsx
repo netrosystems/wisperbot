@@ -3,7 +3,7 @@ import { Button, Card, Input } from '@/Components/ui';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 
-export default function AdminPlansEdit({ plan }) {
+export default function AdminPlansEdit({ plan, currencies = [] }) {
     const { t } = useTranslation();
     const { data, setData, put, processing } = useForm(plan ? { ...plan, enabled: plan.enabled ?? true, export_enabled: plan.export_enabled ?? false, custom_domain_enabled: plan.custom_domain_enabled ?? false, white_label_enabled: plan.white_label_enabled ?? false } : {});
 
@@ -20,7 +20,17 @@ export default function AdminPlansEdit({ plan }) {
                             <Input label={t('admin.slug')} value={data.slug} onChange={(e) => setData('slug', e.target.value)} />
                             <Input type="number" label={t('admin.monthly_price_cents')} value={data.monthly_price_cents ?? ''} onChange={(e) => setData('monthly_price_cents', e.target.value ? parseInt(e.target.value, 10) : null)} />
                             <Input type="number" label={t('admin.yearly_price_cents')} value={data.yearly_price_cents ?? ''} onChange={(e) => setData('yearly_price_cents', e.target.value ? parseInt(e.target.value, 10) : null)} />
-                            <Input label={t('admin.currency_code_label')} value={data.currency_code ?? ''} onChange={(e) => setData('currency_code', e.target.value)} />
+                            <div>
+                                <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('admin.currency_code_label')}</label>
+                                <select value={data.currency_code ?? ''} onChange={(e) => setData('currency_code', e.target.value)} className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20">
+                                    {data.currency_code && !currencies.some((c) => c.code === data.currency_code) && (
+                                        <option value={data.currency_code}>{data.currency_code}</option>
+                                    )}
+                                    {currencies.map((c) => (
+                                        <option key={c.code} value={c.code}>{c.symbol ? `${c.code} — ${c.symbol}` : c.code}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <label className="flex items-center gap-2 text-neutral-900 dark:text-neutral-100">
                                 <input type="checkbox" checked={data.enabled ?? false} onChange={(e) => setData('enabled', e.target.checked)} className="rounded border-neutral-300 dark:border-neutral-600 text-brand-500" />
                                 <span className="text-sm">{t('common.enabled')}</span>

@@ -41,6 +41,11 @@ class I18nFileService
             $key = $prefix === '' ? $k : $prefix.'.'.$k;
             if (is_array($v) && self::isAssoc($v)) {
                 $out = array_merge($out, self::flatten($v, $key));
+            } elseif (is_array($v)) {
+                // Non-associative (list) values are not valid translation strings.
+                // Skip them so malformed keys can never reach the UI as a non-string
+                // leaf (which crashes the React translations table).
+                continue;
             } else {
                 $out[$key] = $v;
             }

@@ -21,21 +21,21 @@ import { Sun, Moon, ShieldCheck, Zap, Users, Bot, TrendingUp, Clock, Star } from
  */
 
 const CLIENT_FEATURES = [
-    { icon: Zap, key: 'auth.feature1', fallback: 'Automate repetitive tasks and reclaim 10+ hours a week' },
+    { icon: Zap,        key: 'auth.feature1', fallback: 'Automate repetitive tasks and reclaim 10+ hours a week' },
     { icon: TrendingUp, key: 'auth.feature2', fallback: 'Boost reply rates by up to 3× with AI-crafted messages' },
-    { icon: Bot, key: 'auth.feature3', fallback: '24/7 chatbots that qualify leads while you sleep' },
+    { icon: Bot,        key: 'auth.feature3', fallback: '24/7 chatbots that qualify leads while you sleep' },
 ];
 
 const ADMIN_FEATURES = [
     { icon: ShieldCheck, key: 'auth.admin_feature1', fallback: 'Granular role-based access for every team member' },
-    { icon: Users, key: 'auth.admin_feature2', fallback: 'Manage clients, plans, and billing from one dashboard' },
-    { icon: Zap, key: 'auth.admin_feature3', fallback: 'Real-time audit logs and live queue monitoring' },
+    { icon: Users,       key: 'auth.admin_feature2', fallback: 'Manage clients, plans, and billing from one dashboard' },
+    { icon: Zap,         key: 'auth.admin_feature3', fallback: 'Real-time audit logs and live queue monitoring' },
 ];
 
 const SOCIAL_PROOF = [
     { value: '10,000+', labelKey: 'auth.proof_businesses' },
-    { value: '50M+', labelKey: 'auth.proof_messages_sent' },
-    { value: '99.9%', labelKey: 'auth.proof_uptime_sla' },
+    { value: '50M+',    labelKey: 'auth.proof_messages_sent' },
+    { value: '99.9%',   labelKey: 'auth.proof_uptime_sla' },
 ];
 
 function LeftPane({ variant }) {
@@ -44,13 +44,13 @@ function LeftPane({ variant }) {
     const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
 
     return (
-        <div className="relative hidden lg:flex lg:w-[45%] flex-col justify-between overflow-hidden p-10 text-white" style={{ background: '#283f24' }}>
+        <div className="relative hidden lg:flex lg:w-[45%] flex-col justify-between overflow-hidden p-10 text-white" style={{ background: '#2b2621' }}>
             {/* Brand radial glow */}
             <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0"
                 style={{
-                    background: 'radial-gradient(ellipse 80% 65% at 65% 50%, rgba(118,168,78,0.30) 0%, rgba(118,168,78,0.10) 45%, transparent 70%)',
+                    background: 'radial-gradient(ellipse 80% 65% at 65% 50%, rgba(255,118,46,0.30) 0%, rgba(255,118,46,0.10) 45%, transparent 70%)',
                 }}
             />
             {/* Subtle grid overlay */}

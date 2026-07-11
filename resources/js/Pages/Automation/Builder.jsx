@@ -89,7 +89,7 @@ const NODE_DEFS = {
     // ── COMMERCE ──────────────────────────────────────────────────────────
     whatsapp_catalog:    { labelKey: 'automation.node_whatsapp_catalog',    color: '#16a34a', bg: '#f0fdf4', icon: ShoppingBag,       category: 'commerce' },
     woocommerce_product: { labelKey: 'automation.node_woocommerce_product', color: '#7f54b3', bg: '#f5f3ff', icon: ShoppingCart,      category: 'commerce' },
-    shopify_product:     { labelKey: 'automation.node_shopify_product',     color: '#5a8a35', bg: '#f7fee7', icon: Store,             category: 'commerce' },
+    shopify_product:     { labelKey: 'automation.node_shopify_product',     color: '#ff762e', bg: '#f7fee7', icon: Store,             category: 'commerce' },
     // ── INTEGRATIONS ──────────────────────────────────────────────────────
     google_sheets:       { labelKey: 'automation.node_google_sheets',       color: '#0f9d58', bg: '#f0fdf4', icon: Sheet,             category: 'integrations' },
     google_docs:         { labelKey: 'automation.node_google_docs',         color: '#4285f4', bg: '#eff6ff', icon: FileText,          category: 'integrations' },

@@ -52,7 +52,7 @@ function DeleteConfirmModal({ show, plan, onClose, onConfirm }) {
     );
 }
 
-export default function AdminPlansIndex({ plans = [] }) {
+export default function AdminPlansIndex({ plans = [], currencies = [], defaultCurrency = 'USD' }) {
     const { t } = useTranslation();
     const { flash } = usePage().props;
     const openEditPlanId = flash?.openEditPlanId ?? null;
@@ -162,7 +162,7 @@ export default function AdminPlansIndex({ plans = [] }) {
                     onReorder={handleReorder}
                 />
 
-                <PlanModal key={editPlan?.id ?? 'new'} show={modalOpen} onClose={handleCloseModal} plan={editPlan} />
+                <PlanModal key={editPlan?.id ?? 'new'} show={modalOpen} onClose={handleCloseModal} plan={editPlan} currencies={currencies} defaultCurrency={defaultCurrency} />
 
                 <DeleteConfirmModal
                     show={!!deletePlan}
