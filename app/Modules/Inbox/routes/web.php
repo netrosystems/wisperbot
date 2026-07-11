@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Inbox\Http\Controllers\CannedReplyController;
+use App\Modules\Inbox\Http\Controllers\ChatWidgetController;
 use App\Modules\Inbox\Http\Controllers\InboxController;
 use App\Modules\Inbox\Http\Controllers\InboxSetupController;
 use App\Modules\Inbox\Http\Controllers\InternalNoteController;
@@ -39,6 +40,14 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
     Route::delete('/labels/{label}', [LabelController::class, 'destroy'])->name('labels.destroy');
     Route::post('/conversations/{conversation}/labels', [LabelController::class, 'attach'])->name('labels.attach');
     Route::delete('/conversations/{conversation}/labels/{label}', [LabelController::class, 'detach'])->name('labels.detach');
+
+    // Website live-chat widgets
+    Route::get('/chat-widgets', [ChatWidgetController::class, 'index'])->name('chat-widgets.index');
+    Route::get('/chat-widgets/create', [ChatWidgetController::class, 'create'])->name('chat-widgets.create');
+    Route::post('/chat-widgets', [ChatWidgetController::class, 'store'])->name('chat-widgets.store');
+    Route::get('/chat-widgets/{chatWidget}/edit', [ChatWidgetController::class, 'edit'])->name('chat-widgets.edit');
+    Route::put('/chat-widgets/{chatWidget}', [ChatWidgetController::class, 'update'])->name('chat-widgets.update');
+    Route::delete('/chat-widgets/{chatWidget}', [ChatWidgetController::class, 'destroy'])->name('chat-widgets.destroy');
 
     // Channel account setup (Instagram / Messenger)
     Route::get('/setup', [InboxSetupController::class, 'index'])->name('setup');

@@ -38,7 +38,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'branding' => [
-        'primary_color' => env('SAAS_PRIMARY_COLOR', '#467235'),
+        'primary_color' => env('SAAS_PRIMARY_COLOR', '#FF762E'),
         'logo_path' => env('SAAS_LOGO_PATH', null),
     ],
 

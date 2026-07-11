@@ -3,11 +3,11 @@ import { Modal } from '@/Components/ui';
 import PlanForm from './PlanForm';
 import { useTranslation } from 'react-i18next';
 
-const emptyPlan = () => ({
+const emptyPlan = (currency = 'USD') => ({
     name: '',
     slug: '',
     description: '',
-    currency_code: 'USD',
+    currency_code: currency,
     monthly_price_cents: null,
     yearly_price_cents: null,
     trial_days: 0,
@@ -21,12 +21,12 @@ const emptyPlan = () => ({
     sort_order: 0,
 });
 
-export default function PlanModal({ show, onClose, plan = null }) {
+export default function PlanModal({ show, onClose, plan = null, currencies = [], defaultCurrency = 'USD' }) {
     const { t } = useTranslation();
     const isEdit = !!plan?.id;
 
     const { data, setData, post, put, processing, errors, reset } = useForm(
-        plan ? { ...plan, limits: plan.limits ?? {}, features: plan.features ?? [] } : emptyPlan()
+        plan ? { ...plan, limits: plan.limits ?? {}, features: plan.features ?? [] } : emptyPlan(defaultCurrency)
     );
 
     const handleSubmit = (e) => {
@@ -65,6 +65,7 @@ export default function PlanModal({ show, onClose, plan = null }) {
                     onSubmit={handleSubmit}
                     onCancel={onClose}
                     isEdit={isEdit}
+                    currencies={currencies}
                 />
             </Modal.Body>
         </Modal>

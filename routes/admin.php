@@ -99,6 +99,7 @@ Route::post('/translations/auto-translate', [TranslationController::class, 'auto
 
 // Currencies
 Route::get('/currencies', [CurrencyController::class, 'index'])->name('currencies.index')->middleware('permission:view_currencies');
+Route::post('/currencies', [CurrencyController::class, 'store'])->name('currencies.store')->middleware('permission:manage_currencies');
 Route::put('/currencies/{currency}', [CurrencyController::class, 'update'])->name('currencies.update')->middleware('permission:manage_currencies');
 
 // Email System (SMTP + Email Templates)
@@ -152,6 +153,8 @@ Route::delete('/cms-pages/{cmsPage}', [CmsPageController::class, 'destroy'])->na
 
 // Support Tickets (admin inbox)
 Route::get('/support', [SupportTicketController::class, 'index'])->name('support.index')->middleware('permission:view_settings');
+Route::get('/support/create', [SupportTicketController::class, 'create'])->name('support.create')->middleware('permission:manage_settings');
+Route::post('/support', [SupportTicketController::class, 'store'])->name('support.store')->middleware('permission:manage_settings');
 Route::get('/support/{supportTicket}', [SupportTicketController::class, 'show'])->name('support.show')->middleware('permission:view_settings');
 Route::post('/support/{supportTicket}/reply', [SupportTicketController::class, 'reply'])->name('support.reply')->middleware('permission:view_settings');
 Route::post('/support/{supportTicket}/status', [SupportTicketController::class, 'updateStatus'])->name('support.status')->middleware('permission:manage_settings');

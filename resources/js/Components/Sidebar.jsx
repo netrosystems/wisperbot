@@ -91,7 +91,7 @@ export default function Sidebar({
                 ) : logo ? (
                     logo
                 ) : (
-                    <img src="/wisperbot-logo.png" alt={appName} className="h-10 w-auto max-w-[200px] object-contain" />
+                    <img src="/wisperbot-logo-white.svg" alt={appName} className="h-10 w-auto max-w-[200px] object-contain" />
                 )}
             </div>
 

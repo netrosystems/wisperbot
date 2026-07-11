@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Currency;
 use App\Models\Plan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,6 +19,16 @@ class PlanController extends Controller
             'users' => null,
             'storage' => null,
         ];
+    }
+
+    /** Enabled currencies for the plan form dropdown. */
+    private function currencyOptions(): array
+    {
+        return Currency::where('enabled', true)
+            ->orderBy('code')
+            ->get(['code', 'symbol'])
+            ->map(fn (Currency $c) => ['code' => $c->code, 'symbol' => $c->symbol])
+            ->all();
     }
 
     private function planToArray(Plan $p): array
@@ -51,7 +63,11 @@ class PlanController extends Controller
     {
         $plans = Plan::orderBy('sort_order')->orderBy('id')->get()->map(fn (Plan $p) => $this->planToArray($p));
 
-        return Inertia::render('Admin/Plans/Index', ['plans' => $plans]);
+        return Inertia::render('Admin/Plans/Index', [
+            'plans' => $plans,
+            'currencies' => $this->currencyOptions(),
+            'defaultCurrency' => Currency::defaultCode() ?? 'USD',
+        ]);
     }
 
     public function store(Request $request): \Illuminate\Http\RedirectResponse
@@ -69,6 +85,8 @@ class PlanController extends Controller
     {
         return Inertia::render('Admin/Plans/Edit', [
             'plan' => $this->planToArray($plan),
+            'currencies' => $this->currencyOptions(),
+            'defaultCurrency' => Currency::defaultCode() ?? 'USD',
         ]);
     }
 
@@ -113,6 +131,8 @@ class PlanController extends Controller
 
     private function validatePlan(Request $request, ?Plan $plan = null): array
     {
+        $request->merge(['currency_code' => strtoupper(trim((string) $request->input('currency_code')))]);
+
         $limitsKeys = array_keys(self::defaultLimits());
         $slugRule = ['nullable', 'string', 'max:64'];
         if ($plan) {
@@ -125,7 +145,7 @@ class PlanController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'slug' => $slugRule,
             'description' => ['nullable', 'string', 'max:1000'],
-            'currency_code' => ['required', 'string', 'max:10'],
+            'currency_code' => ['required', 'string', 'max:10', Rule::exists('currencies', 'code')],
             'monthly_price_cents' => ['required', 'integer', 'min:0'],
             'yearly_price_cents' => ['nullable', 'integer', 'min:0'],
             'trial_days' => ['nullable', 'integer', 'min:0', 'max:365'],

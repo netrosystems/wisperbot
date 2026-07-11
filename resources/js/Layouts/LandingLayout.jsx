@@ -42,12 +42,12 @@ export default function LandingLayout({ children }) {
     const { t } = useTranslation();
 
     const NAV_LINKS = [
-        { label: t('nav.features'), href: '/#features' },
-        { label: t('nav.use_cases'), href: '/use-cases' },
+        { label: t('nav.features'),     href: '/#features' },
+        { label: t('nav.use_cases'),    href: '/use-cases' },
         { label: t('nav.integrations', { defaultValue: 'Integrations' }), href: '/integrations' },
-        { label: t('nav.pricing'), href: '/pricing' },
-        { label: t('nav.faq'), href: '/faq' },
-        { label: t('nav.contact'), href: '/contact' },
+        { label: t('nav.pricing'),      href: '/pricing' },
+        { label: t('nav.faq'),          href: '/faq' },
+        { label: t('nav.contact'),      href: '/contact' },
     ];
     const page = usePage();
     const auth = page.props.auth;
@@ -56,7 +56,7 @@ export default function LandingLayout({ children }) {
     const supportedLocales = page.props.supportedLocales ?? { en: 'English' };
     const localeEntries = Object.entries(supportedLocales);
     const appName = page.props.branding?.app_name || import.meta.env.VITE_APP_NAME || 'WisperBot';
-    const logoUrl = page.props.branding?.logo_url || '/wisperbot-logo.png';
+    const logoUrl = page.props.branding?.logo_url || '/wisperbot-logo-white.svg';
     const [mobileOpen, setMobileOpen] = useState(false);
     const landing = page.props.landing ?? {};
 
@@ -83,11 +83,14 @@ export default function LandingLayout({ children }) {
     return (
         <div className="min-h-screen bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col">
             {/* ── Header ── */}
-            <header className="sticky top-0 z-50 border-b border-white/10" style={{ background: '#162610' }}>
+            <header
+                className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-xl supports-[backdrop-filter]:bg-[#14100c]/80"
+                style={{ background: 'rgba(20,16,12,0.92)', boxShadow: '0 1px 0 0 rgba(255,118,46,0.14)' }}
+            >
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-6">
                     {/* Logo */}
                     <Link href={route('home')} className="flex items-center group flex-shrink-0">
-                        <img src={logoUrl} alt={appName} className="h-9 w-auto max-w-[180px] object-contain transition-opacity group-hover:opacity-80" />
+                        <img src={logoUrl} alt={appName} className="h-8 w-auto max-w-[190px] object-contain transition-transform duration-300 group-hover:scale-105" />
                     </Link>
 
                     {/* Desktop nav links */}
@@ -96,7 +99,7 @@ export default function LandingLayout({ children }) {
                             <Link
                                 key={link.href}
                                 href={link.href}
-                                className="rounded-soft px-3 py-1.5 text-sm text-white/80 hover:text-white hover:bg-white/10 transition duration-150 font-medium"
+                                className="relative rounded-soft px-3 py-1.5 text-sm text-white/75 hover:text-white transition-colors duration-200 font-medium after:absolute after:left-3 after:right-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand-500 after:origin-left after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-300 after:ease-smooth"
                             >
                                 {link.label}
                             </Link>
@@ -160,7 +163,7 @@ export default function LandingLayout({ children }) {
                                         href={route('logout')}
                                         method="post"
                                         as="button"
-                                        className="rounded-soft bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 shadow-sm transition-all duration-150"
+                                        className="rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-4 py-1.5 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(255,118,46,0.45)] hover:shadow-[0_6px_20px_-2px_rgba(255,118,46,0.6)] hover:-translate-y-0.5 transition-all duration-200"
                                     >
                                         {t('nav.sign_out')}
                                     </Link>
@@ -185,14 +188,14 @@ export default function LandingLayout({ children }) {
                                     {getStartedIsExternal ? (
                                         <a
                                             href={getStartedHref}
-                                            className="rounded-soft bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 shadow-sm transition-all duration-150"
+                                            className="rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-4 py-1.5 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(255,118,46,0.45)] hover:shadow-[0_6px_20px_-2px_rgba(255,118,46,0.6)] hover:-translate-y-0.5 transition-all duration-200"
                                         >
                                             {getStartedLabel}
                                         </a>
                                     ) : (
                                         <Link
                                             href={getStartedHref}
-                                            className="rounded-soft bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 shadow-sm transition-all duration-150"
+                                            className="rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 px-4 py-1.5 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(255,118,46,0.45)] hover:shadow-[0_6px_20px_-2px_rgba(255,118,46,0.6)] hover:-translate-y-0.5 transition-all duration-200"
                                         >
                                             {getStartedLabel}
                                         </Link>
@@ -215,7 +218,7 @@ export default function LandingLayout({ children }) {
 
                 {/* Mobile menu */}
                 {mobileOpen && (
-                    <div className="sm:hidden border-t border-white/10 bg-[#162610]/95 backdrop-blur-md px-4 py-4 space-y-1">
+                    <div className="sm:hidden border-t border-white/10 bg-[#14100c]/95 backdrop-blur-md px-4 py-4 space-y-1">
                         {NAV_LINKS.map((link) => (
                             <Link
                                 key={link.href}
@@ -267,7 +270,7 @@ export default function LandingLayout({ children }) {
             <main className="flex-1">{children}</main>
 
             {/* ── Footer ── */}
-            <footer style={{ background: '#162610', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <footer style={{ background: '#14100c', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-12">
                         {/* Brand */}

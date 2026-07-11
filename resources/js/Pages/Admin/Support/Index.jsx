@@ -1,6 +1,6 @@
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { CheckCircle, Clock, LifeBuoy, MessageSquare, TrendingUp } from 'lucide-react';
+import { CheckCircle, Clock, LifeBuoy, MessageSquare, Plus, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatDateTz } from '@/Utils/datetime';
@@ -63,6 +63,13 @@ export default function AdminSupportIndex({ tickets, stats, filters }) {
                         <h1 className="text-xl font-bold text-neutral-900 dark:text-white">{t('support_tickets.admin_title')}</h1>
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">{t('support_tickets.admin_subtitle')}</p>
                     </div>
+                    <Link
+                        href={route('admin.support.create')}
+                        className="ml-auto flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-soft-lg transition-colors shadow-soft"
+                    >
+                        <Plus className="h-4 w-4" />
+                        {t('support_tickets.new_ticket')}
+                    </Link>
                 </div>
 
                 {/* Stats */}

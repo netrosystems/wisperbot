@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\SupportReply;
 use App\Models\SupportTicket;
+use App\Models\User;
 use App\Services\Mail\MailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,6 +38,62 @@ class SupportTicketController extends Controller
             'stats'   => $stats,
             'filters' => $request->only('status'),
         ]);
+    }
+
+    public function create(): Response
+    {
+        $customers = User::select('id', 'name', 'email')->orderBy('name')->get();
+
+        return Inertia::render('Admin/Support/Create', [
+            'customers' => $customers,
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id'  => ['nullable', 'exists:users,id'],
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'email', 'max:255'],
+            'subject'  => ['required', 'string', 'max:255'],
+            'message'  => ['required', 'string', 'max:10000'],
+            'priority' => ['nullable', 'in:low,normal,high,urgent'],
+        ]);
+
+        // If linked to a customer, trust the DB record for name/email integrity.
+        if (! empty($validated['user_id'])) {
+            $customer = User::find($validated['user_id']);
+            $validated['name']  = $customer->name;
+            $validated['email'] = $customer->email;
+        }
+
+        $ticket = SupportTicket::create([
+            'user_id'  => $validated['user_id'] ?? null,
+            'name'     => $validated['name'],
+            'email'    => $validated['email'],
+            'subject'  => $validated['subject'],
+            'message'  => $validated['message'],
+            'priority' => $validated['priority'] ?? 'normal',
+            'status'   => 'open',
+        ]);
+
+        $mailer = app(MailService::class);
+
+        try {
+            $mailer->sendWithTemplate('support_ticket_created', $ticket->email, [
+                'app_name'        => config('app.name'),
+                'user_name'       => $ticket->name,
+                'ticket_id'       => $ticket->id,
+                'ticket_subject'  => $ticket->subject,
+                'ticket_priority' => ucfirst($ticket->priority),
+                'ticket_url'      => route('client.support.show', $ticket),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to send support_ticket_created email', ['error' => $e->getMessage()]);
+        }
+
+        return redirect()->route('admin.support.show', $ticket)
+            ->with('success', __('Ticket created.'));
     }
 
     public function show(SupportTicket $supportTicket): Response

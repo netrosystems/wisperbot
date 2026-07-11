@@ -5,7 +5,7 @@ import {
     LayoutDashboard, CreditCard, Package, FileText, Users, Settings,
     Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot, Database,
     Zap, Share2, MapPin, Tag, LifeBuoy, ExternalLink, Mail, MessageSquare,
-    ShoppingBag,
+    ShoppingBag, MessageCircle,
 } from 'lucide-react';
 
 const iconClass = 'h-4 w-4';
@@ -85,8 +85,9 @@ export default function useClientNav() {
     ];
 
     const inboxItems = [
-        { label: t('nav.inbox'),         href: safeRoute('client.inbox.index'), icon: <Inbox className={iconClass} />, activePattern: 'client.inbox.index' },
-        { label: t('nav.channel_setup'), href: safeRoute('client.inbox.setup'), icon: <Inbox className={iconClass} />, activePattern: 'client.inbox.setup' },
+        { label: t('nav.inbox'),          href: safeRoute('client.inbox.index'),               icon: <Inbox className={iconClass} />,         activePattern: 'client.inbox.index' },
+        { label: t('nav.channel_setup'),  href: safeRoute('client.inbox.setup'),               icon: <Inbox className={iconClass} />,         activePattern: 'client.inbox.setup' },
+        { label: t('nav.website_widget', { defaultValue: 'Website Widget' }), href: safeRoute('client.inbox.chat-widgets.index'), icon: <MessageCircle className={iconClass} />, activePattern: 'client.inbox.chat-widgets.*' },
     ];
 
     const aiItems = [

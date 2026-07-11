@@ -41,7 +41,10 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => env('APP_URL').'/storage',
+            // rtrim guards against a trailing slash in APP_URL (e.g. "https://site/"),
+            // which would otherwise yield "https://site//storage/..." (double slash)
+            // and 404 every uploaded logo/favicon/media asset.
+            'url' => rtrim(env('APP_URL'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
