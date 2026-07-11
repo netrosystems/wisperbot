@@ -1,0 +1,64 @@
+{
+  "name": "WisperBot",
+  "updated": "2026-07-10",
+  "description": "Brand identity for WisperBot. Source of truth for the name and color palette. Tailwind tokens in tailwind.config.js are derived from the scales below.",
+  "palette": {
+    "primary": "#FF762E",
+    "amber": "#FFBF00",
+    "lightYellow": "#FFF78D",
+    "charcoal": "#14100C"
+  },
+  "roles": {
+    "brand": "#FF762E",
+    "accent": "#FFBF00",
+    "highlight": "#FFF78D",
+    "secondary": "#14100C",
+    "surface": "#fff8f3",
+    "danger": "#f04e2e"
+  },
+  "scales": {
+    "brand": {
+      "50": "#fff5ed",
+      "100": "#ffe8d4",
+      "200": "#ffcda8",
+      "300": "#ffab70",
+      "400": "#ff8a45",
+      "500": "#ff762e",
+      "600": "#f05a12",
+      "700": "#c74310",
+      "800": "#9e3615",
+      "900": "#7f2f14",
+      "950": "#451507"
+    },
+    "accent": {
+      "50": "#fffdeb",
+      "100": "#fffbc4",
+      "200": "#fff78d",
+      "300": "#ffe24a",
+      "400": "#ffcf1f",
+      "500": "#ffbf00",
+      "600": "#e29400",
+      "700": "#bb6c02",
+      "800": "#985308",
+      "900": "#7c450b",
+      "950": "#482400"
+    },
+    "secondary": {
+      "50": "#f6f5f4",
+      "100": "#e7e5e3",
+      "200": "#d0ccc8",
+      "300": "#b0a9a3",
+      "400": "#8a817a",
+      "500": "#6f6660",
+      "600": "#5a524d",
+      "700": "#4a433f",
+      "800": "#2b2621",
+      "900": "#1c1814",
+      "950": "#14100c"
+    },
+    "surface": {
+      "DEFAULT": "#fff8f3",
+      "subtle": "#fff1e8"
+    }
+  }
+}
