@@ -11,6 +11,7 @@ export default function PlanForm({
     onSubmit,
     onCancel,
     isEdit,
+    currencies = [],
 }) {
     const { t } = useTranslation();
     const yearlyEnabled = data.yearly_price_cents != null && data.yearly_price_cents !== '';
@@ -57,14 +58,33 @@ export default function PlanForm({
                             <p className="mt-1.5 text-sm text-red-500 dark:text-red-400">{errors.description}</p>
                         )}
                     </div>
-                    <Input
-                        label={t('admin.currency_label')}
-                        value={data.currency_code ?? ''}
-                        onChange={(e) => setData('currency_code', e.target.value.toUpperCase())}
-                        error={errors.currency_code}
-                        placeholder={t('admin.currency_code_placeholder')}
-                        required
-                    />
+                    <div>
+                        <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                            {t('admin.currency_label')}
+                        </label>
+                        <select
+                            value={data.currency_code ?? ''}
+                            onChange={(e) => setData('currency_code', e.target.value)}
+                            required
+                            className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        >
+                            {currencies.length === 0 && (
+                                <option value={data.currency_code ?? ''}>{data.currency_code ?? '—'}</option>
+                            )}
+                            {/* Keep the plan's saved code selectable even if it is now disabled. */}
+                            {data.currency_code && !currencies.some((c) => c.code === data.currency_code) && (
+                                <option value={data.currency_code}>{data.currency_code}</option>
+                            )}
+                            {currencies.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                    {c.symbol ? `${c.code} — ${c.symbol}` : c.code}
+                                </option>
+                            ))}
+                        </select>
+                        {errors.currency_code && (
+                            <p className="mt-1.5 text-sm text-red-500 dark:text-red-400">{errors.currency_code}</p>
+                        )}
+                    </div>
                 </div>
             </section>
 

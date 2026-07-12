@@ -65,9 +65,9 @@ function relativeTime(iso, t) {
 }
 
 const STATUS = {
-    active: { icon: CheckCircle, badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', note: 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200' },
-    stale: { icon: AlertTriangle, badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', note: 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200' },
-    inactive: { icon: XCircle, badge: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300', note: 'bg-neutral-50 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-300' },
+    active:   { icon: CheckCircle,   badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',     note: 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200' },
+    stale:    { icon: AlertTriangle, badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',     note: 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200' },
+    inactive: { icon: XCircle,       badge: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300', note: 'bg-neutral-50 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-300' },
 };
 
 export default function CronSetupIndex({

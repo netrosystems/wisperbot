@@ -30,6 +30,14 @@ export default function AdminCurrenciesIndex({ currencies = [], flash = {} }) {
                                 {currencies.map((c) => (
                                     <CurrencyRow key={c.code} currency={c} />
                                 ))}
+                                <tr className="border-t-2 border-neutral-200 dark:border-neutral-700">
+                                    <td colSpan={7} className="pt-4 pb-1">
+                                        <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                            {t('admin.add_currency', 'Add new currency')}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <AddCurrencyRow />
                             </tbody>
                         </table>
                     </div>
@@ -57,6 +65,45 @@ function CurrencyRow({ currency }) {
             <td className="py-3 pr-4"><input type="checkbox" checked={data.is_default} onChange={(e) => setData('is_default', e.target.checked)} className="rounded border-neutral-300 dark:border-neutral-600 text-brand-500" /></td>
             <td className="py-3 pr-4"><input type="checkbox" checked={data.enabled} onChange={(e) => setData('enabled', e.target.checked)} className="rounded border-neutral-300 dark:border-neutral-600 text-brand-500" /></td>
             <td className="py-3"><button type="button" onClick={() => put(route('admin.currencies.update', currency.code))} className="text-brand-600 dark:text-brand-400 text-sm hover:underline font-medium" disabled={processing}>{t('common.save')}</button></td>
+        </tr>
+    );
+}
+
+function AddCurrencyRow() {
+    const { t } = useTranslation();
+    const { data, setData, post, processing, errors, reset } = useForm({
+        code: '',
+        symbol: '',
+        decimals: 2,
+        exchange_rate: '',
+        is_default: false,
+        enabled: true,
+    });
+
+    const submit = () => {
+        post(route('admin.currencies.store'), {
+            preserveScroll: true,
+            onSuccess: () => reset(),
+        });
+    };
+
+    const inputCls = 'rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20';
+
+    return (
+        <tr className="align-top bg-neutral-50/60 dark:bg-neutral-800/30">
+            <td className="py-3 pr-4">
+                <input value={data.code} onChange={(e) => setData('code', e.target.value.toUpperCase())} placeholder="USD" maxLength={10} className={`${inputCls} w-20 uppercase`} />
+                {errors.code && <div className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.code}</div>}
+            </td>
+            <td className="py-3 pr-4">
+                <input value={data.symbol} onChange={(e) => setData('symbol', e.target.value)} placeholder="$" className={`${inputCls} w-16`} />
+                {errors.symbol && <div className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.symbol}</div>}
+            </td>
+            <td className="py-3 pr-4"><input type="number" value={data.decimals} onChange={(e) => setData('decimals', parseInt(e.target.value, 10) || 0)} className={`${inputCls} w-14`} /></td>
+            <td className="py-3 pr-4"><input type="number" step="any" value={data.exchange_rate} onChange={(e) => setData('exchange_rate', e.target.value)} placeholder="1" className={`${inputCls} w-20`} /></td>
+            <td className="py-3 pr-4"><input type="checkbox" checked={data.is_default} onChange={(e) => setData('is_default', e.target.checked)} className="rounded border-neutral-300 dark:border-neutral-600 text-brand-500" /></td>
+            <td className="py-3 pr-4"><input type="checkbox" checked={data.enabled} onChange={(e) => setData('enabled', e.target.checked)} className="rounded border-neutral-300 dark:border-neutral-600 text-brand-500" /></td>
+            <td className="py-3"><button type="button" onClick={submit} className="inline-flex items-center rounded-soft bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50" disabled={processing || !data.code || !data.symbol}>{t('common.add', 'Add')}</button></td>
         </tr>
     );
 }

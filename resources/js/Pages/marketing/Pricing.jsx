@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import LandingLayout from '@/Layouts/LandingLayout';
+import { Reveal } from '@/Components/Reveal';
 import { useTranslation } from 'react-i18next';
 
 function Badge({ text }) {
     if (!text) return null;
     return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#5a8b38]/15 text-[#5a8b38] text-xs font-semibold px-3 py-1 border border-[#5a8b38]/30">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#5a8b38] inline-block" />
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-500/15 text-brand-300 text-xs font-semibold px-3.5 py-1.5 border border-brand-500/25">
+            <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-70 animate-pulse-ring" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-500" />
+            </span>
             {text}
         </span>
     );
@@ -53,7 +57,7 @@ export default function Pricing({ landing = {}, plans = [], canRegister }) {
             {/* ── Page hero ── */}
             <section
                 className="relative overflow-hidden py-20 text-center"
-                style={{ background: 'radial-gradient(ellipse 60% 60% at 50% 0%, rgba(118,168,78,0.18) 0%, transparent 70%), #162610' }}
+                style={{ background: 'radial-gradient(ellipse 60% 60% at 50% 0%, rgba(255,118,46,0.18) 0%, transparent 70%), #14100c' }}
             >
                 <div
                     className="pointer-events-none absolute inset-0"
@@ -64,12 +68,14 @@ export default function Pricing({ landing = {}, plans = [], canRegister }) {
                         WebkitMaskImage: 'radial-gradient(ellipse 80% 100% at 50% 0%, black 50%, transparent 100%)',
                     }}
                 />
+                <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-brand-500/20 blur-3xl animate-float-slow" />
+                <div className="pointer-events-none absolute -right-16 top-8 h-72 w-72 rounded-full bg-brand-600/15 blur-3xl animate-float" />
                 <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <Badge text={t('welcome.badge_pricing')} />
-                    <h1 className="mt-4 text-4xl sm:text-5xl font-bold text-white tracking-tight">{t('pricing.simple_transparent')}</h1>
-                    <p className="mt-4 text-lg text-neutral-300 max-w-xl mx-auto">
+                    <Reveal className="flex justify-center" y={12}><Badge text={t('welcome.badge_pricing')} /></Reveal>
+                    <Reveal as="h1" delay={80} className="mt-4 text-4xl sm:text-5xl font-bold text-white tracking-tight">{t('pricing.simple_transparent')}</Reveal>
+                    <Reveal as="p" delay={170} className="mt-4 text-lg text-neutral-300 max-w-xl mx-auto">
                         {t('pricing.choose_plan_no_fees')}
-                    </p>
+                    </Reveal>
 
                     {/* Billing toggle */}
                     <div className="mt-8 inline-flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.08)' }}>
@@ -84,7 +90,7 @@ export default function Pricing({ landing = {}, plans = [], canRegister }) {
                             className={`rounded-lg px-5 py-2 text-sm font-semibold transition-all flex items-center gap-2 ${yearly ? 'bg-white text-neutral-900 shadow' : 'text-white/70 hover:text-white'}`}
                         >
                             {t('welcome.yearly')}
-                            <span className="rounded-full text-xs px-1.5 py-0.5 font-bold" style={{ background: '#5a8b38', color: '#ffffff' }}>-20%</span>
+                            <span className="rounded-full text-xs px-1.5 py-0.5 font-bold" style={{ background: '#ff762e', color: '#ffffff' }}>-20%</span>
                         </button>
                     </div>
                 </div>
@@ -97,21 +103,22 @@ export default function Pricing({ landing = {}, plans = [], canRegister }) {
                         <p className="text-center text-neutral-500 dark:text-neutral-400 py-16">{t('pricing.no_plans_yet')}</p>
                     ) : (
                         <div className={`grid gap-6 ${plans.length <= 2 ? 'sm:grid-cols-2 max-w-2xl mx-auto' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
-                            {plans.map((plan) => {
+                            {plans.map((plan, pi) => {
                                 const price = yearly ? plan.price_yearly : plan.price_monthly;
                                 return (
-                                    <div
+                                    <Reveal
                                         key={plan.id}
-                                        className={`relative rounded-2xl border p-7 flex flex-col ${
+                                        delay={pi * 90}
+                                        className={`relative rounded-2xl border p-7 flex flex-col transition-shadow duration-300 ${
                                             plan.is_featured
-                                                ? 'border-[#5a8b38]/50 shadow-2xl shadow-[#5a8b38]/10 scale-105'
-                                                : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
+                                                ? 'border-[#ff762e]/50 shadow-2xl shadow-[#ff762e]/10 lg:scale-105'
+                                                : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:shadow-xl hover:shadow-brand-500/10'
                                         }`}
-                                        style={plan.is_featured ? { background: '#162610' } : {}}
+                                        style={plan.is_featured ? { background: '#14100c' } : {}}
                                     >
                                         {plan.is_featured && (
                                             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                                                <span className="rounded-full text-xs font-bold px-3 py-1 shadow" style={{ background: '#5a8b38', color: '#ffffff' }}>{t('welcome.most_popular')}</span>
+                                                <span className="rounded-full text-xs font-bold px-3 py-1 shadow" style={{ background: '#ff762e', color: '#ffffff' }}>{t('welcome.most_popular')}</span>
                                             </div>
                                         )}
                                         <div>
@@ -137,7 +144,7 @@ export default function Pricing({ landing = {}, plans = [], canRegister }) {
                                             <ul className="space-y-2.5 flex-1 mb-7">
                                                 {plan.features.map((feat, fi) => (
                                                     <li key={fi} className="flex items-start gap-2.5 text-sm">
-                                                        <svg className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: '#5a8b38' }} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                                        <svg className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: '#ff762e' }} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                                         </svg>
                                                         <span className={plan.is_featured ? 'text-neutral-300' : 'text-neutral-700 dark:text-neutral-300'}>{feat}</span>
@@ -149,14 +156,14 @@ export default function Pricing({ landing = {}, plans = [], canRegister }) {
                                             <Link
                                                 href={route('register')}
                                                 className={`block text-center rounded-xl py-3 text-sm font-bold transition-all duration-200 ${
-                                                    plan.is_featured ? 'text-white hover:opacity-90' : 'border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#5a8b38]/50 hover:text-[#467235] dark:hover:text-[#5a8b38]'
+                                                    plan.is_featured ? 'text-white hover:opacity-90' : 'border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#ff762e]/50 hover:text-[#f05a12] dark:hover:text-[#ff762e]'
                                                 }`}
-                                                style={plan.is_featured ? { background: '#5a8b38' } : {}}
+                                                style={plan.is_featured ? { background: '#ff762e' } : {}}
                                             >
                                                 {price === 0 ? t('welcome.get_started_free') : t('welcome.upgrade')}
                                             </Link>
                                         )}
-                                    </div>
+                                    </Reveal>
                                 );
                             })}
                         </div>
@@ -185,7 +192,7 @@ export default function Pricing({ landing = {}, plans = [], canRegister }) {
                                     <StarRating />
                                     <blockquote className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed flex-1">&ldquo;{t.text}&rdquo;</blockquote>
                                     <div className="flex items-center gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-                                        <div className="h-9 w-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: '#5a8b38' }}>
+                                        <div className="h-9 w-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: '#ff762e' }}>
                                             {t.name.charAt(0)}
                                         </div>
                                         <div>
@@ -242,7 +249,7 @@ export default function Pricing({ landing = {}, plans = [], canRegister }) {
                             <Link
                                 href={route('register')}
                                 className="inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-base font-bold text-white shadow-lg transition-all duration-200 hover:opacity-90"
-                                style={{ background: '#5a8b38' }}
+                                style={{ background: '#ff762e' }}
                             >
                                 {t('pricing.start_free_trial')}
                                 <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>

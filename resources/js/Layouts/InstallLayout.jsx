@@ -19,7 +19,7 @@ import { Sun, Moon, Check } from 'lucide-react';
  *   children – the active step's content
  */
 
-const BRAND_BG = '#283f24';
+const BRAND_BG = '#2b2621';
 
 function ThemeToggle() {
     const { theme, setTheme } = useTheme();
@@ -47,7 +47,7 @@ function LeftPane({ steps, current, appName }) {
                 className="pointer-events-none absolute inset-0"
                 style={{
                     background:
-                        'radial-gradient(ellipse 80% 65% at 65% 50%, rgba(118,168,78,0.30) 0%, rgba(118,168,78,0.10) 45%, transparent 70%)',
+                        'radial-gradient(ellipse 80% 65% at 65% 50%, rgba(255,118,46,0.30) 0%, rgba(255,118,46,0.10) 45%, transparent 70%)',
                 }}
             />
             {/* Subtle grid overlay */}

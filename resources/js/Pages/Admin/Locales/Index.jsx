@@ -334,12 +334,20 @@ function TranslationsTab({
     );
 }
 
+// Coerce any leaf to a renderable string. The backend guards against non-string
+// leaves, but a malformed locale file (object/array/number value) must never reach
+// JSX as a raw object — "Objects are not valid as a React child" unmounts the SPA.
+function toStr(v) {
+    if (v == null) return '';
+    return typeof v === 'string' ? v : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+}
+
 function TranslationRow({ item, localeCode }) {
     const { t } = useTranslation();
-    const [value, setValue] = useState(item.value ?? '');
+    const [value, setValue] = useState(toStr(item.value));
 
     useEffect(() => {
-        setValue(item.value ?? '');
+        setValue(toStr(item.value));
     }, [item.flat_key, item.value]);
 
     const [saving, setSaving] = useState(false);
@@ -352,8 +360,8 @@ function TranslationRow({ item, localeCode }) {
 
     return (
         <tr className="border-b border-neutral-100 dark:border-neutral-800">
-            <td className="py-2 pr-4 font-mono text-neutral-700 dark:text-neutral-300 align-top">{item.flat_key}</td>
-            <td className="py-2 pr-4 text-neutral-600 dark:text-neutral-400 align-top whitespace-pre-wrap">{item.en_value || '—'}</td>
+            <td className="py-2 pr-4 font-mono text-neutral-700 dark:text-neutral-300 align-top">{toStr(item.flat_key)}</td>
+            <td className="py-2 pr-4 text-neutral-600 dark:text-neutral-400 align-top whitespace-pre-wrap">{toStr(item.en_value) || '—'}</td>
             <td className="py-2 pr-4 align-top">
                 <input
                     type="text"

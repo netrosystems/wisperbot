@@ -176,7 +176,9 @@
         "profile": {
             "edit": "Modifier",
             "2fa": "2Fa",
-            "sessions": "Sessions"
+            "sessions": "Sessions",
+            "update": "Update",
+            "destroy": "Destroy"
         },
         "tenants": {
             "switch": "Changer",
@@ -816,7 +818,9 @@
             "index": "Index",
             "show": "Afficher",
             "reply": "Répondre",
-            "status": "Statut"
+            "status": "Statut",
+            "create": "Create",
+            "store": "Store"
         },
         "queue": {
             "index": "Index",
@@ -944,10 +948,10 @@
         "plans": {
             "index": "Index",
             "update": "Update",
+            "store": "Store",
             "duplicate": "Duplicate",
             "destroy": "Destroy",
-            "reorder": "Reorder",
-            "store": "Store"
+            "reorder": "Reorder"
         },
         "currencies": "Currencies",
         "admins": {
@@ -1008,7 +1012,8 @@
         "tax_rate": "Taux",
         "tax_type": "Type",
         "tax_type_inclusive": "TTC",
-        "tax_type_exclusive": "HT"
+        "tax_type_exclusive": "HT",
+        "add_currency": "Add Currency"
     },
     "open_menu": "Ouvrir le menu",
     "app": {
@@ -1925,7 +1930,16 @@
         },
         "${activeTab}": "${Activetab}",
         "priority_${v}": "Priority ${V}",
-        "priority_${v}_desc": "Priority ${V} Desc"
+        "priority_${v}_desc": "Priority ${V} Desc",
+        "admin_create_subtitle": "Log a ticket on behalf of a customer",
+        "customer_manual": "— Manual entry (no linked customer) —",
+        "customer_search_placeholder": "Search by name or email…",
+        "customer_no_results": "No customers found",
+        "name_label": "Customer name",
+        "name_placeholder": "Full name",
+        "email_label": "Customer email",
+        "email_placeholder": "name@example.com",
+        "admin_create_note": "The customer will be emailed a confirmation with this ticket. Leave the customer blank to enter name and email manually."
     },
     "landing_page_admin": {
         "master_toggle_title": "Visibilité du site marketing",
@@ -2851,9 +2865,6 @@
             "status}": "Statut}"
         }
     },
-    "v20": [
-        "0"
-    ],
     "notifications": {
         "preferences_title": "Préférences de notification",
         "col_event": "Événement",
@@ -3969,41 +3980,11 @@
         "finance_b3": "Alertes de fraude \/ sécurité",
         "finance_b4": "Mises à jour de compte et de prêt"
     },
-    "5": {
-        "5": "5"
-    },
-    "0": {
-        "0": [
-            {
-                "1": "1"
-            }
-        ],
-        "01": "01",
-        "07em": "07Em",
-        "08em": "08Em",
-        "1em": "1Em"
-    },
-    "12": {
-        "01": "01"
-    },
     "invoice": {
         "pdf": "Pdf"
     },
-    "37": {
-        "4220": "4220"
-    },
     "example": {
         "com": "Com"
-    },
-    "17": {
-        "5": "5",
-        "51": "51"
-    },
-    "6": {
-        "5": "5"
-    },
-    "4": {
-        "9": "9"
     },
     "about_page": {
         "values_title": "Titre des valeurs"
@@ -4018,11 +3999,42 @@
     "license": {
         "activate": "Activer"
     },
+    "branding": {
+        "favicon_url": "Favicon Url"
+    },
+    "5": {
+        "5": "5"
+    },
+    "0": {
+        "01": "01",
+        "07em": "07Em",
+        "08em": "08Em",
+        "1em": "1Em"
+    },
+    "12": {
+        "01": "01"
+    },
+    "17": {
+        "5": "5",
+        "51": "51"
+    },
+    "6": {
+        "5": "5"
+    },
+    "4": {
+        "9": "9"
+    },
+    "37": {
+        "4220": "4220"
+    },
     "127": [
         [
             {
                 "1": "1"
             }
         ]
+    ],
+    "v20": [
+        "0"
     ]
 }

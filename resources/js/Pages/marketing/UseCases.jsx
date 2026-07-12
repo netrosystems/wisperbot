@@ -1,15 +1,29 @@
 import { useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import LandingLayout from '@/Layouts/LandingLayout';
+import { Reveal, useCountUp } from '@/Components/Reveal';
 import { useTranslation } from 'react-i18next';
 
 function Badge({ text }) {
     if (!text) return null;
     return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#5a8b38]/15 text-[#5a8b38] text-xs font-semibold px-3 py-1 border border-[#5a8b38]/30">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#5a8b38] inline-block" />
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-500/15 text-brand-600 dark:text-brand-300 text-xs font-semibold px-3.5 py-1.5 border border-brand-500/25">
+            <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-70 animate-pulse-ring" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-500" />
+            </span>
             {text}
         </span>
+    );
+}
+
+function UseCaseStat({ value, label }) {
+    const [ref, display] = useCountUp(value);
+    return (
+        <Reveal y={16}>
+            <p ref={ref} className="text-3xl font-extrabold tabular-nums bg-gradient-to-b from-brand-400 to-brand-600 bg-clip-text text-transparent">{display}</p>
+            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{label}</p>
+        </Reveal>
     );
 }
 
@@ -127,7 +141,7 @@ export default function UseCases({ landing = {}, canRegister }) {
             {/* ── Page hero ── */}
             <section
                 className="relative overflow-hidden py-20 text-center"
-                style={{ background: 'radial-gradient(ellipse 60% 60% at 50% 0%, rgba(118,168,78,0.18) 0%, transparent 70%), #162610' }}
+                style={{ background: 'radial-gradient(ellipse 60% 60% at 50% 0%, rgba(255,118,46,0.18) 0%, transparent 70%), #14100c' }}
             >
                 <div
                     className="pointer-events-none absolute inset-0"
@@ -138,20 +152,24 @@ export default function UseCases({ landing = {}, canRegister }) {
                         WebkitMaskImage: 'radial-gradient(ellipse 80% 100% at 50% 0%, black 50%, transparent 100%)',
                     }}
                 />
+                <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-brand-500/20 blur-3xl animate-float-slow" />
+                <div className="pointer-events-none absolute -right-16 top-8 h-72 w-72 rounded-full bg-brand-600/15 blur-3xl animate-float" />
                 <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <Badge text={t('nav.use_cases')} />
-                    <h1 className="mt-4 text-4xl sm:text-5xl font-bold text-white tracking-tight">{t('use_cases.hero_title')}</h1>
-                    <p className="mt-4 text-lg text-neutral-300 max-w-2xl mx-auto">
+                    <Reveal className="flex justify-center" y={12}><Badge text={t('nav.use_cases')} /></Reveal>
+                    <Reveal as="h1" delay={80} className="mt-4 text-4xl sm:text-5xl font-bold text-white tracking-tight">{t('use_cases.hero_title')}</Reveal>
+                    <Reveal as="p" delay={170} className="mt-4 text-lg text-neutral-300 max-w-2xl mx-auto">
                         {t('use_cases.hero_subtitle')}
-                    </p>
+                    </Reveal>
                     {canRegister && (
-                        <Link
-                            href={route('register')}
-                            className="mt-8 inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-base font-bold text-white shadow-lg transition-all duration-200 hover:opacity-90"
-                            style={{ background: '#5a8b38' }}
-                        >
-                            {t('use_cases.start_free_trial')}
-                        </Link>
+                        <Reveal delay={260}>
+                            <Link
+                                href={route('register')}
+                                className="mt-8 group inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-brand-500 to-brand-600 px-7 py-3.5 text-base font-bold text-white shadow-[0_10px_30px_-6px_rgba(255,118,46,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-6px_rgba(255,118,46,0.7)]"
+                            >
+                                {t('use_cases.start_free_trial')}
+                                <svg className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                            </Link>
+                        </Reveal>
                     )}
                 </div>
             </section>
@@ -161,38 +179,39 @@ export default function UseCases({ landing = {}, canRegister }) {
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {USE_CASES.map((uc, idx) => (
-                            <div
+                            <Reveal
                                 key={idx}
-                                className={`rounded-2xl border bg-gradient-to-br p-6 cursor-pointer transition-all duration-300 ${uc.border} ${uc.color} ${active === idx ? 'ring-2 ring-[#5a8b38]/50 shadow-lg' : 'hover:shadow-md'}`}
+                                delay={(idx % 3) * 90}
+                                className={`rounded-2xl border bg-gradient-to-br p-6 cursor-pointer hover:-translate-y-1 duration-300 ${uc.border} ${uc.color} ${active === idx ? 'ring-2 ring-brand-500/50 shadow-lg shadow-brand-500/10' : 'hover:shadow-lg'}`}
                                 onClick={() => setActive(active === idx ? null : idx)}
                             >
-                                <div className={`inline-flex h-12 w-12 items-center justify-center rounded-xl mb-4 ${uc.iconBg}`}>
+                                <div className={`inline-flex h-12 w-12 items-center justify-center rounded-xl mb-4 transition-transform duration-300 ${uc.iconBg} ${active === idx ? 'scale-110' : ''}`}>
                                     {uc.icon}
                                 </div>
                                 <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">{t(uc.labelKey)}</span>
                                 <h3 className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{t(uc.titleKey)}</h3>
                                 <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">{t(uc.descKey)}</p>
 
-                                {active === idx && (
-                                    <ul className="mt-4 space-y-2 border-t border-neutral-200 dark:border-neutral-700 pt-4">
+                                <div className={`grid transition-all duration-300 ease-smooth ${active === idx ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+                                    <ul className="overflow-hidden space-y-2 border-t border-neutral-200 dark:border-neutral-700 pt-4">
                                         {uc.bulletKeys.map((b, bi) => (
                                             <li key={bi} className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-                                                <svg className="h-4 w-4 flex-shrink-0" style={{ color: '#5a8b38' }} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                                <svg className="h-4 w-4 flex-shrink-0 text-brand-500" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                                 </svg>
                                                 {t(b)}
                                             </li>
                                         ))}
                                     </ul>
-                                )}
+                                </div>
 
-                                <div className={`mt-4 flex items-center gap-1 text-xs font-semibold transition-colors ${active === idx ? 'text-[#5a8b38]' : 'text-neutral-400'}`}>
+                                <div className={`mt-4 flex items-center gap-1 text-xs font-semibold transition-colors ${active === idx ? 'text-brand-600 dark:text-brand-400' : 'text-neutral-400'}`}>
                                     {active === idx ? t('use_cases.show_less') : t('use_cases.see_details')}
                                     <svg className={`h-3.5 w-3.5 transition-transform ${active === idx ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                                     </svg>
                                 </div>
-                            </div>
+                            </Reveal>
                         ))}
                     </div>
                 </div>
@@ -202,10 +221,7 @@ export default function UseCases({ landing = {}, canRegister }) {
             <section className="py-16 border-y border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40">
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
                     {stats.map((stat, idx) => (
-                        <div key={idx}>
-                            <p className="text-3xl font-bold" style={{ color: '#5a8b38' }}>{stat.value}</p>
-                            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{stat.label}</p>
-                        </div>
+                        <UseCaseStat key={idx} value={stat.value} label={stat.label} />
                     ))}
                 </div>
             </section>
@@ -213,22 +229,22 @@ export default function UseCases({ landing = {}, canRegister }) {
             {/* ── How it works summary ── */}
             <section className="py-20">
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="text-center mb-12">
+                    <Reveal className="text-center mb-12">
                         <Badge text={t('use_cases.how_it_works')} />
                         <h2 className="mt-4 text-3xl font-bold text-neutral-900 dark:text-white tracking-tight">{t('use_cases.up_and_running')}</h2>
-                    </div>
+                    </Reveal>
                     <div className="grid gap-8 sm:grid-cols-3">
                         {steps.map((step, idx) => (
-                            <div key={idx} className="text-center">
+                            <Reveal key={idx} delay={idx * 110} className="group text-center">
                                 <div
-                                    className="mx-auto mb-4 h-12 w-12 rounded-full flex items-center justify-center font-bold text-lg text-white"
-                                    style={{ background: '#5a8b38', boxShadow: '0 4px 16px rgba(118,168,78,0.35)' }}
+                                    className="mx-auto mb-4 h-12 w-12 rounded-full flex items-center justify-center font-bold text-lg text-white bg-gradient-to-br from-brand-400 to-brand-600 transition-transform duration-300 group-hover:scale-110"
+                                    style={{ boxShadow: '0 4px 16px rgba(255,118,46,0.35)' }}
                                 >
                                     {step.n}
                                 </div>
                                 <h3 className="text-base font-semibold text-neutral-900 dark:text-white mb-1">{step.title}</h3>
                                 <p className="text-sm text-neutral-500 dark:text-neutral-400">{step.desc}</p>
-                            </div>
+                            </Reveal>
                         ))}
                     </div>
                 </div>
@@ -237,25 +253,24 @@ export default function UseCases({ landing = {}, canRegister }) {
             {/* ── CTA ── */}
             <section
                 className="py-20"
-                style={{ background: 'radial-gradient(ellipse 60% 80% at 50% 50%, rgba(118,168,78,0.12) 0%, transparent 70%), #162610' }}
+                style={{ background: 'radial-gradient(ellipse 60% 80% at 50% 50%, rgba(255,118,46,0.12) 0%, transparent 70%), #14100c' }}
             >
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <h2 className="text-3xl font-bold text-white tracking-tight">{t('use_cases.cta_title')}</h2>
-                    <p className="mt-3 text-neutral-400">{t('use_cases.cta_subtitle')}</p>
+                    <Reveal as="h2" className="text-3xl font-bold text-white tracking-tight">{t('use_cases.cta_title')}</Reveal>
+                    <Reveal as="p" delay={90} className="mt-3 text-neutral-400">{t('use_cases.cta_subtitle')}</Reveal>
                     {canRegister && (
-                        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                        <Reveal delay={180} className="mt-8 flex flex-wrap items-center justify-center gap-4">
                             <Link
                                 href={route('register')}
-                                className="inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-base font-bold text-white shadow-lg transition-all duration-200 hover:opacity-90"
-                                style={{ background: '#5a8b38' }}
+                                className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-brand-500 to-brand-600 px-7 py-3.5 text-base font-bold text-white shadow-[0_10px_30px_-6px_rgba(255,118,46,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-6px_rgba(255,118,46,0.7)]"
                             >
                                 {t('use_cases.start_free_trial')}
-                                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                                <svg className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
                             </Link>
                             <Link href="/pricing" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/8 text-white px-7 py-3.5 text-base font-semibold hover:bg-white/15 backdrop-blur-sm transition-all duration-200">
                                 {t('use_cases.view_pricing')}
                             </Link>
-                        </div>
+                        </Reveal>
                     )}
                 </div>
             </section>

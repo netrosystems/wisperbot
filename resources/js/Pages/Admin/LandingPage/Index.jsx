@@ -19,10 +19,11 @@ function SectionToggle({ label, enabled, onChange, t }) {
             <button
                 type="button"
                 onClick={() => onChange(!enabled)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${enabled
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    enabled
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                         : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                    }`}
+                }`}
             >
                 {enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                 {enabled ? t('landing_page_admin.enabled') : t('landing_page_admin.disabled')}
@@ -50,10 +51,11 @@ function MasterToggleCard({ enabled, onChange, t }) {
                     <button
                         type="button"
                         onClick={() => onChange(!enabled)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 ${enabled
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 ${
+                            enabled
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                                 : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                            }`}
+                        }`}
                     >
                         {enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                         {enabled ? t('landing_page_admin.enabled') : t('landing_page_admin.disabled')}
@@ -86,7 +88,7 @@ function Input({ value, onChange, placeholder, multiline = false, rows = 3 }) {
 
 function LinkTypeField({ label, typeKey, urlKey, data, setData, t }) {
     const type = data[typeKey] ?? 'dynamic';
-    const url = data[urlKey] ?? '';
+    const url  = data[urlKey] ?? '';
     return (
         <div className="space-y-3 p-4 rounded-soft border border-neutral-200 dark:border-neutral-700">
             <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{label}</p>
@@ -944,29 +946,29 @@ export default function LandingPageIndex({ settings: initialSettings }) {
     };
 
     const TABS = [
-        { key: 'navbar', group: 'general', label: t('landing_page_admin.tab_navbar'), C: NavbarTab },
-        { key: 'seo', group: 'general', label: t('landing_page_admin.tab_seo', { defaultValue: 'SEO' }), C: SeoTab },
-        { key: 'hero', group: 'home', label: t('landing_page_admin.tab_hero'), C: HeroTab },
-        { key: 'metrics', group: 'home', label: t('landing_page_admin.tab_metrics', { defaultValue: 'Metrics' }), C: MetricsTab },
-        { key: 'trustedby', group: 'home', label: t('landing_page_admin.tab_trustedby'), C: TrustedByTab },
-        { key: 'channels', group: 'home', label: t('landing_page_admin.tab_channels', { defaultValue: 'Channels' }), C: ChannelsTab },
-        { key: 'problems', group: 'home', label: t('landing_page_admin.tab_problems'), C: ProblemSolutionTab },
-        { key: 'features', group: 'home', label: t('landing_page_admin.tab_features'), C: FeaturesTab },
-        { key: 'howitworks', group: 'home', label: t('landing_page_admin.tab_howitworks'), C: HowItWorksTab },
-        { key: 'integrations_strip', group: 'home', label: t('landing_page_admin.tab_integrations_strip', { defaultValue: 'Integrations Strip' }), C: IntegrationsStripTab },
-        { key: 'why', group: 'home', label: t('landing_page_admin.tab_why'), C: WhyTab },
-        { key: 'security', group: 'home', label: t('landing_page_admin.tab_security', { defaultValue: 'Security' }), C: SecurityTab },
-        { key: 'testimonials', group: 'home', label: t('landing_page_admin.tab_testimonials'), C: TestimonialsTab },
-        { key: 'faq', group: 'home', label: t('landing_page_admin.tab_faq'), C: FaqTab },
-        { key: 'cta', group: 'home', label: t('landing_page_admin.tab_cta'), C: CtaTab },
-        { key: 'about', group: 'pages', label: t('landing_page_admin.tab_about', { defaultValue: 'About Page' }), C: AboutTab },
-        { key: 'integrations_page', group: 'pages', label: t('landing_page_admin.tab_integrations_page', { defaultValue: 'Integrations Page' }), C: IntegrationsPageTab },
+        { key: 'navbar',             group: 'general', label: t('landing_page_admin.tab_navbar'),                                          C: NavbarTab },
+        { key: 'seo',                group: 'general', label: t('landing_page_admin.tab_seo', { defaultValue: 'SEO' }),                     C: SeoTab },
+        { key: 'hero',               group: 'home',    label: t('landing_page_admin.tab_hero'),                                            C: HeroTab },
+        { key: 'metrics',            group: 'home',    label: t('landing_page_admin.tab_metrics', { defaultValue: 'Metrics' }),            C: MetricsTab },
+        { key: 'trustedby',          group: 'home',    label: t('landing_page_admin.tab_trustedby'),                                       C: TrustedByTab },
+        { key: 'channels',           group: 'home',    label: t('landing_page_admin.tab_channels', { defaultValue: 'Channels' }),          C: ChannelsTab },
+        { key: 'problems',           group: 'home',    label: t('landing_page_admin.tab_problems'),                                        C: ProblemSolutionTab },
+        { key: 'features',           group: 'home',    label: t('landing_page_admin.tab_features'),                                        C: FeaturesTab },
+        { key: 'howitworks',         group: 'home',    label: t('landing_page_admin.tab_howitworks'),                                      C: HowItWorksTab },
+        { key: 'integrations_strip', group: 'home',    label: t('landing_page_admin.tab_integrations_strip', { defaultValue: 'Integrations Strip' }), C: IntegrationsStripTab },
+        { key: 'why',                group: 'home',    label: t('landing_page_admin.tab_why'),                                             C: WhyTab },
+        { key: 'security',           group: 'home',    label: t('landing_page_admin.tab_security', { defaultValue: 'Security' }),          C: SecurityTab },
+        { key: 'testimonials',       group: 'home',    label: t('landing_page_admin.tab_testimonials'),                                    C: TestimonialsTab },
+        { key: 'faq',                group: 'home',    label: t('landing_page_admin.tab_faq'),                                             C: FaqTab },
+        { key: 'cta',                group: 'home',    label: t('landing_page_admin.tab_cta'),                                             C: CtaTab },
+        { key: 'about',              group: 'pages',   label: t('landing_page_admin.tab_about', { defaultValue: 'About Page' }),           C: AboutTab },
+        { key: 'integrations_page',  group: 'pages',   label: t('landing_page_admin.tab_integrations_page', { defaultValue: 'Integrations Page' }), C: IntegrationsPageTab },
     ];
 
     const GROUPS = [
         { key: 'general', label: t('landing_page_admin.group_general', { defaultValue: 'General' }) },
-        { key: 'home', label: t('landing_page_admin.group_home', { defaultValue: 'Home Page' }) },
-        { key: 'pages', label: t('landing_page_admin.group_pages', { defaultValue: 'Other Pages' }) },
+        { key: 'home',    label: t('landing_page_admin.group_home', { defaultValue: 'Home Page' }) },
+        { key: 'pages',   label: t('landing_page_admin.group_pages', { defaultValue: 'Other Pages' }) },
     ];
 
     const [activeKey, setActiveKey] = useState('hero');
@@ -1011,10 +1013,11 @@ export default function LandingPageIndex({ settings: initialSettings }) {
                                     key={x.key}
                                     type="button"
                                     onClick={() => setActiveKey(x.key)}
-                                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${activeKey === x.key
+                                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                                        activeKey === x.key
                                             ? 'bg-brand-600 text-white shadow-sm'
                                             : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
-                                        }`}
+                                    }`}
                                 >
                                     {x.label}
                                 </button>

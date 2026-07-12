@@ -13,7 +13,7 @@ function GeneralTab({ general, flash }) {
         app_name:      general?.app_name      ?? '',
         app_tagline:   general?.app_tagline   ?? '',
         support_email: general?.support_email ?? '',
-        primary_color: general?.primary_color ?? '#467235',
+        primary_color: general?.primary_color ?? '#f05a12',
     });
 
     const submit = (e) => {
@@ -99,7 +99,7 @@ function GeneralTab({ general, flash }) {
                                     type="text"
                                     value={data.primary_color}
                                     onChange={(e) => setData('primary_color', e.target.value)}
-                                    placeholder="#467235"
+                                    placeholder="#f05a12"
                                     maxLength={7}
                                     className="w-32 rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                                 />

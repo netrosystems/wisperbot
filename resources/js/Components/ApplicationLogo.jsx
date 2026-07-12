@@ -20,22 +20,18 @@ export default function ApplicationLogo({ className, style, alt }) {
         );
     }
 
-    // Fallback brand mark: the WisperBot chat bubble as a single-color silhouette.
-    // The two text bars are knocked out via fill-rule="evenodd" so the whole glyph
-    // takes a single `fill` — callers recolor it with `fill-current` + a text color
-    // (white on the auth gradient, brand-600 in the topbar, etc.).
+    // Fallback brand mark: the WisperBot "W" monogram as a single-color glyph.
+    // Both strokes take a single `fill` — callers recolor it with `fill-current`
+    // + a text color (white on the auth gradient, brand-500 in the topbar, etc.).
     return (
         <svg
             className={className}
             style={style}
-            viewBox="0 0 512 512"
+            viewBox="0 0 506 296"
             xmlns="http://www.w3.org/2000/svg"
         >
-            <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M136 48H376A72 72 0 0 1 448 120V284A72 72 0 0 1 376 356H284C280 408 262 452 222 459C201 463 186 450 182 427C179 404 178 378 166 356H136A72 72 0 0 1 64 284V120A72 72 0 0 1 136 48ZM219 150H301A21 21 0 0 1 301 192H219A21 21 0 0 1 219 150ZM171 234H341A21 21 0 0 1 341 276H171A21 21 0 0 1 171 234Z"
-            />
+            <path d="M305.852 295.402L269.972 220.855L310.38 146.656L320.831 167.557L406.177 0.348633H505.805L359.498 295.402H305.852Z" />
+            <path d="M150.438 295.401H198.56L319.089 94.0547L272.41 0L174.524 155.364L96.4931 0H0L150.438 295.401Z" />
         </svg>
     );
 }

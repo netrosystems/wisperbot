@@ -15,7 +15,7 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status, clas
 
     const submit = (e) => {
         e.preventDefault();
-        patch(route('profile.update'), {
+        patch(route('client.profile.update'), {
             preserveScroll: true,
             onSuccess: () => {
                 setSaved(true);
