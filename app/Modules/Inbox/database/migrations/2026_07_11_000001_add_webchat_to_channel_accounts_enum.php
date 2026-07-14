@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Add the 'webchat' channel type so website live-chat widget conversations flow
@@ -12,11 +13,19 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE channel_accounts MODIFY COLUMN channel ENUM('whatsapp','instagram','messenger','sms','email','webchat') NOT NULL");
     }
 
     public function down(): void
     {
+        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         // Reassign any webchat rows before shrinking the enum so the MODIFY doesn't fail.
         DB::table('channel_accounts')->where('channel', 'webchat')->update(['channel' => 'email']);
         DB::statement("ALTER TABLE channel_accounts MODIFY COLUMN channel ENUM('whatsapp','instagram','messenger','sms','email') NOT NULL");

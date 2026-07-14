@@ -33,3 +33,5 @@ database/.DS_Store
 
 # Claude Code local tooling
 /.claude
+/.puku
+/puku.md

@@ -174,7 +174,12 @@ class ContactController extends Controller
 
         $file = $request->file('avatar');
         $path = $this->storageManager->prefixedPath('contact-avatars/'.$file->hashName());
-        $this->storageManager->disk()->putFileAs('contact-avatars', $file, basename($path));
+        $stored = $this->storageManager->disk()->putFileAs(dirname($path), $file, basename($path));
+        if ($stored === false) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'avatar' => 'The avatar could not be written to the configured storage provider.',
+            ]);
+        }
         $contact->update(['avatar' => $path]);
 
         return back()->with('success', 'Avatar updated.');

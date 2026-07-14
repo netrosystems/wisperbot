@@ -1,7 +1,30 @@
 import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Plus, X } from 'lucide-react';
+
+const SIDEBAR_SCROLL_STORAGE_PREFIX = 'wisperbot.sidebar.scroll.';
+
+function readScrollPosition(storageKey) {
+    if (typeof window === 'undefined') return 0;
+
+    try {
+        const value = Number.parseInt(window.sessionStorage.getItem(storageKey) ?? '0', 10);
+        return Number.isFinite(value) && value >= 0 ? value : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function writeScrollPosition(storageKey, position) {
+    if (typeof window === 'undefined') return;
+
+    try {
+        window.sessionStorage.setItem(storageKey, String(Math.max(0, Math.round(position))));
+    } catch {
+        // Storage may be unavailable in privacy-restricted browser contexts.
+    }
+}
 
 function NavGroup({ label, items, onClose }) {
     const [open, setOpen] = useState(true);
@@ -73,16 +96,33 @@ export default function Sidebar({
     open = false,
     onClose,
     footer,
-    title,
+    title: _title,
     logo,
     showCreateButton = true,
+    scrollKey = 'default',
 }) {
     const { t } = useTranslation();
     const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const { branding } = usePage().props;
     const logoUrl = branding?.logo_url;
+    const desktopNavRef = useRef(null);
+    const mobileNavRef = useRef(null);
+    const scrollStorageKey = `${SIDEBAR_SCROLL_STORAGE_PREFIX}${scrollKey}`;
 
-    const content = (
+    // Inertia swaps page components, which recreates the layout and this sidebar.
+    // Restore the menu's own scroll position before paint so lower navigation
+    // items stay where the user left them instead of jumping back to the top.
+    useLayoutEffect(() => {
+        const position = readScrollPosition(scrollStorageKey);
+        if (desktopNavRef.current) desktopNavRef.current.scrollTop = position;
+        if (mobileNavRef.current) mobileNavRef.current.scrollTop = position;
+    }, [open, scrollStorageKey]);
+
+    const rememberScrollPosition = (event) => {
+        writeScrollPosition(scrollStorageKey, event.currentTarget.scrollTop);
+    };
+
+    const renderContent = (surface) => (
         <aside className="flex h-full w-64 flex-col bg-secondary-900 dark:bg-neutral-900">
             {/* Brand header */}
             <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 border-b border-white/8">
@@ -107,7 +147,12 @@ export default function Sidebar({
                 </div>
             )}
 
-            <nav className="flex-1 overflow-y-auto px-2 py-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+            <nav
+                ref={surface === 'desktop' ? desktopNavRef : mobileNavRef}
+                onScroll={rememberScrollPosition}
+                data-testid={`sidebar-scroll-${surface}`}
+                className="flex-1 overflow-y-auto px-2 py-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10"
+            >
                 {navGroups.length > 0 &&
                     navGroups.map((group, gi) => (
                         <NavGroup
@@ -168,7 +213,7 @@ export default function Sidebar({
         <>
             {/* Desktop: always visible */}
             <div className="hidden lg:fixed lg:inset-y-0 lg:z-20 lg:flex lg:w-64 lg:flex-col lg:left-0 rtl:lg:left-auto rtl:lg:right-0">
-                {content}
+                {renderContent('desktop')}
             </div>
 
             {/* Mobile: overlay + drawer */}
@@ -184,7 +229,7 @@ export default function Sidebar({
                         >
                             <X className="h-4 w-4" />
                         </button>
-                        {content}
+                        {renderContent('mobile')}
                     </div>
                 </div>
             )}

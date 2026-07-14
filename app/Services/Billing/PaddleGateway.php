@@ -2,13 +2,16 @@
 
 namespace App\Services\Billing;
 
+use App\Contracts\AddonBillingGatewayInterface;
 use App\Contracts\BillingGatewayInterface;
 use App\Events\SubscriptionRenewed;
 use App\Events\SubscriptionStarted;
+use App\Models\ClientAddonSubscription;
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\AddonEntitlementService;
 use App\Services\WebhookIdempotencyService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -16,7 +19,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
-class PaddleGateway implements BillingGatewayInterface
+class PaddleGateway implements AddonBillingGatewayInterface, BillingGatewayInterface
 {
     public function __construct(
         private string $apiKey,
@@ -69,16 +72,10 @@ class PaddleGateway implements BillingGatewayInterface
                         'quantity' => 1,
                     ],
                 ],
-                'customer' => [
-                    'email' => $user->email,
-                ],
                 'custom_data' => [
                     'user_id' => (string) $user->id,
                     'plan_id' => (string) $plan->id,
                     'billing_cycle' => $billingCycle,
-                ],
-                'checkout' => [
-                    'url' => $this->successUrl,
                 ],
             ]);
 
@@ -96,12 +93,46 @@ class PaddleGateway implements BillingGatewayInterface
         return ['url' => $checkoutUrl, 'transaction_id' => $res->json('data.id')];
     }
 
+    public function createAddonCheckout(User $user, array $addon): array
+    {
+        if (! $this->isConfigured() || ! $user->client_id) {
+            return ['error' => 'Paddle is not configured or the client account is missing.'];
+        }
+
+        $priceId = $addon['paddle_price_id'] ?? null;
+        if (! $priceId) {
+            return ['error' => 'The Paddle price ID for Developer Tools has not been configured.'];
+        }
+
+        $res = Http::withToken($this->apiKey)
+            ->post($this->baseUrl().'/transactions', [
+                'items' => [['price_id' => $priceId, 'quantity' => 1]],
+                'custom_data' => [
+                    'purchase_type' => 'addon',
+                    'addon_key' => $addon['key'],
+                    'client_id' => (string) $user->client_id,
+                    'user_id' => (string) $user->id,
+                ],
+            ]);
+
+        if (! $res->successful()) {
+            return ['error' => $res->json('error.detail', 'Paddle add-on checkout failed.')];
+        }
+
+        $checkoutUrl = $res->json('data.checkout.url');
+        if (! $checkoutUrl) {
+            return ['error' => 'No Paddle checkout URL was returned.'];
+        }
+
+        return ['url' => $checkoutUrl, 'session_id' => $res->json('data.id')];
+    }
+
     public function handleWebhook(Request $request): Response
     {
         $payload = $request->getContent();
         $data = json_decode($payload, true);
         $eventType = $data['event_type'] ?? '';
-        $eventId = $data['notification_id'] ?? ($data['id'] ?? null);
+        $eventId = $data['event_id'] ?? ($data['notification_id'] ?? ($data['id'] ?? null));
 
         Log::info('Paddle webhook received', ['event_type' => $eventType]);
 
@@ -134,6 +165,10 @@ class PaddleGateway implements BillingGatewayInterface
         } catch (\Throwable $e) {
             Log::error('Paddle webhook handler failed', ['type' => $eventType, 'error' => $e->getMessage()]);
 
+            if ($eventId) {
+                app(WebhookIdempotencyService::class)->release('paddle', (string) $eventId);
+            }
+
             return new Response('Handler error', 500);
         }
 
@@ -147,28 +182,54 @@ class PaddleGateway implements BillingGatewayInterface
         }
         $parts = explode(';', $signature);
         $ts = null;
-        $h1 = null;
+        $signatures = [];
         foreach ($parts as $part) {
             if (str_starts_with($part, 'ts=')) {
                 $ts = substr($part, 3);
             }
             if (str_starts_with($part, 'h1=')) {
-                $h1 = substr($part, 3);
+                $signatures[] = substr($part, 3);
             }
         }
-        if (! $ts || ! $h1) {
+        if (! $ts || $signatures === [] || ! ctype_digit((string) $ts)) {
+            return false;
+        }
+
+        // Reject replayed signatures. Paddle recommends a short tolerance while
+        // allowing minor clock skew between systems.
+        if (abs(time() - (int) $ts) > 300) {
             return false;
         }
         $signed = $ts.':'.$payload;
         $expected = hash_hmac('sha256', $signed, $this->webhookSecret);
 
-        return hash_equals($expected, $h1);
+        return collect($signatures)->contains(fn (string $signature) => hash_equals($expected, $signature));
     }
 
     private function handleSubscriptionActivated(array $data): void
     {
         $resource = $data['data'] ?? [];
         $customData = $resource['custom_data'] ?? [];
+        if (($customData['purchase_type'] ?? null) === 'addon') {
+            $clientId = (int) ($customData['client_id'] ?? 0);
+            $userId = (int) ($customData['user_id'] ?? 0);
+            $addonKey = (string) ($customData['addon_key'] ?? '');
+            $subId = (string) ($resource['id'] ?? '');
+            if ($clientId && $userId && $addonKey && $subId) {
+                app(AddonEntitlementService::class)->activate(
+                    $clientId,
+                    $addonKey,
+                    $userId,
+                    'paddle',
+                    $subId,
+                    isset($resource['next_billed_at']) ? Carbon::parse($resource['next_billed_at']) : null,
+                    ['paddle_status' => $resource['status'] ?? 'active']
+                );
+            }
+
+            return;
+        }
+
         $userId = (int) ($customData['user_id'] ?? 0);
         $planId = (int) ($customData['plan_id'] ?? 0);
         $billingCycle = $customData['billing_cycle'] ?? 'month';
@@ -216,6 +277,15 @@ class PaddleGateway implements BillingGatewayInterface
             return;
         }
 
+        if (app(AddonEntitlementService::class)->syncGatewayStatus(
+            'paddle',
+            $subId,
+            $resource['status'] ?? 'active',
+            isset($resource['next_billed_at']) ? Carbon::parse($resource['next_billed_at']) : null
+        )) {
+            return;
+        }
+
         $subscription = Subscription::where('gateway', 'paddle')
             ->where('gateway_subscription_id', $subId)
             ->first();
@@ -234,6 +304,10 @@ class PaddleGateway implements BillingGatewayInterface
     private function handleSubscriptionCanceled(array $data): void
     {
         $subId = $data['data']['id'] ?? '';
+        if ($subId && app(AddonEntitlementService::class)->syncGatewayStatus('paddle', $subId, 'cancelled', endsAt: now())) {
+            return;
+        }
+
         Subscription::where('gateway', 'paddle')
             ->where('gateway_subscription_id', $subId)
             ->update(['status' => 'canceled', 'ends_at' => now()]);
@@ -256,13 +330,39 @@ class PaddleGateway implements BillingGatewayInterface
 
         // Resolve subscription and user from Paddle subscription_id
         $paddleSubId = $resource['subscription_id'] ?? null;
+        $addonSubscription = $paddleSubId
+            ? ClientAddonSubscription::where('gateway', 'paddle')->where('gateway_subscription_id', $paddleSubId)->first()
+            : null;
+        if ($addonSubscription) {
+            $nextBilled = data_get($resource, 'billing_period.ends_at');
+            app(AddonEntitlementService::class)->syncGatewayStatus(
+                'paddle',
+                $paddleSubId,
+                'active',
+                $nextBilled ? Carbon::parse($nextBilled) : null
+            );
+            PaymentTransaction::create([
+                'user_id' => $addonSubscription->purchased_by_user_id,
+                'subscription_id' => null,
+                'gateway' => 'paddle',
+                'gateway_transaction_id' => $transactionId,
+                'amount_cents' => (int) ($resource['details']['totals']['grand_total'] ?? 0),
+                'currency_code' => $resource['currency_code'] ?? 'USD',
+                'status' => 'paid',
+                'payload' => $resource,
+            ]);
+
+            return;
+        }
+
         $subscription = $paddleSubId
             ? Subscription::where('gateway', 'paddle')->where('gateway_subscription_id', $paddleSubId)->with('user', 'plan')->first()
             : null;
 
         $amount = $resource['details']['totals']['grand_total'] ?? ($resource['details']['totals']['total'] ?? 0);
         $currency = $resource['details']['totals']['currency_code'] ?? 'USD';
-        $amountCents = (int) round((float) $amount * 100);
+        // Paddle totals are already expressed in the currency's minor unit.
+        $amountCents = (int) $amount;
 
         // Paddle marks recurring renewal charges with origin 'subscription_recurring';
         // the very first charge is 'subscription_charge' / 'web' and is covered by SubscriptionStarted.
@@ -319,6 +419,17 @@ class PaddleGateway implements BillingGatewayInterface
         return false;
     }
 
+    public function cancelAddon(ClientAddonSubscription $subscription): bool
+    {
+        if ($subscription->gateway !== 'paddle' || ! $this->isConfigured() || ! $subscription->gateway_subscription_id) {
+            return false;
+        }
+
+        return Http::withToken($this->apiKey)
+            ->post($this->baseUrl().'/subscriptions/'.$subscription->gateway_subscription_id.'/cancel')
+            ->successful();
+    }
+
     public function sync(Subscription $subscription): bool
     {
         if ($subscription->gateway !== 'paddle' || ! $this->isConfigured()) {
@@ -367,6 +478,11 @@ class PaddleGateway implements BillingGatewayInterface
     public function fulfillCheckoutSession(string $sessionId): array
     {
         return ['ok' => false, 'error' => 'Paddle fulfillment is handled via webhook.'];
+    }
+
+    public function fulfillAddonCheckout(string $sessionId): array
+    {
+        return ['ok' => false, 'error' => 'Paddle add-on fulfillment is handled by webhook.'];
     }
 
     public function changePlan(Subscription $subscription, Plan $newPlan, string $billingCycle): array
@@ -418,13 +534,16 @@ class PaddleGateway implements BillingGatewayInterface
 
         $baseUrl = $this->environment === 'production' ? 'https://api.paddle.com' : 'https://sandbox-api.paddle.com';
 
-        $body = ['reason' => 'customer_request', 'type' => $amountCents ? 'partial' : 'full'];
         if ($amountCents) {
-            $body['amount'] = number_format($amountCents / 100, 2, '.', '');
+            return ['ok' => false, 'error' => 'Paddle partial refunds require transaction line-item IDs and are not supported by this integration yet.'];
         }
 
         $res = Http::withToken($this->apiKey)
-            ->post("{$baseUrl}/adjustments", array_merge($body, ['transaction_id' => $transactionId]));
+            ->post("{$baseUrl}/adjustments", [
+                'action' => 'refund',
+                'transaction_id' => $transactionId,
+                'reason' => 'customer_request',
+            ]);
 
         if (! $res->successful()) {
             Log::error('Paddle refund failed', ['transaction_id' => $transaction->id, 'response' => $res->json()]);

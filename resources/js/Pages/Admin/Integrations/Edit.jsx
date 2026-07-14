@@ -156,13 +156,14 @@ const SETUP_GUIDES = {
                 note: 'Required only if you use the Social Posting feature to publish posts to Facebook Pages or Instagram.',
                 steps: [
                     'Add "Facebook Login" product to your app.',
-                    'Go to Facebook Login → Settings and add Valid OAuth Redirect URI: {APP_URL}/auth/facebook/callback',
+                    'Go to Facebook Login → Settings and add both Valid OAuth Redirect URIs: {APP_URL}/app/social/accounts/callback/facebook and {APP_URL}/app/social/accounts/callback/instagram',
                     'Request the following permissions (some require App Review for Advanced Access):',
                 ],
                 permissions: [
                     'pages_manage_posts',
                     'pages_read_engagement',
                     'pages_show_list',
+                    'business_management',
                     'instagram_basic',
                     'instagram_content_publish',
                     'public_profile',
@@ -196,31 +197,19 @@ const SETUP_GUIDES = {
         steps: [
             'Go to linkedin.com/developers and sign in.',
             'Click "Create App", fill in company and app details.',
-            'Under "Auth" tab, add redirect URL: {your-domain}/auth/linkedin/callback',
+            'Under "Auth" tab, add the exact Callback URL shown above this guide.',
             'Copy the Client ID and Client Secret.',
-            'Request r_liteprofile and r_emailaddress permissions.',
+            'Enable Sign In with LinkedIn using OpenID Connect (openid, profile, email) and request w_member_social for posting.',
         ],
         link: 'https://www.linkedin.com/developers/apps',
         linkLabel: 'Open LinkedIn Developers',
-    },
-    oauth_twitter: {
-        title: 'Twitter / X OAuth Setup',
-        steps: [
-            'Go to developer.twitter.com and apply for a developer account.',
-            'Create a new Project and App.',
-            'Under "User authentication settings", enable OAuth 2.0.',
-            'Set the callback URL to: {your-domain}/auth/twitter/callback',
-            'Copy the Client ID and Client Secret from "Keys and tokens" tab.',
-        ],
-        link: 'https://developer.twitter.com/en/portal/apps/new',
-        linkLabel: 'Open Twitter Developer Portal',
     },
     oauth_youtube: {
         title: 'YouTube / Google OAuth Setup',
         steps: [
             'Go to console.cloud.google.com and create or select a project.',
             'Navigate to APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID.',
-            'Set the authorized redirect URI to: {your-domain}/auth/google/callback',
+            'Set the authorized redirect URI to the exact Callback URL shown above this guide.',
             'Enable the YouTube Data API v3 in APIs & Services → Library.',
             'Copy the Client ID and Client Secret.',
         ],
@@ -259,8 +248,8 @@ const SETUP_GUIDES = {
         steps: [
             'Go to developers.tiktok.com and sign in.',
             'Create an app under "Manage apps".',
-            'Add the callback URL: {your-domain}/auth/tiktok/callback',
-            'Request the user.info.basic scope.',
+            'Add the exact Callback URL shown above this guide.',
+            'Request both user.info.basic and video.publish, and complete Content Posting API review before enabling public posting.',
             'Copy the Client Key and Client Secret.',
         ],
         link: 'https://developers.tiktok.com',
@@ -329,17 +318,6 @@ const SETUP_GUIDES = {
         ],
         link: 'https://dashboard.messagebird.com/en/developers/access',
         linkLabel: 'Open MessageBird Dashboard',
-    },
-    google_places: {
-        title: 'Google Places API Setup',
-        steps: [
-            'Go to console.cloud.google.com and create or select a project.',
-            'Navigate to APIs & Services → Library → search "Places API" → Enable.',
-            'Go to APIs & Services → Credentials → Create Credentials → API Key.',
-            'Optionally restrict the key to Places API only for security.',
-        ],
-        link: 'https://console.cloud.google.com/apis/library/places-backend.googleapis.com',
-        linkLabel: 'Open Google Cloud Console',
     },
     qdrant: {
         title: 'Qdrant Vector Store Setup',
@@ -507,7 +485,6 @@ const BRAND = {
     storage_wasabi:          { bg: 'bg-green-100 dark:bg-green-900/30', color: '#3CBA54', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M2.5 14.5L5 7l2.5 5 2.5-5 2.5 5 2.5-5 2.5 7.5h-2l-1-3-2 4-2-4-1 3h-2zm14-9A1.5 1.5 0 1114 7a1.5 1.5 0 012.5-1.5z" /></svg> },
     meta_app:                { bg: 'bg-blue-100 dark:bg-blue-900/30', color: '#0866FF', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M2.5 10C2.5 7.24 4.74 5 7.5 5c1.32 0 2.52.5 3.42 1.32A5 5 0 0114.5 5C17.26 5 19.5 7.24 19.5 10v.5c0 2.76-2.24 5-5 5a5 5 0 01-3.58-1.5A5 5 0 017.5 15.5C4.74 15.5 2.5 13.26 2.5 10.5V10zm5 3.5c1.38 0 2.5-1.12 2.5-2.5v-.5c0-1.38-1.12-2.5-2.5-2.5S5 9.12 5 10.5V11c0 1.38 1.12 2.5 2.5 2.5zm7 0c1.38 0 2.5-1.12 2.5-2.5V10c0-1.38-1.12-2.5-2.5-2.5S12 8.62 12 10v.5c0 1.38 1.12 2.5 2.5 2.5z" /></svg> },
     oauth_linkedin:          { bg: 'bg-sky-100 dark:bg-sky-900/30', color: '#0A66C2', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M4.5 3C3.67 3 3 3.67 3 4.5S3.67 6 4.5 6 6 5.33 6 4.5 5.33 3 4.5 3zM3 7.5h3V17H3V7.5zm4.5 0H10v1.3c.45-.78 1.45-1.5 2.75-1.5 2.95 0 3.5 1.94 3.5 4.47V17H13v-4.73c0-1.13-.02-2.58-1.57-2.58-1.57 0-1.81 1.23-1.81 2.5V17H7.5V7.5z" /></svg> },
-    oauth_twitter:           { bg: 'bg-neutral-200 dark:bg-neutral-700/60', color: '#0f0f0f', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M3.5 3h3.1l2.9 4.1L12.6 3h2.3l-4 5 4.6 6h-3.1L9.2 9.7 5.9 14H3.6l4.3-5.3L3.5 3zm2.3 1.2l8 10.4h1.2L7 4.2H5.8z" /></svg> },
     oauth_youtube:           { bg: 'bg-red-100 dark:bg-red-900/30', color: '#FF0000', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M17.5 6.2S17.25 4.8 16.6 4.1c-.67-.72-1.43-.73-1.78-.77C12.6 3.2 10 3.2 10 3.2s-2.6 0-4.82.13c-.35.04-1.1.05-1.78.77C2.75 4.8 2.5 6.2 2.5 6.2S2.25 7.86 2.25 9.5v1.5c0 1.64.25 3.3.25 3.3s.25 1.4.9 2.1c.68.72 1.57.7 1.97.77 1.43.14 6.08.19 6.08.19s2.6 0 4.82-.15c.35-.04 1.1-.05 1.78-.77.65-.7.9-2.1.9-2.1S17.75 12.64 17.75 11V9.5c0-1.64-.25-3.3-.25-3.3zM8.5 12.75v-5.5l5 2.75-5 2.75z" /></svg> },
     oauth_tiktok:            { bg: 'bg-neutral-200 dark:bg-neutral-700/60', color: '#000000', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M13.5 2h-2.25v9.5A2.25 2.25 0 119 9.2V7a4.5 4.5 0 104.5 4.5V6.25A6.24 6.24 0 0017 7V4.75A4.25 4.25 0 0113.5 2z" /></svg> },
     llm_openai_default:      { bg: 'bg-emerald-100 dark:bg-emerald-900/30', color: '#10a37f', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2a3.9 3.9 0 00-3.68 2.6A3.9 3.9 0 003.6 8.32a3.9 3.9 0 000 3.36 3.9 3.9 0 002.72 3.72A3.9 3.9 0 0010 18a3.9 3.9 0 003.68-2.6 3.9 3.9 0 002.72-3.72 3.9 3.9 0 000-3.36A3.9 3.9 0 0013.68 4.6 3.9 3.9 0 0010 2zm0 4a2 2 0 110 4 2 2 0 010-4z" /></svg> },
@@ -518,7 +495,6 @@ const BRAND = {
     sms_messagebird_default: { bg: 'bg-blue-100 dark:bg-blue-900/30', color: '#2481CC', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M18 9c0-3.31-3.58-6-8-6S2 5.69 2 9c0 2.12 1.32 4 3.38 5.14-.1.48-.46 1.74-.88 2.36 0 0 2.04-.42 3.52-1.56.64.1 1.3.16 1.98.16 4.42 0 8-2.69 8-6zM6 8.5a1 1 0 110 2 1 1 0 010-2zm4 0a1 1 0 110 2 1 1 0 010-2zm4 0a1 1 0 110 2 1 1 0 010-2z" /></svg> },
     sms_smsbd_default:       { bg: 'bg-teal-100 dark:bg-teal-900/30', color: '#0d9488', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M3 5a1 1 0 011-1h12a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5zm2 1.5v5h2.5c1.1 0 2-.9 2-2v-1c0-1.1-.9-2-2-2H5zm5 0v5h2.5c.83 0 1.5-.67 1.5-1.5v-2c0-.83-.67-1.5-1.5-1.5H10zm-3.5 1.5h1c.28 0 .5.22.5.5v1c0 .28-.22.5-.5.5h-1v-2zm5 0h1c.28 0 .5.22.5.5v2c0 .28-.22.5-.5.5h-1V8z" /></svg> },
     sms_reve_default:        { bg: 'bg-indigo-100 dark:bg-indigo-900/30', color: '#4f46e5', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M3 5a1 1 0 011-1h12a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5zm2 1.5v5h1.5v-2h1l1 2H10l-1.1-2.1c.67-.26 1.1-.9 1.1-1.65 0-1-.8-1.75-1.75-1.75H5zm5 0L12.5 11 15 6.5h-1.7L12 9.3l-1.3-2.8H10zm-3.5 1.4h.75c.28 0 .5.22.5.5s-.22.5-.5.5H6.5V7.9z" /></svg> },
-    google_places:           { bg: 'bg-red-100 dark:bg-red-900/30', color: '#EA4335', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2a6 6 0 016 6c0 4.5-6 11-6 11S4 12.5 4 8a6 6 0 016-6zm0 3.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" /></svg> },
     qdrant:                  { bg: 'bg-rose-100 dark:bg-rose-900/30', color: '#DC143C', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2l5 3v3.5L10 11.5 5 8.5V5l5-3zm0 11L5 10v3l5 5 5-5v-3l-5 3zm-4.5-4.7L10 11l4.5-2.7V5.7L10 3 5.5 5.7v2.6z" /></svg> },
 };
 
@@ -624,7 +600,7 @@ export default function IntegrationsEdit({ provider, label, category, fields, co
         setTesting(true);
         setTestResult(null);
         try {
-            const { data: res } = await axios.post(route('admin.integrations.test', provider));
+            const { data: res } = await axios.post(route('admin.integrations.test', provider), { mode: data.mode });
             setTestResult(res);
         } catch (e) {
             setTestResult({ ok: false, message: e?.response?.data?.message || t('integrations.request_failed') });
@@ -693,7 +669,11 @@ export default function IntegrationsEdit({ provider, label, category, fields, co
                                 <span className="text-sm text-neutral-500 dark:text-neutral-400">{t('integrations.mode_label')}</span>
                                 <select
                                     value={data.mode}
-                                    onChange={e => setData('mode', e.target.value)}
+                                    onChange={e => router.get(
+                                        route('admin.integrations.edit', provider),
+                                        { mode: e.target.value },
+                                        { preserveState: false, preserveScroll: true },
+                                    )}
                                     className="rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-2 py-1 text-sm text-neutral-800 dark:text-neutral-200"
                                 >
                                     <option value="live">{t('integrations.mode_live')}</option>

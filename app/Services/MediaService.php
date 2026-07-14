@@ -26,7 +26,10 @@ class MediaService
         $rawPath = 'media/'.Str::uuid().'.'.$ext;
         $path = $this->storageManager->prefixedPath($rawPath);
 
-        Storage::disk($resolvedDisk)->putFileAs(dirname($path), $file, basename($path));
+        $written = Storage::disk($resolvedDisk)->putFileAs(dirname($path), $file, basename($path));
+        if ($written === false) {
+            throw new \RuntimeException('The configured storage provider rejected the media upload.');
+        }
 
         return Media::create([
             'mediable_type' => get_class($owner),
@@ -43,7 +46,7 @@ class MediaService
     /**
      * Get total storage used by owner in bytes.
      */
-    public function usedBytes(Model $owner, string $collection = null): int
+    public function usedBytes(Model $owner, ?string $collection = null): int
     {
         $query = Media::where('mediable_type', get_class($owner))
             ->where('mediable_id', $owner->getKey());

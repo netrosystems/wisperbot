@@ -35,7 +35,18 @@ class PaymentGatewayConfig extends Model
     {
         $c = $this->getActiveCredentials();
 
-        return ! empty($c['secret_key'] ?? null);
+        return collect($this->requiredCredentialKeys())
+            ->every(fn (string $key) => filled($c[$key] ?? null));
+    }
+
+    /** @return list<string> */
+    public function requiredCredentialKeys(): array
+    {
+        return match ($this->gateway) {
+            'paypal' => ['publishable_key', 'secret_key', 'webhook_secret'],
+            'stripe', 'paddle' => ['secret_key', 'webhook_secret'],
+            default => ['secret_key'],
+        };
     }
 
     public static function getByGateway(string $gateway): ?self

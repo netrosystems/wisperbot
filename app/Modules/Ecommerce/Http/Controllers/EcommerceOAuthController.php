@@ -172,6 +172,11 @@ class EcommerceOAuthController extends Controller
 
         if (! $result['ok']) {
             Log::warning('ecommerce.oauth.woo.connect_failed', ['store' => $store->id, 'message' => $result['message']]);
+
+            // WooCommerce uses this response to decide whether its credential
+            // hand-off succeeded. Returning HTTP 200 here made the Woo UI report
+            // success even when our authenticated API test failed.
+            return response()->json(['status' => 'error', 'message' => $result['message']], 502);
         }
 
         return response()->json(['status' => 'ok']);

@@ -8,6 +8,7 @@ use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Models\AiProviderConfig;
 use App\Modules\AI\Models\AiRun;
+use App\Modules\Integrations\Services\CredentialResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -30,12 +31,17 @@ class AiDashboardController extends Controller
             ->count('workspace_id');
 
         // Qdrant status
-        $qdrantConfigured = ! empty(config('services.qdrant.url'));
+        $qdrantCredentials = CredentialResolver::system()->qdrant()?->toArray();
+        $qdrantUrl = $qdrantCredentials['url'] ?? null;
+        $qdrantConfigured = filled($qdrantUrl);
         $qdrantHealthy = false;
         if ($qdrantConfigured) {
             try {
-                $resp = \Illuminate\Support\Facades\Http::timeout(3)
-                    ->get(rtrim(config('services.qdrant.url'), '/').'/healthz');
+                $request = \Illuminate\Support\Facades\Http::timeout(3);
+                if (filled($qdrantCredentials['api_key'] ?? null)) {
+                    $request = $request->withHeaders(['api-key' => $qdrantCredentials['api_key']]);
+                }
+                $resp = $request->get(rtrim((string) $qdrantUrl, '/').'/healthz');
                 $qdrantHealthy = $resp->successful();
             } catch (\Throwable) {
                 $qdrantHealthy = false;
@@ -88,7 +94,7 @@ class AiDashboardController extends Controller
             'qdrant' => [
                 'configured' => $qdrantConfigured,
                 'healthy' => $qdrantHealthy,
-                'url' => $qdrantConfigured ? config('services.qdrant.url') : null,
+                'url' => $qdrantConfigured ? $qdrantUrl : null,
             ],
             'usage' => [
                 'total_tokens' => (int) ($usageStats->total_tokens ?? 0),

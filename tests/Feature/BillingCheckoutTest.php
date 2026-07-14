@@ -56,4 +56,18 @@ class BillingCheckoutTest extends TestCase
         ]);
         $response->assertSessionHasErrors('gateway');
     }
+
+    public function test_checkout_rejects_a_legacy_gateway(): void
+    {
+        $user = User::factory()->create(['role' => 'client', 'email_verified_at' => now()]);
+        $plan = Plan::factory()->create();
+
+        $response = $this->actingAs($user)->post(route('client.checkout.store'), [
+            'plan_id' => $plan->id,
+            'billing_cycle' => 'month',
+            'gateway' => 'razorpay',
+        ]);
+
+        $response->assertSessionHasErrors('gateway');
+    }
 }

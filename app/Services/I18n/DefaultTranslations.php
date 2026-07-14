@@ -256,6 +256,8 @@ class DefaultTranslations
         return [
             'auth.email' => 'Email',
             'auth.password' => 'Password',
+            'auth.toggle_password_show' => 'Show password',
+            'auth.toggle_password_hide' => 'Hide password',
             'auth.remember_me' => 'Remember me',
             'auth.forgot_password' => 'Forgot your password?',
             'auth.log_in' => 'Log in',

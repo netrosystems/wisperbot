@@ -3,6 +3,7 @@
 namespace Tests\Feature\ProductionHardening;
 
 use App\Modules\Broadcasting\Services\Sms\SmsBdDriver;
+use App\Modules\Broadcasting\Services\Sms\MessageBirdDriver;
 use App\Modules\Broadcasting\Services\Sms\TwilioDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -45,5 +46,18 @@ class SmsDriverHttpTest extends TestCase
 
         $this->assertTrue($result->success);
         $this->assertSame('BD_MSG_789', $result->messageId);
+    }
+
+    public function test_messagebird_sends_single_recipient_as_an_array(): void
+    {
+        Http::fake([
+            'rest.messagebird.com/messages' => Http::response(['id' => 'mb-123'], 201),
+        ]);
+
+        $result = (new MessageBirdDriver('key123', 'WisperBot'))->send('+8801712345678', 'Test msg');
+
+        $this->assertTrue($result->success);
+        $this->assertSame('mb-123', $result->messageId);
+        Http::assertSent(fn ($request) => $request['recipients'] === ['8801712345678']);
     }
 }

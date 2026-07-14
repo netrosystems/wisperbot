@@ -2,13 +2,16 @@
 
 namespace App\Services\Billing;
 
+use App\Contracts\AddonBillingGatewayInterface;
 use App\Contracts\BillingGatewayInterface;
 use App\Events\SubscriptionRenewed;
 use App\Events\SubscriptionStarted;
+use App\Models\ClientAddonSubscription;
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\AddonEntitlementService;
 use App\Services\WebhookIdempotencyService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -16,7 +19,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
-class PayPalGateway implements BillingGatewayInterface
+class PayPalGateway implements AddonBillingGatewayInterface, BillingGatewayInterface
 {
     public function __construct(
         private string $clientId,
@@ -160,6 +163,72 @@ class PayPalGateway implements BillingGatewayInterface
         return ['url' => $url, 'subscription_id' => $subRes->json('id')];
     }
 
+    public function createAddonCheckout(User $user, array $addon): array
+    {
+        if (! $this->isConfigured() || ! $user->client_id) {
+            return ['error' => 'PayPal is not configured or the client account is missing.'];
+        }
+
+        $token = $this->getAccessToken();
+        if (! $token) {
+            return ['error' => 'Could not obtain PayPal access token.'];
+        }
+
+        $productRes = Http::withToken($token)->post($this->baseUrl().'/v1/catalogs/products', [
+            'name' => $addon['name'],
+            'description' => $addon['description'],
+            'type' => 'SERVICE',
+            'category' => 'SOFTWARE',
+        ]);
+        if (! $productRes->successful()) {
+            return ['error' => $productRes->json('message', 'PayPal add-on product creation failed.')];
+        }
+
+        $amount = number_format($addon['price_cents'] / 100, 2, '.', '');
+        $planRes = Http::withToken($token)->post($this->baseUrl().'/v1/billing/plans', [
+            'product_id' => $productRes->json('id'),
+            'name' => $addon['name'].' (monthly)',
+            'description' => $addon['description'],
+            'billing_cycles' => [[
+                'frequency' => ['interval_unit' => 'MONTH', 'interval_count' => 1],
+                'tenure_type' => 'REGULAR',
+                'sequence' => 1,
+                'total_cycles' => 0,
+                'pricing_scheme' => [
+                    'fixed_price' => ['value' => $amount, 'currency_code' => $addon['currency']],
+                ],
+            ]],
+        ]);
+        if (! $planRes->successful()) {
+            return ['error' => $planRes->json('message', 'PayPal add-on plan creation failed.')];
+        }
+
+        $customId = implode('|', ['addon', $user->client_id, $user->id, $addon['key']]);
+        $subscriptionRes = Http::withToken($token)->post($this->baseUrl().'/v1/billing/subscriptions', [
+            'plan_id' => $planRes->json('id'),
+            'custom_id' => $customId,
+            'subscriber' => ['email_address' => $user->email],
+            'application_context' => [
+                'brand_name' => config('app.name'),
+                'return_url' => rtrim(config('app.url'), '/').'/app/addons?addon_checkout=processing',
+                'cancel_url' => rtrim(config('app.url'), '/').'/app/addons?addon_checkout=canceled',
+            ],
+        ]);
+        if (! $subscriptionRes->successful()) {
+            return ['error' => $subscriptionRes->json('message', 'PayPal add-on subscription creation failed.')];
+        }
+
+        $approve = collect($subscriptionRes->json('links', []))->firstWhere('rel', 'approve');
+        if (! isset($approve['href'])) {
+            return ['error' => 'No PayPal approval URL was returned.'];
+        }
+
+        return [
+            'url' => $approve['href'],
+            'subscription_id' => $subscriptionRes->json('id'),
+        ];
+    }
+
     public function handleWebhook(Request $request): Response
     {
         $payload = $request->getContent();
@@ -197,12 +266,17 @@ class PayPalGateway implements BillingGatewayInterface
         try {
             match ($eventType) {
                 'BILLING.SUBSCRIPTION.ACTIVATED' => $this->handleSubscriptionActivated($data),
-                'BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.SUSPENDED' => $this->handleSubscriptionCanceled($data),
+                'BILLING.SUBSCRIPTION.CANCELLED' => $this->handleSubscriptionCanceled($data),
+                'BILLING.SUBSCRIPTION.SUSPENDED' => $this->handleSubscriptionSuspended($data),
                 'PAYMENT.SALE.COMPLETED' => $this->handlePaymentCompleted($data),
                 default => null,
             };
         } catch (\Throwable $e) {
             Log::error('PayPal webhook handler failed', ['type' => $eventType, 'error' => $e->getMessage()]);
+
+            if ($eventId) {
+                app(WebhookIdempotencyService::class)->release('paypal', (string) $eventId);
+            }
 
             return new Response('Handler error', 500);
         }
@@ -215,6 +289,27 @@ class PayPalGateway implements BillingGatewayInterface
         $resource = $data['resource'] ?? [];
         $customId = $resource['custom_id'] ?? '';
         $parts = explode('|', $customId);
+        if (($parts[0] ?? null) === 'addon') {
+            $clientId = (int) ($parts[1] ?? 0);
+            $userId = (int) ($parts[2] ?? 0);
+            $addonKey = (string) ($parts[3] ?? '');
+            $subId = (string) ($resource['id'] ?? '');
+            $nextBilling = data_get($resource, 'billing_info.next_billing_time');
+            if ($clientId && $userId && $addonKey && $subId) {
+                app(AddonEntitlementService::class)->activate(
+                    $clientId,
+                    $addonKey,
+                    $userId,
+                    'paypal',
+                    $subId,
+                    $nextBilling ? Carbon::parse($nextBilling) : null,
+                    ['paypal_status' => $resource['status'] ?? 'ACTIVE']
+                );
+            }
+
+            return;
+        }
+
         if (count($parts) < 3) {
             return;
         }
@@ -258,9 +353,25 @@ class PayPalGateway implements BillingGatewayInterface
     private function handleSubscriptionCanceled(array $data): void
     {
         $subId = $data['resource']['id'] ?? '';
+        if ($subId && app(AddonEntitlementService::class)->syncGatewayStatus('paypal', $subId, 'cancelled', endsAt: now())) {
+            return;
+        }
+
         Subscription::where('gateway', 'paypal')
             ->where('gateway_subscription_id', $subId)
             ->update(['status' => 'canceled', 'ends_at' => now()]);
+    }
+
+    private function handleSubscriptionSuspended(array $data): void
+    {
+        $subId = $data['resource']['id'] ?? '';
+        if ($subId && app(AddonEntitlementService::class)->syncGatewayStatus('paypal', $subId, 'past_due')) {
+            return;
+        }
+
+        Subscription::where('gateway', 'paypal')
+            ->where('gateway_subscription_id', $subId)
+            ->update(['status' => 'past_due']);
     }
 
     private function handlePaymentCompleted(array $data): void
@@ -280,6 +391,25 @@ class PayPalGateway implements BillingGatewayInterface
 
         // Resolve subscription and user from PayPal subscription ID stored in billing_agreement_id
         $paypalSubId = $resource['billing_agreement_id'] ?? null;
+        $addonSubscription = $paypalSubId
+            ? ClientAddonSubscription::where('gateway', 'paypal')->where('gateway_subscription_id', $paypalSubId)->first()
+            : null;
+        if ($addonSubscription) {
+            app(AddonEntitlementService::class)->syncGatewayStatus('paypal', $paypalSubId, 'active');
+            PaymentTransaction::create([
+                'user_id' => $addonSubscription->purchased_by_user_id,
+                'subscription_id' => null,
+                'gateway' => 'paypal',
+                'gateway_transaction_id' => $transactionId,
+                'amount_cents' => (int) round((float) ($resource['amount']['total'] ?? 0) * 100),
+                'currency_code' => $resource['amount']['currency'] ?? 'USD',
+                'status' => 'paid',
+                'payload' => $resource,
+            ]);
+
+            return;
+        }
+
         $subscription = $paypalSubId
             ? Subscription::where('gateway', 'paypal')->where('gateway_subscription_id', $paypalSubId)->with('user', 'plan')->first()
             : null;
@@ -347,6 +477,24 @@ class PayPalGateway implements BillingGatewayInterface
         return false;
     }
 
+    public function cancelAddon(ClientAddonSubscription $subscription): bool
+    {
+        if ($subscription->gateway !== 'paypal' || ! $this->isConfigured() || ! $subscription->gateway_subscription_id) {
+            return false;
+        }
+
+        $token = $this->getAccessToken();
+        if (! $token) {
+            return false;
+        }
+
+        return Http::withToken($token)
+            ->post($this->baseUrl().'/v1/billing/subscriptions/'.$subscription->gateway_subscription_id.'/cancel', [
+                'reason' => 'Customer cancelled Developer Tools add-on',
+            ])
+            ->successful();
+    }
+
     public function sync(Subscription $subscription): bool
     {
         if ($subscription->gateway !== 'paypal' || ! $this->isConfigured()) {
@@ -401,6 +549,11 @@ class PayPalGateway implements BillingGatewayInterface
         return ['ok' => false, 'error' => 'PayPal fulfillment is handled via webhook.'];
     }
 
+    public function fulfillAddonCheckout(string $sessionId): array
+    {
+        return ['ok' => false, 'error' => 'PayPal add-on fulfillment is handled by webhook.'];
+    }
+
     public function changePlan(Subscription $subscription, Plan $newPlan, string $billingCycle): array
     {
         // PayPal subscription plan changes typically require a new subscription flow.
@@ -414,8 +567,8 @@ class PayPalGateway implements BillingGatewayInterface
             return ['ok' => false, 'error' => 'Could not retrieve PayPal access token.'];
         }
 
-        $captureId = $transaction->gateway_transaction_id ?? null;
-        if (! $captureId) {
+        $saleId = $transaction->gateway_transaction_id ?? null;
+        if (! $saleId) {
             return ['ok' => false, 'error' => 'No gateway transaction ID for refund.'];
         }
 
@@ -428,7 +581,8 @@ class PayPalGateway implements BillingGatewayInterface
         }
 
         $res = Http::withToken($token)
-            ->post($this->baseUrl()."/v2/payments/captures/{$captureId}/refund", $body);
+            // PAYMENT.SALE.COMPLETED supplies a v1 sale ID, not a v2 capture ID.
+            ->post($this->baseUrl()."/v1/payments/sale/{$saleId}/refund", $body);
 
         if (! $res->successful()) {
             Log::error('PayPal refund failed', ['transaction_id' => $transaction->id, 'response' => $res->json()]);

@@ -10,6 +10,7 @@ use App\Services\StorageManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,7 +18,10 @@ class IntegrationConfigController extends Controller
 {
     public function index(): Response
     {
-        $configs = IntegrationConfig::whereIn('provider', IntegrationConfig::PROVIDERS)->get()->keyBy('provider');
+        $configs = IntegrationConfig::whereIn('provider', IntegrationConfig::PROVIDERS)
+            ->where('mode', 'live')
+            ->get()
+            ->keyBy('provider');
 
         $grouped = [];
         foreach (IntegrationConfig::PROVIDERS as $provider) {
@@ -42,14 +46,18 @@ class IntegrationConfigController extends Controller
         ]);
     }
 
-    public function edit(string $provider): Response
+    public function edit(Request $request, string $provider): Response
     {
         abort_unless(in_array($provider, IntegrationConfig::PROVIDERS, true), 404);
 
-        $config = IntegrationConfig::forProvider($provider) ?? new IntegrationConfig([
+        $mode = in_array($request->query('mode'), ['test', 'live'], true)
+            ? $request->query('mode')
+            : 'live';
+
+        $config = IntegrationConfig::forProvider($provider, $mode) ?? new IntegrationConfig([
             'provider' => $provider,
             'label' => IntegrationConfig::LABELS[$provider] ?? $provider,
-            'mode' => 'live',
+            'mode' => $mode,
             'enabled' => false,
         ]);
 
@@ -60,6 +68,9 @@ class IntegrationConfigController extends Controller
             'fields' => IntegrationConfig::FIELDS[$provider] ?? [],
             // OAuth redirect/callback URL the admin must register in the platform's app settings.
             'callbackUrl' => match ($provider) {
+                'oauth_linkedin' => route('client.social.oauth.callback', 'linkedin'),
+                'oauth_youtube' => route('client.social.oauth.callback', 'youtube'),
+                'oauth_tiktok' => route('client.social.oauth.callback', 'tiktok'),
                 'oauth_shopify' => route('client.ecommerce.oauth.shopify.callback'),
                 'oauth_bigcommerce' => route('client.ecommerce.oauth.bigcommerce.callback'),
                 default => null,
@@ -106,6 +117,18 @@ class IntegrationConfigController extends Controller
             $changedKeys[] = $k;
         }
 
+        if ((bool) $validated['enabled']) {
+            $missing = IntegrationConfig::missingRequiredCredentialKeys($provider, $merged);
+            if ($missing !== []) {
+                $messages = [];
+                foreach ($missing as $key) {
+                    $messages['credentials.'.$key] = 'This credential is required before the integration can be enabled.';
+                }
+
+                throw ValidationException::withMessages($messages);
+            }
+        }
+
         $wasEnabled = $config->enabled ?? false;
         $config->fill([
             'label' => IntegrationConfig::LABELS[$provider] ?? $provider,
@@ -131,7 +154,10 @@ class IntegrationConfigController extends Controller
     {
         abort_unless(in_array($provider, IntegrationConfig::PROVIDERS, true), 404);
 
-        $config = IntegrationConfig::forProvider($provider);
+        $validated = $request->validate([
+            'mode' => ['sometimes', 'in:test,live'],
+        ]);
+        $config = IntegrationConfig::forProvider($provider, $validated['mode'] ?? 'live');
         if (! $config) {
             return response()->json(['ok' => false, 'message' => 'Not configured yet.']);
         }
@@ -153,6 +179,10 @@ class IntegrationConfigController extends Controller
         $config = IntegrationConfig::forProvider($provider);
         if (! $config) {
             return back()->with('error', 'Configure credentials before enabling.');
+        }
+
+        if (! $config->enabled && ! $config->isConfigured()) {
+            return back()->with('error', 'Complete all required credentials before enabling.');
         }
 
         $updates = ['enabled' => ! $config->enabled];

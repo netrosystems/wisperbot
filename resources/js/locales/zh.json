@@ -115,7 +115,11 @@
         "group_reports": "Reports",
         "group_support": "Support",
         "group_billing": "Billing",
-        "group_developer": "Developer"
+        "group_developer": "Developer",
+        "addons": "Addons",
+        "website_widget": "Website Widget",
+        "group_assets": "Group Assets",
+        "sign_in": "Sign In"
     },
     "welcome": {
         "title": "用 AI 构建网站。",
@@ -145,7 +149,8 @@
         "per_month": "\/月",
         "per_year": "\/年",
         "everything_in": "{{plan}} 中的所有内容",
-        "most_popular": "最受欢迎"
+        "most_popular": "最受欢迎",
+        "learn_more": "Learn More"
     },
     "rtl": {
         "title": "RTL 预览",
@@ -175,8 +180,13 @@
     "client": {
         "profile": {
             "edit": "编辑",
-            "2fa": "2Fa",
-            "sessions": "Sessions",
+            "2fa": {
+                "enable": "Enable",
+                "disable": "Disable"
+            },
+            "sessions": {
+                "destroy": "Destroy"
+            },
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -340,7 +350,10 @@
             "index": "列表",
             "store": "保存",
             "destroy": "删除",
-            "contacts": "Contacts"
+            "contacts": {
+                "attach": "Attach",
+                "detach": "Detach"
+            }
         },
         "whatsapp": {
             "templates": {
@@ -362,9 +375,7 @@
                 "create": "Create",
                 "edit": "Edit"
             },
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "broadcasts": {
             "campaigns": {
@@ -395,7 +406,9 @@
             "start": "开始",
             "templates": "模板",
             "assign": "分配",
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "ai": {
             "providers": {
@@ -545,11 +558,7 @@
                 "connect": "Connect"
             }
         },
-        "workspaces": {
-            "switch": "Switch",
-            "index": "Index",
-            "store": "Store"
-        },
+        "workspaces": "Workspaces",
         "settings": {
             "update": "更新",
             "notifications": "Notifications",
@@ -565,6 +574,9 @@
             "destroy": "取消",
             "invoice": "Invoice",
             "show": "查看"
+        },
+        "addons": {
+            "index": "Index"
         }
     },
     "pagination": {
@@ -808,11 +820,7 @@
         "tax_rates": "税率",
         "landing_page": "落地页",
         "cms_pages": "CMS 页面",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
+        "license": "License",
         "cron_setup": "Cron Setup",
         "support": {
             "index": "支持列表",
@@ -927,40 +935,38 @@
         "secret_key_hint": "Server-side secret key — keep this private",
         "stripe_webhook_hint": "Webhook signing secret (whsec_…) from the Stripe dashboard",
         "webhook_hint": "Webhook secret used to verify incoming gateway events",
-        "clients": {
+        "clients": "Clients",
+        "subscriptions": {
             "index": "Index",
-            "users": {
-                "index": "Index",
-                "store": "Store",
-                "update": "Update",
-                "destroy": "Destroy"
-            },
-            "impersonate": "Impersonate",
-            "destroy": "Destroy",
-            "export": "Export",
             "store": "Store",
-            "update": "Update"
+            "export": "Export"
         },
-        "subscriptions": "Subscriptions",
-        "payments": {
-            "index": "Index"
-        },
-        "plans": {
+        "payments": "Payments",
+        "plans": "Plans",
+        "currencies": {
             "index": "Index",
             "update": "Update",
-            "store": "Store",
-            "duplicate": "Duplicate",
-            "destroy": "Destroy",
-            "reorder": "Reorder"
+            "store": "Store"
         },
-        "currencies": "Currencies",
-        "admins": {
+        "admins": "Admins",
+        "settings": {
             "index": "Index",
-            "destroy": "Destroy",
-            "store": "Store",
-            "update": "Update"
+            "general": {
+                "update": "Update"
+            },
+            "logo": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "favicon": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "update": "Update",
+            "firebase": {
+                "update": "Update"
+            }
         },
-        "settings": "Settings",
         "ai": {
             "index": "Index"
         },
@@ -1152,7 +1158,9 @@
         "demo_mode_title": "Demo Mode Title",
         "demo_mode_subtitle": "Demo Mode Subtitle",
         "demo_role_admin": "Demo Role Admin",
-        "demo_role_client": "Demo Role Client"
+        "demo_role_client": "Demo Role Client",
+        "toggle_password_hide": "Hide password",
+        "toggle_password_show": "Show password"
     },
     "password": {
         "confirm": "确认",
@@ -4027,6 +4035,14 @@
     "37": {
         "4220": "4220"
     },
+    "wisperbot": {
+        "sidebar": {
+            "scroll": {
+                "admin": "Admin",
+                "client": "Client"
+            }
+        }
+    },
     "127": [
         [
             {
@@ -4036,5 +4052,17 @@
     ],
     "v20": [
         "0"
-    ]
+    ],
+    "2": {
+        "5": "5"
+    },
+    "8": {
+        "5": "5"
+    },
+    "9": {
+        "5": "5"
+    },
+    "1": {
+        "6": "6"
+    }
 }

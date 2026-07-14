@@ -2,18 +2,21 @@
 
 namespace App\Services\Billing;
 
+use App\Contracts\AddonBillingGatewayInterface;
 use App\Contracts\BillingGatewayInterface;
 use App\Events\PlanChanged;
 use App\Events\SubscriptionCancelled;
 use App\Events\SubscriptionExpired;
 use App\Events\SubscriptionRenewed;
 use App\Events\SubscriptionStarted;
+use App\Models\ClientAddonSubscription;
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Notifications\BillingPaymentFailedNotification;
+use App\Services\AddonEntitlementService;
 use App\Services\Mail\MailService;
 use App\Services\WebhookIdempotencyService;
 use Carbon\Carbon;
@@ -26,7 +29,7 @@ use Stripe\StripeClient;
 use Stripe\Webhook;
 use Symfony\Component\HttpFoundation\Response;
 
-class StripeGateway implements BillingGatewayInterface
+class StripeGateway implements AddonBillingGatewayInterface, BillingGatewayInterface
 {
     private ?StripeClient $client = null;
 
@@ -118,6 +121,53 @@ class StripeGateway implements BillingGatewayInterface
         }
     }
 
+    public function createAddonCheckout(User $user, array $addon): array
+    {
+        if (! $this->isConfigured() || ! $user->client_id) {
+            return ['error' => 'Stripe is not configured or the client account is missing.'];
+        }
+
+        try {
+            $stripe = $this->client();
+            $priceId = $addon['stripe_price_id'] ?? null;
+            if (! $priceId) {
+                $price = $stripe->prices->create([
+                    'currency' => strtolower($addon['currency']),
+                    'unit_amount' => (int) $addon['price_cents'],
+                    'recurring' => ['interval' => $addon['interval']],
+                    'product_data' => ['name' => $addon['name']],
+                ]);
+                $priceId = $price->id;
+            }
+
+            $metadata = [
+                'purchase_type' => 'addon',
+                'addon_key' => $addon['key'],
+                'client_id' => (string) $user->client_id,
+                'user_id' => (string) $user->id,
+            ];
+            $successUrl = rtrim(config('app.url'), '/').'/app/addons?addon_checkout=success&session_id={CHECKOUT_SESSION_ID}';
+            $cancelUrl = rtrim(config('app.url'), '/').'/app/addons?addon_checkout=canceled';
+
+            $session = $stripe->checkout->sessions->create([
+                'payment_method_types' => ['card'],
+                'mode' => 'subscription',
+                'customer_email' => $user->email,
+                'line_items' => [['price' => $priceId, 'quantity' => 1]],
+                'success_url' => $successUrl,
+                'cancel_url' => $cancelUrl,
+                'metadata' => $metadata,
+                'subscription_data' => ['metadata' => $metadata],
+            ]);
+
+            return ['url' => $session->url, 'session_id' => $session->id];
+        } catch (\Throwable $e) {
+            Log::error('Stripe add-on checkout failed', ['error' => $e->getMessage(), 'user_id' => $user->id]);
+
+            return ['error' => $e->getMessage()];
+        }
+    }
+
     public function handleWebhook(Request $request): Response
     {
         $payload = $request->getContent();
@@ -173,6 +223,12 @@ class StripeGateway implements BillingGatewayInterface
 
     private function handleCheckoutCompleted(Session $session): void
     {
+        if (($session->metadata->purchase_type ?? null) === 'addon') {
+            $this->activateAddonFromSession($session);
+
+            return;
+        }
+
         $userId = (int) ($session->metadata->user_id ?? 0);
         $planId = (int) ($session->metadata->plan_id ?? 0);
         $billingCycle = $session->metadata->billing_cycle ?? 'month';
@@ -225,6 +281,38 @@ class StripeGateway implements BillingGatewayInterface
 
     private function handleSubscriptionUpdated(\Stripe\Subscription $sub): void
     {
+        $addonService = app(AddonEntitlementService::class);
+        $metadata = $sub->metadata ?? null;
+        if (($metadata->purchase_type ?? null) === 'addon') {
+            $clientId = (int) ($metadata->client_id ?? 0);
+            $userId = (int) ($metadata->user_id ?? 0);
+            $addonKey = (string) ($metadata->addon_key ?? '');
+            $periodEnd = $this->subscriptionPeriodEnd($sub);
+            if ($clientId && $userId && $addonKey) {
+                $addonService->activate(
+                    $clientId,
+                    $addonKey,
+                    $userId,
+                    'stripe',
+                    $sub->id,
+                    $periodEnd ? Carbon::createFromTimestamp($periodEnd) : null,
+                    ['stripe_status' => $sub->status]
+                );
+            }
+        }
+
+        $periodEnd = $this->subscriptionPeriodEnd($sub);
+        $addonHandled = $addonService->syncGatewayStatus(
+            'stripe',
+            $sub->id,
+            $sub->status,
+            $periodEnd ? Carbon::createFromTimestamp($periodEnd) : null,
+            $sub->cancel_at ? Carbon::createFromTimestamp($sub->cancel_at) : null
+        );
+        if ($addonHandled) {
+            return;
+        }
+
         $subscription = Subscription::where('gateway', 'stripe')
             ->where('gateway_subscription_id', $sub->id)
             ->with('user', 'plan')
@@ -262,6 +350,32 @@ class StripeGateway implements BillingGatewayInterface
     private function handleInvoicePaid(Invoice $invoice): void
     {
         $subId = $this->invoiceSubscriptionId($invoice);
+        $addonSubscription = $subId
+            ? ClientAddonSubscription::where('gateway', 'stripe')->where('gateway_subscription_id', $subId)->first()
+            : null;
+        if ($addonSubscription) {
+            $periodEnd = $this->invoicePeriodEnd($invoice);
+            app(AddonEntitlementService::class)->syncGatewayStatus(
+                'stripe',
+                $subId,
+                'active',
+                $periodEnd ? Carbon::createFromTimestamp($periodEnd) : null
+            );
+            PaymentTransaction::firstOrCreate(
+                ['gateway' => 'stripe', 'gateway_transaction_id' => $invoice->id],
+                [
+                    'user_id' => $addonSubscription->purchased_by_user_id,
+                    'subscription_id' => null,
+                    'amount_cents' => $invoice->amount_paid,
+                    'currency_code' => strtoupper($invoice->currency ?? 'USD'),
+                    'status' => 'paid',
+                    'payload' => $invoice->toArray(),
+                ]
+            );
+
+            return;
+        }
+
         $subscription = $subId
             ? Subscription::where('gateway', 'stripe')
                 ->where('gateway_subscription_id', $subId)
@@ -320,6 +434,10 @@ class StripeGateway implements BillingGatewayInterface
     private function handleInvoicePaymentFailed(Invoice $invoice): void
     {
         $subId = $this->invoiceSubscriptionId($invoice);
+        if ($subId && app(AddonEntitlementService::class)->syncGatewayStatus('stripe', $subId, 'past_due')) {
+            return;
+        }
+
         $subscription = $subId
             ? Subscription::where('gateway', 'stripe')
                 ->where('gateway_subscription_id', $subId)
@@ -363,7 +481,7 @@ class StripeGateway implements BillingGatewayInterface
      * Fulfill checkout when user lands on success URL with session_id (e.g. when webhooks can't reach localhost).
      * Creates Subscription and first PaymentTransaction so plan and billing page show correctly.
      */
-    public function fulfillCheckoutSession(string $sessionId): array
+    public function fulfillCheckoutSession(string $sessionId, ?int $expectedUserId = null): array
     {
         if (! $this->isConfigured()) {
             return ['ok' => false, 'error' => 'Stripe not configured.'];
@@ -390,6 +508,14 @@ class StripeGateway implements BillingGatewayInterface
         $billingCycle = $session->metadata->billing_cycle ?? 'month';
         if (! $userId || ! $planId) {
             return ['ok' => false, 'error' => 'Missing user_id or plan_id in session.'];
+        }
+        if ($expectedUserId !== null && $userId !== $expectedUserId) {
+            Log::warning('Stripe fulfillCheckoutSession: session ownership mismatch', [
+                'expected_user_id' => $expectedUserId,
+                'session_user_id' => $userId,
+            ]);
+
+            return ['ok' => false, 'error' => 'Checkout session does not belong to the authenticated user.'];
         }
 
         $plan = Plan::find($planId);
@@ -481,6 +607,84 @@ class StripeGateway implements BillingGatewayInterface
         }
 
         return ['ok' => true, 'subscription' => $subscription];
+    }
+
+    public function fulfillAddonCheckout(string $sessionId): array
+    {
+        if (! $this->isConfigured()) {
+            return ['ok' => false, 'error' => 'Stripe not configured.'];
+        }
+
+        try {
+            $session = $this->client()->checkout->sessions->retrieve($sessionId, [
+                'expand' => ['subscription'],
+            ]);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+
+        if (($session->metadata->purchase_type ?? null) !== 'addon'
+            || ! in_array($session->payment_status, ['paid', 'no_payment_required'], true)
+            || ! $session->subscription) {
+            return ['ok' => false, 'error' => 'This is not a completed add-on checkout session.'];
+        }
+
+        $subscription = $this->activateAddonFromSession($session);
+
+        return ['ok' => (bool) $subscription, 'subscription' => $subscription];
+    }
+
+    private function activateAddonFromSession(Session $session): ?ClientAddonSubscription
+    {
+        $clientId = (int) ($session->metadata->client_id ?? 0);
+        $userId = (int) ($session->metadata->user_id ?? 0);
+        $addonKey = (string) ($session->metadata->addon_key ?? '');
+        $subscription = $session->subscription;
+        $subId = is_object($subscription) ? $subscription->id : $subscription;
+        if (! $clientId || ! $userId || ! $addonKey || ! $subId) {
+            return null;
+        }
+
+        $renewsAt = null;
+        if (is_object($subscription)) {
+            $periodEnd = $this->subscriptionPeriodEnd($subscription);
+            $renewsAt = $periodEnd ? Carbon::createFromTimestamp($periodEnd) : null;
+        } else {
+            try {
+                $stripeSubscription = $this->client()->subscriptions->retrieve($subId);
+                $periodEnd = $this->subscriptionPeriodEnd($stripeSubscription);
+                $renewsAt = $periodEnd ? Carbon::createFromTimestamp($periodEnd) : null;
+            } catch (\Throwable) {
+                // Activation still succeeds; the webhook will populate renews_at.
+            }
+        }
+
+        return app(AddonEntitlementService::class)->activate(
+            $clientId,
+            $addonKey,
+            $userId,
+            'stripe',
+            $subId,
+            $renewsAt,
+            ['checkout_session_id' => $session->id]
+        );
+    }
+
+    public function cancelAddon(ClientAddonSubscription $subscription): bool
+    {
+        if ($subscription->gateway !== 'stripe' || ! $this->isConfigured() || ! $subscription->gateway_subscription_id) {
+            return false;
+        }
+
+        try {
+            $this->client()->subscriptions->cancel($subscription->gateway_subscription_id);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Stripe add-on cancel failed', ['subscription_id' => $subscription->id, 'error' => $e->getMessage()]);
+
+            return false;
+        }
     }
 
     public function cancel(Subscription $subscription): bool
