@@ -83,13 +83,8 @@ Route::middleware('throttle:webhooks')->group(function () {
     Route::post('/webhooks/stripe', [WebhookController::class, 'stripe'])->name('webhooks.stripe');
     Route::post('/webhooks/paypal', [WebhookController::class, 'paypal'])->name('webhooks.paypal');
     Route::post('/webhooks/paddle', [WebhookController::class, 'paddle'])->name('webhooks.paddle');
-    Route::post('/webhooks/razorpay', [WebhookController::class, 'razorpay'])->name('webhooks.razorpay');
-    Route::post('/webhooks/cashfree', [WebhookController::class, 'cashfree'])->name('webhooks.cashfree');
-    Route::post('/webhooks/tap', [WebhookController::class, 'tap'])->name('webhooks.tap');
-    Route::post('/webhooks/paystack', [WebhookController::class, 'paystack'])->name('webhooks.paystack');
-    Route::post('/webhooks/xendit', [WebhookController::class, 'xendit'])->name('webhooks.xendit');
-    Route::post('/webhooks/paymob', [WebhookController::class, 'paymob'])->name('webhooks.paymob');
-    Route::post('/webhooks/myfatoorah', [WebhookController::class, 'myfatoorah'])->name('webhooks.myfatoorah');
+    // Webhook routes for legacy gateways are intentionally disabled. Their
+    // controller methods remain available if the gateway policy changes later.
 });
 
 // ─── Health / readiness probes ───────────────────────────────────────────────

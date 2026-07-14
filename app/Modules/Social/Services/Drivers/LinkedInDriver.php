@@ -14,25 +14,32 @@ class LinkedInDriver implements SocialNetworkInterface
 
     public function fetchAccountInfo(string $accessToken): array
     {
-        $res = Http::withToken($accessToken)
-            ->get('https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))')
-            ->json();
+        // The OAuth flow requests OpenID Connect scopes, so identity must be read
+        // from the OIDC UserInfo endpoint rather than the retired legacy /v2/me
+        // member-profile response shape.
+        $response = Http::withToken($accessToken)
+            ->acceptJson()
+            ->get('https://api.linkedin.com/v2/userinfo');
 
-        // Extract the smallest available profile picture thumbnail.
-        $elements = $res['profilePicture']['displayImage~']['elements'] ?? [];
-        $pictureUrl = ! empty($elements) ? ($elements[0]['identifiers'][0]['identifier'] ?? null) : null;
+        if (! $response->successful()) {
+            throw new \RuntimeException('LinkedIn profile lookup failed (HTTP '.$response->status().'): '.$response->body());
+        }
+
+        $res = $response->json();
 
         return [
-            'account_id' => $res['id'] ?? '',
-            'name'        => trim(($res['localizedFirstName'] ?? '').' '.($res['localizedLastName'] ?? '')),
-            'picture_url' => $pictureUrl,
+            'account_id' => $res['sub'] ?? '',
+            'name'        => $res['name'] ?? trim(($res['given_name'] ?? '').' '.($res['family_name'] ?? '')),
+            'picture_url' => $res['picture'] ?? null,
         ];
     }
 
     public function publish(SocialAccount $account, array $postData): string
     {
         $urn = "urn:li:person:{$account->account_id}";
-        $res = Http::withToken($account->access_token)->post('https://api.linkedin.com/v2/ugcPosts', [
+        $response = Http::withToken($account->access_token)
+            ->withHeaders(['X-Restli-Protocol-Version' => '2.0.0'])
+            ->post('https://api.linkedin.com/v2/ugcPosts', [
             'author' => $urn,
             'lifecycleState' => 'PUBLISHED',
             'specificContent' => [
@@ -42,8 +49,16 @@ class LinkedInDriver implements SocialNetworkInterface
                 ],
             ],
             'visibility' => ['com.linkedin.ugc.MemberNetworkVisibility' => 'PUBLIC'],
-        ])->json();
+            ]);
 
-        return $res['id'] ?? throw new \RuntimeException('LinkedIn publish failed: '.json_encode($res));
+        if (! $response->successful()) {
+            throw new \RuntimeException('LinkedIn publish failed (HTTP '.$response->status().'): '.$response->body());
+        }
+
+        $id = $response->header('X-RestLi-Id') ?: $response->json('id');
+
+        return is_string($id) && $id !== ''
+            ? $id
+            : throw new \RuntimeException('LinkedIn publish succeeded but returned no post ID.');
     }
 }

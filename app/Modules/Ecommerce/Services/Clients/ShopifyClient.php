@@ -15,7 +15,17 @@ class ShopifyClient implements EcommerceClientInterface
     public const API_VERSION = '2025-10';
 
     /** Webhook topics this integration subscribes to. */
-    public const WEBHOOK_TOPICS = ['orders/create', 'orders/fulfilled', 'orders/cancelled', 'checkouts/create', 'products/update'];
+    public const WEBHOOK_TOPICS = [
+        'orders/create',
+        'orders/fulfilled',
+        'orders/cancelled',
+        'checkouts/create',
+        'products/update',
+        // Shopify requires these compliance webhooks for public apps.
+        'customers/data_request',
+        'customers/redact',
+        'shop/redact',
+    ];
 
     public function __construct(
         private readonly string $domain,
@@ -57,6 +67,7 @@ class ShopifyClient implements EcommerceClientInterface
     public function registerWebhooks(string $callbackUrl): array
     {
         $created = 0;
+        $failures = [];
         try {
             foreach (self::WEBHOOK_TOPICS as $topic) {
                 $resp = $this->http()->post('/webhooks.json', [
@@ -65,10 +76,20 @@ class ShopifyClient implements EcommerceClientInterface
                 // 201 created; 422 means it already exists — both are acceptable.
                 if ($resp->status() === 201) {
                     $created++;
+                    continue;
                 }
+
+                $error = json_encode($resp->json('errors', $resp->body()));
+                if ($resp->status() === 422 && Str::contains(strtolower((string) $error), 'already been taken')) {
+                    continue;
+                }
+
+                $failures[] = $topic.' (HTTP '.$resp->status().')';
             }
 
-            return ['ok' => true, 'message' => "Registered {$created} new webhook(s)."];
+            return $failures === []
+                ? ['ok' => true, 'message' => "Registered {$created} new webhook(s); all topics are active."]
+                : ['ok' => false, 'message' => 'Webhook registration failed for: '.implode(', ', $failures)];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => $e->getMessage()];
         }

@@ -7,6 +7,14 @@ use App\Models\PaymentGatewayConfig;
 
 class BillingGatewayRegistry
 {
+    /**
+     * The only billing gateways offered by WisperBot.
+     *
+     * Keep this allowlist at the registry boundary so legacy database rows or
+     * environment variables cannot silently reactivate a retired gateway.
+     */
+    public const SUPPORTED_GATEWAYS = ['stripe', 'paypal', 'paddle'];
+
     /** @var array<string, BillingGatewayInterface> */
     private array $gateways = [];
 
@@ -19,21 +27,28 @@ class BillingGatewayRegistry
     private function registerFromDatabase(): void
     {
         try {
-            $configs = PaymentGatewayConfig::where('enabled', true)->get();
+            $configs = PaymentGatewayConfig::where('enabled', true)
+                ->whereIn('gateway', self::SUPPORTED_GATEWAYS)
+                ->get();
         } catch (\Throwable) {
             return;
         }
 
         $appUrl = config('app.url', '');
-        $successUrl = rtrim($appUrl, '/') . '/app/billing?checkout=success';
-        $cancelUrl = rtrim($appUrl, '/') . '/app/pricing?checkout=canceled';
-        $tapWebhookUrl = rtrim($appUrl, '/') . '/webhooks/tap';
-
+        $successUrl = rtrim($appUrl, '/').'/app/billing?checkout=success';
+        $cancelUrl = rtrim($appUrl, '/').'/app/pricing?checkout=canceled';
         foreach ($configs as $row) {
             if (isset($this->gateways[$row->gateway])) {
                 continue;
             }
             $creds = $row->getActiveCredentials();
+            // An enabled legacy row may predate webhook-secret validation.
+            // Do not register it until every credential required by the active
+            // mode is present; otherwise checkout can accept money while all
+            // fulfillment webhooks are guaranteed to fail.
+            if (! $row->hasActiveCredentials()) {
+                continue;
+            }
             if ($row->gateway === 'stripe' && ! empty($creds['secret_key'] ?? '')) {
                 $this->gateways['stripe'] = new StripeGateway(
                     $creds['secret_key'],
@@ -66,79 +81,8 @@ class BillingGatewayRegistry
                     $creds['webhook_secret'] ?? ''
                 );
             }
-            // Razorpay: publishable_key → key_id, secret_key → key_secret.
-            if ($row->gateway === 'razorpay' && ! empty($creds['secret_key'] ?? '')) {
-                $keyId = $creds['publishable_key'] ?? $creds['key_id'] ?? '';
-                $keySecret = $creds['secret_key'] ?? $creds['key_secret'] ?? '';
-                if ($keyId !== '' && $keySecret !== '') {
-                    $this->gateways['razorpay'] = new RazorpayGateway(
-                        $keyId,
-                        $keySecret,
-                        $creds['webhook_secret'] ?? ''
-                    );
-                }
-            }
-            // Cashfree: publishable_key → x-client-id, secret_key → x-client-secret.
-            if ($row->gateway === 'cashfree' && ! empty($creds['secret_key'] ?? '')) {
-                $clientId = $creds['publishable_key'] ?? $creds['client_id'] ?? '';
-                $clientSecret = $creds['secret_key'] ?? $creds['client_secret'] ?? '';
-                if ($clientId !== '' && $clientSecret !== '') {
-                    $this->gateways['cashfree'] = new CashfreeGateway(
-                        $clientId,
-                        $clientSecret,
-                        (bool) $row->test_mode,
-                        $successUrl
-                    );
-                }
-            }
-            // Tap: secret_key → secret API key (also used to verify the webhook hashstring).
-            if ($row->gateway === 'tap' && ! empty($creds['secret_key'] ?? '')) {
-                $this->gateways['tap'] = new TapGateway(
-                    $creds['secret_key'],
-                    $successUrl,
-                    $cancelUrl,
-                    $tapWebhookUrl
-                );
-            }
-            // Paystack: publishable_key → public key, secret_key → secret key.
-            if ($row->gateway === 'paystack' && ! empty($creds['secret_key'] ?? '')) {
-                $this->gateways['paystack'] = new PaystackGateway(
-                    $creds['secret_key'],
-                    $creds['publishable_key'] ?? $creds['public_key'] ?? '',
-                    $successUrl,
-                    $cancelUrl
-                );
-            }
-            // Xendit: secret_key → API secret, webhook_secret → x-callback-token.
-            if ($row->gateway === 'xendit' && ! empty($creds['secret_key'] ?? '')) {
-                $this->gateways['xendit'] = new XenditGateway(
-                    $creds['secret_key'],
-                    $creds['webhook_secret'] ?? '',
-                    $successUrl,
-                    $cancelUrl
-                );
-            }
-            // Paymob: secret_key → api_key, webhook_secret → hmac_secret,
-            //         publishable_key → integration_id (numeric), extra → iframe_id.
-            if ($row->gateway === 'paymob' && ! empty($creds['secret_key'] ?? '')) {
-                $this->gateways['paymob'] = new PaymobGateway(
-                    $creds['secret_key'],
-                    $creds['webhook_secret'] ?? '',
-                    (int) ($creds['publishable_key'] ?? $creds['integration_id'] ?? 0),
-                    $creds['iframe_id'] ?? '',
-                    $successUrl,
-                    $cancelUrl
-                );
-            }
-            // MyFatoorah: secret_key → api_key.
-            if ($row->gateway === 'myfatoorah' && ! empty($creds['secret_key'] ?? '')) {
-                $this->gateways['myfatoorah'] = new MyFatoorahGateway(
-                    $creds['secret_key'],
-                    (bool) $row->test_mode,
-                    $successUrl,
-                    $cancelUrl
-                );
-            }
+            // Other gateway adapters are intentionally not registered. Their
+            // implementation files remain available for a future policy change.
         }
     }
 
@@ -150,8 +94,8 @@ class BillingGatewayRegistry
             $this->gateways['stripe'] = new StripeGateway(
                 $config['stripe']['secret_key'] ?? '',
                 $config['stripe']['webhook_secret'] ?? '',
-                $config['stripe']['success_url'] ?? (rtrim(config('app.url'), '/') . '/app/billing?checkout=success'),
-                $config['stripe']['cancel_url'] ?? (rtrim(config('app.url'), '/') . '/app/pricing?checkout=canceled')
+                $config['stripe']['success_url'] ?? (rtrim(config('app.url'), '/').'/app/billing?checkout=success'),
+                $config['stripe']['cancel_url'] ?? (rtrim(config('app.url'), '/').'/app/pricing?checkout=canceled')
             );
         }
 
@@ -176,73 +120,8 @@ class BillingGatewayRegistry
             );
         }
 
-        $appUrl = config('app.url', '');
-        $successUrl = rtrim($appUrl, '/') . '/app/billing?checkout=success';
-        $cancelUrl = rtrim($appUrl, '/') . '/app/pricing?checkout=canceled';
-
-        if (! isset($this->gateways['razorpay']) && ! empty($config['razorpay']['enabled']) && ($config['razorpay']['key_id'] ?? '')) {
-            $this->gateways['razorpay'] = new RazorpayGateway(
-                $config['razorpay']['key_id'] ?? '',
-                $config['razorpay']['key_secret'] ?? '',
-                $config['razorpay']['webhook_secret'] ?? ''
-            );
-        }
-
-        if (! isset($this->gateways['cashfree']) && ! empty($config['cashfree']['enabled']) && ($config['cashfree']['client_id'] ?? '')) {
-            $this->gateways['cashfree'] = new CashfreeGateway(
-                $config['cashfree']['client_id'] ?? '',
-                $config['cashfree']['client_secret'] ?? '',
-                (bool) ($config['cashfree']['sandbox'] ?? true),
-                $config['cashfree']['return_url'] ?? $successUrl
-            );
-        }
-
-        if (! isset($this->gateways['tap']) && ! empty($config['tap']['enabled']) && ($config['tap']['secret_key'] ?? '')) {
-            $this->gateways['tap'] = new TapGateway(
-                $config['tap']['secret_key'] ?? '',
-                $config['tap']['success_url'] ?? $successUrl,
-                $config['tap']['cancel_url'] ?? $cancelUrl,
-                rtrim($appUrl, '/') . '/webhooks/tap'
-            );
-        }
-
-        if (! isset($this->gateways['paystack']) && ! empty($config['paystack']['enabled']) && ($config['paystack']['secret_key'] ?? '')) {
-            $this->gateways['paystack'] = new PaystackGateway(
-                $config['paystack']['secret_key'] ?? '',
-                $config['paystack']['public_key'] ?? '',
-                $config['paystack']['success_url'] ?? $successUrl,
-                $config['paystack']['cancel_url'] ?? $cancelUrl
-            );
-        }
-
-        if (! isset($this->gateways['xendit']) && ! empty($config['xendit']['enabled']) && ($config['xendit']['secret_key'] ?? '')) {
-            $this->gateways['xendit'] = new XenditGateway(
-                $config['xendit']['secret_key'] ?? '',
-                $config['xendit']['webhook_token'] ?? '',
-                $config['xendit']['success_url'] ?? $successUrl,
-                $config['xendit']['cancel_url'] ?? $cancelUrl
-            );
-        }
-
-        if (! isset($this->gateways['paymob']) && ! empty($config['paymob']['enabled']) && ($config['paymob']['api_key'] ?? '')) {
-            $this->gateways['paymob'] = new PaymobGateway(
-                $config['paymob']['api_key'] ?? '',
-                $config['paymob']['hmac_secret'] ?? '',
-                (int) ($config['paymob']['integration_id'] ?? 0),
-                $config['paymob']['iframe_id'] ?? '',
-                $config['paymob']['success_url'] ?? $successUrl,
-                $config['paymob']['cancel_url'] ?? $cancelUrl
-            );
-        }
-
-        if (! isset($this->gateways['myfatoorah']) && ! empty($config['myfatoorah']['enabled']) && ($config['myfatoorah']['api_key'] ?? '')) {
-            $this->gateways['myfatoorah'] = new MyFatoorahGateway(
-                $config['myfatoorah']['api_key'] ?? '',
-                (bool) ($config['myfatoorah']['sandbox'] ?? true),
-                $config['myfatoorah']['success_url'] ?? $successUrl,
-                $config['myfatoorah']['cancel_url'] ?? $cancelUrl
-            );
-        }
+        // Configuration registrations for legacy gateways are intentionally
+        // disabled. Only Stripe, PayPal, and Paddle can enter this registry.
     }
 
     /**
@@ -265,6 +144,10 @@ class BillingGatewayRegistry
 
     public function get(string $key): ?BillingGatewayInterface
     {
+        if (! in_array($key, self::SUPPORTED_GATEWAYS, true)) {
+            return null;
+        }
+
         return $this->gateways[$key] ?? null;
     }
 
@@ -278,13 +161,6 @@ class BillingGatewayRegistry
             'stripe' => 'Stripe',
             'paypal' => 'PayPal',
             'paddle' => 'Paddle',
-            'razorpay' => 'Razorpay',
-            'cashfree' => 'Cashfree',
-            'tap' => 'Tap',
-            'paystack' => 'Paystack',
-            'xendit' => 'Xendit',
-            'paymob' => 'Paymob',
-            'myfatoorah' => 'MyFatoorah',
         ];
         foreach ($labels as $key => $label) {
             $g = $this->gateways[$key] ?? null;

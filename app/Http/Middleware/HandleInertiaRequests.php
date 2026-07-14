@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\Broadcasting\Models\UsageMeter;
 use App\Modules\Integrations\Services\CredentialResolver;
+use App\Services\AddonEntitlementService;
 use App\Services\I18n\I18nFileService;
 use App\Services\OnboardingService;
 use App\Services\StorageManager;
@@ -78,6 +79,7 @@ class HandleInertiaRequests extends Middleware
                 'demo_mode' => false,
                 'app_version' => env('APP_VERSION', '1.0.0'),
                 'onboardingSummary' => null,
+                'entitlements' => ['developer_tools' => false],
             ];
         }
 
@@ -174,6 +176,7 @@ class HandleInertiaRequests extends Middleware
         }
 
         $limits = $plan?->limits ?? [];
+        unset($limits['lead_credits_per_month']);
         if (empty($limits)) {
             return [];
         }
@@ -182,7 +185,6 @@ class HandleInertiaRequests extends Middleware
             'campaigns_per_month' => 'campaigns',
             'whatsapp_messages_per_month' => 'whatsapp_messages',
             'social_posts_per_month' => 'social_posts',
-            'lead_credits_per_month' => 'lead_credits',
         ];
 
         $usage = [];
@@ -361,6 +363,12 @@ class HandleInertiaRequests extends Middleware
             'onesignal' => $this->oneSignalPublicConfig(),
             'firebase' => $this->firebasePublicConfig(),
             'metaAppId' => $this->metaAppId(),
+            'entitlements' => [
+                'developer_tools' => app(AddonEntitlementService::class)->enabledFor(
+                    $user instanceof User ? $user : null,
+                    AddonEntitlementService::DEVELOPER_TOOLS
+                ),
+            ],
         ];
     }
 

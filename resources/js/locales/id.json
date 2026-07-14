@@ -115,7 +115,11 @@
         "group_reports": "Laporan",
         "group_support": "Dukungan",
         "group_billing": "Tagihan",
-        "group_developer": "Pengembang"
+        "group_developer": "Pengembang",
+        "addons": "Addons",
+        "website_widget": "Website Widget",
+        "group_assets": "Group Assets",
+        "sign_in": "Sign In"
     },
     "welcome": {
         "title": "Bangun situs web dengan AI.",
@@ -145,7 +149,8 @@
         "per_month": "\/bln",
         "per_year": "\/thn",
         "everything_in": "Semua yang ada di {{plan}}",
-        "most_popular": "Paling Populer"
+        "most_popular": "Paling Populer",
+        "learn_more": "Learn More"
     },
     "rtl": {
         "title": "Pratinjau RTL",
@@ -175,13 +180,8 @@
     "client": {
         "profile": {
             "edit": "Edit",
-            "2fa": {
-                "enable": "Enable",
-                "disable": "Disable"
-            },
-            "sessions": {
-                "destroy": "Destroy"
-            },
+            "2fa": "2Fa",
+            "sessions": "Sessions",
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -345,10 +345,7 @@
             "index": "Indeks",
             "store": "Simpan",
             "destroy": "Hapus",
-            "contacts": {
-                "attach": "Attach",
-                "detach": "Detach"
-            }
+            "contacts": "Contacts"
         },
         "whatsapp": {
             "templates": {
@@ -370,7 +367,9 @@
                 "create": "Buat",
                 "edit": "Edit"
             },
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "broadcasts": {
             "campaigns": {
@@ -401,9 +400,7 @@
             "start": "Mulai",
             "templates": "Template",
             "assign": "Tugaskan",
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "ai": {
             "providers": {
@@ -553,7 +550,11 @@
                 "connect": "Hubungkan"
             }
         },
-        "workspaces": "Workspaces",
+        "workspaces": {
+            "switch": "Switch",
+            "index": "Index",
+            "store": "Store"
+        },
         "settings": {
             "update": "Perbarui",
             "notifications": "Notifikasi",
@@ -569,6 +570,9 @@
             "destroy": "Hapus",
             "invoice": "Faktur",
             "show": "Tampilkan"
+        },
+        "addons": {
+            "index": "Index"
         }
     },
     "pagination": {
@@ -812,7 +816,11 @@
         "tax_rates": "Tarif Pajak",
         "landing_page": "Konten Situs",
         "cms_pages": "Halaman CMS",
-        "license": "License",
+        "license": {
+            "index": "Index",
+            "deactivate": "Deactivate",
+            "activate": "Activate"
+        },
         "cron_setup": "Pengaturan Cron",
         "support": {
             "index": "Indeks",
@@ -927,38 +935,40 @@
         "secret_key_hint": "Secret key sisi server — jaga kerahasiaannya",
         "stripe_webhook_hint": "Secret penandatanganan webhook (whsec_…) dari dasbor Stripe",
         "webhook_hint": "Secret webhook yang digunakan untuk memverifikasi event gateway masuk",
-        "clients": "Clients",
-        "subscriptions": {
+        "clients": {
             "index": "Index",
+            "users": {
+                "index": "Index",
+                "store": "Store",
+                "update": "Update",
+                "destroy": "Destroy"
+            },
+            "impersonate": "Impersonate",
+            "destroy": "Destroy",
+            "export": "Export",
             "store": "Store",
-            "export": "Export"
+            "update": "Update"
         },
-        "payments": "Payments",
-        "plans": "Plans",
-        "currencies": {
+        "subscriptions": "Subscriptions",
+        "payments": {
+            "index": "Index"
+        },
+        "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store"
+            "store": "Store",
+            "duplicate": "Duplicate",
+            "destroy": "Destroy",
+            "reorder": "Reorder"
         },
-        "admins": "Admins",
-        "settings": {
+        "currencies": "Currencies",
+        "admins": {
             "index": "Index",
-            "general": {
-                "update": "Update"
-            },
-            "logo": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "favicon": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "update": "Update",
-            "firebase": {
-                "update": "Update"
-            }
+            "destroy": "Destroy",
+            "store": "Store",
+            "update": "Update"
         },
+        "settings": "Settings",
         "ai": {
             "index": "Indeks"
         },
@@ -1150,7 +1160,9 @@
         "demo_mode_title": "Judul Mode Demo",
         "demo_mode_subtitle": "Subjudul Mode Demo",
         "demo_role_admin": "Peran Demo Admin",
-        "demo_role_client": "Peran Demo Klien"
+        "demo_role_client": "Peran Demo Klien",
+        "toggle_password_hide": "Hide password",
+        "toggle_password_show": "Show password"
     },
     "password": {
         "confirm": "Konfirmasi",
@@ -4025,6 +4037,14 @@
     "37": {
         "4220": "4220"
     },
+    "wisperbot": {
+        "sidebar": {
+            "scroll": {
+                "admin": "Admin",
+                "client": "Client"
+            }
+        }
+    },
     "127": [
         [
             {
@@ -4034,5 +4054,17 @@
     ],
     "v20": [
         "0"
-    ]
+    ],
+    "2": {
+        "5": "5"
+    },
+    "8": {
+        "5": "5"
+    },
+    "9": {
+        "5": "5"
+    },
+    "1": {
+        "6": "6"
+    }
 }

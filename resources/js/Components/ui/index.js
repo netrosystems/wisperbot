@@ -7,6 +7,7 @@ export { default as Pagination } from './Pagination';
 export { default as Dropdown } from './Dropdown';
 export { default as Drawer } from './Drawer';
 export { default as Input } from './Input';
+export { default as PasswordInput } from './PasswordInput';
 export { default as Modal } from './Modal';
 export { default as Select } from './Select';
 export { default as Skeleton } from './Skeleton';

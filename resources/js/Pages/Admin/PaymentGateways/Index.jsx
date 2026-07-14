@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Button, Card, Modal, Toggle } from '@/Components/ui';
+import { Button, Card, Modal, Toggle, PasswordInput } from '@/Components/ui';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useForm } from '@inertiajs/react';
 import axios from 'axios';
@@ -142,34 +142,12 @@ function EditGatewayModal({ show, gatewayKey, initialData, loading, error, valid
         });
     };
 
-    // Gateway-specific guidance. The stored credential keys are always publishable_key /
-    // secret_key / webhook_secret; these hints explain what each holds per gateway.
-    const GATEWAY_HINTS = {
-        razorpay: {
-            publishable: 'Razorpay Key ID (rzp_test_… / rzp_live_…).',
-            secret: 'Razorpay Key Secret.',
-            webhook: 'Webhook secret set in Razorpay Dashboard → Webhooks. Endpoint: /webhooks/razorpay',
-            note: 'Razorpay uses native Subscriptions (auto-renewing). Map: Publishable Key = Key ID, Secret Key = Key Secret.',
-        },
-        cashfree: {
-            publishable: 'Cashfree App ID (x-client-id).',
-            secret: 'Cashfree Secret Key (x-client-secret). Also used to verify webhook signatures.',
-            webhook: 'Not required — Cashfree webhooks are verified with the Secret Key. Endpoint: /webhooks/cashfree',
-            note: 'Cashfree uses native Subscriptions (auto-renewing) via its JS SDK. Map: Publishable Key = App ID, Secret Key = Secret Key. Leave Webhook Secret blank.',
-        },
-        tap: {
-            publishable: 'Not required for Tap — leave blank.',
-            secret: 'Tap Secret API Key (sk_test_… / sk_live_…). Also verifies the webhook hashstring.',
-            webhook: 'Not required — Tap webhooks are verified with the Secret Key. Endpoint: /webhooks/tap',
-            note: 'Tap has no hosted auto-renew; renewals are merchant-initiated against the saved card by the billing:charge-recurring scheduler. Only the Secret Key is needed.',
-        },
-    };
+    // Gateway-specific guidance for legacy gateways is intentionally disabled.
     const isStripe = gatewayKey === 'stripe';
-    const custom = GATEWAY_HINTS[gatewayKey];
-    const publishableHint = custom?.publishable ?? (isStripe ? t('admin.stripe_pk_hint') : t('admin.publishable_key_hint'));
-    const secretHint = custom?.secret ?? (isStripe ? t('admin.stripe_sk_hint') : t('admin.secret_key_hint'));
-    const webhookHint = custom?.webhook ?? (isStripe ? t('admin.stripe_webhook_hint') : t('admin.webhook_hint'));
-    const gatewayNote = custom?.note ?? t('admin.gateway_credentials_note');
+    const publishableHint = isStripe ? t('admin.stripe_pk_hint') : t('admin.publishable_key_hint');
+    const secretHint = isStripe ? t('admin.stripe_sk_hint') : t('admin.secret_key_hint');
+    const webhookHint = isStripe ? t('admin.stripe_webhook_hint') : t('admin.webhook_hint');
+    const gatewayNote = t('admin.gateway_credentials_note');
 
     return (
         <Modal show={show} onClose={onClose} maxWidth="2xl">
@@ -219,16 +197,15 @@ function EditGatewayModal({ show, gatewayKey, initialData, loading, error, valid
                                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
                                             {t('admin.secret_key')} <span className="text-coral-500">*</span>
                                         </label>
-                                        <input
-                                            type="password"
+                                        <PasswordInput
                                             value={data.test_secret_key}
                                             onChange={(e) => setData('test_secret_key', e.target.value)}
                                             placeholder={t('admin.stripe_sk_placeholder')}
-                                            className={`mt-1 w-full rounded-soft border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
+                                            className={`mt-1 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
                                                 validationErrors.test_secret_key
                                                     ? 'border-coral-500 bg-coral-50 dark:bg-coral-900/10 dark:border-coral-600'
                                                     : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800'
-                                            } text-neutral-900 dark:text-neutral-100`}
+                                            }`}
                                         />
                                         {validationErrors.test_secret_key && (
                                             <p className="mt-0.5 text-xs text-coral-600 dark:text-coral-400">{validationErrors.test_secret_key}</p>
@@ -237,12 +214,11 @@ function EditGatewayModal({ show, gatewayKey, initialData, loading, error, valid
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('admin.webhook_secret')}</label>
-                                        <input
-                                            type="password"
+                                        <PasswordInput
                                             value={data.test_webhook_secret}
                                             onChange={(e) => setData('test_webhook_secret', e.target.value)}
                                             placeholder={t('admin.webhook_secret_placeholder')}
-                                            className="mt-1 w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                                            className="mt-1 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                                         />
                                         <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{webhookHint}</p>
                                     </div>
@@ -264,16 +240,15 @@ function EditGatewayModal({ show, gatewayKey, initialData, loading, error, valid
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('admin.secret_key')}</label>
-                                        <input
-                                            type="password"
+                                        <PasswordInput
                                             value={data.live_secret_key}
                                             onChange={(e) => setData('live_secret_key', e.target.value)}
                                             placeholder={t('admin.stripe_sk_live_placeholder')}
-                                            className={`mt-1 w-full rounded-soft border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
+                                            className={`mt-1 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
                                                 validationErrors.live_secret_key
                                                     ? 'border-coral-500 bg-coral-50 dark:bg-coral-900/10 dark:border-coral-600'
                                                     : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800'
-                                            } text-neutral-900 dark:text-neutral-100`}
+                                            }`}
                                         />
                                         {validationErrors.live_secret_key && (
                                             <p className="mt-0.5 text-xs text-coral-600 dark:text-coral-400">{validationErrors.live_secret_key}</p>
@@ -281,12 +256,11 @@ function EditGatewayModal({ show, gatewayKey, initialData, loading, error, valid
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('admin.webhook_secret')}</label>
-                                        <input
-                                            type="password"
+                                        <PasswordInput
                                             value={data.live_webhook_secret}
                                             onChange={(e) => setData('live_webhook_secret', e.target.value)}
                                             placeholder={t('admin.webhook_secret_placeholder')}
-                                            className="mt-1 w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                                            className="mt-1 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                                         />
                                     </div>
                                 </div>

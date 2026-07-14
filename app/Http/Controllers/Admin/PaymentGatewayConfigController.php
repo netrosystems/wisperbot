@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\PaymentGatewayConfig;
+use App\Services\Billing\BillingGatewayRegistry;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -12,25 +15,16 @@ use Inertia\Response;
 class PaymentGatewayConfigController extends Controller
 {
     /** Gateways the admin panel can configure. */
-    private const GATEWAYS = ['stripe', 'paypal', 'paddle', 'razorpay', 'cashfree', 'tap', 'paystack', 'paymob', 'myfatoorah', 'xendit'];
-
     /** Display labels (falls back to ucfirst for anything missing). */
     private const LABELS = [
         'stripe' => 'Stripe',
         'paypal' => 'PayPal',
         'paddle' => 'Paddle',
-        'razorpay' => 'Razorpay',
-        'cashfree' => 'Cashfree',
-        'tap' => 'Tap',
-        'paystack' => 'Paystack',
-        'paymob' => 'Paymob',
-        'myfatoorah' => 'MyFatoorah',
-        'xendit' => 'Xendit',
     ];
 
     public function index(): Response
     {
-        $gateways = self::GATEWAYS;
+        $gateways = BillingGatewayRegistry::SUPPORTED_GATEWAYS;
         $configs = PaymentGatewayConfig::whereIn('gateway', $gateways)->get()->keyBy('gateway');
 
         $list = [];
@@ -53,7 +47,7 @@ class PaymentGatewayConfigController extends Controller
     /**
      * Get one gateway config for editing (credentials masked for secrets).
      */
-    public function show(string $gateway): \Illuminate\Http\JsonResponse
+    public function show(string $gateway): JsonResponse
     {
         $this->validateGateway($gateway);
         $config = PaymentGatewayConfig::firstOrCreate(
@@ -88,7 +82,7 @@ class PaymentGatewayConfigController extends Controller
         return response()->json($data);
     }
 
-    public function update(Request $request, string $gateway): \Illuminate\Http\RedirectResponse
+    public function update(Request $request, string $gateway): RedirectResponse
     {
         $this->validateGateway($gateway);
         $config = PaymentGatewayConfig::firstOrCreate(
@@ -116,20 +110,6 @@ class PaymentGatewayConfigController extends Controller
 
         $validated = $request->validate($rules);
 
-        if (! empty($validated['enabled'])) {
-            $isTest = (bool) $validated['test_mode'];
-            $secret = $isTest ? ($validated['test_secret_key'] ?? '') : ($validated['live_secret_key'] ?? '');
-            if (preg_match('/^•+$/', (string) $secret) || $secret === '') {
-                $existing = $config->credentials ?? [];
-                $mode = $isTest ? 'test' : 'live';
-                $hasStored = ! empty($existing[$mode]['secret_key'] ?? '');
-                if (! $hasStored) {
-                    $field = $isTest ? 'test_secret_key' : 'live_secret_key';
-                    throw ValidationException::withMessages([$field => __('Secret key is required when enabling the gateway.')]);
-                }
-            }
-        }
-
         $existing = $config->credentials ?? [
             'test' => $this->defaultCredentialKeys($gateway),
             'live' => $this->defaultCredentialKeys($gateway),
@@ -140,9 +120,9 @@ class PaymentGatewayConfigController extends Controller
         $live = $existing['live'] ?? [];
 
         foreach (['test', 'live'] as $mode) {
-            $prefix = $mode . '_';
+            $prefix = $mode.'_';
             foreach ($credentialKeys as $k) {
-                $field = $prefix . $k;
+                $field = $prefix.$k;
                 $v = $validated[$field] ?? null;
                 if ($v === null || $v === '') {
                     continue;
@@ -158,6 +138,29 @@ class PaymentGatewayConfigController extends Controller
             }
         }
 
+        if (! empty($validated['enabled'])) {
+            $mode = (bool) $validated['test_mode'] ? 'test' : 'live';
+            $active = $mode === 'test' ? $test : $live;
+            $required = $gateway === 'paypal'
+                ? ['publishable_key', 'secret_key', 'webhook_secret']
+                : ['secret_key', 'webhook_secret'];
+            $labels = [
+                'publishable_key' => $gateway === 'paypal' ? 'Client ID' : 'Publishable key',
+                'secret_key' => $gateway === 'paypal' ? 'Client secret' : 'Secret key',
+                'webhook_secret' => 'Webhook signing secret',
+            ];
+
+            $messages = [];
+            foreach ($required as $key) {
+                if (! filled($active[$key] ?? null)) {
+                    $messages[$mode.'_'.$key] = $labels[$key].' is required before enabling '.$gateway.'.';
+                }
+            }
+            if ($messages !== []) {
+                throw ValidationException::withMessages($messages);
+            }
+        }
+
         $config->update([
             'test_mode' => (bool) $validated['test_mode'],
             'enabled' => (bool) $validated['enabled'],
@@ -169,7 +172,7 @@ class PaymentGatewayConfigController extends Controller
 
     private function validateGateway(string $gateway): void
     {
-        if (! in_array($gateway, self::GATEWAYS, true)) {
+        if (! in_array($gateway, BillingGatewayRegistry::SUPPORTED_GATEWAYS, true)) {
             abort(404);
         }
     }
@@ -178,5 +181,4 @@ class PaymentGatewayConfigController extends Controller
     {
         return ['publishable_key' => '', 'secret_key' => '', 'webhook_secret' => ''];
     }
-
 }

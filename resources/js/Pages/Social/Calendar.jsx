@@ -26,7 +26,6 @@ const STATUS_OPTIONS = [
 const NETWORK_ICONS = {
     facebook:  '📘',
     instagram: '📷',
-    twitter:   '🐦',
     linkedin:  '💼',
     tiktok:    '🎵',
     youtube:   '▶️',

@@ -41,6 +41,11 @@ class IndexDocumentJob implements ShouldQueue
             $text = $this->extractText($doc, $storage);
             $chunks = $this->chunk($text);
 
+            // Remove old vectors before deleting the relational chunks. Without
+            // this, re-indexing leaves stale Qdrant points that can be returned
+            // for a knowledge base even though their document no longer exists.
+            $store->deleteDocumentEmbeddings($doc->id);
+
             // Remove old chunks
             $doc->chunks()->delete();
 

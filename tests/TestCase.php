@@ -37,6 +37,7 @@ abstract class TestCase extends BaseTestCase
             'view_admins', 'create_admins', 'update_admins', 'delete_admins',
             'view_admin_roles', 'manage_admin_roles',
             'view_email_settings', 'manage_email_settings',
+            'manage_integrations',
             'view_currencies', 'view_languages',
         ];
 

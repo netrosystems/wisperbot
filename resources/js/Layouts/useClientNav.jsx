@@ -4,7 +4,7 @@ import { ChannelBrandIcon } from '@/Components/BrandIcons';
 import {
     LayoutDashboard, CreditCard, Package, FileText, Users, Settings,
     Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot, Database,
-    Zap, Share2, MapPin, Tag, LifeBuoy, ExternalLink, Mail, MessageSquare,
+    Zap, Share2, Tag, LifeBuoy, ExternalLink, Mail, MessageSquare,
     ShoppingBag, MessageCircle,
 } from 'lucide-react';
 
@@ -20,11 +20,11 @@ function safeRoute(name, ...args) {
  *
  * Both ClientLayout and InboxLayout consume this so the sidebar is identical on
  * every client page. Previously each layout kept its own copy and they drifted —
- * the inbox sidebar was missing whole groups (Social Media, Automations, Leads)
+ * the inbox sidebar was missing whole groups (Social Media and Automations)
  * and items. Keep all nav changes here only.
  */
 export default function useClientNav() {
-    const { auth, branding } = usePage().props;
+    const { auth, branding, entitlements } = usePage().props;
     const { t } = useTranslation();
     const user = auth?.user;
     const docsUrl = branding?.docs_url;
@@ -50,13 +50,17 @@ export default function useClientNav() {
         { label: t('nav.subscription'), href: safeRoute('client.subscription.show'), icon: <CreditCard className={iconClass} />, activePattern: 'client.subscription.*' },
         { label: t('nav.billing'),      href: safeRoute('client.billing.index'),     icon: <CreditCard className={iconClass} />, activePattern: 'client.billing.*' },
         { label: t('nav.plans'),        href: safeRoute('client.pricing'),            icon: <Package className={iconClass} />,    activePattern: 'client.pricing' },
+        { label: t('nav.addons', { defaultValue: 'Add-ons' }), href: safeRoute('client.addons.index'), icon: <Package className={iconClass} />, activePattern: 'client.addons.*' },
     ];
 
     const developerItems = [
         { label: t('nav.api_tokens'),    href: safeRoute('client.api-tokens.index'), icon: <Key className={iconClass} />,     activePattern: 'client.api-tokens.*' },
         { label: t('nav.webhooks'),      href: safeRoute('client.webhooks.index'),    icon: <Webhook className={iconClass} />,  activePattern: 'client.webhooks.*' },
         { label: t('nav.api_docs'),      href: safeRoute('client.api-docs'),          icon: <BookOpen className={iconClass} />, activePattern: 'client.api-docs' },
-        { label: t('nav.media_library'), href: safeRoute('client.media.index'),       icon: <Image className={iconClass} />,   activePattern: 'client.media.*' },
+    ];
+
+    const assetItems = [
+        { label: t('nav.media_library'), href: safeRoute('client.media.index'), icon: <Image className={iconClass} />, activePattern: 'client.media.*' },
     ];
 
     const supportItems = [
@@ -103,10 +107,6 @@ export default function useClientNav() {
         { label: t('nav.social_accounts'), href: safeRoute('client.social.accounts.index'),  icon: <Share2 className={iconClass} />,          activePattern: 'client.social.accounts.*' },
     ];
 
-    const leadsItems = [
-        { label: t('nav.lead_scraper'), href: safeRoute('client.leads.index'), icon: <MapPin className={iconClass} />, activePattern: 'client.leads.*' },
-    ];
-
     const automationItems = [
         { label: t('nav.automations'), href: safeRoute('client.automations.index'), icon: <Zap className={iconClass} />, activePattern: 'client.automations.*' },
     ];
@@ -136,11 +136,13 @@ export default function useClientNav() {
         { type: 'group', label: t('nav.group_automations'),   items: automationItems },
         { type: 'group', label: t('nav.group_ecommerce'),    items: ecommerceItems },
         { type: 'group', label: t('nav.group_ai'),            items: aiItems },
-        { type: 'group', label: t('nav.group_leads'),         items: leadsItems },
         { type: 'group', label: t('nav.group_reports'),       items: reportsItems },
+        { type: 'group', label: t('nav.group_assets', { defaultValue: 'Assets' }), items: assetItems },
         { type: 'group', label: t('nav.group_support'),       items: supportItems },
         { type: 'group', label: t('nav.group_billing'),       items: billingItems },
-        { type: 'group', label: t('nav.group_developer'),     items: developerItems },
+        ...(entitlements?.developer_tools
+            ? [{ type: 'group', label: t('nav.group_developer'), items: developerItems }]
+            : []),
         { type: 'group', label: t('nav.group_account'),       items: accountSettingsItems },
     ];
 }

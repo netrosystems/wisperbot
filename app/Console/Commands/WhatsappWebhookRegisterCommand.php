@@ -37,7 +37,7 @@ class WhatsappWebhookRegisterCommand extends Command
         $this->info('');
 
         if ($this->option('dry-run')) {
-            $this->warn('[dry-run] Would POST to: https://graph.facebook.com/v20.0/' . $appId . '/subscriptions');
+            $this->warn('[dry-run] Would POST to: https://graph.facebook.com/v25.0/' . $appId . '/subscriptions');
             $this->warn('[dry-run] With fields: messages, message_template_status_update, phone_number_name_update, phone_number_quality_update, account_update');
             return self::SUCCESS;
         }
@@ -45,7 +45,7 @@ class WhatsappWebhookRegisterCommand extends Command
         // ── Step 1: Register global callback URL at app level ──────────────────
         $this->line('<fg=yellow>Step 1:</> Registering global callback URL with Meta App…');
 
-        $res = Http::post("https://graph.facebook.com/v20.0/{$appId}/subscriptions", [
+        $res = Http::post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
             'access_token' => $appToken,
             'object'       => 'whatsapp_business_account',
             'callback_url' => $callbackUrl,
@@ -96,12 +96,12 @@ class WhatsappWebhookRegisterCommand extends Command
             }
 
             // Try app token first, fall back to WABA user token
-            $subRes = Http::post("https://graph.facebook.com/v20.0/{$waba->waba_id}/subscribed_apps", [
+            $subRes = Http::post("https://graph.facebook.com/v25.0/{$waba->waba_id}/subscribed_apps", [
                 'access_token' => $appToken,
             ]);
 
             if (! $subRes->successful()) {
-                $subRes = Http::post("https://graph.facebook.com/v20.0/{$waba->waba_id}/subscribed_apps", [
+                $subRes = Http::post("https://graph.facebook.com/v25.0/{$waba->waba_id}/subscribed_apps", [
                     'access_token' => $token,
                 ]);
             }
@@ -117,7 +117,7 @@ class WhatsappWebhookRegisterCommand extends Command
         $this->line('');
         $this->line('<fg=yellow>Step 3:</> Verifying subscription in Meta…');
 
-        $checkRes = Http::get("https://graph.facebook.com/v20.0/{$appId}/subscriptions", [
+        $checkRes = Http::get("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
             'access_token' => $appToken,
         ]);
 

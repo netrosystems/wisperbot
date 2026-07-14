@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Broadcasting\Models\SmsProviderConfig;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -120,6 +121,21 @@ class SmsProviderController extends Controller
                 continue;
             }
             $merged[$k] = $v;
+        }
+
+        // Never persist a partial provider configuration. CredentialResolver
+        // treats any non-empty workspace config as usable, so saving only one
+        // half of a credential pair would make sends fail later with blanks.
+        $missing = collect($fields)
+            ->filter(fn (array $field) => (bool) ($field['required'] ?? false))
+            ->reject(fn (array $field) => filled($merged[$field['key']] ?? null))
+            ->mapWithKeys(fn (array $field) => [
+                'credentials.'.$field['key'] => $field['label'].' is required.',
+            ])
+            ->all();
+
+        if ($missing !== []) {
+            throw ValidationException::withMessages($missing);
         }
 
         if ($validated['default'] ?? false) {

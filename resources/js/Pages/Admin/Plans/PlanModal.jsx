@@ -13,6 +13,8 @@ const emptyPlan = (currency = 'USD') => ({
     trial_days: 0,
     stripe_monthly_id: '',
     stripe_yearly_id: '',
+    paddle_monthly_id: '',
+    paddle_yearly_id: '',
     features: [],
     limits: {},
     enabled: true,

@@ -16,7 +16,7 @@ class LlmManager
     {
         $config = AiProviderConfig::where('workspace_id', $workspaceId)
             ->where('enabled', true)
-            ->orderByRaw("FIELD(provider, 'openai', 'anthropic', 'gemini')")
+            ->orderByRaw("CASE provider WHEN 'openai' THEN 1 WHEN 'anthropic' THEN 2 WHEN 'gemini' THEN 3 ELSE 4 END")
             ->first();
 
         if ($config && ! empty($config->credentials['api_key'] ?? '')) {
@@ -47,7 +47,7 @@ class LlmManager
         // Workspace-level: prefer embed-capable providers, then fall back to any enabled one
         $configs = AiProviderConfig::where('workspace_id', $workspaceId)
             ->where('enabled', true)
-            ->orderByRaw("FIELD(provider, 'openai', 'gemini', 'anthropic')")
+            ->orderByRaw("CASE provider WHEN 'openai' THEN 1 WHEN 'gemini' THEN 2 WHEN 'anthropic' THEN 3 ELSE 4 END")
             ->get();
 
         foreach ($configs as $config) {
@@ -80,16 +80,50 @@ class LlmManager
 
     public static function build(string $provider, array $creds, array $models = []): LlmProviderInterface
     {
+        $chatModel = static::currentChatModel($provider, $models['chat'] ?? null);
+        $embedModel = static::currentEmbedModel($provider, $models['embed'] ?? null);
+
         return match ($provider) {
             'openai' => new OpenAiProvider(
                 $creds['api_key'] ?? '',
-                $models['chat'] ?? 'gpt-4o-mini',
-                $models['embed'] ?? 'text-embedding-3-small',
+                $chatModel,
+                $embedModel,
                 $creds['organization_id'] ?? null,
             ),
-            'anthropic' => new AnthropicProvider($creds['api_key'] ?? '', $models['chat'] ?? 'claude-3-haiku-20240307'),
-            'gemini' => new GeminiProvider($creds['api_key'] ?? '', $models['chat'] ?? 'gemini-1.5-flash', $models['embed'] ?? 'text-embedding-004'),
+            'anthropic' => new AnthropicProvider($creds['api_key'] ?? '', $chatModel),
+            'gemini' => new GeminiProvider($creds['api_key'] ?? '', $chatModel, $embedModel),
             default => throw new \RuntimeException("Unknown LLM provider: {$provider}"),
         };
+    }
+
+    private static function currentChatModel(string $provider, ?string $model): string
+    {
+        $model = trim((string) $model);
+
+        return match ($provider) {
+            'openai' => $model !== '' ? $model : 'gpt-4o-mini',
+            'anthropic' => $model === '' || str_starts_with($model, 'claude-3-')
+                ? 'claude-haiku-4-5-20251001'
+                : $model,
+            'gemini' => $model === '' || preg_match('/^gemini-(1|2)\./', $model)
+                ? 'gemini-3.5-flash'
+                : $model,
+            default => $model,
+        };
+    }
+
+    private static function currentEmbedModel(string $provider, ?string $model): string
+    {
+        $model = trim((string) $model);
+        if ($provider === 'openai') {
+            return $model !== '' ? $model : 'text-embedding-3-small';
+        }
+        if ($provider === 'gemini') {
+            return in_array($model, ['', 'text-embedding-004', 'embedding-001', 'gemini-embedding-001'], true)
+                ? 'gemini-embedding-2'
+                : $model;
+        }
+
+        return $model;
     }
 }

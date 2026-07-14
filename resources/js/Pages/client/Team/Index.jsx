@@ -1,5 +1,5 @@
 import ClientLayout from '@/Layouts/ClientLayout';
-import { Button, Modal } from '@/Components/ui';
+import { Button, Modal, PasswordInput } from '@/Components/ui';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -301,12 +301,12 @@ export default function TeamIndex({ users = [], client = {}, invitations = [] })
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('client.password') || 'Password'}</label>
-                                    <input type="password" value={addForm.data.password} onChange={e => addForm.setData('password', e.target.value)} className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" required />
+                                    <PasswordInput value={addForm.data.password} onChange={e => addForm.setData('password', e.target.value)} required />
                                     {addForm.errors.password && <p className="text-coral-600 text-xs mt-1">{addForm.errors.password}</p>}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('client.password_confirmation') || 'Confirm password'}</label>
-                                    <input type="password" value={addForm.data.password_confirmation} onChange={e => addForm.setData('password_confirmation', e.target.value)} className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" />
+                                    <PasswordInput value={addForm.data.password_confirmation} onChange={e => addForm.setData('password_confirmation', e.target.value)} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('client.role') || 'Role'}</label>
@@ -340,7 +340,7 @@ export default function TeamIndex({ users = [], client = {}, invitations = [] })
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('team.password_leave_blank')}</label>
-                                    <input type="password" value={editForm.data.password} onChange={e => editForm.setData('password', e.target.value)} className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" />
+                                    <PasswordInput value={editForm.data.password} onChange={e => editForm.setData('password', e.target.value)} />
                                     {editForm.errors.password && <p className="text-coral-600 text-xs mt-1">{editForm.errors.password}</p>}
                                 </div>
                                 <div>
