@@ -5,6 +5,7 @@ namespace App\Modules\Inbox\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Integrations\Services\CredentialResolver;
+use App\Modules\Integrations\Services\MetaPageDiscoveryService;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +18,8 @@ use Inertia\Response;
 
 class InboxSetupController extends Controller
 {
+    public function __construct(private readonly MetaPageDiscoveryService $metaPages) {}
+
     public function index(Request $request): Response
     {
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
@@ -99,7 +102,11 @@ class InboxSetupController extends Controller
         // Ensure the Meta App delivers `instagram` webhook events to our endpoint.
         // Without this app-level subscription Meta has no callback URL for the
         // instagram object, so inbound Instagram messages never reach the server.
-        $this->registerInstagramAppWebhook();
+        if (! $this->registerInstagramAppWebhook()) {
+            return response()->json([
+                'message' => 'Meta authorization succeeded, but WisperBot could not register the Instagram webhook. Check the app secret, verify token, public HTTPS callback URL, and Meta app permissions.',
+            ], 422);
+        }
 
         $accessToken = $this->exchangeCodeForToken($validated['code']);
         if (! $accessToken) {
@@ -107,25 +114,35 @@ class InboxSetupController extends Controller
         }
 
         $longToken = $this->exchangeForLongLivedToken($accessToken);
-
-        // Fetch pages the user manages with Instagram accounts connected
-        $pagesRes = Http::withToken($longToken)
-            ->get('https://graph.facebook.com/v20.0/me/accounts', [
-                'fields' => 'id,name,access_token,instagram_business_account{id,name,username}',
-                'limit'  => 50,
-            ]);
-
-        if (! $pagesRes->successful()) {
-            Log::warning('Instagram embedded signup: pages fetch failed', [
-                'workspace_id' => $workspaceId,
-                'response'     => $pagesRes->json(),
-            ]);
-
-            return response()->json(['message' => 'Could not fetch your Facebook pages: ' . ($pagesRes->json('error.message') ?? 'unknown error')], 422);
+        if (! $longToken) {
+            return response()->json(['message' => 'Meta authorization succeeded, but the long-lived token exchange failed. Reconnect and try again.'], 422);
         }
 
-        $pages = $pagesRes->json('data', []);
+        // Include classic Page roles plus Business Portfolio owned/client Pages.
+        // A successful but empty /me/accounts response is common for New Pages
+        // Experience assets assigned only through a Business Portfolio.
+        $discovery = $this->metaPages->discover(
+            $longToken,
+            'id,name,access_token,instagram_business_account{id,name,username}',
+        );
+        $pages = $discovery['pages'];
+
+        if ($discovery['errors'] !== []) {
+            Log::warning('Instagram embedded signup: some Page discovery sources failed', [
+                'workspace_id' => $workspaceId,
+                'errors' => $discovery['errors'],
+                'successful_sources' => $discovery['successful_sources'],
+            ]);
+        }
+
+        if ($pages === [] && $discovery['successful_sources'] === []) {
+            return response()->json([
+                'message' => 'Could not fetch your Facebook pages: '.($discovery['errors'][0]['message'] ?? 'unknown error'),
+            ], 422);
+        }
+
         $connected = 0;
+        $workspaceConflicts = 0;
 
         Log::info('Instagram embedded signup: pages fetched', [
             'workspace_id' => $workspaceId,
@@ -143,14 +160,42 @@ class InboxSetupController extends Controller
                 continue;
             }
 
-            $pageToken = $page['access_token'] ?? $longToken;
+            $pageToken = $page['access_token'] ?? null;
             $pageId    = (string) ($page['id'] ?? '');
             $igId      = (string) $igAccount['id'];
             $name      = $igAccount['username'] ?? $igAccount['name'] ?? $page['name'] ?? $igId;
 
+            if (! is_string($pageToken) || $pageToken === '') {
+                Log::warning('Instagram embedded signup: Page access token missing; account skipped', [
+                    'workspace_id' => $workspaceId,
+                    'facebook_page_id' => $pageId,
+                    'instagram_account_id' => $igId,
+                ]);
+                continue;
+            }
+
+            // Inbound routing is keyed by Meta's global Instagram account ID. It
+            // cannot safely select a tenant if the same account is attached to two
+            // workspaces, so reject that configuration instead of routing to the
+            // first database match.
+            $belongsToAnotherWorkspace = ChannelAccount::where('channel', 'instagram')
+                ->where('workspace_id', '!=', $workspaceId)
+                ->whereJsonContains('meta_json->instagram_page_id', $igId)
+                ->exists();
+            if ($belongsToAnotherWorkspace) {
+                $workspaceConflicts++;
+                Log::warning('Instagram embedded signup: account already belongs to another workspace', [
+                    'workspace_id' => $workspaceId,
+                    'instagram_account_id' => $igId,
+                ]);
+                continue;
+            }
+
             // Subscribe the Page to Instagram messaging webhooks. Without this Meta
             // never delivers inbound Instagram messages to our /webhooks/meta endpoint.
-            $this->subscribePageToInstagram($pageId, $pageToken);
+            if (! $this->subscribePageToInstagram($pageId, $pageToken)) {
+                continue;
+            }
 
             // Persisted shape mirrors InboxDemoSeeder + what InstagramDriver expects:
             // - credentials.instagram_account_id / access_token  → used by send()
@@ -204,9 +249,15 @@ class InboxSetupController extends Controller
         }
 
         if ($connected === 0) {
+            if ($workspaceConflicts > 0) {
+                return response()->json([
+                    'message' => 'This Instagram account is already connected to another workspace. Disconnect it there first; one Meta account cannot be routed safely to multiple workspaces.',
+                ], 409);
+            }
+
             $pageCount = count($pages);
             $message = $pageCount === 0
-                ? 'No Facebook Pages were returned. Make sure you granted page access during authorization and your Meta App has the pages_show_list permission in its Social config.'
+                ? 'No Facebook Pages were returned. Reconnect and grant pages_show_list and business_management; the latter is required for Pages assigned through a Meta Business Portfolio.'
                 : 'No Instagram Business accounts were found on your ' . $pageCount . ' authorized page(s). To fix this: (1) Go to Meta Business Suite → your Facebook Page → Linked Accounts → link your Instagram account. (2) Make sure your Instagram is a Professional (Business or Creator) account. (3) Ensure your Social Embedded Signup config includes the instagram_basic permission.';
 
             return response()->json(['message' => $message], 422);
@@ -230,7 +281,11 @@ class InboxSetupController extends Controller
         // Ensure the Meta App delivers `page` (Messenger) webhook events to our
         // endpoint. Without this app-level subscription Meta has no callback URL for
         // the page object, so inbound Messenger messages never reach the server.
-        $this->registerMessengerAppWebhook();
+        if (! $this->registerMessengerAppWebhook()) {
+            return response()->json([
+                'message' => 'Meta authorization succeeded, but WisperBot could not register the Messenger webhook. Check the app secret, verify token, public HTTPS callback URL, and Meta app permissions.',
+            ], 422);
+        }
 
         $accessToken = $this->exchangeCodeForToken($validated['code']);
         if (! $accessToken) {
@@ -238,24 +293,29 @@ class InboxSetupController extends Controller
         }
 
         $longToken = $this->exchangeForLongLivedToken($accessToken);
-
-        $pagesRes = Http::withToken($longToken)
-            ->get('https://graph.facebook.com/v20.0/me/accounts', [
-                'fields' => 'id,name,access_token',
-                'limit'  => 50,
-            ]);
-
-        if (! $pagesRes->successful()) {
-            Log::warning('Messenger embedded signup: pages fetch failed', [
-                'workspace_id' => $workspaceId,
-                'response'     => $pagesRes->json(),
-            ]);
-
-            return response()->json(['message' => 'Could not fetch your Facebook pages: ' . ($pagesRes->json('error.message') ?? 'unknown error')], 422);
+        if (! $longToken) {
+            return response()->json(['message' => 'Meta authorization succeeded, but the long-lived token exchange failed. Reconnect and try again.'], 422);
         }
 
-        $pages     = $pagesRes->json('data', []);
+        $discovery = $this->metaPages->discover($longToken, 'id,name,access_token');
+        $pages = $discovery['pages'];
+
+        if ($discovery['errors'] !== []) {
+            Log::warning('Messenger embedded signup: some Page discovery sources failed', [
+                'workspace_id' => $workspaceId,
+                'errors' => $discovery['errors'],
+                'successful_sources' => $discovery['successful_sources'],
+            ]);
+        }
+
+        if ($pages === [] && $discovery['successful_sources'] === []) {
+            return response()->json([
+                'message' => 'Could not fetch your Facebook pages: '.($discovery['errors'][0]['message'] ?? 'unknown error'),
+            ], 422);
+        }
+
         $connected = 0;
+        $workspaceConflicts = 0;
 
         Log::info('Messenger embedded signup: pages fetched', [
             'workspace_id' => $workspaceId,
@@ -281,7 +341,7 @@ class InboxSetupController extends Controller
             // cannot resolve page-scoped PSIDs and yields Graph error 100.
             if (! $pageToken) {
                 $tokenRes  = Http::withToken($longToken)
-                    ->get("https://graph.facebook.com/v20.0/{$pageId}", ['fields' => 'access_token']);
+                    ->get("https://graph.facebook.com/v25.0/{$pageId}", ['fields' => 'access_token']);
                 $pageToken = $tokenRes->json('access_token');
             }
 
@@ -295,8 +355,25 @@ class InboxSetupController extends Controller
                 continue;
             }
 
-            // Subscribe the page to Messenger webhooks
-            $this->subscribePageToMessenger($pageId, $pageToken);
+            $belongsToAnotherWorkspace = ChannelAccount::where('channel', 'messenger')
+                ->where('workspace_id', '!=', $workspaceId)
+                ->whereJsonContains('meta_json->page_id', $pageId)
+                ->exists();
+            if ($belongsToAnotherWorkspace) {
+                $workspaceConflicts++;
+                Log::warning('Messenger embedded signup: Page already belongs to another workspace', [
+                    'workspace_id' => $workspaceId,
+                    'page_id' => $pageId,
+                ]);
+                continue;
+            }
+
+            // Subscribe the page to Messenger webhooks. Persist it only after
+            // Meta confirms the subscription; otherwise the UI would show an
+            // active account that can never receive a message.
+            if (! $this->subscribePageToMessenger($pageId, $pageToken)) {
+                continue;
+            }
 
             $existing = ChannelAccount::where('workspace_id', $workspaceId)
                 ->where('channel', 'messenger')
@@ -337,8 +414,14 @@ class InboxSetupController extends Controller
         }
 
         if ($connected === 0) {
+            if ($workspaceConflicts > 0) {
+                return response()->json([
+                    'message' => 'This Facebook Page is already connected to another workspace. Disconnect it there first; one Page cannot be routed safely to multiple workspaces.',
+                ], 409);
+            }
+
             return response()->json([
-                'message' => 'No Facebook Pages found on your account. Make sure you manage at least one Facebook Page.',
+                'message' => 'No Facebook Pages found. Reconnect and grant pages_show_list and business_management so Pages assigned through a Meta Business Portfolio can be discovered.',
             ], 422);
         }
 
@@ -352,7 +435,7 @@ class InboxSetupController extends Controller
             return null;
         }
 
-        $res = Http::get('https://graph.facebook.com/v20.0/oauth/access_token', [
+        $res = Http::get('https://graph.facebook.com/v25.0/oauth/access_token', [
             'client_id'     => $meta->appId(),
             'client_secret' => $meta->appSecret(),
             'code'          => $code,
@@ -369,21 +452,21 @@ class InboxSetupController extends Controller
         return $res->json('access_token');
     }
 
-    private function exchangeForLongLivedToken(string $shortToken): string
+    private function exchangeForLongLivedToken(string $shortToken): ?string
     {
         $meta = CredentialResolver::system()->meta();
         if (! $meta?->appId() || ! $meta?->appSecret()) {
-            return $shortToken;
+            return null;
         }
 
-        $res = Http::get('https://graph.facebook.com/v20.0/oauth/access_token', [
+        $res = Http::get('https://graph.facebook.com/v25.0/oauth/access_token', [
             'grant_type'        => 'fb_exchange_token',
             'client_id'         => $meta->appId(),
             'client_secret'     => $meta->appSecret(),
             'fb_exchange_token' => $shortToken,
         ]);
 
-        return ($res->successful() && $res->json('access_token')) ? $res->json('access_token') : $shortToken;
+        return ($res->successful() && $res->json('access_token')) ? $res->json('access_token') : null;
     }
 
     /**
@@ -394,7 +477,7 @@ class InboxSetupController extends Controller
      * Mirrors registerInstagramAppWebhook() — without it inbound Messenger messages
      * never reach the server (no app-level callback for the page object).
      */
-    private function registerMessengerAppWebhook(): void
+    private function registerMessengerAppWebhook(): bool
     {
         $meta        = CredentialResolver::system()->meta();
         $appId       = $meta?->appId();
@@ -408,13 +491,13 @@ class InboxSetupController extends Controller
                 'has_verify_token' => (bool) $verifyToken,
             ]);
 
-            return;
+            return false;
         }
 
         $callbackUrl = route('webhooks.meta.receive', ['token' => $verifyToken]);
 
         try {
-            $res = Http::post("https://graph.facebook.com/v20.0/{$appId}/subscriptions", [
+            $res = Http::post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
                 'access_token' => $appId . '|' . $appSecret,
                 'object'       => 'page',
                 'callback_url' => $callbackUrl,
@@ -429,7 +512,7 @@ class InboxSetupController extends Controller
                     'response'     => $res->json(),
                 ]);
 
-                return;
+                return false;
             }
 
             Log::info('Messenger embedded signup: app webhook registered', [
@@ -439,32 +522,36 @@ class InboxSetupController extends Controller
 
             // Read back what Meta actually stored so we can confirm the page object
             // has our callback URL and is marked active.
-            $check = Http::get("https://graph.facebook.com/v20.0/{$appId}/subscriptions", [
+            $check = Http::get("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
                 'access_token' => $appId . '|' . $appSecret,
             ]);
             Log::info('Messenger embedded signup: app subscriptions snapshot', [
                 'status'   => $check->status(),
                 'response' => $check->json(),
             ]);
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning('Messenger embedded signup: app webhook registration exception', [
                 'callback_url' => $callbackUrl,
                 'error'        => $e->getMessage(),
             ]);
+
+            return false;
         }
     }
 
-    private function subscribePageToMessenger(string $pageId, string $pageToken): void
+    private function subscribePageToMessenger(string $pageId, string $pageToken): bool
     {
         if ($pageId === '') {
             Log::warning('Messenger embedded signup: cannot subscribe — empty page id');
 
-            return;
+            return false;
         }
 
         try {
             $res = Http::withToken($pageToken)
-                ->post("https://graph.facebook.com/v20.0/{$pageId}/subscribed_apps", [
+                ->post("https://graph.facebook.com/v25.0/{$pageId}/subscribed_apps", [
                     'subscribed_fields' => 'messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads',
                 ]);
 
@@ -475,7 +562,7 @@ class InboxSetupController extends Controller
                     'response' => $res->json(),
                 ]);
 
-                return;
+                return false;
             }
 
             Log::info('Messenger embedded signup: page subscribed for messaging', [
@@ -486,17 +573,21 @@ class InboxSetupController extends Controller
             // Read back the page's subscribed_apps so we can confirm which fields
             // (must include "messages") are actually active for our app.
             $check = Http::withToken($pageToken)
-                ->get("https://graph.facebook.com/v20.0/{$pageId}/subscribed_apps");
+                ->get("https://graph.facebook.com/v25.0/{$pageId}/subscribed_apps");
             Log::info('Messenger embedded signup: page subscribed_apps snapshot', [
                 'page_id'  => $pageId,
                 'status'   => $check->status(),
                 'response' => $check->json(),
             ]);
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning('Messenger embedded signup: page subscription exception', [
                 'page_id' => $pageId,
                 'error'   => $e->getMessage(),
             ]);
+
+            return false;
         }
     }
 
@@ -506,7 +597,7 @@ class InboxSetupController extends Controller
      * ({app_id}|{app_secret}) and points at our /webhooks/meta/{verify_token}
      * endpoint. Idempotent: re-registering the same URL/fields is a no-op on Meta.
      */
-    private function registerInstagramAppWebhook(): void
+    private function registerInstagramAppWebhook(): bool
     {
         $meta        = CredentialResolver::system()->meta();
         $appId       = $meta?->appId();
@@ -520,13 +611,13 @@ class InboxSetupController extends Controller
                 'has_verify_token' => (bool) $verifyToken,
             ]);
 
-            return;
+            return false;
         }
 
         $callbackUrl = route('webhooks.meta.receive', ['token' => $verifyToken]);
 
         try {
-            $res = Http::post("https://graph.facebook.com/v20.0/{$appId}/subscriptions", [
+            $res = Http::post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
                 'access_token' => $appId . '|' . $appSecret,
                 'object'       => 'instagram',
                 'callback_url' => $callbackUrl,
@@ -541,7 +632,7 @@ class InboxSetupController extends Controller
                     'response'     => $res->json(),
                 ]);
 
-                return;
+                return false;
             }
 
             Log::info('Instagram embedded signup: app webhook registered', [
@@ -551,18 +642,22 @@ class InboxSetupController extends Controller
 
             // Read back what Meta actually stored so we can confirm the instagram
             // object has our callback URL and is marked active.
-            $check = Http::get("https://graph.facebook.com/v20.0/{$appId}/subscriptions", [
+            $check = Http::get("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
                 'access_token' => $appId . '|' . $appSecret,
             ]);
             Log::info('Instagram embedded signup: app subscriptions snapshot', [
                 'status'   => $check->status(),
                 'response' => $check->json(),
             ]);
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning('Instagram embedded signup: app webhook registration exception', [
                 'callback_url' => $callbackUrl,
                 'error'        => $e->getMessage(),
             ]);
+
+            return false;
         }
     }
 
@@ -572,17 +667,17 @@ class InboxSetupController extends Controller
      * Instagram messages — the connect flow previously skipped it, so no messages
      * ever reached /webhooks/meta.
      */
-    private function subscribePageToInstagram(string $pageId, string $pageToken): void
+    private function subscribePageToInstagram(string $pageId, string $pageToken): bool
     {
         if ($pageId === '') {
             Log::warning('Instagram embedded signup: cannot subscribe — empty page id');
 
-            return;
+            return false;
         }
 
         try {
             $res = Http::withToken($pageToken)
-                ->post("https://graph.facebook.com/v20.0/{$pageId}/subscribed_apps", [
+                ->post("https://graph.facebook.com/v25.0/{$pageId}/subscribed_apps", [
                     'subscribed_fields' => 'messages,messaging_postbacks,message_reactions,message_reads',
                 ]);
 
@@ -593,7 +688,7 @@ class InboxSetupController extends Controller
                     'response' => $res->json(),
                 ]);
 
-                return;
+                return false;
             }
 
             Log::info('Instagram embedded signup: page subscribed for messaging', [
@@ -604,17 +699,21 @@ class InboxSetupController extends Controller
             // Read back the page's subscribed_apps so we can confirm which fields
             // (must include "messages") are actually active for our app.
             $check = Http::withToken($pageToken)
-                ->get("https://graph.facebook.com/v20.0/{$pageId}/subscribed_apps");
+                ->get("https://graph.facebook.com/v25.0/{$pageId}/subscribed_apps");
             Log::info('Instagram embedded signup: page subscribed_apps snapshot', [
                 'page_id'  => $pageId,
                 'status'   => $check->status(),
                 'response' => $check->json(),
             ]);
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning('Instagram embedded signup: page subscription exception', [
                 'page_id' => $pageId,
                 'error'   => $e->getMessage(),
             ]);
+
+            return false;
         }
     }
 

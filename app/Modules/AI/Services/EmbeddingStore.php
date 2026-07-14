@@ -3,13 +3,14 @@
 namespace App\Modules\AI\Services;
 
 use App\Modules\AI\Models\AiKbChunk;
+use App\Modules\Integrations\Services\CredentialResolver;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Vector storage and similarity search.
  *
- * Uses Qdrant when QDRANT_URL is set in env; otherwise falls back to
+ * Uses Qdrant when enabled in the system integration configuration; otherwise falls back to
  * MySQL JSON storage with in-PHP cosine similarity (suitable for ~50k chunks).
  */
 class EmbeddingStore
@@ -27,6 +28,39 @@ class EmbeddingStore
 
         if ($this->qdrantEnabled()) {
             $this->qdrantUpsert($chunk, $embedding);
+        }
+    }
+
+    /** Remove every vector belonging to a document before it is re-indexed or deleted. */
+    public function deleteDocumentEmbeddings(int $documentId): void
+    {
+        if (! $this->qdrantEnabled()) {
+            return;
+        }
+
+        try {
+            $response = $this->qdrantClient()->post('/collections/'.self::QDRANT_COLLECTION.'/points/delete', [
+                'filter' => [
+                    'must' => [['key' => 'document_id', 'match' => ['value' => $documentId]]],
+                ],
+                'wait' => true,
+            ]);
+
+            if ($response->status() === 404) {
+                return;
+            }
+
+            if (! $response->successful()) {
+                throw new \RuntimeException('Qdrant delete failed (HTTP '.$response->status().'): '.$response->body());
+            }
+        } catch (\Throwable $e) {
+            // Do not leave the MySQL document in a state that appears indexed when
+            // the vector store could not be cleaned up. The caller can retry.
+            Log::warning('Qdrant document-vector delete failed', [
+                'document_id' => $documentId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
         }
     }
 
@@ -50,16 +84,21 @@ class EmbeddingStore
 
     private function qdrantEnabled(): bool
     {
-        return ! empty(config('services.qdrant.url'));
+        return $this->qdrantCredentials() !== null;
     }
 
     private function qdrantClient(): \Illuminate\Http\Client\PendingRequest
     {
-        $client = Http::baseUrl(rtrim(config('services.qdrant.url'), '/'))
+        $credentials = $this->qdrantCredentials();
+        if ($credentials === null) {
+            throw new \RuntimeException('Qdrant is not configured or enabled.');
+        }
+
+        $client = Http::baseUrl(rtrim((string) $credentials['url'], '/'))
             ->timeout(10)
             ->retry(2, 300);
 
-        $apiKey = config('services.qdrant.api_key');
+        $apiKey = $credentials['api_key'] ?? null;
         if ($apiKey) {
             $client = $client->withHeaders(['api-key' => $apiKey]);
         }
@@ -67,12 +106,20 @@ class EmbeddingStore
         return $client;
     }
 
+    /** @return array{url: string, api_key?: string|null}|null */
+    private function qdrantCredentials(): ?array
+    {
+        $credentials = CredentialResolver::system()->qdrant()?->toArray();
+
+        return filled($credentials['url'] ?? null) ? $credentials : null;
+    }
+
     private function qdrantUpsert(AiKbChunk $chunk, array $embedding): void
     {
         try {
             $this->ensureQdrantCollection(count($embedding));
 
-            $this->qdrantClient()->put('/collections/'.self::QDRANT_COLLECTION.'/points', [
+            $response = $this->qdrantClient()->put('/collections/'.self::QDRANT_COLLECTION.'/points', [
                 'points' => [[
                     'id' => $chunk->id,
                     'vector' => $embedding,
@@ -83,6 +130,10 @@ class EmbeddingStore
                     ],
                 ]],
             ]);
+
+            if (! $response->successful()) {
+                throw new \RuntimeException('Qdrant upsert failed (HTTP '.$response->status().'): '.$response->body());
+            }
         } catch (\Throwable $e) {
             Log::warning('Qdrant upsert failed, embedding stored in MySQL only', ['error' => $e->getMessage()]);
         }
@@ -131,12 +182,27 @@ class EmbeddingStore
         $client = $this->qdrantClient();
         $check = $client->get('/collections/'.self::QDRANT_COLLECTION);
         if ($check->successful()) {
+            $existingDimensions = $check->json('result.config.params.vectors.size');
+            if (is_numeric($existingDimensions) && (int) $existingDimensions !== $dimensions) {
+                throw new \RuntimeException(
+                    'Qdrant collection dimension mismatch: expected '.(int) $existingDimensions.', received '.$dimensions.'. Re-index the knowledge base with one embedding model.'
+                );
+            }
+
             return;
         }
 
-        $client->put('/collections/'.self::QDRANT_COLLECTION, [
+        if ($check->status() !== 404) {
+            throw new \RuntimeException('Qdrant collection check failed (HTTP '.$check->status().'): '.$check->body());
+        }
+
+        $created = $client->put('/collections/'.self::QDRANT_COLLECTION, [
             'vectors' => ['size' => $dimensions, 'distance' => 'Cosine'],
         ]);
+
+        if (! $created->successful()) {
+            throw new \RuntimeException('Qdrant collection creation failed (HTTP '.$created->status().'): '.$created->body());
+        }
     }
 
     // -------------------------------------------------------------------------

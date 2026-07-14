@@ -8,7 +8,6 @@ const NETWORKS = [
     { id: 'facebook',  label: 'Facebook',  descriptionKey: 'social.network_desc_facebook' },
     { id: 'instagram', label: 'Instagram', descriptionKey: 'social.network_desc_instagram' },
     { id: 'linkedin',  label: 'LinkedIn',  descriptionKey: 'social.network_desc_linkedin' },
-    { id: 'twitter',   label: 'X (Twitter)', descriptionKey: 'social.network_desc_twitter' },
     { id: 'youtube',   label: 'YouTube',   descriptionKey: 'social.network_desc_youtube' },
     { id: 'tiktok',    label: 'TikTok',    descriptionKey: 'social.network_desc_tiktok' },
 ];

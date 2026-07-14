@@ -10,7 +10,7 @@ class AnthropicProvider implements LlmProviderInterface
 
     public function __construct(
         private readonly string $apiKey,
-        private readonly string $chatModel = 'claude-3-haiku-20240307',
+        private readonly string $chatModel = 'claude-haiku-4-5-20251001',
     ) {}
 
     public function chat(array $messages, array $opts = []): LlmResponse

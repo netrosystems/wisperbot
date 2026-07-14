@@ -3,7 +3,6 @@
 namespace App\Modules\Leads\Jobs;
 
 use App\Modules\Leads\Models\LeadScrapeJob;
-use App\Modules\Leads\Services\GooglePlacesScraper;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -17,12 +16,18 @@ class ScrapeLeadsJob implements ShouldQueue
 
     public function __construct(public readonly int $scrapeJobId) {}
 
-    public function handle(GooglePlacesScraper $scraper): void
+    public function handle(): void
     {
         $job = LeadScrapeJob::find($this->scrapeJobId);
-        if (! $job || $job->status === 'done') {
+        if (! $job || in_array($job->status, ['done', 'failed'], true)) {
             return;
         }
-        $scraper->run($job);
+
+        // Jobs queued before the feature was retired must not make a Places API call.
+        $job->update([
+            'status' => 'failed',
+            'error' => 'Lead scraper has been retired.',
+            'completed_at' => now(),
+        ]);
     }
 }

@@ -6,6 +6,7 @@ use App\Contracts\BillingGatewayInterface;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentTransaction;
 use App\Services\Billing\BillingGatewayRegistry;
+use App\Services\Billing\StripeGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -30,11 +31,7 @@ class BillingController extends Controller
             $this->callFulfil('stripe', $sessionId, $userId);
         }
 
-        // MyFatoorah: ?paymentId=<id>
-        $paymentId = $request->query('paymentId');
-        if ($paymentId) {
-            $this->callFulfil('myfatoorah', $paymentId, $userId);
-        }
+        // Legacy gateway return handlers are intentionally disabled.
     }
 
     private function callFulfil(string $gatewayKey, string $sessionId, int $userId): void
@@ -44,7 +41,11 @@ class BillingController extends Controller
             return;
         }
         try {
-            $gateway->fulfillCheckoutSession($sessionId);
+            if ($gateway instanceof StripeGateway) {
+                $gateway->fulfillCheckoutSession($sessionId, $userId);
+            } else {
+                $gateway->fulfillCheckoutSession($sessionId);
+            }
         } catch (\Throwable $e) {
             Log::warning('Billing: checkout fulfilment skipped', [
                 'gateway' => $gatewayKey,

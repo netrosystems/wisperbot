@@ -9,10 +9,9 @@ import TimezonePicker from '@/Components/TimezonePicker';
 import { DatePicker } from '@/Components/ui';
 import { browserTz, tzLocalToUtcIso, formatInTz } from '@/Utils/datetime';
 
-const CHAR_LIMITS = { twitter: 280, tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000 };
+const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000 };
 
 const NETWORK_COLORS = {
-    twitter:   '#000000',
     facebook:  '#1877F2',
     instagram: '#E1306C',
     linkedin:  '#0A66C2',
@@ -21,7 +20,7 @@ const NETWORK_COLORS = {
 };
 
 const NETWORK_LABELS = {
-    twitter: 'X (Twitter)', facebook: 'Facebook', instagram: 'Instagram',
+    facebook: 'Facebook', instagram: 'Instagram',
     linkedin: 'LinkedIn',   tiktok: 'TikTok',     youtube: 'YouTube',
 };
 
@@ -42,35 +41,6 @@ function Avatar({ name, pictureUrl, className = 'h-10 w-10', ring = false }) {
                     {(name?.[0] ?? 'U').toUpperCase()}
                   </div>
             }
-        </div>
-    );
-}
-
-function TwitterPreview({ body, mediaUrls, accountName, pictureUrl }) {
-    const { t } = useTranslation();
-    const handle = accountName ? `@${accountName.toLowerCase().replace(/\s+/g, '')}` : '@youraccount';
-    return (
-        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 text-sm font-[system-ui]">
-            <div className="flex gap-3">
-                <Avatar name={accountName} pictureUrl={pictureUrl} className="h-10 w-10" />
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-neutral-900 dark:text-neutral-100">{accountName ?? t('social.preview_your_account')}</span>
-                        <span className="text-neutral-500 text-xs">{handle} · now</span>
-                    </div>
-                    <p className="mt-1 text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap break-words leading-snug">
-                        {body || <span className="text-neutral-400 italic">{t('social.preview_tweet_placeholder')}</span>}
-                    </p>
-                    {mediaUrls?.[0] && <img src={mediaUrls[0]} alt="" className="mt-2 rounded-xl w-full object-cover max-h-48" />}
-                    <div className="mt-3 flex items-center gap-5 text-neutral-500 text-xs">
-                        <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> 0</span>
-                        <span className="flex items-center gap-1"><Repeat2 className="h-3.5 w-3.5" /> 0</span>
-                        <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> 0</span>
-                        <span className="flex items-center gap-1"><Bookmark className="h-3.5 w-3.5" /> 0</span>
-                        <span className="flex items-center gap-1"><Share2 className="h-3.5 w-3.5" /> 0</span>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }
@@ -202,7 +172,6 @@ function YouTubePreview({ body, mediaUrls, accountName }) {
 }
 
 const PREVIEW_COMPONENTS = {
-    twitter:   TwitterPreview,
     facebook:  FacebookPreview,
     instagram: InstagramPreview,
     linkedin:  LinkedInPreview,

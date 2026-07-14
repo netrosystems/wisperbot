@@ -16,10 +16,19 @@ class TikTokDriver implements SocialNetworkInterface
 
     public function fetchAccountInfo(string $accessToken): array
     {
-        $res = Http::withToken($accessToken)
-            ->get('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url')
-            ->json();
+        $response = Http::withToken($accessToken)
+            ->timeout(15)
+            ->get('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url');
+        if (! $response->successful()) {
+            throw new \RuntimeException('TikTok profile lookup failed (HTTP '.$response->status().'): '.$response->body());
+        }
+
+        $res = $response->json();
         $user = $res['data']['user'] ?? [];
+
+        if (empty($user['open_id'])) {
+            throw new \RuntimeException('TikTok returned no creator identity.');
+        }
 
         return [
             'account_id' => $user['open_id'] ?? '',
@@ -30,6 +39,14 @@ class TikTokDriver implements SocialNetworkInterface
 
     public function publish(SocialAccount $account, array $postData): string
     {
+        $videoUrl = $postData['media_urls'][0] ?? null;
+        if (! is_string($videoUrl) || ! filter_var($videoUrl, FILTER_VALIDATE_URL)) {
+            throw new \RuntimeException('TikTok publishing requires one publicly reachable HTTPS video URL.');
+        }
+        if (parse_url($videoUrl, PHP_URL_SCHEME) !== 'https') {
+            throw new \RuntimeException('TikTok video URL must use HTTPS.');
+        }
+
         $res = Http::withToken($account->access_token)
             ->post('https://open.tiktokapis.com/v2/post/publish/video/init/', [
                 'post_info' => [
@@ -41,7 +58,7 @@ class TikTokDriver implements SocialNetworkInterface
                 ],
                 'source_info' => [
                     'source' => 'PULL_FROM_URL',
-                    'video_url' => $postData['media_urls'][0] ?? '',
+                    'video_url' => $videoUrl,
                 ],
             ])->json();
 

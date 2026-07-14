@@ -115,7 +115,11 @@
         "group_reports": "Отчёты",
         "group_support": "Поддержка",
         "group_billing": "Оплата",
-        "group_developer": "Разработчикам"
+        "group_developer": "Разработчикам",
+        "addons": "Addons",
+        "website_widget": "Website Widget",
+        "group_assets": "Group Assets",
+        "sign_in": "Sign In"
     },
     "welcome": {
         "title": "Создавайте сайты с помощью ИИ.",
@@ -145,7 +149,8 @@
         "per_month": "\/мес.",
         "per_year": "\/год",
         "everything_in": "Всё из тарифа {{plan}}",
-        "most_popular": "Самый популярный"
+        "most_popular": "Самый популярный",
+        "learn_more": "Learn More"
     },
     "rtl": {
         "title": "Предпросмотр RTL",
@@ -175,8 +180,13 @@
     "client": {
         "profile": {
             "edit": "Редактирование",
-            "2fa": "2Fa",
-            "sessions": "Sessions",
+            "2fa": {
+                "enable": "Enable",
+                "disable": "Disable"
+            },
+            "sessions": {
+                "destroy": "Destroy"
+            },
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -340,7 +350,10 @@
             "index": "Список",
             "store": "Создание",
             "destroy": "Удаление",
-            "contacts": "Contacts"
+            "contacts": {
+                "attach": "Attach",
+                "detach": "Detach"
+            }
         },
         "whatsapp": {
             "templates": {
@@ -362,9 +375,7 @@
                 "create": "Создание",
                 "edit": "Редактирование"
             },
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "broadcasts": {
             "campaigns": {
@@ -395,7 +406,9 @@
             "start": "Начало",
             "templates": "Шаблоны",
             "assign": "Назначение",
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "ai": {
             "providers": {
@@ -545,11 +558,7 @@
                 "connect": "Подключение"
             }
         },
-        "workspaces": {
-            "switch": "Switch",
-            "index": "Index",
-            "store": "Store"
-        },
+        "workspaces": "Workspaces",
         "settings": {
             "update": "Обновление",
             "notifications": "Уведомления",
@@ -565,6 +574,9 @@
             "destroy": "Отмена",
             "invoice": "Счёт",
             "show": "Просмотр"
+        },
+        "addons": {
+            "index": "Index"
         }
     },
     "pagination": {
@@ -808,11 +820,7 @@
         "tax_rates": "Налоговые ставки",
         "landing_page": "Контент сайта",
         "cms_pages": "Страницы CMS",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
+        "license": "License",
         "cron_setup": "Настройка Cron",
         "support": {
             "index": "Список",
@@ -927,40 +935,38 @@
         "secret_key_hint": "Серверный секретный ключ — не разглашайте его",
         "stripe_webhook_hint": "Секрет подписи Webhook (whsec_…) из панели Stripe",
         "webhook_hint": "Секрет Webhook для проверки входящих событий шлюза",
-        "clients": {
+        "clients": "Clients",
+        "subscriptions": {
             "index": "Index",
-            "users": {
-                "index": "Index",
-                "store": "Store",
-                "update": "Update",
-                "destroy": "Destroy"
-            },
-            "impersonate": "Impersonate",
-            "destroy": "Destroy",
-            "export": "Export",
             "store": "Store",
-            "update": "Update"
+            "export": "Export"
         },
-        "subscriptions": "Subscriptions",
-        "payments": {
-            "index": "Index"
-        },
-        "plans": {
+        "payments": "Payments",
+        "plans": "Plans",
+        "currencies": {
             "index": "Index",
             "update": "Update",
-            "store": "Store",
-            "duplicate": "Duplicate",
-            "destroy": "Destroy",
-            "reorder": "Reorder"
+            "store": "Store"
         },
-        "currencies": "Currencies",
-        "admins": {
+        "admins": "Admins",
+        "settings": {
             "index": "Index",
-            "destroy": "Destroy",
-            "store": "Store",
-            "update": "Update"
+            "general": {
+                "update": "Update"
+            },
+            "logo": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "favicon": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "update": "Update",
+            "firebase": {
+                "update": "Update"
+            }
         },
-        "settings": "Settings",
         "ai": {
             "index": "Список"
         },
@@ -1152,7 +1158,9 @@
         "demo_mode_title": "Заголовок демо-режима",
         "demo_mode_subtitle": "Подзаголовок демо-режима",
         "demo_role_admin": "Демо-роль: администратор",
-        "demo_role_client": "Демо-роль: клиент"
+        "demo_role_client": "Демо-роль: клиент",
+        "toggle_password_hide": "Hide password",
+        "toggle_password_show": "Show password"
     },
     "password": {
         "confirm": "Подтвердить",
@@ -4027,6 +4035,14 @@
     "37": {
         "4220": "4220"
     },
+    "wisperbot": {
+        "sidebar": {
+            "scroll": {
+                "admin": "Admin",
+                "client": "Client"
+            }
+        }
+    },
     "127": [
         [
             {
@@ -4036,5 +4052,17 @@
     ],
     "v20": [
         "0"
-    ]
+    ],
+    "2": {
+        "5": "5"
+    },
+    "8": {
+        "5": "5"
+    },
+    "9": {
+        "5": "5"
+    },
+    "1": {
+        "6": "6"
+    }
 }

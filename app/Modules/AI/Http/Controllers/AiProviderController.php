@@ -22,6 +22,7 @@ class AiProviderController extends Controller
             'enabled' => $configs->get($p)?->enabled ?? false,
             'configured' => ! empty($configs->get($p)?->credentials),
             'default_model_chat' => $configs->get($p)?->default_model_chat ?? '',
+            'default_model_embed' => $configs->get($p)?->default_model_embed ?? '',
         ]);
 
         return Inertia::render('AI/Providers/Index', ['providers' => $list]);
@@ -44,6 +45,12 @@ class AiProviderController extends Controller
 
         if (! empty($validated['api_key']) && ! preg_match('/^•+/', $validated['api_key'])) {
             $creds['api_key'] = $validated['api_key'];
+        }
+
+        if (($validated['enabled'] ?? false) && empty($creds['api_key'])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'api_key' => 'An API key is required before this provider can be enabled.',
+            ]);
         }
 
         $config->fill([

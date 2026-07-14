@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\AI\Jobs\IndexDocumentJob;
 use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Models\AiKnowledgeBase;
+use App\Modules\AI\Services\EmbeddingStore;
 use App\Services\StorageManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,10 @@ use Inertia\Response;
 
 class AiKnowledgeBaseController extends Controller
 {
-    public function __construct(private StorageManager $storage) {}
+    public function __construct(
+        private StorageManager $storage,
+        private EmbeddingStore $embeddings,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -100,6 +104,7 @@ class AiKnowledgeBaseController extends Controller
     {
         $kb = $document->load('knowledgeBase')->knowledgeBase;
         $this->authorise($request, $kb);
+        $this->embeddings->deleteDocumentEmbeddings($document->id);
         $document->chunks()->delete();
         $document->delete();
 

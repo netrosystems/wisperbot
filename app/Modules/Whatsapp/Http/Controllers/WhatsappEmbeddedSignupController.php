@@ -43,12 +43,12 @@ class WhatsappEmbeddedSignupController extends Controller
             $tokenParams['redirect_uri'] = $redirectUri;
         }
 
-        $tokenRes = Http::get('https://graph.facebook.com/v20.0/oauth/access_token', $tokenParams);
+        $tokenRes = Http::get('https://graph.facebook.com/v25.0/oauth/access_token', $tokenParams);
 
         // Some Meta app configs reject redirect_uri on embedded-signup codes — retry without it.
         if ((! $tokenRes->successful() || empty($tokenRes->json('access_token'))) && isset($tokenParams['redirect_uri'])) {
             unset($tokenParams['redirect_uri']);
-            $tokenRes = Http::get('https://graph.facebook.com/v20.0/oauth/access_token', $tokenParams);
+            $tokenRes = Http::get('https://graph.facebook.com/v25.0/oauth/access_token', $tokenParams);
         }
 
         if (! $tokenRes->successful() || empty($tokenRes->json('access_token'))) {
@@ -65,20 +65,23 @@ class WhatsappEmbeddedSignupController extends Controller
         $shortToken = $tokenRes->json('access_token');
 
         // Exchange short-lived token for a long-lived token
-        $longTokenRes = Http::get('https://graph.facebook.com/v20.0/oauth/access_token', [
+        $longTokenRes = Http::get('https://graph.facebook.com/v25.0/oauth/access_token', [
             'grant_type'        => 'fb_exchange_token',
             'client_id'         => $meta->appId(),
             'client_secret'     => $meta->appSecret(),
             'fb_exchange_token' => $shortToken,
         ]);
 
-        $accessToken = $longTokenRes->successful() && $longTokenRes->json('access_token')
-            ? $longTokenRes->json('access_token')
-            : $shortToken;
+        if (! $longTokenRes->successful() || ! $longTokenRes->json('access_token')) {
+            return response()->json([
+                'message' => 'Meta login succeeded, but the access token could not be extended for a durable connection: '.($longTokenRes->json('error.message') ?? 'unknown error'),
+            ], 422);
+        }
+        $accessToken = $longTokenRes->json('access_token');
 
         // Fetch WABA details from Meta
         $wabaRes = Http::withToken($accessToken)
-            ->get("https://graph.facebook.com/v20.0/{$validated['waba_id']}", [
+            ->get("https://graph.facebook.com/v25.0/{$validated['waba_id']}", [
                 'fields' => 'id,name,currency,timezone_id',
             ]);
 
@@ -108,6 +111,8 @@ class WhatsappEmbeddedSignupController extends Controller
 
         $verifyToken = $existing?->webhook_verify_token ?? Str::random(48);
 
+        $registrationPin = (string) (($existing?->credentials ?? [])['registration_pin'] ?? str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT));
+
         $waba = WhatsappBusinessAccount::updateOrCreate(
             ['waba_id' => $validated['waba_id'], 'workspace_id' => $workspaceId],
             [
@@ -115,6 +120,7 @@ class WhatsappEmbeddedSignupController extends Controller
                     'system_user_token' => $accessToken,
                     'access_token'      => $accessToken,
                     'token_source'      => 'embedded_signup',
+                    'registration_pin'  => $registrationPin,
                 ],
                 'webhook_verify_token' => $verifyToken,
                 'status'               => 'active',
@@ -129,6 +135,14 @@ class WhatsappEmbeddedSignupController extends Controller
 
         // Subscribe the app to this WABA for webhooks and register callback URL
         $webhookError = $this->subscribeWabaWebhooks($validated['waba_id'], $accessToken, $waba->webhook_verify_token, $meta);
+        if ($webhookError) {
+            $waba->update(['status' => 'error']);
+
+            return response()->json([
+                'message' => $webhookError,
+                'waba_id' => $validated['waba_id'],
+            ], 422);
+        }
 
         // Sync phone numbers (try user token, then app token, then admin system user)
         $phoneCount = 0;
@@ -147,9 +161,10 @@ class WhatsappEmbeddedSignupController extends Controller
         if (! empty($validated['phone_number_id'])) {
             try {
                 $details = CloudApiClient::fetchPhoneNumberDetails($validated['phone_number_id'], $accessToken);
-                $this->attachPhoneNumber($waba->fresh(), $validated['phone_number_id'], $details ?? ['id' => $validated['phone_number_id']]);
-                $this->registerNumber($validated['phone_number_id'], $accessToken, $validated['waba_id']);
-                $phoneCount = max($phoneCount, 1);
+                if ($this->registerNumber($validated['phone_number_id'], $accessToken, $validated['waba_id'], $registrationPin)) {
+                    $this->attachPhoneNumber($waba->fresh(), $validated['phone_number_id'], $details ?? ['id' => $validated['phone_number_id']]);
+                    $phoneCount = max($phoneCount, 1);
+                }
             } catch (\Throwable $e) {
                 Log::warning('WhatsApp embedded signup: session phone attach failed', [
                     'phone_number_id' => $validated['phone_number_id'],
@@ -162,7 +177,16 @@ class WhatsappEmbeddedSignupController extends Controller
             TemplateSyncJob::dispatch($waba->id)->onQueue('whatsapp');
         }
 
-        $warnings = array_filter([$webhookError, $syncError, $phoneCount === 0 ? 'No phone numbers were synced. Use Sync from Meta on Channel Setup or reconnect.' : null]);
+        if ($phoneCount === 0) {
+            $waba->update(['status' => 'error']);
+
+            return response()->json([
+                'message' => $syncError ?: 'Meta connected the WABA but no phone number could be registered. Verify the number and its two-step-verification state, then reconnect.',
+                'waba_id' => $validated['waba_id'],
+            ], 422);
+        }
+
+        $warnings = array_filter([$syncError]);
 
         return response()->json([
             'success'         => true,
@@ -210,12 +234,12 @@ class WhatsappEmbeddedSignupController extends Controller
         // Step 1: Subscribe our Meta App to this WABA's events.
         // Use the App Access Token (more reliable than the short-lived user token).
         try {
-            $subRes = Http::post("https://graph.facebook.com/v20.0/{$wabaId}/subscribed_apps", [
+            $subRes = Http::post("https://graph.facebook.com/v25.0/{$wabaId}/subscribed_apps", [
                 'access_token' => $appToken,
             ]);
 
             if (! $subRes->successful()) {
-                $fallback = Http::post("https://graph.facebook.com/v20.0/{$wabaId}/subscribed_apps", [
+                $fallback = Http::post("https://graph.facebook.com/v25.0/{$wabaId}/subscribed_apps", [
                     'access_token' => $userToken,
                 ]);
                 if (! $fallback->successful()) {
@@ -224,6 +248,8 @@ class WhatsappEmbeddedSignupController extends Controller
                         'app_response' => $subRes->json(),
                         'user_response' => $fallback->json(),
                     ]);
+
+                    return 'Meta did not subscribe the app to this WhatsApp Business Account. Inbound messages will not work; verify whatsapp_business_management access and the WABA assignment.';
                 }
             }
         } catch (\Throwable $e) {
@@ -231,6 +257,8 @@ class WhatsappEmbeddedSignupController extends Controller
                 'waba_id' => $wabaId,
                 'error'   => $e->getMessage(),
             ]);
+
+            return 'Meta WABA subscription failed: '.$e->getMessage();
         }
 
         // Step 2: Register the global webhook callback URL with Meta.
@@ -241,7 +269,7 @@ class WhatsappEmbeddedSignupController extends Controller
             $callbackUrl  = route('webhooks.whatsapp.global.receive');
             $globalVerify = hash('sha256', $appId . $appSecret . 'wh_global_verify');
 
-            $res = Http::post("https://graph.facebook.com/v20.0/{$appId}/subscriptions", [
+            $res = Http::post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
                 'access_token' => $appToken,
                 'object'       => 'whatsapp_business_account',
                 'callback_url' => $callbackUrl,
@@ -298,11 +326,13 @@ class WhatsappEmbeddedSignupController extends Controller
 
         $rows = [];
         $lastError = null;
+        $syncToken = $userToken;
 
         foreach ($tokens as $token) {
             try {
                 $rows = CloudApiClient::fetchWabaPhoneNumbers($waba->waba_id, $token);
                 if ($rows !== []) {
+                    $syncToken = $token;
                     break;
                 }
             } catch (\Throwable $e) {
@@ -314,7 +344,6 @@ class WhatsappEmbeddedSignupController extends Controller
             throw new \RuntimeException($lastError);
         }
 
-        $syncToken = $userToken;
         $count = 0;
 
         foreach ($rows as $row) {
@@ -327,8 +356,12 @@ class WhatsappEmbeddedSignupController extends Controller
                 $row = array_merge($row, $details);
             }
 
+            $pin = (string) (($waba->credentials ?? [])['registration_pin'] ?? '');
+            if ($pin === '' || ! $this->registerNumber((string) $row['id'], $syncToken, $waba->waba_id, $pin)) {
+                continue;
+            }
+
             $this->attachPhoneNumber($waba, (string) $row['id'], $row);
-            $this->registerNumber((string) $row['id'], $syncToken, $waba->waba_id);
             $count++;
         }
 
@@ -341,25 +374,46 @@ class WhatsappEmbeddedSignupController extends Controller
      * created PENDING and stay that way until registered. Best-effort: a number
      * that is already registered returns an error we simply log.
      */
-    private function registerNumber(string $phoneNumberId, string $accessToken, string $wabaId): void
+    private function registerNumber(string $phoneNumberId, string $accessToken, string $wabaId, string $pin): bool
     {
         try {
-            $result = CloudApiClient::registerPhoneNumber($phoneNumberId, $accessToken);
+            $result = CloudApiClient::registerPhoneNumber($phoneNumberId, $accessToken, $pin);
 
             if (! $result['success']) {
+                $errorMessage = strtolower((string) (
+                    $result['response']['error']['message']
+                    ?? $result['response']['error']['error_user_msg']
+                    ?? ''
+                ));
+
+                // Reconnecting an already active number is idempotent from the
+                // application's perspective. Meta may reject the second
+                // /register call with an "already registered/connected" error;
+                // that must not make us discard an otherwise valid phone row.
+                if (str_contains($errorMessage, 'already registered')
+                    || str_contains($errorMessage, 'already connected')) {
+                    return true;
+                }
+
                 Log::info('WhatsApp embedded signup: phone register skipped/failed', [
                     'waba_id'         => $wabaId,
                     'phone_number_id' => $phoneNumberId,
                     'status'          => $result['status'],
                     'response'        => $result['response'],
                 ]);
+
+                return false;
             }
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning('WhatsApp embedded signup: phone register exception', [
                 'waba_id'         => $wabaId,
                 'phone_number_id' => $phoneNumberId,
                 'error'           => $e->getMessage(),
             ]);
+
+            return false;
         }
     }
 

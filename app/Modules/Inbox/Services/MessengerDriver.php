@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Log;
 
 class MessengerDriver implements ChannelDriverInterface
 {
-    private const BASE = 'https://graph.facebook.com/v20.0';
+    private const BASE = 'https://graph.facebook.com/v25.0';
 
     public function __construct(private ContactService $contactService) {}
 

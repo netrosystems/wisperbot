@@ -42,7 +42,11 @@ class BackfillStoreOrdersJob implements ShouldQueue
         // Orders are always imported; only new-contact creation is gated by the cap.
         $canCreateContacts = ($capacity->remaining($store->workspace_id) ?? PHP_INT_MAX) > 0;
 
-        $topic = $store->platform === 'shopify' ? 'orders/create' : 'order.created';
+        $topic = match ($store->platform) {
+            'shopify' => 'orders/create',
+            'bigcommerce' => 'order.placed',
+            default => 'order.created',
+        };
         $page = StoreClientFactory::for($store)->fetchOrders($this->cursor);
 
         $touchedContacts = [];

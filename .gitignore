@@ -30,3 +30,8 @@ database/.DS_Store
 /WhatsMe
 /release
 /Chat-Agent-App
+
+# Claude Code local tooling
+/.claude
+/.puku
+/puku.md

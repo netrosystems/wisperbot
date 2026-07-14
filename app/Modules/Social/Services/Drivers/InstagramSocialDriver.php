@@ -14,10 +14,18 @@ class InstagramSocialDriver implements SocialNetworkInterface
 
     public function fetchAccountInfo(string $accessToken): array
     {
-        $res = Http::get('https://graph.instagram.com/me', [
+        $response = Http::timeout(15)->get('https://graph.instagram.com/me', [
             'fields' => 'id,name,profile_picture_url',
             'access_token' => $accessToken,
-        ])->json();
+        ]);
+        if (! $response->successful()) {
+            throw new \RuntimeException('Instagram profile lookup failed (HTTP '.$response->status().'): '.$response->body());
+        }
+
+        $res = $response->json();
+        if (empty($res['id'])) {
+            throw new \RuntimeException('Instagram returned no account identity.');
+        }
 
         return [
             'account_id' => $res['id'] ?? '',
@@ -40,14 +48,14 @@ class InstagramSocialDriver implements SocialNetworkInterface
             throw new \RuntimeException('Instagram posts require at least one image.');
         }
 
-        $container = Http::post("https://graph.facebook.com/v19.0/{$igUserId}/media", $containerPayload)->json();
+        $container = Http::post("https://graph.facebook.com/v25.0/{$igUserId}/media", $containerPayload)->json();
         $creationId = $container['id'] ?? null;
         if (! $creationId) {
             throw new \RuntimeException('Instagram container creation failed: '.json_encode($container));
         }
 
         // Step 2: Publish
-        $res = Http::post("https://graph.facebook.com/v19.0/{$igUserId}/media_publish", [
+        $res = Http::post("https://graph.facebook.com/v25.0/{$igUserId}/media_publish", [
             'creation_id' => $creationId,
             'access_token' => $token,
         ])->json();

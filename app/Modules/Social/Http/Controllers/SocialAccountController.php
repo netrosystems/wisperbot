@@ -3,17 +3,17 @@
 namespace App\Modules\Social\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Integrations\Services\MetaPageDiscoveryService;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Services\Drivers\FacebookDriver;
 use App\Modules\Social\Services\Drivers\InstagramSocialDriver;
 use App\Modules\Social\Services\Drivers\LinkedInDriver;
 use App\Modules\Social\Services\Drivers\TikTokDriver;
-use App\Modules\Social\Services\Drivers\TwitterDriver;
 use App\Modules\Social\Services\Drivers\YoutubeDriver;
 use App\Modules\Social\Services\OAuth\OAuthManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,13 +22,14 @@ class SocialAccountController extends Controller
 {
     private array $drivers;
 
-    public function __construct(private readonly OAuthManager $oauth)
-    {
+    public function __construct(
+        private readonly OAuthManager $oauth,
+        private readonly MetaPageDiscoveryService $metaPages,
+    ) {
         $this->drivers = [
             'facebook' => new FacebookDriver,
             'instagram' => new InstagramSocialDriver,
             'linkedin' => new LinkedInDriver,
-            'twitter' => new TwitterDriver,
             'youtube' => new YoutubeDriver,
             'tiktok' => new TikTokDriver,
         ];
@@ -49,7 +50,7 @@ class SocialAccountController extends Controller
 
     public function connect(Request $request, string $network): RedirectResponse
     {
-        $validNetworks = ['facebook', 'instagram', 'linkedin', 'twitter', 'youtube', 'tiktok'];
+        $validNetworks = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok'];
         abort_unless(in_array($network, $validNetworks, true), 404);
 
         Session::put('social_oauth_workspace', $this->workspaceId($request));
@@ -84,14 +85,33 @@ class SocialAccountController extends Controller
         }
 
         $callbackUrl = route('client.social.oauth.callback', $network);
-        $tokens = $this->oauth->exchangeCode($network, $code, $callbackUrl, $stored);
+        try {
+            $tokens = $this->oauth->exchangeCode($network, $code, $callbackUrl, $stored);
 
-        if (empty($tokens['access_token'])) {
-            return redirect()->route('client.social.accounts.index')->with('error', 'Failed to obtain access token.');
+            if (empty($tokens['access_token'])) {
+                return redirect()->route('client.social.accounts.index')->with('error', 'Failed to obtain access token.');
+            }
+
+            // Meta connections are resolved through Page/Business discovery
+            // below. Calling the Instagram Basic Display `/me` endpoint here
+            // with a Facebook Login token can fail even when Page discovery is
+            // valid, turning a good Instagram connection into a false error.
+            $driver = $this->drivers[$network] ?? null;
+            $accountInfo = in_array($network, ['facebook', 'instagram'], true)
+                ? ['account_id' => '', 'name' => '', 'picture_url' => null]
+                : ($driver
+                    ? $driver->fetchAccountInfo($tokens['access_token'])
+                    : ['account_id' => '', 'name' => '', 'picture_url' => null]);
+        } catch (\Throwable $e) {
+            Log::warning('Social OAuth callback failed', [
+                'workspace_id' => $wid,
+                'network' => $network,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->route('client.social.accounts.index')
+                ->with('error', ucfirst($network).' authorization failed: '.mb_substr($e->getMessage(), 0, 240));
         }
-
-        $driver = $this->drivers[$network] ?? null;
-        $accountInfo = $driver ? $driver->fetchAccountInfo($tokens['access_token']) : ['account_id' => '', 'name' => '', 'picture_url' => null];
 
         // For Facebook / Instagram: fetch pages the user manages and upsert each one.
         if (in_array($network, ['facebook', 'instagram'])) {
@@ -99,29 +119,44 @@ class SocialAccountController extends Controller
                 ? 'id,name,access_token,picture,instagram_business_account{id,name,username,profile_picture_url}'
                 : 'id,name,access_token,picture';
 
-            $pagesResp = Http::get('https://graph.facebook.com/v19.0/me/accounts', [
-                'access_token' => $tokens['access_token'],
-                'fields' => $fields,
-            ])->json();
+            $discovery = $this->metaPages->discover($tokens['access_token'], $fields);
+            $pages = $discovery['pages'];
 
-            // Graph API returned an error — surface it to the user.
-            if (isset($pagesResp['error'])) {
-                $msg = $pagesResp['error']['message'] ?? 'Unknown Graph API error.';
-
-                return redirect()->route('client.social.accounts.index')
-                    ->with('error', 'Could not fetch your '.ucfirst($network).' pages: '.$msg);
+            if ($discovery['errors'] !== []) {
+                Log::warning('Social OAuth: one or more Meta Page discovery sources failed', [
+                    'workspace_id' => $wid,
+                    'network' => $network,
+                    'errors' => $discovery['errors'],
+                    'successful_sources' => $discovery['successful_sources'],
+                ]);
             }
 
-            $pages = $pagesResp['data'] ?? [];
-
             if (empty($pages)) {
+                if ($discovery['successful_sources'] === []) {
+                    $message = $discovery['errors'][0]['message'] ?? 'Unknown Graph API error.';
+
+                    return redirect()->route('client.social.accounts.index')
+                        ->with('error', 'Could not fetch your '.ucfirst($network).' pages: '.$message);
+                }
+
                 return redirect()->route('client.social.accounts.index')
-                    ->with('error', 'No '.ucfirst($network).' Pages were found on your account. Make sure you are an admin of at least one Page and that your Meta App has the pages_show_list permission approved.');
+                    ->with('error', 'No '.ucfirst($network).' Pages were found. Reconnect and grant both pages_show_list and business_management so WisperBot can include Pages assigned through a Meta Business Portfolio.');
             }
 
             $connected = 0;
 
             foreach ($pages as $page) {
+                $pageToken = $page['access_token'] ?? null;
+                if (! is_string($pageToken) || $pageToken === '') {
+                    Log::warning('Social OAuth: Page has no access token and was skipped', [
+                        'workspace_id' => $wid,
+                        'network' => $network,
+                        'page_id' => $page['id'] ?? null,
+                    ]);
+
+                    continue;
+                }
+
                 if ($network === 'instagram') {
                     $igAccount = $page['instagram_business_account'] ?? null;
                     if (! $igAccount) {
@@ -129,7 +164,7 @@ class SocialAccountController extends Controller
                         continue;
                     }
 
-                    $igName = $igAccount['username']
+                    $igName = ! empty($igAccount['username'])
                         ? '@'.$igAccount['username']
                         : ($igAccount['name'] ?? $page['name']);
 
@@ -138,7 +173,7 @@ class SocialAccountController extends Controller
                         [
                             'name' => $igName,
                             'picture_url' => $igAccount['profile_picture_url'] ?? ($page['picture']['data']['url'] ?? null),
-                            'access_token' => $page['access_token'], // page token is used for IG Graph API calls
+                            'access_token' => $pageToken, // page token is used for IG Graph API calls
                             'refresh_token' => null,
                             'token_expires_at' => null,
                             'active' => true,
@@ -150,7 +185,7 @@ class SocialAccountController extends Controller
                         [
                             'name' => $page['name'],
                             'picture_url' => $page['picture']['data']['url'] ?? null,
-                            'access_token' => $page['access_token'],
+                            'access_token' => $pageToken,
                             'refresh_token' => null,
                             'token_expires_at' => null,
                             'active' => true,
@@ -161,23 +196,40 @@ class SocialAccountController extends Controller
                 $connected++;
             }
 
-            if ($connected === 0 && $network === 'instagram') {
-                return redirect()->route('client.social.accounts.index')
-                    ->with('error', 'No Instagram Business accounts were found linked to your Facebook Pages. Make sure your Instagram account is set to Business type and connected to a Facebook Page.');
+            if ($connected === 0) {
+                $message = $network === 'instagram'
+                    ? 'No Instagram Business accounts were found linked to your Facebook Pages. Make sure your Instagram account is set to Business type and connected to a Facebook Page.'
+                    : 'Facebook Pages were discovered, but Meta did not return a Page access token. Reconnect and grant Page management access.';
+
+                return redirect()->route('client.social.accounts.index')->with('error', $message);
             }
 
             return redirect()->route('client.social.accounts.index')
                 ->with('success', $connected.' '.ucfirst($network).' account(s) connected.');
         }
 
+        if (empty($accountInfo['account_id'])) {
+            return redirect()->route('client.social.accounts.index')
+                ->with('error', ucfirst($network).' connected, but the provider did not return an account identity. Nothing was saved.');
+        }
+
+        $identity = ['workspace_id' => $wid, 'network' => $network, 'account_id' => $accountInfo['account_id']];
+        $existing = SocialAccount::where($identity)->first();
+
         SocialAccount::updateOrCreate(
-            ['workspace_id' => $wid, 'network' => $network, 'account_id' => $accountInfo['account_id']],
+            $identity,
             [
                 'name' => $accountInfo['name'],
                 'picture_url' => $accountInfo['picture_url'],
                 'access_token' => $tokens['access_token'],
-                'refresh_token' => $tokens['refresh_token'] ?? null,
+                // Google commonly omits refresh_token on a repeat consent. Keep
+                // the existing token instead of turning a reconnect into a
+                // connection that expires one hour later.
+                'refresh_token' => $tokens['refresh_token'] ?? $existing?->refresh_token,
                 'token_expires_at' => isset($tokens['expires_in']) ? now()->addSeconds((int) $tokens['expires_in']) : null,
+                'scopes' => isset($tokens['scope'])
+                    ? preg_split('/[ ,]+/', (string) $tokens['scope'], -1, PREG_SPLIT_NO_EMPTY)
+                    : $existing?->scopes,
                 'active' => true,
             ]
         );

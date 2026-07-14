@@ -56,6 +56,11 @@ class Client extends Model
         return $this->hasMany(ClientSubscription::class);
     }
 
+    public function addonSubscriptions(): HasMany
+    {
+        return $this->hasMany(ClientAddonSubscription::class);
+    }
+
     public function activeSubscription(): HasOne
     {
         return $this->hasOne(ClientSubscription::class)->where('status', 'active')->latestOfMany();

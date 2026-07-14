@@ -7,6 +7,7 @@ use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
 use App\Modules\Whatsapp\Models\WhatsappTemplate;
 use App\Services\WebhookIdempotencyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -178,13 +179,21 @@ class MetaInboundWebhookTest extends TestCase
     }
 
     #[Test]
-    public function global_webhook_dedupes_duplicate_entry_ids(): void
+    public function global_webhook_dedupes_duplicate_message_events(): void
     {
         $this->seedMetaIntegration();
         $entryId = 'entry_dup_test_1';
         $body = [
             'object' => 'whatsapp_business_account',
-            'entry' => [['id' => $entryId, 'changes' => []]],
+            'entry' => [[
+                'id' => $entryId,
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messages' => [['id' => 'wamid.duplicate-event']],
+                    ],
+                ]],
+            ]],
         ];
         $payload = json_encode($body);
         $headers = ['X-Hub-Signature-256' => $this->signPayload($payload)];
@@ -192,6 +201,9 @@ class MetaInboundWebhookTest extends TestCase
         $this->withHeaders($headers)->postJson('/webhooks/whatsapp/global', $body)->assertOk();
         $this->withHeaders($headers)->postJson('/webhooks/whatsapp/global', $body)->assertOk();
 
-        $this->assertDatabaseCount('inbound_webhook_events', 1);
+        $this->assertSame(
+            1,
+            DB::table('inbound_webhook_events')->where('provider', 'whatsapp_global')->count(),
+        );
     }
 }

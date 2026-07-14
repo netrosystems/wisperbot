@@ -59,6 +59,7 @@ class BigCommerceClient implements EcommerceClientInterface
     public function registerWebhooks(string $callbackUrl): array
     {
         $created = 0;
+        $failures = [];
         try {
             foreach (self::WEBHOOK_SCOPES as $scope) {
                 $resp = $this->http('v3')->post('/hooks', [
@@ -69,10 +70,14 @@ class BigCommerceClient implements EcommerceClientInterface
                 ]);
                 if ($resp->status() === 201) {
                     $created++;
+                } else {
+                    $failures[] = $scope.' (HTTP '.$resp->status().')';
                 }
             }
 
-            return ['ok' => true, 'message' => "Registered {$created} new webhook(s)."];
+            return $failures === []
+                ? ['ok' => true, 'message' => "Registered {$created} webhook(s)."]
+                : ['ok' => false, 'message' => 'Webhook registration failed for: '.implode(', ', $failures)];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => $e->getMessage()];
         }

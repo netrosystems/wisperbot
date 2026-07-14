@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\SessionController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\Client\AddonController;
 use App\Http\Controllers\Client\ApiTokenController;
 use App\Http\Controllers\Client\AuditLogController as ClientAuditLogController;
 use App\Http\Controllers\Client\BillingController;
@@ -42,6 +43,9 @@ Route::middleware(['verified'])->group(function () {
     Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
     Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+    Route::get('/addons', [AddonController::class, 'index'])->name('addons.index');
+    Route::post('/addons/developer-tools/checkout', [AddonController::class, 'checkout'])->name('addons.developer-tools.checkout');
+    Route::delete('/addons/developer-tools', [AddonController::class, 'destroy'])->name('addons.developer-tools.destroy');
 
     // Team management (client admins only)
     Route::get('/team', [TeamController::class, 'index'])->name('team.index');
@@ -83,9 +87,19 @@ Route::middleware(['verified'])->group(function () {
     Route::post('/invitations', [InvitationController::class, 'store'])->name('invitations.store');
     Route::delete('/invitations/{invitation}', [InvitationController::class, 'destroy'])->name('invitations.destroy');
 
-    // API Tokens & Docs
-    Route::get('/api-tokens', [ApiTokenController::class, 'index'])->name('api-tokens.index');
-    Route::get('/api-docs', fn () => Inertia::render('client/Api/Docs'))->name('api-docs');
+    // Paid Developer Tools add-on: API Tokens, Docs, and outbound Webhooks.
+    Route::middleware('addon:developer_tools')->group(function () {
+        Route::get('/api-tokens', [ApiTokenController::class, 'index'])->name('api-tokens.index');
+        Route::get('/api-docs', fn () => Inertia::render('client/Api/Docs'))->name('api-docs');
+
+        Route::get('/webhooks', [WebhookEndpointController::class, 'index'])->name('webhooks.index');
+        Route::post('/webhooks', [WebhookEndpointController::class, 'store'])->name('webhooks.store');
+        Route::put('/webhooks/{webhookEndpoint}', [WebhookEndpointController::class, 'update'])->name('webhooks.update');
+        Route::delete('/webhooks/{webhookEndpoint}', [WebhookEndpointController::class, 'destroy'])->name('webhooks.destroy');
+        Route::post('/webhooks/{webhookEndpoint}/rotate-secret', [WebhookEndpointController::class, 'rotateSecret'])->name('webhooks.rotate-secret');
+        Route::post('/webhooks/{webhookEndpoint}/test', [WebhookEndpointController::class, 'testDelivery'])->name('webhooks.test');
+        Route::get('/webhooks/{webhookEndpoint}/deliveries', [WebhookEndpointController::class, 'deliveries'])->name('webhooks.deliveries');
+    });
 
     // Media Library
     Route::get('/media', [MediaController::class, 'index'])->name('media.index');
@@ -114,15 +128,6 @@ Route::middleware(['verified'])->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
     Route::post('/notification-preferences', [NotificationController::class, 'updatePreferences'])->name('notification-preferences.update');
-
-    // Webhook Endpoints
-    Route::get('/webhooks', [WebhookEndpointController::class, 'index'])->name('webhooks.index');
-    Route::post('/webhooks', [WebhookEndpointController::class, 'store'])->name('webhooks.store');
-    Route::put('/webhooks/{webhookEndpoint}', [WebhookEndpointController::class, 'update'])->name('webhooks.update');
-    Route::delete('/webhooks/{webhookEndpoint}', [WebhookEndpointController::class, 'destroy'])->name('webhooks.destroy');
-    Route::post('/webhooks/{webhookEndpoint}/rotate-secret', [WebhookEndpointController::class, 'rotateSecret'])->name('webhooks.rotate-secret');
-    Route::post('/webhooks/{webhookEndpoint}/test', [WebhookEndpointController::class, 'testDelivery'])->name('webhooks.test');
-    Route::get('/webhooks/{webhookEndpoint}/deliveries', [WebhookEndpointController::class, 'deliveries'])->name('webhooks.deliveries');
 
     // Web Push subscriptions
     Route::post('/push/subscribe', [WebPushController::class, 'subscribe'])->name('push.subscribe');

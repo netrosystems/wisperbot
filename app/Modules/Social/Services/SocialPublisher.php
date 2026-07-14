@@ -11,7 +11,6 @@ use App\Modules\Social\Services\Drivers\InstagramSocialDriver;
 use App\Modules\Social\Services\Drivers\LinkedInDriver;
 use App\Modules\Social\Services\Drivers\SocialNetworkInterface;
 use App\Modules\Social\Services\Drivers\TikTokDriver;
-use App\Modules\Social\Services\Drivers\TwitterDriver;
 use App\Modules\Social\Services\Drivers\YoutubeDriver;
 
 class SocialPublisher
@@ -25,7 +24,6 @@ class SocialPublisher
             'facebook' => new FacebookDriver,
             'instagram' => new InstagramSocialDriver,
             'linkedin' => new LinkedInDriver,
-            'twitter' => new TwitterDriver,
             'youtube' => new YoutubeDriver,
             'tiktok' => new TikTokDriver,
         ];
@@ -80,22 +78,30 @@ class SocialPublisher
         }
 
         $succeededCount = collect($results)->filter(fn ($r) => $r['status'] === 'published')->count();
+        $failedCount = collect($results)->filter(fn ($r) => $r['status'] === 'failed')->count();
         $allFailed = $succeededCount === 0;
 
-        $finalStatus = match (true) {
-            $allFailed => 'failed',
-            $succeededCount < count($results) => 'published', // partial success still marks published
-            default => 'published',
-        };
+        // Keep the post retryable whenever one account failed. Published account
+        // links are skipped on the next attempt, while failed links are retried.
+        $finalStatus = $failedCount > 0 ? 'failed' : 'published';
 
         $post->update([
             'status' => $finalStatus,
-            'published_at' => $allFailed ? null : now(),
+            'published_at' => $failedCount === 0 && ! $allFailed ? now() : null,
             'publish_results' => $results,
         ]);
 
-        if (! $allFailed) {
+        if (! $allFailed && $failedCount === 0) {
             UsageMeter::track($post->workspace_id, 'social_posts');
+        }
+
+        // The queue job must retry failed accounts. Leaving the exception
+        // swallowed here makes a temporary provider outage look permanent and
+        // prevents Laravel from applying its retry/backoff policy. Published
+        // account links are skipped on the next attempt, so this is safe for
+        // partial success.
+        if ($failedCount > 0) {
+            throw new \RuntimeException("{$failedCount} social account publish attempt(s) failed.");
         }
     }
 }

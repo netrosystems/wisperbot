@@ -109,7 +109,11 @@
         "group_billing": "বিলিং",
         "group_developer": "ডেভেলপার",
         "integrations": "Integrations",
-        "about": "About"
+        "about": "About",
+        "addons": "Addons",
+        "website_widget": "Website Widget",
+        "group_assets": "Group Assets",
+        "sign_in": "Sign In"
     },
     "welcome": {
         "title": "AI দিয়ে ওয়েবসাইট বানান।",
@@ -139,7 +143,8 @@
         "per_year": "\/বছর",
         "everything_in": "{{plan}}-এর সব কিছু",
         "most_popular": "সবচেয়ে জনপ্রিয়",
-        "view_all_integrations": "View all integrations"
+        "view_all_integrations": "View all integrations",
+        "learn_more": "Learn More"
     },
     "rtl": {
         "title": "আরটিএল প্রিভিউ",
@@ -169,8 +174,13 @@
     "client": {
         "profile": {
             "edit": "সম্পাদনা",
-            "2fa": "2Fa",
-            "sessions": "Sessions",
+            "2fa": {
+                "enable": "Enable",
+                "disable": "Disable"
+            },
+            "sessions": {
+                "destroy": "Destroy"
+            },
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -334,7 +344,10 @@
             "index": "তালিকা",
             "store": "সংরক্ষণ",
             "destroy": "মুছুন",
-            "contacts": "Contacts"
+            "contacts": {
+                "attach": "Attach",
+                "detach": "Detach"
+            }
         },
         "whatsapp": {
             "templates": {
@@ -356,9 +369,7 @@
                 "create": "তৈরি করুন",
                 "edit": "সম্পাদনা"
             },
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "broadcasts": {
             "campaigns": {
@@ -389,7 +400,9 @@
             "start": "শুরু করুন",
             "templates": "টেমপ্লেট",
             "assign": "বরাদ্দ করুন",
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "ai": {
             "providers": {
@@ -515,11 +528,7 @@
                 "connect": "সংযোগ করুন"
             }
         },
-        "workspaces": {
-            "switch": "Switch",
-            "index": "Index",
-            "store": "Store"
-        },
+        "workspaces": "Workspaces",
         "settings": {
             "update": "আপডেট",
             "notifications": "নোটিফিকেশন",
@@ -559,7 +568,10 @@
         "no_campaigns": "No campaigns yet",
         "agent_leaderboard": "Agent leaderboard",
         "handled": "handled",
-        "no_agents": "No assigned conversations yet"
+        "no_agents": "No assigned conversations yet",
+        "addons": {
+            "index": "Index"
+        }
     },
     "pagination": {
         "label": "পেজিনেশন",
@@ -885,40 +897,38 @@
         "secret_key_hint": "সার্ভার-সাইড সিক্রেট কী — এটি গোপন রাখুন",
         "stripe_webhook_hint": "Stripe ড্যাশবোর্ড থেকে Webhook সাইনিং সিক্রেট (whsec_…)",
         "webhook_hint": "ইনকামিং গেটওয়ে ইভেন্ট যাচাই করতে ব্যবহৃত Webhook সিক্রেট",
-        "clients": {
+        "clients": "Clients",
+        "subscriptions": {
             "index": "Index",
-            "users": {
-                "index": "Index",
-                "store": "Store",
-                "update": "Update",
-                "destroy": "Destroy"
-            },
-            "impersonate": "Impersonate",
-            "destroy": "Destroy",
-            "export": "Export",
             "store": "Store",
-            "update": "Update"
+            "export": "Export"
         },
-        "subscriptions": "Subscriptions",
-        "payments": {
-            "index": "Index"
-        },
-        "plans": {
+        "payments": "Payments",
+        "plans": "Plans",
+        "currencies": {
             "index": "Index",
             "update": "Update",
-            "store": "Store",
-            "duplicate": "Duplicate",
-            "destroy": "Destroy",
-            "reorder": "Reorder"
+            "store": "Store"
         },
-        "currencies": "Currencies",
-        "admins": {
+        "admins": "Admins",
+        "settings": {
             "index": "Index",
-            "destroy": "Destroy",
-            "store": "Store",
-            "update": "Update"
+            "general": {
+                "update": "Update"
+            },
+            "logo": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "favicon": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "update": "Update",
+            "firebase": {
+                "update": "Update"
+            }
         },
-        "settings": "Settings",
         "ai": {
             "index": "ইনডেক্স"
         },
@@ -1002,7 +1012,11 @@
         "recent_payments": "Recent payments",
         "amount": "Amount",
         "last_n_days": "Last {{n}} days",
-        "license": "License",
+        "license": {
+            "index": "Index",
+            "deactivate": "Deactivate",
+            "activate": "Activate"
+        },
         "add_currency": "Add Currency"
     },
     "open_menu": "মেনু খুলুন",
@@ -1142,7 +1156,9 @@
         "agree_prefix": "I agree to the",
         "terms_of_service": "Terms & Conditions",
         "and": "and",
-        "privacy_policy": "Privacy Policy"
+        "privacy_policy": "Privacy Policy",
+        "toggle_password_hide": "Hide password",
+        "toggle_password_show": "Show password"
     },
     "password": {
         "confirm": "নিশ্চিত করুন",
@@ -4016,6 +4032,14 @@
     "37": {
         "4220": "4220"
     },
+    "wisperbot": {
+        "sidebar": {
+            "scroll": {
+                "admin": "Admin",
+                "client": "Client"
+            }
+        }
+    },
     "127": [
         [
             {
@@ -4025,5 +4049,17 @@
     ],
     "v20": [
         "0"
-    ]
+    ],
+    "2": {
+        "5": "5"
+    },
+    "8": {
+        "5": "5"
+    },
+    "9": {
+        "5": "5"
+    },
+    "1": {
+        "6": "6"
+    }
 }

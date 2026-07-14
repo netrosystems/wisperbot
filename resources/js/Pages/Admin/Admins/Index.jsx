@@ -1,5 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Badge, Button, Card, Modal, Pagination } from '@/Components/ui';
+import { Badge, Button, Card, Modal, Pagination, PasswordInput } from '@/Components/ui';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { Pencil, Trash2, Lock, Unlock } from 'lucide-react';
@@ -224,22 +224,18 @@ export default function AdminAdminsIndex({ admins, roles, filters = {}, flash })
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('client.password')}</label>
-                                <input
-                                    type="password"
+                                <PasswordInput
                                     value={addForm.data.password}
                                     onChange={(e) => addForm.setData('password', e.target.value)}
-                                    className="w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm"
                                     required
                                 />
                                 {addForm.errors.password && <p className="mt-1 text-sm text-red-500">{addForm.errors.password}</p>}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('admin.confirm_password_label')}</label>
-                                <input
-                                    type="password"
+                                <PasswordInput
                                     value={addForm.data.password_confirmation}
                                     onChange={(e) => addForm.setData('password_confirmation', e.target.value)}
-                                    className="w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm"
                                 />
                             </div>
                             <div>

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 class YoutubeDriver implements SocialNetworkInterface
 {
     private const UPLOAD_URL = 'https://www.googleapis.com/upload/youtube/v3/videos';
+    private const MAX_VIDEO_BYTES = 512 * 1024 * 1024;
 
     public function network(): string
     {
@@ -39,8 +40,19 @@ class YoutubeDriver implements SocialNetworkInterface
 
     public function fetchAccountInfo(string $accessToken): array
     {
-        $res = Http::withToken($accessToken)->get('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true')->json();
+        $response = Http::withToken($accessToken)
+            ->timeout(15)
+            ->get('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true');
+        if (! $response->successful()) {
+            throw new \RuntimeException('YouTube channel lookup failed (HTTP '.$response->status().'): '.$response->body());
+        }
+
+        $res = $response->json();
         $channel = $res['items'][0]['snippet'] ?? [];
+
+        if (empty($res['items'][0]['id'])) {
+            throw new \RuntimeException('YouTube returned no channel for this account.');
+        }
 
         return [
             'account_id' => $res['items'][0]['id'] ?? '',
@@ -53,6 +65,7 @@ class YoutubeDriver implements SocialNetworkInterface
     {
         $videoPath = $postData['video_path'] ?? null;
         $videoUrl = $postData['media_urls'][0] ?? null;
+        $temporaryDownload = false;
 
         if (! $videoPath && ! $videoUrl) {
             throw new \RuntimeException('YouTube publish requires a video_path or media_urls[0].');
@@ -62,8 +75,18 @@ class YoutubeDriver implements SocialNetworkInterface
         if (! $videoPath && $videoUrl) {
             $this->assertSafeVideoUrl($videoUrl);
             $videoPath = tempnam(sys_get_temp_dir(), 'yt_');
+            $temporaryDownload = true;
             try {
-                file_put_contents($videoPath, Http::get($videoUrl)->body());
+                $download = Http::timeout(120)
+                    ->sink($videoPath)
+                    ->get($videoUrl);
+                if (! $download->successful()) {
+                    throw new \RuntimeException('Video download returned HTTP '.$download->status().'.');
+                }
+                if ((int) ($download->header('Content-Length') ?? 0) > self::MAX_VIDEO_BYTES
+                    || (int) filesize($videoPath) > self::MAX_VIDEO_BYTES) {
+                    throw new \RuntimeException('Video exceeds the 512 MB upload limit.');
+                }
             } catch (\Throwable $e) {
                 @unlink($videoPath);
                 throw new \RuntimeException('Failed to download video: '.$e->getMessage());
@@ -126,8 +149,9 @@ class YoutubeDriver implements SocialNetworkInterface
 
             return $videoId;
         } finally {
-            // Always clean up the temporary file.
-            if (isset($videoPath) && file_exists($videoPath)) {
+            // Never delete a caller-owned local file; only clean up the file this
+            // driver downloaded into the system temp directory.
+            if ($temporaryDownload && isset($videoPath) && file_exists($videoPath)) {
                 @unlink($videoPath);
             }
         }

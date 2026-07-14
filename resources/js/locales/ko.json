@@ -115,7 +115,11 @@
         "group_reports": "보고서",
         "group_support": "지원",
         "group_billing": "결제",
-        "group_developer": "개발자"
+        "group_developer": "개발자",
+        "addons": "Addons",
+        "website_widget": "Website Widget",
+        "group_assets": "Group Assets",
+        "sign_in": "Sign In"
     },
     "welcome": {
         "title": "AI로 웹사이트를 만드세요.",
@@ -145,7 +149,8 @@
         "per_month": "\/월",
         "per_year": "\/년",
         "everything_in": "{{plan}}의 모든 기능 포함",
-        "most_popular": "가장 인기"
+        "most_popular": "가장 인기",
+        "learn_more": "Learn More"
     },
     "rtl": {
         "title": "RTL 미리보기",
@@ -175,13 +180,8 @@
     "client": {
         "profile": {
             "edit": "편집",
-            "2fa": {
-                "enable": "Enable",
-                "disable": "Disable"
-            },
-            "sessions": {
-                "destroy": "Destroy"
-            },
+            "2fa": "2Fa",
+            "sessions": "Sessions",
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -345,10 +345,7 @@
             "index": "목록",
             "store": "저장",
             "destroy": "삭제",
-            "contacts": {
-                "attach": "Attach",
-                "detach": "Detach"
-            }
+            "contacts": "Contacts"
         },
         "whatsapp": {
             "templates": {
@@ -370,7 +367,9 @@
                 "create": "생성",
                 "edit": "편집"
             },
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "broadcasts": {
             "campaigns": {
@@ -401,9 +400,7 @@
             "start": "시작",
             "templates": "템플릿",
             "assign": "배정",
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "ai": {
             "providers": {
@@ -553,7 +550,11 @@
                 "connect": "연결"
             }
         },
-        "workspaces": "Workspaces",
+        "workspaces": {
+            "switch": "Switch",
+            "index": "Index",
+            "store": "Store"
+        },
         "settings": {
             "update": "업데이트",
             "notifications": "알림",
@@ -569,6 +570,9 @@
             "destroy": "삭제",
             "invoice": "청구서",
             "show": "보기"
+        },
+        "addons": {
+            "index": "Index"
         }
     },
     "pagination": {
@@ -812,7 +816,11 @@
         "tax_rates": "세율",
         "landing_page": "사이트 콘텐츠",
         "cms_pages": "CMS 페이지",
-        "license": "License",
+        "license": {
+            "index": "Index",
+            "deactivate": "Deactivate",
+            "activate": "Activate"
+        },
         "cron_setup": "Cron 설정",
         "support": {
             "index": "목록",
@@ -927,38 +935,40 @@
         "secret_key_hint": "서버 측 시크릿 키 — 비공개로 유지하세요",
         "stripe_webhook_hint": "Stripe 대시보드의 Webhook 서명 시크릿 (whsec_…)",
         "webhook_hint": "수신 게이트웨이 이벤트를 검증하는 데 사용되는 Webhook 시크릿",
-        "clients": "Clients",
-        "subscriptions": {
+        "clients": {
             "index": "Index",
+            "users": {
+                "index": "Index",
+                "store": "Store",
+                "update": "Update",
+                "destroy": "Destroy"
+            },
+            "impersonate": "Impersonate",
+            "destroy": "Destroy",
+            "export": "Export",
             "store": "Store",
-            "export": "Export"
+            "update": "Update"
         },
-        "payments": "Payments",
-        "plans": "Plans",
-        "currencies": {
+        "subscriptions": "Subscriptions",
+        "payments": {
+            "index": "Index"
+        },
+        "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store"
+            "store": "Store",
+            "duplicate": "Duplicate",
+            "destroy": "Destroy",
+            "reorder": "Reorder"
         },
-        "admins": "Admins",
-        "settings": {
+        "currencies": "Currencies",
+        "admins": {
             "index": "Index",
-            "general": {
-                "update": "Update"
-            },
-            "logo": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "favicon": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "update": "Update",
-            "firebase": {
-                "update": "Update"
-            }
+            "destroy": "Destroy",
+            "store": "Store",
+            "update": "Update"
         },
+        "settings": "Settings",
         "ai": {
             "index": "목록"
         },
@@ -1150,7 +1160,9 @@
         "demo_mode_title": "데모 모드 제목",
         "demo_mode_subtitle": "데모 모드 부제목",
         "demo_role_admin": "데모 역할 관리자",
-        "demo_role_client": "데모 역할 클라이언트"
+        "demo_role_client": "데모 역할 클라이언트",
+        "toggle_password_hide": "Hide password",
+        "toggle_password_show": "Show password"
     },
     "password": {
         "confirm": "확인",
@@ -4025,6 +4037,14 @@
     "37": {
         "4220": "4220"
     },
+    "wisperbot": {
+        "sidebar": {
+            "scroll": {
+                "admin": "Admin",
+                "client": "Client"
+            }
+        }
+    },
     "127": [
         [
             {
@@ -4034,5 +4054,17 @@
     ],
     "v20": [
         "0"
-    ]
+    ],
+    "2": {
+        "5": "5"
+    },
+    "8": {
+        "5": "5"
+    },
+    "9": {
+        "5": "5"
+    },
+    "1": {
+        "6": "6"
+    }
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Button, Card, Modal, Tabs } from '@/Components/ui';
+import { Button, Card, Modal, Tabs, PasswordInput } from '@/Components/ui';
 import { Head, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import { Send, Settings, Pencil, Trash2, Mail, Server, Lock, User, CheckCircle2, XCircle, Zap } from 'lucide-react';
@@ -348,7 +348,7 @@ function AddOrEditSmtpModal({ show, edit, encryptionOptions, onClose, onSaved })
                             <input type="text" value={data.username} onChange={(e) => setData('username', e.target.value)} required className={inputCls} placeholder={t('email_system.from_email_placeholder')} />
                         </FormField>
                         <FormField label={isEdit ? t('email_server.password') : `${t('email_server.password')} *`}>
-                            <input type="password" value={data.password} onChange={(e) => setData('password', e.target.value)} placeholder={isEdit ? t('email_system.password_unchanged') : ''} required={!isEdit} className={inputCls} />
+                            <PasswordInput value={data.password} onChange={(e) => setData('password', e.target.value)} placeholder={isEdit ? t('email_system.password_unchanged') : ''} required={!isEdit} className={inputCls} />
                         </FormField>
                     </div>
                     <FormField label={`${t('email_server.encryption')} *`}>

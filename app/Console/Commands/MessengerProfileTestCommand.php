@@ -67,7 +67,7 @@ class MessengerProfileTestCommand extends Command
         // Profile API only works with a PAGE token, so this tells us if the connect
         // flow stored the wrong token type (code bug) vs a permission gate (Meta).
         $me = Http::withToken($token)->timeout(10)
-            ->get('https://graph.facebook.com/v20.0/me', ['fields' => 'id,name,category']);
+            ->get('https://graph.facebook.com/v25.0/me', ['fields' => 'id,name,category']);
         $this->line('  <fg=cyan>/me:</> '.json_encode($me->json(), JSON_UNESCAPED_SLASHES));
         $isPageToken = ! empty($me->json('category')) || $me->json('id') === ($account->meta_json['page_id'] ?? null);
         if ($isPageToken) {
@@ -99,7 +99,7 @@ class MessengerProfileTestCommand extends Command
 
         $resp = Http::withToken($token)
             ->timeout(10)
-            ->get("https://graph.facebook.com/v20.0/{$psid}", [
+            ->get("https://graph.facebook.com/v25.0/{$psid}", [
                 'fields' => 'first_name,last_name,profile_pic',
             ]);
 

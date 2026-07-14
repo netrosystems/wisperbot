@@ -169,6 +169,7 @@ export default function ClientLayout({ header, children, title }) {
             )}
 
             <Sidebar
+                scrollKey="client"
                 open={sidebarOpen}
                 onClose={() => setSidebarOpen(false)}
                 showCreateButton={false}

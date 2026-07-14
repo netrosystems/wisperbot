@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\FlushesWebhookResponse;
 use App\Http\Controllers\Controller;
 use App\Modules\Ecommerce\Jobs\ProcessEcommerceWebhookJob;
 use App\Modules\Ecommerce\Models\EcommerceStore;
+use App\Modules\Integrations\Services\CredentialResolver;
 use App\Services\WebhookIdempotencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,14 +20,17 @@ class EcommerceWebhookController extends Controller
     {
         $this->verifyToken($request, $store);
 
-        // Optional HMAC layer — only when the merchant supplied the app's API secret key.
-        $secret = $store->credentials['api_secret_key'] ?? null;
-        if ($secret) {
-            $expected = base64_encode(hash_hmac('sha256', $request->getContent(), $secret, true));
-            if (! hash_equals($expected, $request->header('X-Shopify-Hmac-Sha256', ''))) {
-                Log::warning('ecommerce.webhook.shopify.signature_mismatch', ['store' => $store->id]);
-                abort(401, 'Invalid signature');
-            }
+        $secret = $store->credentials['api_secret_key']
+            ?? CredentialResolver::system()->oauth('shopify')?->clientSecret();
+        if (! is_string($secret) || $secret === '') {
+            Log::error('ecommerce.webhook.shopify.signing_secret_missing', ['store' => $store->id]);
+            abort(503, 'Shopify webhook signing secret is not configured');
+        }
+
+        $expected = base64_encode(hash_hmac('sha256', $request->getContent(), $secret, true));
+        if (! hash_equals($expected, $request->header('X-Shopify-Hmac-Sha256', ''))) {
+            Log::warning('ecommerce.webhook.shopify.signature_mismatch', ['store' => $store->id]);
+            abort(401, 'Invalid signature');
         }
 
         $topic = $request->header('X-Shopify-Topic', '');
@@ -40,13 +44,11 @@ class EcommerceWebhookController extends Controller
         $this->verifyToken($request, $store);
 
         // Woo signs deliveries with the secret we set at webhook creation.
-        $signature = $request->header('x-wc-webhook-signature');
-        if ($signature) {
-            $expected = base64_encode(hash_hmac('sha256', $request->getContent(), $store->webhook_secret, true));
-            if (! hash_equals($expected, $signature)) {
-                Log::warning('ecommerce.webhook.woo.signature_mismatch', ['store' => $store->id]);
-                abort(401, 'Invalid signature');
-            }
+        $signature = (string) $request->header('x-wc-webhook-signature', '');
+        $expected = base64_encode(hash_hmac('sha256', $request->getContent(), (string) $store->webhook_secret, true));
+        if ($signature === '' || ! hash_equals($expected, $signature)) {
+            Log::warning('ecommerce.webhook.woo.signature_mismatch', ['store' => $store->id]);
+            abort(401, 'Invalid signature');
         }
 
         $topic = $request->header('x-wc-webhook-topic', '');
@@ -82,12 +84,27 @@ class EcommerceWebhookController extends Controller
         }
 
         $idempotency = app(WebhookIdempotencyService::class);
-        if (! $idempotency->isNewEvent("ecommerce_{$platform}_{$store->id}", $topic.'_'.$eventId)) {
+        $idempotencyProvider = "ecommerce_{$platform}_{$store->id}";
+        $idempotencyEvent = $topic.'_'.$eventId;
+        if (! $idempotency->isNewEvent($idempotencyProvider, $idempotencyEvent)) {
             return response()->json(['status' => 'duplicate']);
         }
 
         return $this->flushWebhookOkThen(
-            fn () => ProcessEcommerceWebhookJob::dispatch($store->id, $topic, $payload)->onQueue('automation')
+            function () use ($store, $topic, $payload, $idempotency, $idempotencyProvider, $idempotencyEvent): void {
+                try {
+                    ProcessEcommerceWebhookJob::dispatch(
+                        $store->id,
+                        $topic,
+                        $payload,
+                        $idempotencyProvider,
+                        $idempotencyEvent,
+                    )->onQueue('automation');
+                } catch (\Throwable $e) {
+                    $idempotency->release($idempotencyProvider, $idempotencyEvent);
+                    throw $e;
+                }
+            }
         );
     }
 

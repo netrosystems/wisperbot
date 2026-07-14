@@ -24,13 +24,6 @@
     "37": {
         "4220": "4220"
     },
-    "127": [
-        [
-            {
-                "1": "1"
-            }
-        ]
-    ],
     "dashboard": {
         "date_range": "Date range",
         "range_7d": "7d",
@@ -148,7 +141,10 @@
         "group_support": "Support",
         "group_billing": "Billing",
         "group_developer": "Developer",
-        "website_widget": "Website Widget"
+        "website_widget": "Website Widget",
+        "addons": "Addons",
+        "group_assets": "Group Assets",
+        "sign_in": "Sign In"
     },
     "welcome": {
         "title": "Build websites with AI.",
@@ -175,10 +171,11 @@
         "monthly": "Monthly",
         "yearly": "Yearly",
         "save_percent": "Save {{percent}}%",
-        "per_month": "/mo",
-        "per_year": "/yr",
+        "per_month": "\/mo",
+        "per_year": "\/yr",
         "everything_in": "Everything in {{plan}}",
-        "most_popular": "Most Popular"
+        "most_popular": "Most Popular",
+        "learn_more": "Learn More"
     },
     "rtl": {
         "title": "RTL Preview",
@@ -208,13 +205,8 @@
     "client": {
         "profile": {
             "edit": "Edit",
-            "2fa": {
-                "enable": "Enable",
-                "disable": "Disable"
-            },
-            "sessions": {
-                "destroy": "Destroy"
-            },
+            "2fa": "2Fa",
+            "sessions": "Sessions",
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -378,10 +370,7 @@
             "index": "Index",
             "store": "Store",
             "destroy": "Destroy",
-            "contacts": {
-                "attach": "Attach",
-                "detach": "Detach"
-            }
+            "contacts": "Contacts"
         },
         "whatsapp": {
             "templates": {
@@ -403,7 +392,9 @@
                 "create": "Create",
                 "edit": "Edit"
             },
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "broadcasts": {
             "campaigns": {
@@ -434,9 +425,7 @@
             "start": "Start",
             "templates": "Templates",
             "assign": "Assign",
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "ai": {
             "providers": {
@@ -586,7 +575,11 @@
                 "connect": "Connect"
             }
         },
-        "workspaces": "Workspaces",
+        "workspaces": {
+            "switch": "Switch",
+            "index": "Index",
+            "store": "Store"
+        },
         "settings": {
             "update": "Update",
             "notifications": "Notifications",
@@ -602,6 +595,9 @@
             "destroy": "Destroy",
             "invoice": "Invoice",
             "show": "Show"
+        },
+        "addons": {
+            "index": "Index"
         }
     },
     "pagination": {
@@ -678,7 +674,7 @@
             "destroy": "Destroy",
             "update": "Update"
         },
-        "website_templates": "Website/Landing Pages",
+        "website_templates": "Website\/Landing Pages",
         "roles_permissions": "Roles & Permissions",
         "ai_requests": "AI Requests",
         "templates": "Templates",
@@ -845,7 +841,11 @@
         "tax_rates": "Tax Rates",
         "landing_page": "Site Content",
         "cms_pages": "CMS Pages",
-        "license": "License",
+        "license": {
+            "index": "Index",
+            "deactivate": "Deactivate",
+            "activate": "Activate"
+        },
         "cron_setup": "Cron Setup",
         "support": {
             "index": "Index",
@@ -945,7 +945,7 @@
         "webhook_secret": "Webhook Secret",
         "note_label": "Note:",
         "gateway_credentials_note": "Credentials are stored encrypted in the database.",
-        "test_mode_desc": "Using sandbox/test credentials",
+        "test_mode_desc": "Using sandbox\/test credentials",
         "gateway_enable_desc": "Make this gateway available for checkout",
         "pricing": "Pricing",
         "price_id_monthly": "Monthly Price ID",
@@ -955,43 +955,45 @@
         "test_mode": "Test Mode",
         "live_mode": "Live Mode",
         "stripe_pk_hint": "Your Stripe publishable key (pk_…)",
-        "publishable_key_hint": "Public/client key from your gateway dashboard",
+        "publishable_key_hint": "Public\/client key from your gateway dashboard",
         "stripe_sk_hint": "Your Stripe secret key (sk_…)",
         "secret_key_hint": "Server-side secret key — keep this private",
         "stripe_webhook_hint": "Webhook signing secret (whsec_…) from the Stripe dashboard",
         "webhook_hint": "Webhook secret used to verify incoming gateway events",
-        "clients": "Clients",
-        "subscriptions": {
+        "clients": {
             "index": "Index",
+            "users": {
+                "index": "Index",
+                "store": "Store",
+                "update": "Update",
+                "destroy": "Destroy"
+            },
+            "impersonate": "Impersonate",
+            "destroy": "Destroy",
+            "export": "Export",
             "store": "Store",
-            "export": "Export"
+            "update": "Update"
         },
-        "payments": "Payments",
-        "plans": "Plans",
-        "currencies": {
+        "subscriptions": "Subscriptions",
+        "payments": {
+            "index": "Index"
+        },
+        "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store"
+            "store": "Store",
+            "duplicate": "Duplicate",
+            "destroy": "Destroy",
+            "reorder": "Reorder"
         },
-        "admins": "Admins",
-        "settings": {
+        "currencies": "Currencies",
+        "admins": {
             "index": "Index",
-            "general": {
-                "update": "Update"
-            },
-            "logo": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "favicon": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "update": "Update",
-            "firebase": {
-                "update": "Update"
-            }
+            "destroy": "Destroy",
+            "store": "Store",
+            "update": "Update"
         },
+        "settings": "Settings",
         "ai": {
             "index": "Index"
         },
@@ -1032,7 +1034,7 @@
         "tax_new": "New Tax Rate",
         "tax_empty": "No tax rates configured.",
         "tax_country_code": "Country Code (ISO 2)",
-        "tax_region": "Region / State (optional)",
+        "tax_region": "Region \/ State (optional)",
         "tax_percentage": "Percentage (%)",
         "tax_inclusive": "Inclusive (included in price)",
         "tax_update": "Update Tax Rate",
@@ -1091,6 +1093,8 @@
         "confirm_password_title": "Confirm Password",
         "confirm_password_intro": "This is a secure area of the application. Please confirm your password before continuing.",
         "password": "Password",
+        "toggle_password_show": "Show password",
+        "toggle_password_hide": "Hide password",
         "confirm": "Confirm",
         "forgot_password_title": "Forgot Password",
         "forgot_password_intro": "Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.",
@@ -1124,7 +1128,7 @@
         "sub": "Join thousands of teams using AI to automate support, nurture leads, and close deals faster.",
         "feature1": "Automate repetitive tasks and reclaim 10+ hours a week",
         "feature2": "Boost reply rates by up to 3× with AI-crafted messages",
-        "feature3": "24/7 chatbots that qualify leads while you sleep",
+        "feature3": "24\/7 chatbots that qualify leads while you sleep",
         "admin_feature1": "Granular role-based access for every team member",
         "admin_feature2": "Manage clients, plans, and billing from one dashboard",
         "admin_feature3": "Real-time audit logs and live queue monitoring",
@@ -1177,7 +1181,7 @@
         "proof_uptime_sla": "Uptime SLA",
         "testimonial_quote": "\"We cut response time by 80% and increased sales conversions by 2× within the first month.\"",
         "testimonial_author": "Sarah K.",
-        "testimonial_role": "Head of Growth, Shopify store · 12k orders/mo",
+        "testimonial_role": "Head of Growth, Shopify store · 12k orders\/mo",
         "demo_password_label": "Demo Password Label",
         "demo_one_click_login": "Demo One Click Login",
         "demo_mode_title": "Demo Mode Title",
@@ -1219,7 +1223,7 @@
         "profile_information": "Profile Information",
         "profile_information_intro": "Update your account's profile information and email address.",
         "email_address": "Email address",
-        "email_unverified": "Your email address is unverified. <resend>Click here to re-send the verification email.</resend>",
+        "email_unverified": "Your email address is unverified. <resend>Click here to re-send the verification email.<\/resend>",
         "verification_link_sent": "A new verification link has been sent to your email address.",
         "save_changes": "Save changes",
         "active_sessions": "Active Sessions",
@@ -1442,7 +1446,7 @@
         "send_at": "Send at",
         "timezone": "Timezone",
         "will_be_sent_at": "Will be sent at",
-        "which_is_browser": "(which is <time>{{time}}</time> in your browser)",
+        "which_is_browser": "(which is <time>{{time}}<\/time> in your browser)",
         "review_confirm": "Review and confirm",
         "reachable_contacts": "Reachable contacts",
         "template": "Template",
@@ -1474,7 +1478,7 @@
         "file_set": "File set",
         "subject": "Subject",
         "live_preview": "Live preview",
-        "variables_hint": "Variables show up as <field>[Field]</field>. Each recipient gets their own value.",
+        "variables_hint": "Variables show up as <field>[Field]<\/field>. Each recipient gets their own value.",
         "at_a_glance": "At a glance",
         "reachable": "Reachable"
     },
@@ -1572,7 +1576,7 @@
         "kpi_avg_latency": "Avg Latency",
         "kpi_error_rate": "Error Rate",
         "no_ai_runs": "No AI runs in this period",
-        "status_running_other": "Running/Other",
+        "status_running_other": "Running\/Other",
         "no_runs": "No runs in this period",
         "campaign_report_title": "Campaign Report: {{name}}",
         "campaign_report_head": "Report: {{name}}",
@@ -1656,7 +1660,7 @@
         "step2_title": "2. Run Queue Workers",
         "step2_desc": "Background jobs — campaigns, messages, social posts — run on queues. Start a persistent worker, and use Supervisor in production to keep it alive and restart it automatically.",
         "supervisor_title": "Supervisor configuration",
-        "supervisor_desc": "Save as /etc/supervisor/conf.d/wisperbot-worker.conf, then run: supervisorctl reread && supervisorctl update.",
+        "supervisor_desc": "Save as \/etc\/supervisor\/conf.d\/wisperbot-worker.conf, then run: supervisorctl reread && supervisorctl update.",
         "step3_title": "3. Verify",
         "step3_desc": "Run these commands to confirm the scheduler and queue are wired up correctly.",
         "verify_run": "Trigger all due scheduled tasks immediately:",
@@ -1743,7 +1747,7 @@
         "notif_event_campaign_completed_desc": "When a broadcast campaign finishes sending",
         "notif_event_automation_failed_label": "Automation Failed",
         "notif_event_automation_failed_desc": "When an automation run encounters an error",
-        "notif_event_billing_failed_label": "Billing / Payment",
+        "notif_event_billing_failed_label": "Billing \/ Payment",
         "notif_event_billing_failed_desc": "When a payment fails and needs attention",
         "notif_not_available": "Not available for this event",
         "notif_toggle_on": "Enabled – click to disable",
@@ -1811,7 +1815,7 @@
         "refresh": "Refresh",
         "mark_fulfilled": "Mark fulfilled",
         "fulfill_order": "Fulfill order",
-        "fulfill_hint": "Pushes a fulfillment/shipped status to the store. The store webhook will confirm and may trigger your shipping automation.",
+        "fulfill_hint": "Pushes a fulfillment\/shipped status to the store. The store webhook will confirm and may trigger your shipping automation.",
         "tracking_number": "Tracking number (optional)",
         "tracking_url": "Tracking URL (optional)",
         "confirm_fulfill": "Confirm fulfillment",
@@ -1848,7 +1852,7 @@
         "setup_guide": "Setup Guide",
         "cat_storage": "Storage",
         "cat_meta": "Meta",
-        "cat_ai_llm": "AI / LLM",
+        "cat_ai_llm": "AI \/ LLM",
         "cat_social_oauth": "Social OAuth",
         "cat_maps": "Maps",
         "cat_vector_store": "Vector Store",
@@ -1862,7 +1866,7 @@
         "col_changed_keys": "Changed Keys",
         "col_ip": "IP",
         "no_audit_entries": "No audit log entries yet.",
-        "callback_url_title": "Callback / Redirect URL",
+        "callback_url_title": "Callback \/ Redirect URL",
         "callback_url_desc": "Register this exact URL in your platform app settings.",
         "copied": "Copied",
         "copy": "Copy",
@@ -1873,7 +1877,7 @@
         "enter_value": "Enter value…",
         "storage_provider": "Storage Provider",
         "storage_local_banner": "Local storage uses the server's public disk. No credentials are needed. Enable this to use local file uploads.",
-        "storage_remote_banner": "Only <strong>one</strong> storage provider can be active at a time. Enabling this will serve as the active upload destination for the whole application. The <strong>Directory Prefix</strong> field lets you namespace all uploads under a sub-folder (e.g. <code>myapp/uploads</code>).",
+        "storage_remote_banner": "Only <strong>one<\/strong> storage provider can be active at a time. Enabling this will serve as the active upload destination for the whole application. The <strong>Directory Prefix<\/strong> field lets you namespace all uploads under a sub-folder (e.g. <code>myapp\/uploads<\/code>).",
         "rotate_confirm": "Rotate the webhook secret? The old secret will no longer work.",
         "status": "Status",
         "mode_label": "Mode:",
@@ -1882,7 +1886,7 @@
         "credentials": "Credentials",
         "no_credentials_local": "No credentials needed for local storage. Simply enable the integration above.",
         "encrypted_note": "Values are stored encrypted. Masked fields (••••) will be preserved as-is if left unchanged.",
-        "config_id_conflict": "<strong>Config ID conflict:</strong> The WhatsApp and Social (Instagram/Messenger) Config IDs are identical. They must be <em>different</em> configurations created separately in Meta App Dashboard → Facebook Login for Business → Configurations. Using the same Config ID will cause Instagram/Messenger embedded signup to show WhatsApp permissions.",
+        "config_id_conflict": "<strong>Config ID conflict:<\/strong> The WhatsApp and Social (Instagram\/Messenger) Config IDs are identical. They must be <em>different<\/em> configurations created separately in Meta App Dashboard → Facebook Login for Business → Configurations. Using the same Config ID will cause Instagram\/Messenger embedded signup to show WhatsApp permissions.",
         "saving": "Saving…",
         "test_connection": "Test Connection",
         "rotating": "Rotating…",
@@ -1987,7 +1991,7 @@
         "enabled": "Enabled",
         "disabled": "Disabled",
         "dynamic_label": "Dynamic",
-        "dynamic_hint": "(uses app login/register route)",
+        "dynamic_hint": "(uses app login\/register route)",
         "static_label": "Static",
         "static_hint": "(custom URL)",
         "group_general": "General",
@@ -1999,7 +2003,7 @@
         "tab_metrics": "Metrics",
         "tab_trustedby": "Trusted By",
         "tab_channels": "Channels",
-        "tab_problems": "Problem/Solution",
+        "tab_problems": "Problem\/Solution",
         "tab_features": "Features",
         "tab_howitworks": "How It Works",
         "tab_integrations_strip": "Integrations Strip",
@@ -2024,11 +2028,11 @@
         "secondary_cta": "Secondary CTA Button",
         "trust_badges_label": "Trust Badges (shown below CTA buttons)",
         "badge_n": "Badge {{n}}",
-        "trustedby_section": "Trusted By / Brand Logos Bar",
+        "trustedby_section": "Trusted By \/ Brand Logos Bar",
         "heading": "Heading",
         "heading_hint": "Small text above the brand names",
         "brand_n": "Brand {{n}}",
-        "problems_section": "Problem / Solution Section",
+        "problems_section": "Problem \/ Solution Section",
         "problem_col_title": "Problem Column Title",
         "problem_n": "Problem {{n}}",
         "solution_col_title": "Solution Column Title",
@@ -2272,7 +2276,7 @@
         "edit_template_title": "Edit Template: {{name}}",
         "click_to_copy": "Click to copy",
         "subject_placeholder": "e.g. Payment Failed — {{app_name}}",
-        "body_placeholder": "<p>Hello {{user_name}},</p>...",
+        "body_placeholder": "<p>Hello {{user_name}},<\/p>...",
         "email_preview": "Email preview",
         "recipient_placeholder": "recipient@example.com",
         "send_to_label": "Send to",
@@ -2421,7 +2425,7 @@
         "scope_contacts_write": "Create & update contacts and segments",
         "scope_campaigns_read": "Read campaigns and recipient stats",
         "scope_campaigns_write": "Create, launch, and pause campaigns",
-        "scope_messages_write": "Send outbound messages (WhatsApp / SMS / Email)",
+        "scope_messages_write": "Send outbound messages (WhatsApp \/ SMS \/ Email)",
         "scope_conversations_read": "Read inbox conversations and message threads",
         "scope_webhooks_write": "Register and remove outbound webhook endpoints",
         "scope_ai_read": "Read AI chatbots and knowledge bases",
@@ -2456,7 +2460,7 @@
         "ep_campaigns_launch": "Launch a draft campaign",
         "ep_campaigns_pause": "Pause a sending campaign",
         "ep_campaigns_recipients": "Paginated recipient list with status",
-        "ep_messages_send": "Send a single outbound message to a contact (WhatsApp / SMS)",
+        "ep_messages_send": "Send a single outbound message to a contact (WhatsApp \/ SMS)",
         "ep_conversations_list": "List conversations; filter by channel, status, assigned_to",
         "ep_conversations_messages": "Ordered message thread",
         "ep_webhooks_list": "List registered webhook endpoints",
@@ -2467,7 +2471,7 @@
         "ep_kb_list": "List knowledge bases",
         "ep_kb_create": "Create a knowledge base",
         "ep_kb_get": "Get KB with documents",
-        "ep_kb_add_doc": "Add a document (URL / text / file upload)",
+        "ep_kb_add_doc": "Add a document (URL \/ text \/ file upload)",
         "ep_kb_remove_doc": "Remove a document",
         "ep_automations_list": "List automations",
         "ep_automations_trigger": "Manually fire an automation for a contact",
@@ -2511,7 +2515,7 @@
         "bulk_err_no_phone_column": "Could not find a Phone column. Use the sample file headers.",
         "bulk_err_unreadable": "Could not read that file. Try exporting as .xlsx from Excel or Google Sheets.",
         "bulk_choose_file": "Choose file",
-        "bulk_file_hint": "Only <b>.xlsx</b> files (read with ExcelJS). Phone numbers must include the country calling code (e.g. <code>+1</code>). The grid uses Handsontable for copy/paste, filters, column resize, row context menu, and fill handle. <sample>Download sample file here</sample>.",
+        "bulk_file_hint": "Only <b>.xlsx<\/b> files (read with ExcelJS). Phone numbers must include the country calling code (e.g. <code>+1<\/code>). The grid uses Handsontable for copy\/paste, filters, column resize, row context menu, and fill handle. <sample>Download sample file here<\/sample>.",
         "bulk_uploading": "Uploading…",
         "bulk_confirm_upload": "Confirm upload",
         "bulk_reset_table": "Reset table",
@@ -2590,7 +2594,7 @@
         "date_time": "Time",
         "date_prev": "Previous",
         "date_next": "Next",
-        "usage_banner": "You've used {{percent}}% of your {{label}} quota ({{current}}/{{limit}}).",
+        "usage_banner": "You've used {{percent}}% of your {{label}} quota ({{current}}\/{{limit}}).",
         "usage_banner_upgrade": "Upgrade your plan",
         "usage_banner_suffix": "to avoid interruptions.",
         "notif_new": "New notification",
@@ -2774,12 +2778,12 @@
         "edit_canned_reply": "Edit Canned Reply",
         "new_canned_reply": "New Canned Reply",
         "shortcut": "Shortcut",
-        "shortcut_hint": "(without /)",
+        "shortcut_hint": "(without \/)",
         "shortcut_placeholder": "e.g. greeting",
         "body": "Body",
         "body_placeholder": "Hi {{contact.first_name}}, thanks for reaching out!",
         "no_canned_replies": "No canned replies yet. Create one above.",
-        "canned_delete_confirm": "Delete /{{shortcut}}?",
+        "canned_delete_confirm": "Delete \/{{shortcut}}?",
         "body_hint": "(supports {{token}})",
         "view_contact": "View contact",
         "view_contact_profile": "View contact profile",
@@ -2862,7 +2866,7 @@
         "send_template": "Send template",
         "template": "Template",
         "session_closed_placeholder": "Session closed — select a template above to re-engage",
-        "type_message_placeholder": "Type a message… or /shortcut for canned reply",
+        "type_message_placeholder": "Type a message… or \/shortcut for canned reply",
         "view_full_profile": "View full profile →",
         "conversation": "Conversation",
         "status": "Status",
@@ -2988,15 +2992,15 @@
         "trigger_form_submitted": "Form Submitted",
         "trigger_webhook_received": "Webhook Received",
         "trigger_order_placed": "Order Placed",
-        "trigger_order_fulfilled": "Order Shipped / Fulfilled",
+        "trigger_order_fulfilled": "Order Shipped \/ Fulfilled",
         "trigger_order_cancelled": "Order Cancelled",
         "trigger_cart_abandoned": "Cart Abandoned",
         "trigger_customer_created": "New Store Customer",
         "node_send_whatsapp": "Send WhatsApp",
         "node_send_sms": "Send SMS",
         "node_send_email": "Send Email",
-        "node_wait": "Wait / Delay",
-        "node_condition": "Condition (If/Else)",
+        "node_wait": "Wait \/ Delay",
+        "node_condition": "Condition (If\/Else)",
         "node_add_tag": "Add Tag",
         "node_remove_tag": "Remove Tag",
         "node_update_contact": "Update Contact",
@@ -3008,7 +3012,7 @@
         "cond_field_contact_phone": "Contact Phone",
         "cond_field_contact_tag": "Contact Has Tag",
         "cond_field_message_body": "Message Body",
-        "cond_field_context_key": "Webhook/Context Key",
+        "cond_field_context_key": "Webhook\/Context Key",
         "op_equals": "equals",
         "op_not_equals": "does not equal",
         "op_contains": "contains",
@@ -3049,7 +3053,7 @@
         "field_new_value_required": "New Value *",
         "placeholder_new_value": "New value or {{token}}",
         "field_campaign_id_required": "Campaign ID *",
-        "field_prompt_instructions_required": "Prompt / Instructions *",
+        "field_prompt_instructions_required": "Prompt \/ Instructions *",
         "placeholder_ai_prompt": "You are a helpful assistant. Reply to the contact's message in a friendly tone…",
         "field_channel": "Channel",
         "channel_meta_hint": "Messenger & Instagram can only be messaged inside an existing thread (the contact must have messaged you first).",
@@ -3168,7 +3172,7 @@
         "poll_hint": "Sent as tappable reply buttons (≤3 options) or an interactive list (4+).",
         "field_summary_required": "Title *",
         "placeholder_appointment_summary": "Consultation with {{contact.name}}",
-        "field_start_required": "Start Date/Time *",
+        "field_start_required": "Start Date\/Time *",
         "field_duration_min": "Duration (min)",
         "field_timezone_optional": "Timezone (optional)",
         "field_calendar_id_optional": "Calendar ID (optional)",
@@ -3293,7 +3297,7 @@
         "source_text": "Text",
         "source_sitemap": "Sitemap",
         "source_faq": "FAQ",
-        "drop_a_file_or_browse": "Drop a file or <1>browse</1>",
+        "drop_a_file_or_browse": "Drop a file or <1>browse<\/1>",
         "text_content": "Text Content",
         "text_content_placeholder": "Paste your text content here…",
         "questions_and_answers": "Questions & Answers",
@@ -3377,9 +3381,9 @@
         "setup_empty_description": "Use the Channel Setup page to connect your WhatsApp Business Account.",
         "setup_webhook_instructions": "Webhook setup instructions",
         "setup_webhook_step_1": "Go to your Meta App → WhatsApp → Configuration → Webhooks.",
-        "setup_webhook_step_2": "Paste the <1>Callback URL</1> from the WABA card above into \"Callback URL\".",
-        "setup_webhook_step_3": "Paste the <1>Verify Token</1> into \"Verify token\", then click <3>Verify and Save</3>.",
-        "setup_webhook_step_4": "Subscribe to <1>messages</1> and <3>message_status_updates</3>.",
+        "setup_webhook_step_2": "Paste the <1>Callback URL<\/1> from the WABA card above into \"Callback URL\".",
+        "setup_webhook_step_3": "Paste the <1>Verify Token<\/1> into \"Verify token\", then click <3>Verify and Save<\/3>.",
+        "setup_webhook_step_4": "Subscribe to <1>messages<\/1> and <3>message_status_updates<\/3>.",
         "setup_webhook_step_5": "Repeat for each additional WABA (each has its own verify token).",
         "setup_nav_templates": "Templates →",
         "setup_nav_auto_replies": "Auto-Replies →",
@@ -3436,7 +3440,7 @@
         "widget_field_greeting": "Greeting Message",
         "widget_field_greeting_hint": "Auto-shown as a popup card 3 s after page loads. Leave empty to disable.",
         "widget_field_greeting_placeholder": "Hi! 👋 How can we help you today?",
-        "widget_field_agent_name": "Agent / Team Name",
+        "widget_field_agent_name": "Agent \/ Team Name",
         "widget_field_agent_name_hint": "Displayed in the greeting card header.",
         "widget_field_button_color": "Button Color",
         "widget_field_avatar_color": "Avatar Color",
@@ -3453,10 +3457,10 @@
         "widget_summary_all": "All",
         "widget_summary_restricted": "{{count}} restricted",
         "widget_embed_desc": "Paste this into your website to activate the widget.",
-        "widget_embed_instructions": "Add this snippet to your website's <1>&lt;head&gt;</1> or just before the closing <3>&lt;/body&gt;</3> tag.",
+        "widget_embed_instructions": "Add this snippet to your website's <1>&lt;head&gt;<\/1> or just before the closing <3>&lt;\/body&gt;<\/3> tag.",
         "widget_install_tips": "Installation tips",
         "widget_install_tip_platforms": "Works on any HTML website, WordPress, Shopify, Webflow, Wix, etc.",
-        "widget_install_tip_async": "The <1>async defer</1> attributes ensure it doesn't block page load.",
+        "widget_install_tip_async": "The <1>async defer<\/1> attributes ensure it doesn't block page load.",
         "widget_install_tip_cache": "Changes to widget settings take effect within 5 minutes (cached).",
         "widget_direct_js_link": "Direct JS link",
         "widget_default_agent_name": "Support",
@@ -3581,7 +3585,7 @@
         "templates_header_text_placeholder": "Header text (max 60 chars)",
         "templates_file_uploaded": "File uploaded",
         "templates_uploading": "Uploading…",
-        "templates_upload_image": "Upload image (JPEG / PNG, max 5 MB)",
+        "templates_upload_image": "Upload image (JPEG \/ PNG, max 5 MB)",
         "templates_upload_video": "Upload video (MP4, max 16 MB)",
         "templates_upload_document": "Upload document (PDF, max 100 MB)",
         "templates_upload_failed": "Upload failed.",
@@ -3598,7 +3602,7 @@
         "templates_url_example_label": "URL Example (for {{token}})",
         "templates_phone_number_label": "Phone Number",
         "templates_phone_hint": "(E.164 e.g. +8801XXXXXXXXX)",
-        "templates_buttons_used": "{{used}} / {{max}} buttons used",
+        "templates_buttons_used": "{{used}} \/ {{max}} buttons used",
         "templates_lang_en": "English",
         "templates_lang_bn": "Bengali",
         "templates_lang_ar": "Arabic",
@@ -3670,7 +3674,7 @@
         "field_width_placeholder": "e.g. 320px or 100%",
         "field_line_color": "Line color",
         "field_height": "Height — {{height}}px",
-        "link_placeholder": "https://…  or  {{token}}",
+        "link_placeholder": "https:\/\/…  or  {{token}}",
         "apply": "Apply",
         "bold": "Bold (Ctrl+B)",
         "italic": "Italic (Ctrl+I)",
@@ -3730,7 +3734,7 @@
         "preview_like": "Like",
         "preview_comment": "Comment",
         "preview_share": "Share",
-        "preview_photo_video": "Photo / Video",
+        "preview_photo_video": "Photo \/ Video",
         "preview_caption_placeholder": "Caption will appear here…",
         "preview_your_profile": "Your Profile",
         "preview_now": "Now",
@@ -3738,7 +3742,7 @@
         "preview_send": "Send",
         "preview_video": "Video preview",
         "preview_caption_short": "Caption…",
-        "preview_video_title_placeholder": "Video title / description…",
+        "preview_video_title_placeholder": "Video title \/ description…",
         "preview_your_channel": "Your Channel",
         "preview_youtube_meta": "0 views · Just now",
         "accounts_title": "Social Accounts",
@@ -3748,13 +3752,13 @@
         "network_desc_facebook": "Connect Facebook Pages to schedule posts.",
         "network_desc_instagram": "Connect Instagram Business accounts via Facebook.",
         "network_desc_linkedin": "Connect your LinkedIn profile or company page.",
-        "network_desc_twitter": "Connect your X / Twitter account.",
+        "network_desc_twitter": "Connect your X \/ Twitter account.",
         "network_desc_youtube": "Connect your YouTube channel to upload videos.",
         "network_desc_tiktok": "Connect your TikTok account to publish videos.",
         "token_expired": "Token expired",
         "disconnect": "Disconnect",
         "disconnect_confirm": "Disconnect \"{{name}}\"?",
-        "reconnect_add_another": "Reconnect / Add another",
+        "reconnect_add_another": "Reconnect \/ Add another",
         "add_another_account": "Add another account",
         "connect_network": "Connect {{network}}",
         "no_accounts_yet": "No accounts connected yet",
@@ -3884,9 +3888,9 @@
         "no_leads_description": "Start a search to discover businesses from Google Places and push them to your contact list.",
         "confirm_delete": "Delete this lead?",
         "search_businesses": "Search Businesses",
-        "business_type_keyword": "Business Type / Keyword",
+        "business_type_keyword": "Business Type \/ Keyword",
         "keyword_placeholder": "e.g. restaurants, dentists, gyms",
-        "city_location": "City / Location",
+        "city_location": "City \/ Location",
         "location_placeholder": "e.g. Dhaka, Bangladesh",
         "radius_meters": "Radius (meters)",
         "queuing": "Queuing…",
@@ -4033,7 +4037,34 @@
     "branding": {
         "favicon_url": "Favicon Url"
     },
+    "wisperbot": {
+        "sidebar": {
+            "scroll": {
+                "admin": "Admin",
+                "client": "Client"
+            }
+        }
+    },
+    "127": [
+        [
+            {
+                "1": "1"
+            }
+        ]
+    ],
     "v20": [
         "0"
-    ]
+    ],
+    "2": {
+        "5": "5"
+    },
+    "8": {
+        "5": "5"
+    },
+    "9": {
+        "5": "5"
+    },
+    "1": {
+        "6": "6"
+    }
 }

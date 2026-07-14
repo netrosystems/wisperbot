@@ -45,6 +45,7 @@ class WooClient implements EcommerceClientInterface
     public function registerWebhooks(string $callbackUrl): array
     {
         $created = 0;
+        $failures = [];
         try {
             foreach (self::WEBHOOK_TOPICS as $topic) {
                 $resp = $this->http()->post('/webhooks', [
@@ -55,10 +56,14 @@ class WooClient implements EcommerceClientInterface
                 ]);
                 if ($resp->status() === 201) {
                     $created++;
+                } else {
+                    $failures[] = $topic.' (HTTP '.$resp->status().')';
                 }
             }
 
-            return ['ok' => true, 'message' => "Registered {$created} new webhook(s)."];
+            return $failures === []
+                ? ['ok' => true, 'message' => "Registered {$created} webhook(s)."]
+                : ['ok' => false, 'message' => 'Webhook registration failed for: '.implode(', ', $failures)];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => $e->getMessage()];
         }

@@ -48,7 +48,12 @@ class OpenAiProvider implements LlmProviderInterface
 
     public function embed(array $texts): array
     {
-        $resp = Http::withToken($this->apiKey)->retry(2, 500)->timeout(30)->post(self::BASE.'/embeddings', [
+        $headers = ['Authorization' => 'Bearer '.$this->apiKey];
+        if ($this->organization) {
+            $headers['OpenAI-Organization'] = $this->organization;
+        }
+
+        $resp = Http::withHeaders($headers)->retry(2, 500)->timeout(30)->post(self::BASE.'/embeddings', [
             'model' => $this->embedModel,
             'input' => $texts,
         ]);

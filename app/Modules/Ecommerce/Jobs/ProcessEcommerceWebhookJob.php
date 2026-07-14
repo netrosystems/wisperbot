@@ -13,6 +13,7 @@ use App\Modules\Ecommerce\Services\ContactEnricher;
 use App\Modules\Ecommerce\Services\PayloadNormalizer;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Services\ContactService;
+use App\Services\WebhookIdempotencyService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -35,6 +36,8 @@ class ProcessEcommerceWebhookJob implements ShouldQueue
         public readonly int $storeId,
         public readonly string $topic,
         public readonly array $payload,
+        public readonly ?string $idempotencyProvider = null,
+        public readonly ?string $idempotencyEvent = null,
     ) {}
 
     public function failed(\Throwable $e): void
@@ -44,6 +47,10 @@ class ProcessEcommerceWebhookJob implements ShouldQueue
             'topic' => $this->topic,
             'error' => $e->getMessage(),
         ]);
+
+        if ($this->idempotencyProvider && $this->idempotencyEvent) {
+            app(WebhookIdempotencyService::class)->release($this->idempotencyProvider, $this->idempotencyEvent);
+        }
     }
 
     public function handle(PayloadNormalizer $normalizer, ContactService $contacts, ContactEnricher $enricher): void
