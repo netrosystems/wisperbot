@@ -2,8 +2,10 @@
 
 namespace App\Modules\Integrations\Services;
 
+use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Services\StorageManager;
+use Illuminate\Http\Client\Response as ClientResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http as HttpFacade;
 use Illuminate\Support\Facades\Storage;
@@ -18,14 +20,18 @@ class ConnectionTester
                 str_starts_with($config->provider, 'oauth_') => $this->testOAuth($config),
                 str_starts_with($config->provider, 'llm_') => $this->testLlm($config),
                 str_starts_with($config->provider, 'sms_') => $this->testSms($config),
-                $config->provider === 'google_places' => $this->testGooglePlaces($config),
                 $config->provider === 'google_workspace' => $this->testGoogleWorkspace($config),
                 $config->provider === 'qdrant' => $this->testQdrant($config),
                 str_starts_with($config->provider, 'storage_') => $this->testStorage($config),
                 default => ['ok' => false, 'message' => 'No test available for this provider.'],
             };
         } catch (\Throwable $e) {
-            $result = ['ok' => false, 'message' => $e->getMessage()];
+            if (str_starts_with($config->provider, 'llm_')) {
+                $error = ProviderErrorPresenter::present($e);
+                $result = ['ok' => false, 'message' => $error['message']];
+            } else {
+                $result = ['ok' => false, 'message' => $e->getMessage()];
+            }
         }
 
         $config->update([
@@ -40,16 +46,36 @@ class ConnectionTester
     private function testMeta(IntegrationConfig $config): array
     {
         $creds = $config->credentials ?? [];
-        $token = $creds['system_user_token'] ?? '';
-        if (empty($token)) {
-            return ['ok' => false, 'message' => 'System user token is not configured.'];
-        }
-        $resp = HttpFacade::timeout(10)->get('https://graph.facebook.com/v20.0/me', ['access_token' => $token]);
-        if ($resp->successful() && isset($resp->json()['id'])) {
-            return ['ok' => true, 'message' => 'Connected. User ID: '.$resp->json()['id']];
+        $appId = $creds['app_id'] ?? '';
+        $appSecret = $creds['app_secret'] ?? '';
+        if (empty($appId) || empty($appSecret)) {
+            return ['ok' => false, 'message' => 'App ID and App Secret are required.'];
         }
 
-        return ['ok' => false, 'message' => $resp->json()['error']['message'] ?? 'Meta API error.'];
+        // Validate the app credentials themselves even when the optional system
+        // user token is intentionally left blank (OAuth social connections do not
+        // require a system user token).
+        $appResp = HttpFacade::timeout(10)
+            ->withToken($appId.'|'.$appSecret)
+            ->get('https://graph.facebook.com/v25.0/app', ['fields' => 'id,name']);
+        if (! $appResp->successful() || ! isset($appResp->json()['id'])) {
+            return ['ok' => false, 'message' => $appResp->json()['error']['message'] ?? 'Meta app credentials are invalid.'];
+        }
+
+        // If configured, also validate the system-user token used by WhatsApp and
+        // embedded signup. This prevents an admin from seeing green while the
+        // messaging token is already expired or missing permissions.
+        $systemToken = $creds['system_user_token'] ?? '';
+        if ($systemToken !== '') {
+            $tokenResp = HttpFacade::timeout(10)
+                ->withToken($systemToken)
+                ->get('https://graph.facebook.com/v25.0/me', ['fields' => 'id']);
+            if (! $tokenResp->successful() || ! isset($tokenResp->json()['id'])) {
+                return ['ok' => false, 'message' => $tokenResp->json()['error']['message'] ?? 'Meta system user token is invalid.'];
+            }
+        }
+
+        return ['ok' => true, 'message' => 'Meta app credentials are valid.'.($systemToken !== '' ? ' System user token is valid.' : '')];
     }
 
     private function testOAuth(IntegrationConfig $config): array
@@ -61,7 +87,10 @@ class ConnectionTester
             return ['ok' => false, 'message' => 'Client ID and Secret are required.'];
         }
 
-        return ['ok' => true, 'message' => 'Credentials are present. OAuth flow will validate them at runtime.'];
+        return [
+            'ok' => false,
+            'message' => 'Credential presence confirmed, but this provider cannot validate an OAuth client secret without a real user authorization. Complete one sandbox connect flow before enabling it for customers.',
+        ];
     }
 
     private function testLlm(IntegrationConfig $config): array
@@ -73,43 +102,89 @@ class ConnectionTester
         }
 
         if (str_contains($config->provider, 'openai')) {
-            $resp = HttpFacade::timeout(15)
-                ->withToken($apiKey)
+            $request = HttpFacade::timeout(15)->withToken($apiKey);
+            if (! empty($creds['organization_id'])) {
+                $request = $request->withHeaders(['OpenAI-Organization' => $creds['organization_id']]);
+            }
+            $resp = $request
                 ->post('https://api.openai.com/v1/chat/completions', [
                     'model' => 'gpt-4o-mini',
                     'messages' => [['role' => 'user', 'content' => 'hi']],
                     'max_tokens' => 1,
                 ]);
 
-            return $resp->successful()
-                ? ['ok' => true,  'message' => 'OpenAI connection successful.']
-                : ['ok' => false, 'message' => $resp->json()['error']['message'] ?? 'OpenAI error.'];
+            if (! $resp->successful()) {
+                return $this->llmFailure('OpenAI chat test failed.', $resp);
+            }
+
+            $embeddingResp = $request->post('https://api.openai.com/v1/embeddings', [
+                'model' => 'text-embedding-3-small',
+                'input' => ['connection test'],
+            ]);
+
+            if (! $embeddingResp->successful()) {
+                return $this->llmFailure('OpenAI chat works, but Knowledge Base embeddings failed.', $embeddingResp);
+            }
+
+            return ['ok' => true, 'message' => 'OpenAI chat and Knowledge Base embeddings connected successfully.'];
         }
 
         if (str_contains($config->provider, 'anthropic')) {
             $resp = HttpFacade::timeout(15)
                 ->withHeaders(['x-api-key' => $apiKey, 'anthropic-version' => '2023-06-01', 'content-type' => 'application/json'])
                 ->post('https://api.anthropic.com/v1/messages', [
-                    'model' => 'claude-3-haiku-20240307',
+                    'model' => 'claude-haiku-4-5-20251001',
                     'max_tokens' => 1,
                     'messages' => [['role' => 'user', 'content' => 'hi']],
                 ]);
 
             return $resp->successful()
-                ? ['ok' => true,  'message' => 'Anthropic connection successful.']
-                : ['ok' => false, 'message' => $resp->json()['error']['message'] ?? 'Anthropic error.'];
+                ? ['ok' => true, 'message' => 'Anthropic chat connected. Knowledge Bases still require an enabled OpenAI or Gemini provider for embeddings.']
+                : $this->llmFailure('Anthropic chat test failed.', $resp);
         }
 
         if (str_contains($config->provider, 'gemini')) {
+            // Exercise the same generation endpoint and model used at runtime.
+            // Listing models can succeed for a key that still cannot call the
+            // selected model because of billing/region/project restrictions.
             $resp = HttpFacade::timeout(15)
-                ->get("https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}");
+                ->withHeaders(['x-goog-api-key' => $apiKey])
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', [
+                    'contents' => [['parts' => [['text' => 'hi']]]],
+                    'generationConfig' => ['maxOutputTokens' => 1],
+                ]);
 
-            return $resp->successful()
-                ? ['ok' => true,  'message' => 'Gemini connection successful.']
-                : ['ok' => false, 'message' => $resp->json()['error']['message'] ?? 'Gemini error.'];
+            if (! $resp->successful()) {
+                return $this->llmFailure('Gemini chat test failed.', $resp);
+            }
+
+            $embeddingResp = HttpFacade::timeout(15)
+                ->withHeaders(['x-goog-api-key' => $apiKey])
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents', [
+                    'requests' => [[
+                        'model' => 'models/gemini-embedding-2',
+                        'content' => ['parts' => [['text' => 'connection test']]],
+                    ]],
+                ]);
+
+            if (! $embeddingResp->successful()) {
+                return $this->llmFailure('Gemini chat works, but Knowledge Base embeddings failed.', $embeddingResp);
+            }
+
+            return ['ok' => true, 'message' => 'Gemini chat and Knowledge Base embeddings connected successfully.'];
         }
 
         return ['ok' => false, 'message' => 'Unknown LLM provider.'];
+    }
+
+    private function llmFailure(string $stage, ClientResponse $response): array
+    {
+        $exception = new \RuntimeException(
+            'AI provider request failed with HTTP '.$response->status().': '.$response->body()
+        );
+        $error = ProviderErrorPresenter::present($exception);
+
+        return ['ok' => false, 'message' => $stage.' '.$error['message']];
     }
 
     private function testSms(IntegrationConfig $config): array
@@ -164,25 +239,6 @@ class ConnectionTester
         return empty($key)
             ? ['ok' => false, 'message' => 'API key is required.']
             : ['ok' => true,  'message' => 'Credentials are present. Live test requires sending a message.'];
-    }
-
-    private function testGooglePlaces(IntegrationConfig $config): array
-    {
-        $creds = $config->credentials ?? [];
-        $key = $creds['api_key'] ?? '';
-        if (empty($key)) {
-            return ['ok' => false, 'message' => 'API Key is required.'];
-        }
-        $resp = HttpFacade::timeout(10)->get('https://maps.googleapis.com/maps/api/place/textsearch/json', [
-            'query' => 'restaurants in New York',
-            'key' => $key,
-            'maxResultCount' => 1,
-        ]);
-        $status = $resp->json()['status'] ?? '';
-
-        return in_array($status, ['OK', 'ZERO_RESULTS'])
-            ? ['ok' => true,  'message' => 'Google Places API connected.']
-            : ['ok' => false, 'message' => $resp->json()['error_message'] ?? 'Places API error: '.$status];
     }
 
     private function testGoogleWorkspace(IntegrationConfig $config): array
@@ -263,21 +319,20 @@ class ConnectionTester
             'endpoint' => $creds['endpoint'] ?? null,
             'use_path_style_endpoint' => false,
             'throw' => true,
-            'visibility' => 'private',
-            'options' => [],
+            'visibility' => 'public',
+            'options' => ['ACL' => 'public-read'],
         ];
 
         Config::set("filesystems.disks.{$diskName}", $diskCfg);
         Storage::forgetDisk($diskName);
 
         try {
-            $testPath = '.storage-test/ping.txt';
+            $prefix = trim($creds['directory_prefix'] ?? '', '/');
+            $testPath = ($prefix !== '' ? $prefix.'/' : '').'.storage-test/ping.txt';
             $disk = Storage::disk($diskName);
-            $disk->put($testPath, 'ok');
+            $disk->put($testPath, 'ok', 'public');
             $exists = $disk->exists($testPath);
             $disk->delete($testPath);
-
-            $prefix = trim($creds['directory_prefix'] ?? '', '/');
 
             return $exists
                 ? ['ok' => true,  'message' => 'Connected to bucket "'.$bucket.'"'.($prefix ? " (prefix: {$prefix})" : '').'.']

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\ClientWorkspaceService;
 use App\Services\Mail\MailService;
+use App\Services\StorageManager;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -85,7 +86,7 @@ class User extends Authenticatable implements MustVerifyEmail
             return $this->avatar;
         }
 
-        return app(\App\Services\StorageManager::class)->disk()->url($this->avatar);
+        return app(StorageManager::class)->disk()->url($this->avatar);
     }
 
     protected function casts(): array
@@ -167,6 +168,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
+    }
+
+    public function purchasedAddonSubscriptions(): HasMany
+    {
+        return $this->hasMany(ClientAddonSubscription::class, 'purchased_by_user_id');
     }
 
     public function activeSubscription(): HasOne

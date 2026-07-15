@@ -48,11 +48,10 @@
             <link rel="icon" href="{{ $faviconUrl }}">
             <link rel="apple-touch-icon" href="{{ $faviconUrl }}">
         @else
-            {{-- Fallback brand icon: SVG for modern browsers, .ico for legacy,
-                 PNG apple-touch for iOS home-screen. See public/wisperbot-mark.svg. --}}
-            <link rel="icon" type="image/svg+xml" href="/wisperbot-mark.svg">
-            <link rel="alternate icon" href="/favicon.ico" sizes="any">
-            <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+            {{-- Fallback brand icon for browser tabs and mobile home screens. --}}
+            <link rel="icon" href="/favicon.ico" sizes="any">
+            <link rel="icon" type="image/png" href="/wisperbot-icon-512.png">
+            <link rel="apple-touch-icon" href="/wisperbot-icon-512.png">
         @endif
 
         <!-- Fonts -->

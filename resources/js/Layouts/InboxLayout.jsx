@@ -57,6 +57,7 @@ export default function InboxLayout({ children }) {
 
             <div className="flex flex-1 overflow-hidden">
                 <Sidebar
+                    scrollKey="client"
                     open={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
                     title={t('client.panel') || 'Client Panel'}

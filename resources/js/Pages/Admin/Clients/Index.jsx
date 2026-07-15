@@ -1,5 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Badge, Button, Card, Modal, Pagination, Tooltip } from '@/Components/ui';
+import { Badge, Button, Card, Modal, Pagination, Tooltip, PasswordInput } from '@/Components/ui';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -592,12 +592,12 @@ export default function AdminClientsIndex({ clients, plans = [], filters = {} })
                         </div>
                         <div>
                             <label className="mb-1 block text-sm font-medium">{t('auth.password')} <span className="text-red-500">*</span></label>
-                            <input type="password" value={addUserForm.data.password} onChange={(e) => addUserForm.setData('password', e.target.value)} className="w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" required />
+                            <PasswordInput value={addUserForm.data.password} onChange={(e) => addUserForm.setData('password', e.target.value)} required />
                             {addUserForm.errors.password && <p className="text-xs text-red-500">{addUserForm.errors.password}</p>}
                         </div>
                         <div>
                             <label className="mb-1 block text-sm font-medium">{t('admin.confirm_password_label')} <span className="text-red-500">*</span></label>
-                            <input type="password" value={addUserForm.data.password_confirmation} onChange={(e) => addUserForm.setData('password_confirmation', e.target.value)} className="w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" required />
+                            <PasswordInput value={addUserForm.data.password_confirmation} onChange={(e) => addUserForm.setData('password_confirmation', e.target.value)} required />
                         </div>
                         <div>
                             <label className="mb-1 block text-sm font-medium">{t('admin.role_label')}</label>
@@ -639,12 +639,12 @@ export default function AdminClientsIndex({ clients, plans = [], filters = {} })
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">{t('admin.new_password_leave_blank')}</label>
-                                <input type="password" value={editUserForm.data.password} onChange={(e) => editUserForm.setData('password', e.target.value)} className="w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" />
+                                <PasswordInput value={editUserForm.data.password} onChange={(e) => editUserForm.setData('password', e.target.value)} />
                                 {editUserForm.errors.password && <p className="text-xs text-red-500">{editUserForm.errors.password}</p>}
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">{t('admin.confirm_password_label')}</label>
-                                <input type="password" value={editUserForm.data.password_confirmation} onChange={(e) => editUserForm.setData('password_confirmation', e.target.value)} className="w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" />
+                                <PasswordInput value={editUserForm.data.password_confirmation} onChange={(e) => editUserForm.setData('password_confirmation', e.target.value)} />
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium">{t('admin.role_label')}</label>

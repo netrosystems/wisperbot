@@ -17,8 +17,29 @@ class LlmGateway
         ?int $chatbotId = null,
         ?int $conversationId = null,
     ): LlmResponse {
-        $provider = LlmManager::forWorkspace($workspaceId);
-        $response = $provider->chat($messages, $opts);
+        $model = $opts['model'] ?? null;
+        try {
+            $provider = LlmManager::forWorkspace($workspaceId);
+            $response = $provider->chat($messages, $opts);
+        } catch (\Throwable $e) {
+            AiRun::create([
+                'chatbot_id' => $chatbotId,
+                'conversation_id' => $conversationId,
+                'prompt_tokens' => 0,
+                'completion_tokens' => 0,
+                'cost_cents' => 0,
+                'latency_ms' => 0,
+                'model' => $model,
+                'status' => 'error',
+            ]);
+            Log::error('llm.chat_failed', [
+                'workspace_id' => $workspaceId,
+                'chatbot_id' => $chatbotId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
 
         $totalTokens = $response->promptTokens + $response->completionTokens;
         UsageMeter::track($workspaceId, 'ai_tokens', $totalTokens);
@@ -49,8 +70,27 @@ class LlmGateway
     public function embed(int $workspaceId, array $texts): array
     {
         // Use embed-specific provider (skips Anthropic which has no embedding support)
-        $provider = LlmManager::forWorkspaceEmbed($workspaceId);
-        $embeddings = $provider->embed($texts);
+        try {
+            $provider = LlmManager::forWorkspaceEmbed($workspaceId);
+            $embeddings = $provider->embed($texts);
+        } catch (\Throwable $e) {
+            AiRun::create([
+                'chatbot_id' => null,
+                'conversation_id' => null,
+                'prompt_tokens' => 0,
+                'completion_tokens' => 0,
+                'cost_cents' => 0,
+                'latency_ms' => 0,
+                'model' => 'embed',
+                'status' => 'error',
+            ]);
+            Log::error('llm.embed_failed', [
+                'workspace_id' => $workspaceId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
         $tokenEstimate = array_sum(array_map(fn ($t) => (int) ceil(strlen($t) / 4), $texts));
         UsageMeter::track($workspaceId, 'ai_tokens', $tokenEstimate);
 

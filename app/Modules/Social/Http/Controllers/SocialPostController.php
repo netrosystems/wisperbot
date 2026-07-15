@@ -135,7 +135,7 @@ class SocialPostController extends Controller
             'title'            => ['nullable', 'string', 'max:256'],
             'body'             => ['required', 'string', 'max:5000'],
             'media_urls'       => ['nullable', 'array'],
-            'media_urls.*'     => ['nullable', 'url', 'max:2048'],
+            'media_urls.*'     => ['nullable', 'url', 'regex:/^https:\/\//i', 'max:2048'],
             'target_accounts'  => ['required', 'array', 'min:1'],
             'target_accounts.*'=> ['integer'],
             'scheduled_at'     => ['nullable', 'date'],
@@ -150,6 +150,22 @@ class SocialPostController extends Controller
         if ($ownedCount !== $requestedIds->count()) {
             throw ValidationException::withMessages([
                 'target_accounts' => ['One or more selected accounts do not belong to your workspace.'],
+            ]);
+        }
+
+        $selectedNetworks = SocialAccount::where('workspace_id', $wid)
+            ->whereIn('id', $requestedIds)
+            ->pluck('network')
+            ->unique();
+        $mediaUrls = $validated['media_urls'] ?? [];
+        if ($selectedNetworks->contains('instagram') && count($mediaUrls) === 0) {
+            throw ValidationException::withMessages([
+                'media_urls' => ['Instagram publishing requires at least one publicly reachable image URL.'],
+            ]);
+        }
+        if ($selectedNetworks->intersect(['youtube', 'tiktok'])->isNotEmpty() && count($mediaUrls) === 0) {
+            throw ValidationException::withMessages([
+                'media_urls' => ['YouTube and TikTok publishing require a publicly reachable video URL.'],
             ]);
         }
 
@@ -204,12 +220,38 @@ class SocialPostController extends Controller
             'title'            => ['nullable', 'string', 'max:256'],
             'body'             => ['required', 'string', 'max:5000'],
             'media_urls'       => ['nullable', 'array'],
-            'media_urls.*'     => ['nullable', 'url', 'max:2048'],
+            'media_urls.*'     => ['nullable', 'url', 'regex:/^https:\/\//i', 'max:2048'],
             'target_accounts'  => ['required', 'array', 'min:1'],
             'target_accounts.*'=> ['integer'],
             'scheduled_at'     => ['nullable', 'date'],
             'timezone'         => ['nullable', 'string', 'max:64'],
         ]);
+
+        $requestedIds = collect($validated['target_accounts'])->map(fn ($id) => (int) $id);
+        $ownedCount = SocialAccount::where('workspace_id', $this->workspaceId($request))
+            ->whereIn('id', $requestedIds)
+            ->count();
+        if ($ownedCount !== $requestedIds->count()) {
+            throw ValidationException::withMessages([
+                'target_accounts' => ['One or more selected accounts do not belong to your workspace.'],
+            ]);
+        }
+
+        $selectedNetworks = SocialAccount::where('workspace_id', $this->workspaceId($request))
+            ->whereIn('id', $requestedIds)
+            ->pluck('network')
+            ->unique();
+        $mediaUrls = $validated['media_urls'] ?? [];
+        if ($selectedNetworks->contains('instagram') && count($mediaUrls) === 0) {
+            throw ValidationException::withMessages([
+                'media_urls' => ['Instagram publishing requires at least one publicly reachable image URL.'],
+            ]);
+        }
+        if ($selectedNetworks->intersect(['youtube', 'tiktok'])->isNotEmpty() && count($mediaUrls) === 0) {
+            throw ValidationException::withMessages([
+                'media_urls' => ['YouTube and TikTok publishing require a publicly reachable video URL.'],
+            ]);
+        }
 
         if (! empty($validated['scheduled_at']) && now()->subSeconds(30)->gt($validated['scheduled_at'])) {
             throw ValidationException::withMessages([
@@ -313,7 +355,7 @@ class SocialPostController extends Controller
         string $timezone
     ): array {
         $networksStr = implode(', ', $networks);
-        $limits      = ['twitter' => 280, 'tiktok' => 2200, 'linkedin' => 3000, 'facebook' => 63206, 'instagram' => 2200, 'youtube' => 5000];
+        $limits      = ['tiktok' => 2200, 'linkedin' => 3000, 'facebook' => 63206, 'instagram' => 2200, 'youtube' => 5000];
         $limitLines  = collect($networks)->map(fn ($n) => "- {$n}: " . ($limits[$n] ?? 5000) . ' characters')->implode("\n");
 
         $system = <<<SYSTEM

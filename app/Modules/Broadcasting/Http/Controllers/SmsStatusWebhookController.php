@@ -121,6 +121,7 @@ class SmsStatusWebhookController extends Controller
     {
         $secret = config('services.nexmo.api_secret') ?? config('services.vonage.api_secret') ?? null;
         if (! $secret) {
+            abort_if(app()->environment('production'), 503, 'Vonage webhook secret is not configured');
             return;
         }
 
@@ -148,6 +149,7 @@ class SmsStatusWebhookController extends Controller
     {
         $secret = config('services.messagebird.signing_key') ?? null;
         if (! $secret) {
+            abort_if(app()->environment('production'), 503, 'MessageBird webhook signing key is not configured');
             return;
         }
 
@@ -175,6 +177,7 @@ class SmsStatusWebhookController extends Controller
         // Twilio sends X-Twilio-Signature; verify if configured
         $authToken = config('services.twilio.auth_token') ?? null;
         if (! $authToken) {
+            abort_if(app()->environment('production'), 503, 'Twilio webhook auth token is not configured');
             return;
         }
 
@@ -203,7 +206,10 @@ class SmsStatusWebhookController extends Controller
     {
         return match ($s) {
             'delivered' => 'delivered',
-            'failed', 'expired', 'rejected', 'unknown', 'buffered' => 'failed',
+            'failed', 'expired', 'rejected', 'unknown' => 'failed',
+            // Vonage uses buffered while the message is waiting for delivery;
+            // it is not a terminal failure and must not downgrade a recipient.
+            'buffered' => 'queued',
             'accepted' => 'sent',
             default => 'queued',
         };
@@ -223,9 +229,10 @@ class SmsStatusWebhookController extends Controller
     {
         $secret = config('services.smsbd.webhook_secret');
         if (! $secret) {
+            abort_if(app()->environment('production'), 503, 'SMSBD webhook secret is not configured');
             return;
         }
-        $token = $request->input('token') ?? $request->header('X-Smsbd-Token', '');
+        $token = $request->input('token') ?: $request->header('X-Smsbd-Token', '');
         abort_unless(hash_equals($secret, $token), 401, 'Invalid SMSBD webhook token');
     }
 
@@ -233,9 +240,10 @@ class SmsStatusWebhookController extends Controller
     {
         $secret = config("services.{$key}.webhook_secret");
         if (! $secret) {
+            abort_if(app()->environment('production'), 503, ucfirst($key).' webhook secret is not configured');
             return;
         }
-        $token = $request->input('token') ?? $request->header('X-Webhook-Token', '');
+        $token = $request->input('token') ?: $request->header('X-Webhook-Token', '');
         abort_unless(hash_equals($secret, $token), 401, 'Invalid webhook token');
     }
 
@@ -243,9 +251,10 @@ class SmsStatusWebhookController extends Controller
     {
         $secret = config('services.reve.webhook_secret');
         if (! $secret) {
+            abort_if(app()->environment('production'), 503, 'REVE webhook secret is not configured');
             return;
         }
-        $token = $request->header('X-Reve-Token', '') ?? $request->input('token', '');
+        $token = $request->header('X-Reve-Token') ?: $request->input('token', '');
         abort_unless(hash_equals($secret, $token), 401, 'Invalid REVE webhook token');
     }
 

@@ -1,7 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useRef } from 'react';
-import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Dropdown } from '@/Components/ui';
 import { useTheme } from '@/context/ThemeContext';
 import { useLocale } from '@/hooks/useLocale';
@@ -26,6 +25,7 @@ export default function Topbar({
     const { t } = useTranslation();
     const page = usePage();
     const user = page.props.auth?.user;
+    const configuredLogoUrl = page.props.branding?.logo_url;
     const { theme, setTheme } = useTheme();
     const [notifOpen, setNotifOpen] = useState(false);
     const [recentNotifs, setRecentNotifs] = useState([]);
@@ -108,7 +108,11 @@ export default function Topbar({
             <div className="flex min-w-0 flex-1 items-center gap-3">
                 {showLogo && (
                     <Link href={logoHref} className="shrink-0">
-                        <ApplicationLogo className="h-8 w-auto fill-current text-gray-900 dark:text-neutral-100" />
+                        <img
+                            src={configuredLogoUrl || (theme === 'dark' ? '/wisperbot-logo-white.svg' : '/wisperbot-logo-with-title.svg')}
+                            alt={page.props.branding?.app_name || 'WisperBot'}
+                            className="h-8 w-auto max-w-[190px] object-contain"
+                        />
                     </Link>
                 )}
                 {title && (
@@ -372,4 +376,3 @@ export default function Topbar({
         </header>
     );
 }
-

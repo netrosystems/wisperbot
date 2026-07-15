@@ -26,65 +26,7 @@ return [
             'cancel_url' => env('PADDLE_CANCEL_URL', env('APP_URL') . '/app/pricing?checkout=canceled'),
             'webhook_secret' => env('PADDLE_WEBHOOK_SECRET'),
         ],
-        // Razorpay (India) — native Subscriptions API, webhook-driven renewals.
-        'razorpay' => [
-            'enabled' => env('BILLING_RAZORPAY_ENABLED', false),
-            'key_id' => env('RAZORPAY_KEY_ID'),
-            'key_secret' => env('RAZORPAY_KEY_SECRET'),
-            'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET'),
-        ],
-        // Cashfree (India) — native Subscriptions API (JS-SDK authorization), webhook-driven.
-        'cashfree' => [
-            'enabled' => env('BILLING_CASHFREE_ENABLED', false),
-            'client_id' => env('CASHFREE_CLIENT_ID'),
-            'client_secret' => env('CASHFREE_CLIENT_SECRET'),
-            'sandbox' => env('CASHFREE_SANDBOX', true),
-            'return_url' => env('CASHFREE_RETURN_URL', env('APP_URL') . '/app/billing?checkout=success'),
-        ],
-        // Tap (MENA/GCC) — hosted first charge + merchant-initiated saved-card renewals.
-        'tap' => [
-            'enabled' => env('BILLING_TAP_ENABLED', false),
-            'secret_key' => env('TAP_SECRET_KEY'),
-            'success_url' => env('TAP_SUCCESS_URL', env('APP_URL') . '/app/billing?checkout=success'),
-            'cancel_url' => env('TAP_CANCEL_URL', env('APP_URL') . '/app/pricing?checkout=canceled'),
-        ],
-        // Paystack (Africa: Nigeria, Ghana, South Africa, Kenya, Rwanda, etc.)
-        // Native Subscriptions API — webhook-driven renewals.
-        'paystack' => [
-            'enabled' => env('BILLING_PAYSTACK_ENABLED', false),
-            'secret_key' => env('PAYSTACK_SECRET_KEY'),
-            'public_key' => env('PAYSTACK_PUBLIC_KEY'),
-            'success_url' => env('PAYSTACK_SUCCESS_URL', env('APP_URL') . '/app/billing?checkout=success'),
-            'cancel_url' => env('PAYSTACK_CANCEL_URL', env('APP_URL') . '/app/pricing?checkout=canceled'),
-        ],
-        // Xendit (Southeast Asia: Indonesia, Philippines, Vietnam, Thailand, Malaysia)
-        // Native Recurring Plans API — webhook-driven renewals.
-        'xendit' => [
-            'enabled' => env('BILLING_XENDIT_ENABLED', false),
-            'secret_key' => env('XENDIT_SECRET_KEY'),
-            'webhook_token' => env('XENDIT_WEBHOOK_TOKEN'),
-            'success_url' => env('XENDIT_SUCCESS_URL', env('APP_URL') . '/app/billing?checkout=success'),
-            'cancel_url' => env('XENDIT_CANCEL_URL', env('APP_URL') . '/app/pricing?checkout=canceled'),
-        ],
-        // Paymob (Egypt, Jordan, Pakistan, Morocco, Saudi Arabia, UAE)
-        // MIT save-card pattern — merchant-initiated recurring via scheduler.
-        'paymob' => [
-            'enabled' => env('BILLING_PAYMOB_ENABLED', false),
-            'api_key' => env('PAYMOB_API_KEY'),
-            'hmac_secret' => env('PAYMOB_HMAC_SECRET'),
-            'integration_id' => (int) env('PAYMOB_INTEGRATION_ID', 0),
-            'iframe_id' => env('PAYMOB_IFRAME_ID'),
-            'success_url' => env('PAYMOB_SUCCESS_URL', env('APP_URL') . '/app/billing?checkout=success'),
-            'cancel_url' => env('PAYMOB_CANCEL_URL', env('APP_URL') . '/app/pricing?checkout=canceled'),
-        ],
-        // MyFatoorah (Kuwait, Saudi Arabia, UAE, Bahrain, Oman, Qatar, Jordan)
-        // MIT save-token pattern — merchant-initiated recurring via scheduler.
-        'myfatoorah' => [
-            'enabled' => env('BILLING_MYFATOORAH_ENABLED', false),
-            'api_key' => env('MYFATOORAH_API_KEY'),
-            'sandbox' => env('MYFATOORAH_SANDBOX', true),
-            'success_url' => env('MYFATOORAH_SUCCESS_URL', env('APP_URL') . '/app/billing?checkout=success'),
-            'cancel_url' => env('MYFATOORAH_CANCEL_URL', env('APP_URL') . '/app/pricing?checkout=canceled'),
-        ],
+        // Other gateway configuration is intentionally disabled. The adapter
+        // classes remain in app/Services/Billing if they are needed later.
     ],
 ];

@@ -7,6 +7,7 @@ use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Services\EmbeddingStore;
 use App\Modules\AI\Services\Llm\LlmManager;
 use App\Modules\AI\Services\LlmGateway;
+use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Services\StorageManager;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,11 +36,16 @@ class IndexDocumentJob implements ShouldQueue
             return;
         }
 
-        $doc->update(['status' => 'indexing']);
+        $doc->update(['status' => 'indexing', 'error_message' => null]);
 
         try {
             $text = $this->extractText($doc, $storage);
             $chunks = $this->chunk($text);
+
+            // Remove old vectors before deleting the relational chunks. Without
+            // this, re-indexing leaves stale Qdrant points that can be returned
+            // for a knowledge base even though their document no longer exists.
+            $store->deleteDocumentEmbeddings($doc->id);
 
             // Remove old chunks
             $doc->chunks()->delete();
@@ -92,13 +98,42 @@ class IndexDocumentJob implements ShouldQueue
 
             $doc->update([
                 'status' => 'indexed',
+                'error_message' => null,
                 'last_indexed_at' => now(),
                 'tokens' => array_sum(array_map(fn ($c) => $c->tokens, $chunkModels)),
             ]);
         } catch (\Throwable $e) {
-            $doc->update(['status' => 'error']);
+            $doc->update([
+                'status' => 'error',
+                'error_message' => $this->safeErrorMessage($e),
+            ]);
             throw $e;
         }
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        AiKbDocument::whereKey($this->documentId)->update([
+            'status' => 'error',
+            'error_message' => $this->safeErrorMessage($exception),
+        ]);
+    }
+
+    private function safeErrorMessage(\Throwable $exception): string
+    {
+        $presented = ProviderErrorPresenter::present($exception);
+        if ($presented['code'] !== 'provider_request_failed') {
+            return $presented['message'];
+        }
+
+        $message = strtolower($exception->getMessage());
+        foreach (['openai', 'anthropic', 'gemini', 'embedding', 'ai provider'] as $providerMarker) {
+            if (str_contains($message, $providerMarker)) {
+                return $presented['message'];
+            }
+        }
+
+        return 'Document indexing failed. Check the source file or URL and the server logs, then try re-indexing.';
     }
 
     /** True when the workspace has an embedding-capable provider (OpenAI/Gemini). */

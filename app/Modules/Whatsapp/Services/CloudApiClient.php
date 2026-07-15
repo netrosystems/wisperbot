@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 class CloudApiClient
 {
-    private const BASE = 'https://graph.facebook.com/v20.0';
+    private const BASE = 'https://graph.facebook.com/v25.0';
 
     public function __construct(
         private readonly string $phoneNumberId,
@@ -178,7 +178,7 @@ class CloudApiClient
      *
      * @return array{success: bool, status: int, response: array<string, mixed>}
      */
-    public static function registerPhoneNumber(string $phoneNumberId, string $accessToken, string $pin = '123456'): array
+    public static function registerPhoneNumber(string $phoneNumberId, string $accessToken, string $pin): array
     {
         $resp = Http::withToken($accessToken)
             ->timeout(30)

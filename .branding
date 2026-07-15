@@ -1,34 +1,34 @@
 {
   "name": "WisperBot",
-  "updated": "2026-06-19",
+  "updated": "2026-07-10",
   "description": "Brand identity for WisperBot. Source of truth for the name and color palette. Tailwind tokens in tailwind.config.js are derived from the scales below.",
   "palette": {
-    "primary": "#467235",
+    "primary": "#FF762E",
     "amber": "#FFBF00",
     "lightYellow": "#FFF78D",
-    "darkGreen": "#283F24"
+    "charcoal": "#14100C"
   },
   "roles": {
-    "brand": "#467235",
+    "brand": "#FF762E",
     "accent": "#FFBF00",
     "highlight": "#FFF78D",
-    "secondary": "#283F24",
-    "surface": "#f7faec",
+    "secondary": "#14100C",
+    "surface": "#fff8f3",
     "danger": "#f04e2e"
   },
   "scales": {
     "brand": {
-      "50": "#f2f8ec",
-      "100": "#dfeecf",
-      "200": "#c0dca6",
-      "300": "#9bc476",
-      "400": "#76a84e",
-      "500": "#5a8b38",
-      "600": "#467235",
-      "700": "#38592a",
-      "800": "#2f4a25",
-      "900": "#283f24",
-      "950": "#162610"
+      "50": "#fff5ed",
+      "100": "#ffe8d4",
+      "200": "#ffcda8",
+      "300": "#ffab70",
+      "400": "#ff8a45",
+      "500": "#ff762e",
+      "600": "#f05a12",
+      "700": "#c74310",
+      "800": "#9e3615",
+      "900": "#7f2f14",
+      "950": "#451507"
     },
     "accent": {
       "50": "#fffdeb",
@@ -44,21 +44,21 @@
       "950": "#482400"
     },
     "secondary": {
-      "50": "#eef2ec",
-      "100": "#d3ddce",
-      "200": "#b3c4ab",
-      "300": "#8da583",
-      "400": "#6c8760",
-      "500": "#4f6b43",
-      "600": "#3d5534",
-      "700": "#32462b",
-      "800": "#283f24",
-      "900": "#20321d",
-      "950": "#121d10"
+      "50": "#f6f5f4",
+      "100": "#e7e5e3",
+      "200": "#d0ccc8",
+      "300": "#b0a9a3",
+      "400": "#8a817a",
+      "500": "#6f6660",
+      "600": "#5a524d",
+      "700": "#4a433f",
+      "800": "#2b2621",
+      "900": "#1c1814",
+      "950": "#14100c"
     },
     "surface": {
-      "DEFAULT": "#f7faec",
-      "subtle": "#eef4dd"
+      "DEFAULT": "#fff8f3",
+      "subtle": "#fff1e8"
     }
   }
 }

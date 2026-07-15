@@ -75,6 +75,7 @@ class WhatsappSetupController extends Controller
     {
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
         $this->authorizeWaba($waba, $workspaceId);
+        $this->authorizePhoneNumber($waba, $phoneNumberId);
 
         $token = $this->metaAccessToken($waba);
         if ($token === '') {
@@ -112,6 +113,7 @@ class WhatsappSetupController extends Controller
     {
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
         $this->authorizeWaba($waba, $workspaceId);
+        $this->authorizePhoneNumber($waba, $phoneNumberId);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'min:1', 'max:100'],
@@ -153,6 +155,16 @@ class WhatsappSetupController extends Controller
     private function authorizeWaba(WhatsappBusinessAccount $waba, int|string $workspaceId): void
     {
         abort_unless((int) $waba->workspace_id === (int) $workspaceId, 403);
+    }
+
+    private function authorizePhoneNumber(WhatsappBusinessAccount $waba, string $phoneNumberId): void
+    {
+        abort_unless(
+            WhatsappPhoneNumber::where('waba_id_fk', $waba->id)
+                ->where('phone_number_id', $phoneNumberId)
+                ->exists(),
+            404,
+        );
     }
 
     private function importPhoneNumbersFromMeta(WhatsappBusinessAccount $waba): int

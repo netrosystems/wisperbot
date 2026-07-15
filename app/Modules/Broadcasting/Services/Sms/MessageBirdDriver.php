@@ -17,7 +17,9 @@ class MessageBirdDriver implements SmsDriverInterface
             ->timeout(15)
             ->post('https://rest.messagebird.com/messages', [
                 'originator' => $opts['from'] ?? $this->originator,
-                'recipients' => ltrim($to, '+'),
+                // MessageBird's v1 API expects recipients as an array, even
+                // when sending to a single destination.
+                'recipients' => [ltrim($to, '+')],
                 'body' => $body,
             ]);
 

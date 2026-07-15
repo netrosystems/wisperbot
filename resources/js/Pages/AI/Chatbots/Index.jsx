@@ -1,7 +1,7 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import EmptyState from '@/Components/EmptyState';
-import { Plus, Bot, Trash2, Play, Settings, Send, X, BookOpen, Zap, MessageSquare, ChevronDown } from 'lucide-react';
+import { Plus, Bot, Trash2, Play, Settings, Send, X, BookOpen, Zap, MessageSquare, AlertTriangle } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarkdownLite from '@/Components/MarkdownLite';
@@ -57,7 +57,12 @@ function PlaygroundPanel({ chatbot }) {
                 body: JSON.stringify({ message: userMsg.content, history: messages }),
             });
             const data = await res.json();
-            setMessages(prev => [...prev, { role: 'assistant', content: data.reply ?? data.error ?? t('ai.playground_error') }]);
+            setMessages(prev => [...prev, {
+                role: res.ok ? 'assistant' : 'error',
+                content: data.reply ?? data.error ?? t('ai.playground_error'),
+            }]);
+        } catch {
+            setMessages(prev => [...prev, { role: 'error', content: t('ai.playground_error') }]);
         } finally {
             setLoading(false);
         }
@@ -84,16 +89,21 @@ function PlaygroundPanel({ chatbot }) {
                         <p className="text-sm text-neutral-400 dark:text-neutral-500">{t('ai.playground_empty')}</p>
                     </div>
                 )}
-                {messages.map((m, i) => (
-                    <div key={i} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                        <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${m.role === 'user' ? 'bg-brand-600 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'}`}>
-                            {m.role === 'user' ? 'U' : <Bot className="h-3.5 w-3.5" />}
+                {messages.map((m, i) => {
+                    const isUser = m.role === 'user';
+                    const isError = m.role === 'error';
+
+                    return (
+                        <div key={i} className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+                            <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${isUser ? 'bg-brand-600 text-white' : isError ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'}`}>
+                                {isUser ? 'U' : isError ? <AlertTriangle className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                            </div>
+                            <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${isUser ? 'max-w-[75%] bg-brand-600 text-white rounded-tr-sm whitespace-pre-wrap break-words' : isError ? 'max-w-[85%] border border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-200 rounded-tl-sm whitespace-pre-wrap break-words' : 'max-w-[85%] bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-sm rounded-tl-sm'}`}>
+                                {isUser || isError ? m.content : <MarkdownLite content={m.content} />}
+                            </div>
                         </div>
-                        <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'max-w-[75%] bg-brand-600 text-white rounded-tr-sm whitespace-pre-wrap break-words' : 'max-w-[85%] bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-sm rounded-tl-sm'}`}>
-                            {m.role === 'user' ? m.content : <MarkdownLite content={m.content} />}
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
                 {loading && (
                     <div className="flex gap-2">
                         <div className="shrink-0 w-7 h-7 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
@@ -190,7 +200,7 @@ function ChatbotCard({ chatbot, knowledgeBases }) {
                             <span className="text-xs text-neutral-400 dark:text-neutral-500 italic">{t('ai.no_knowledge_base')}</span>
                         )}
                         {chatbot.system_prompt && (
-                            <span className="text-xs text-neutral-400 dark:text-neutral-500 truncate max-w-[180px]">"{chatbot.system_prompt}"</span>
+                            <span className="text-xs text-neutral-400 dark:text-neutral-500 truncate max-w-[180px]">&ldquo;{chatbot.system_prompt}&rdquo;</span>
                         )}
                     </div>
                 </div>

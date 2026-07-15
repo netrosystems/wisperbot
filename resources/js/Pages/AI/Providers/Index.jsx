@@ -3,7 +3,7 @@ import ClientLayout from '@/Layouts/ClientLayout';
 import EmptyState from '@/Components/EmptyState';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff, CheckCircle, Bot, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, AlertCircle, LoaderCircle, Bot, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 
 const SETUP_GUIDES = {
     openai: {
@@ -101,25 +101,62 @@ const GeminiLogo = () => (
 );
 
 const PROVIDER_INFO = {
-    openai:    { label: 'OpenAI',    Icon: OpenAILogo,    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'] },
-    anthropic: { label: 'Anthropic', Icon: AnthropicLogo, models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'] },
-    gemini:    { label: 'Gemini',    Icon: GeminiLogo,    models: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'] },
+    openai:    { label: 'OpenAI',    Icon: OpenAILogo,    models: ['gpt-4o-mini', 'gpt-4o'], embedModels: ['text-embedding-3-small', 'text-embedding-3-large'] },
+    anthropic: { label: 'Anthropic', Icon: AnthropicLogo, models: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-8'] },
+    gemini:    { label: 'Gemini',    Icon: GeminiLogo,    models: ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview'], embedModels: ['gemini-embedding-2'] },
 };
 
 function ProviderCard({ provider }) {
     const { t } = useTranslation();
     const [showKey, setShowKey] = useState(false);
+    const [testing, setTesting] = useState(false);
+    const [testResult, setTestResult] = useState(null);
     const info = PROVIDER_INFO[provider.provider] ?? {};
 
-    const { data, setData, put, processing, errors } = useForm({
+    const { data, setData, put, processing } = useForm({
         api_key:             '',
-        default_model_chat:  provider.default_model_chat || info.models?.[1] || '',
+        default_model_chat:  provider.default_model_chat || info.models?.[0] || '',
+        default_model_embed: provider.default_model_embed || info.embedModels?.[0] || '',
         enabled:             provider.enabled,
     });
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        setTestResult(null);
         put(route('client.ai.providers.update', provider.provider), { preserveScroll: true });
+    };
+
+    const handleTest = async () => {
+        if (data.api_key.trim()) {
+            setTestResult({ ok: false, message: t('ai.save_before_testing') });
+            return;
+        }
+
+        setTesting(true);
+        setTestResult(null);
+
+        try {
+            const response = await fetch(route('client.ai.providers.test', provider.provider), {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
+                },
+                body: JSON.stringify({}),
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            setTestResult({
+                ok: response.ok && payload.ok,
+                message: payload.message ?? payload.error ?? t('ai.connection_failed'),
+            });
+        } catch {
+            setTestResult({ ok: false, message: t('ai.connection_failed') });
+        } finally {
+            setTesting(false);
+        }
     };
 
     return (
@@ -148,6 +185,14 @@ function ProviderCard({ provider }) {
                         </button>
                     </div>
                 </div>
+                {info.embedModels?.length > 0 && (
+                    <div>
+                        <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Default embedding model</label>
+                        <select value={data.default_model_embed} onChange={e => setData('default_model_embed', e.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm">
+                            {info.embedModels.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                    </div>
+                )}
                 <div>
                     <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{t('ai.default_chat_model')}</label>
                     <select value={data.default_model_chat} onChange={e => setData('default_model_chat', e.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm">
@@ -158,10 +203,30 @@ function ProviderCard({ provider }) {
                     <input type="checkbox" checked={data.enabled} onChange={e => setData('enabled', e.target.checked)} className="rounded" />
                     {t('common.enabled')}
                 </label>
-                {(
-                    <button type="submit" disabled={processing} className="w-full rounded-lg bg-brand-600 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition">
+                <div className="grid grid-cols-2 gap-2">
+                    <button type="submit" disabled={processing || testing} className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition">
                         {processing ? t('ai.saving') : t('common.save')}
                     </button>
+                    <button
+                        type="button"
+                        onClick={handleTest}
+                        disabled={processing || testing || !provider.configured}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-neutral-300 dark:border-neutral-600 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 transition"
+                    >
+                        {testing && <LoaderCircle className="h-4 w-4 animate-spin" />}
+                        {testing ? t('ai.testing') : t('ai.test_connection')}
+                    </button>
+                </div>
+                {!provider.configured && (
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500">{t('ai.save_before_testing')}</p>
+                )}
+                {testResult && (
+                    <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${testResult.ok ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-900/20 dark:text-green-200' : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-200'}`}>
+                        {testResult.ok
+                            ? <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            : <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+                        <span>{testResult.message}</span>
+                    </div>
                 )}
             </form>
             <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">

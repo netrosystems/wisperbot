@@ -133,6 +133,7 @@ export default function AdminLayout({ title = 'Admin', header, children }) {
     return (
         <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
             <Sidebar
+                scrollKey="admin"
                 open={sidebarOpen}
                 onClose={() => setSidebarOpen(false)}
                 title={t('nav.admin')}

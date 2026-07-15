@@ -24,7 +24,7 @@ class CheckoutController extends Controller
         $validated = $request->validate([
             'plan_id' => ['required', 'integer', Rule::exists('plans', 'id')],
             'billing_cycle' => ['required', 'string', Rule::in(['month', 'year'])],
-            'gateway' => ['required', 'string', Rule::in(['stripe', 'paypal', 'paddle', 'razorpay', 'cashfree', 'tap', 'paystack', 'xendit', 'paymob', 'myfatoorah'])],
+            'gateway' => ['required', 'string', Rule::in(BillingGatewayRegistry::SUPPORTED_GATEWAYS)],
         ]);
 
         $plan = Plan::where('enabled', true)->findOrFail($validated['plan_id']);
@@ -45,16 +45,8 @@ class CheckoutController extends Controller
             return Inertia::location($result['url']);
         }
 
-        // Some gateways (e.g. Cashfree) have no hosted redirect and require their JS SDK to
-        // launch the authorization flow from a session id. Render an interstitial page that
-        // loads the SDK and completes checkout, then returns to the billing page.
-        if (isset($result['checkout'])) {
-            return Inertia::render('client/Checkout/Sdk', [
-                'checkout' => $result['checkout'],
-                'plan_name' => $plan->name,
-                'pricing_url' => route('client.pricing'),
-            ]);
-        }
+        // The legacy SDK checkout branch (used by Cashfree) is intentionally
+        // disabled while WisperBot supports only Stripe, PayPal, and Paddle.
 
         return back()->with('error', __('Checkout could not be started.'));
     }

@@ -10,7 +10,6 @@ class IntegrationConfig extends Model
     public const PROVIDERS = [
         'meta_app',
         'oauth_linkedin',
-        'oauth_twitter',
         'oauth_youtube',
         'oauth_tiktok',
         'oauth_shopify',
@@ -18,7 +17,6 @@ class IntegrationConfig extends Model
         'llm_openai_default',
         'llm_anthropic_default',
         'llm_gemini_default',
-        'google_places',
         'google_workspace',
         'qdrant',
         'storage_local',
@@ -42,7 +40,6 @@ class IntegrationConfig extends Model
     public const LABELS = [
         'meta_app' => 'Meta App (WhatsApp / Instagram / Messenger / Facebook)',
         'oauth_linkedin' => 'LinkedIn OAuth',
-        'oauth_twitter' => 'Twitter / X OAuth',
         'oauth_youtube' => 'YouTube / Google OAuth',
         'oauth_tiktok' => 'TikTok OAuth',
         'oauth_shopify' => 'Shopify App (OAuth)',
@@ -50,7 +47,6 @@ class IntegrationConfig extends Model
         'llm_openai_default' => 'OpenAI (Default)',
         'llm_anthropic_default' => 'Anthropic Claude (Default)',
         'llm_gemini_default' => 'Google Gemini (Default)',
-        'google_places' => 'Google Places API',
         'google_workspace' => 'Google Workspace (Sheets / Docs / Calendar / Meet)',
         'qdrant' => 'Qdrant Vector Store',
         'storage_local' => 'Local Storage (server disk)',
@@ -63,7 +59,6 @@ class IntegrationConfig extends Model
     public const CATEGORIES = [
         'meta_app' => 'Meta',
         'oauth_linkedin' => 'Social OAuth',
-        'oauth_twitter' => 'Social OAuth',
         'oauth_youtube' => 'Social OAuth',
         'oauth_tiktok' => 'Social OAuth',
         'oauth_shopify' => 'E-Commerce OAuth',
@@ -71,7 +66,6 @@ class IntegrationConfig extends Model
         'llm_openai_default' => 'AI / LLM',
         'llm_anthropic_default' => 'AI / LLM',
         'llm_gemini_default' => 'AI / LLM',
-        'google_places' => 'Maps',
         'google_workspace' => 'Google Workspace',
         'qdrant' => 'Vector Store',
         'storage_local' => 'Storage',
@@ -91,10 +85,6 @@ class IntegrationConfig extends Model
             ['key' => 'config_id_social',    'label' => 'Embedded Signup Config ID (Instagram / Messenger)', 'type' => 'text', 'required' => false, 'hint' => 'From Meta App Dashboard → Facebook Login for Business → Social Embedded Signup configuration'],
         ],
         'oauth_linkedin' => [
-            ['key' => 'client_id',     'label' => 'Client ID',     'type' => 'text',     'required' => true],
-            ['key' => 'client_secret', 'label' => 'Client Secret', 'type' => 'password', 'required' => true],
-        ],
-        'oauth_twitter' => [
             ['key' => 'client_id',     'label' => 'Client ID',     'type' => 'text',     'required' => true],
             ['key' => 'client_secret', 'label' => 'Client Secret', 'type' => 'password', 'required' => true],
         ],
@@ -122,9 +112,6 @@ class IntegrationConfig extends Model
             ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true],
         ],
         'llm_gemini_default' => [
-            ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true],
-        ],
-        'google_places' => [
             ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true],
         ],
         'google_workspace' => [
@@ -214,7 +201,33 @@ class IntegrationConfig extends Model
 
         $creds = $this->credentials ?? [];
 
+        $requiredKeys = static::requiredCredentialKeys($this->provider);
+        if ($requiredKeys !== []) {
+            return collect($requiredKeys)->every(
+                fn (string $key) => filled($creds[$key] ?? null)
+            );
+        }
+
         return ! empty($creds) && collect($creds)->filter()->isNotEmpty();
+    }
+
+    /** @return list<string> */
+    public static function requiredCredentialKeys(string $provider): array
+    {
+        return collect(static::FIELDS[$provider] ?? [])
+            ->filter(fn (array $field) => (bool) ($field['required'] ?? false))
+            ->pluck('key')
+            ->values()
+            ->all();
+    }
+
+    /** @return list<string> */
+    public static function missingRequiredCredentialKeys(string $provider, array $credentials): array
+    {
+        return collect(static::requiredCredentialKeys($provider))
+            ->reject(fn (string $key) => filled($credentials[$key] ?? null))
+            ->values()
+            ->all();
     }
 
     /** Returns a fixed-length masked preview — never reveals actual credential content. */

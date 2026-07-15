@@ -14,6 +14,8 @@ class RegisterStoreWebhooksJob implements ShouldQueue
 
     public int $tries = 2;
 
+    public array $backoff = [30, 120, 300];
+
     public function __construct(public readonly int $storeId) {}
 
     public function handle(): void
@@ -29,10 +31,19 @@ class RegisterStoreWebhooksJob implements ShouldQueue
         if ($result['ok']) {
             $store->update(['external_meta' => array_merge($store->external_meta ?? [], ['webhooks_registered' => true])]);
         } else {
+            $store->update(['external_meta' => array_merge($store->external_meta ?? [], [
+                'webhooks_registered' => false,
+                'webhook_registration_error' => $result['message'],
+            ])]);
             Log::warning('ecommerce.webhook.register_failed', [
                 'store' => $store->id,
                 'message' => $result['message'],
             ]);
+
+            // A logged warning is not enough: throwing lets the queue retry and
+            // prevents a failed subscription from becoming a permanent silent
+            // integration outage.
+            throw new \RuntimeException('Store webhook registration failed: '.$result['message']);
         }
     }
 }

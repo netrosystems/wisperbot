@@ -115,7 +115,11 @@
         "group_reports": "Report",
         "group_support": "Supporto",
         "group_billing": "Fatturazione",
-        "group_developer": "Sviluppatore"
+        "group_developer": "Sviluppatore",
+        "addons": "Addons",
+        "website_widget": "Website Widget",
+        "group_assets": "Group Assets",
+        "sign_in": "Sign In"
     },
     "welcome": {
         "title": "Crea siti web con l'AI.",
@@ -145,7 +149,8 @@
         "per_month": "\/mese",
         "per_year": "\/anno",
         "everything_in": "Tutto ciò che è incluso in {{plan}}",
-        "most_popular": "Più popolare"
+        "most_popular": "Più popolare",
+        "learn_more": "Learn More"
     },
     "rtl": {
         "title": "Anteprima RTL",
@@ -175,13 +180,8 @@
     "client": {
         "profile": {
             "edit": "Modifica",
-            "2fa": {
-                "enable": "Enable",
-                "disable": "Disable"
-            },
-            "sessions": {
-                "destroy": "Destroy"
-            },
+            "2fa": "2Fa",
+            "sessions": "Sessions",
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -345,10 +345,7 @@
             "index": "Elenco",
             "store": "Salva",
             "destroy": "Elimina",
-            "contacts": {
-                "attach": "Attach",
-                "detach": "Detach"
-            }
+            "contacts": "Contacts"
         },
         "whatsapp": {
             "templates": {
@@ -370,7 +367,9 @@
                 "create": "Crea",
                 "edit": "Modifica"
             },
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "broadcasts": {
             "campaigns": {
@@ -401,9 +400,7 @@
             "start": "Avvia",
             "templates": "Modelli",
             "assign": "Assegna",
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "ai": {
             "providers": {
@@ -553,7 +550,11 @@
                 "connect": "Connetti"
             }
         },
-        "workspaces": "Workspaces",
+        "workspaces": {
+            "switch": "Switch",
+            "index": "Index",
+            "store": "Store"
+        },
         "settings": {
             "update": "Aggiorna",
             "notifications": "Notifiche",
@@ -569,6 +570,9 @@
             "destroy": "Elimina",
             "invoice": "Fattura",
             "show": "Mostra"
+        },
+        "addons": {
+            "index": "Index"
         }
     },
     "pagination": {
@@ -812,7 +816,11 @@
         "tax_rates": "Aliquote fiscali",
         "landing_page": "Contenuti del sito",
         "cms_pages": "Pagine CMS",
-        "license": "License",
+        "license": {
+            "index": "Index",
+            "deactivate": "Deactivate",
+            "activate": "Activate"
+        },
         "cron_setup": "Configurazione cron",
         "support": {
             "index": "Elenco",
@@ -927,38 +935,40 @@
         "secret_key_hint": "Chiave segreta lato server — mantienila privata",
         "stripe_webhook_hint": "Segreto di firma del webhook (whsec_…) dalla dashboard Stripe",
         "webhook_hint": "Segreto webhook usato per verificare gli eventi in arrivo dal gateway",
-        "clients": "Clients",
-        "subscriptions": {
+        "clients": {
             "index": "Index",
+            "users": {
+                "index": "Index",
+                "store": "Store",
+                "update": "Update",
+                "destroy": "Destroy"
+            },
+            "impersonate": "Impersonate",
+            "destroy": "Destroy",
+            "export": "Export",
             "store": "Store",
-            "export": "Export"
+            "update": "Update"
         },
-        "payments": "Payments",
-        "plans": "Plans",
-        "currencies": {
+        "subscriptions": "Subscriptions",
+        "payments": {
+            "index": "Index"
+        },
+        "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store"
+            "store": "Store",
+            "duplicate": "Duplicate",
+            "destroy": "Destroy",
+            "reorder": "Reorder"
         },
-        "admins": "Admins",
-        "settings": {
+        "currencies": "Currencies",
+        "admins": {
             "index": "Index",
-            "general": {
-                "update": "Update"
-            },
-            "logo": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "favicon": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "update": "Update",
-            "firebase": {
-                "update": "Update"
-            }
+            "destroy": "Destroy",
+            "store": "Store",
+            "update": "Update"
         },
+        "settings": "Settings",
         "ai": {
             "index": "Elenco"
         },
@@ -1150,7 +1160,9 @@
         "demo_mode_title": "Titolo modalità demo",
         "demo_mode_subtitle": "Sottotitolo modalità demo",
         "demo_role_admin": "Ruolo demo amministratore",
-        "demo_role_client": "Ruolo demo cliente"
+        "demo_role_client": "Ruolo demo cliente",
+        "toggle_password_hide": "Hide password",
+        "toggle_password_show": "Show password"
     },
     "password": {
         "confirm": "Conferma",
@@ -4025,6 +4037,14 @@
     "37": {
         "4220": "4220"
     },
+    "wisperbot": {
+        "sidebar": {
+            "scroll": {
+                "admin": "Admin",
+                "client": "Client"
+            }
+        }
+    },
     "127": [
         [
             {
@@ -4034,5 +4054,17 @@
     ],
     "v20": [
         "0"
-    ]
+    ],
+    "2": {
+        "5": "5"
+    },
+    "8": {
+        "5": "5"
+    },
+    "9": {
+        "5": "5"
+    },
+    "1": {
+        "6": "6"
+    }
 }
