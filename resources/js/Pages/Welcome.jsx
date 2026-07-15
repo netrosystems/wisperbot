@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import SeoHead from '@/Components/SeoHead';
 import { Reveal } from '@/Components/Reveal';
 import { FeatureIcon } from '@/Components/LandingIcons';
@@ -9,8 +9,8 @@ import { useTranslation } from 'react-i18next';
  * Editorial, warm-cream marketing landing page for WisperBot.
  * Self-contained (its own header + footer) so the shared LandingLayout — and
  * therefore every sub-page — is left untouched. All copy is read from the
- * admin-editable `landing.*` settings. Image areas are intentional placeholders
- * (dashed warm frames) meant to be replaced with real assets later.
+ * admin-editable `landing.*` settings. Supporting image areas remain intentional
+ * placeholders, while the hero uses the shipped WisperBot landscape artwork.
  */
 
 // ─── Small building blocks ──────────────────────────────────────────────────
@@ -140,6 +140,7 @@ function ChannelGlyph({ name, className = 'h-6 w-6' }) {
 
 function Header({ auth, landing }) {
     const { t } = useTranslation();
+    const { branding } = usePage().props;
     const [open, setOpen] = useState(false);
     const nav = [
         { label: t('nav.features', { defaultValue: 'Features' }), href: '/#features' },
@@ -150,10 +151,10 @@ function Header({ auth, landing }) {
     ];
     const getStarted = landing['landing.getstarted_label'] || t('welcome.get_started_free', { defaultValue: 'Get started' });
     return (
-        <header className="sticky top-0 z-50 border-b border-black/[0.06] bg-[#faf5ec]/80 backdrop-blur-xl">
+        <header className="absolute inset-x-0 top-0 z-50 border-b border-black/[0.06] bg-white/70 backdrop-blur-xl">
             <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
                 <Link href={route('home')} className="flex items-center">
-                    <img src="/wisperbot-logo-with-title.svg" alt="WisperBot" className="h-7 w-auto" />
+                    <img src={branding?.logo_url || '/wisperbot-logo-with-title.svg'} alt={branding?.app_name || 'WisperBot'} className="h-7 w-auto max-w-[190px] object-contain" />
                 </Link>
                 <nav className="hidden items-center gap-1 md:flex">
                     {nav.map((l) => (
@@ -183,7 +184,7 @@ function Header({ auth, landing }) {
                 </div>
             </div>
             {open && (
-                <div className="border-t border-black/5 bg-[#faf5ec] px-4 py-4 md:hidden">
+                <div className="border-t border-black/5 bg-white/70 px-4 py-4 backdrop-blur-xl md:hidden">
                     {nav.map((l) => (
                         <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-[#57504a]">
                             {l.label}
@@ -207,8 +208,15 @@ function Hero({ landing, auth, canRegister }) {
     if (s('hero_enabled') !== '1') return null;
     const stats = [1, 2, 3].map((i) => ({ value: s(`metric_${i}_value`), label: s(`metric_${i}_label`) })).filter((m) => m.value);
     return (
-        <section className="relative overflow-hidden" style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(255,118,46,0.10), transparent 60%), #faf5ec' }}>
-            <div className="mx-auto max-w-4xl px-4 pt-16 pb-10 text-center sm:px-6 sm:pt-24 lg:px-8">
+        <section className="relative isolate min-h-[36rem] overflow-hidden bg-[#faf5ec] sm:min-h-[clamp(34rem,45vw,54rem)]">
+            <img
+                src="/images/wisperbot-hero.png"
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-cover object-top"
+            />
+
+            <div className="relative z-10 mx-auto max-w-4xl px-4 pt-32 pb-16 text-center sm:px-6 sm:pt-40 sm:pb-24 lg:px-8">
                 <Reveal className="mb-6 flex justify-center" y={12}><Eyebrow>{s('hero_badge')}</Eyebrow></Reveal>
                 <Reveal as="h1" delay={80} className="mx-auto max-w-3xl font-display text-4xl font-semibold leading-[1.05] tracking-tight text-[#241f1a] sm:text-5xl lg:text-6xl">
                     <AccentHeading text={s('hero_title')} />
@@ -236,11 +244,6 @@ function Hero({ landing, auth, canRegister }) {
                         ))}
                     </Reveal>
                 )}
-            </div>
-            <div className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:px-8">
-                <Reveal delay={120}>
-                    <Placeholder className="aspect-[16/8] w-full" label="Hero visual" hint="Add your product / lifestyle image" />
-                </Reveal>
             </div>
         </section>
     );

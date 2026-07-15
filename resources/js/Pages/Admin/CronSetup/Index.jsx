@@ -74,18 +74,20 @@ export default function CronSetupIndex({
     basePath = '',
     phpBinary = 'php',
     queueConnection = 'redis',
+    queueNames = ['default', 'whatsapp', 'broadcast', 'ai', 'social', 'leads', 'automation'],
     tasks = [],
     schedulerLastRun = null,
     schedulerStatus = 'inactive',
 }) {
     const { t } = useTranslation();
 
-    const cronCommand = `* * * * * php ${basePath}/artisan schedule:run >> /dev/null 2>&1`;
+    const queueList = queueNames.join(',');
+    const cronCommand = `* * * * * ${phpBinary} ${basePath}/artisan schedule:run >> /dev/null 2>&1`;
 
-    const queueCommand = `php ${basePath}/artisan queue:work ${queueConnection} --queue=default --tries=3 --max-time=3600`;
+    const queueCommand = `${phpBinary} ${basePath}/artisan queue:work ${queueConnection} --queue=${queueList} --sleep=3 --tries=3 --timeout=120 --max-time=3600`;
 
     const supervisorConfig = `[program:wisperbot-worker]
-command=${phpBinary} ${basePath}/artisan queue:work ${queueConnection} --queue=default --tries=3 --max-time=3600
+command=${phpBinary} ${basePath}/artisan queue:work ${queueConnection} --queue=${queueList} --sleep=3 --tries=3 --timeout=120 --max-time=3600
 directory=${basePath}
 user=www-data
 numprocs=2
@@ -93,6 +95,7 @@ autostart=true
 autorestart=true
 stopasgroup=true
 killasgroup=true
+stopwaitsecs=130
 redirect_stderr=true
 stdout_logfile=${basePath}/storage/logs/worker.log`;
 
@@ -159,6 +162,16 @@ stdout_logfile=${basePath}/storage/logs/worker.log`;
                             </h3>
                             <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{t('cron.step2_desc')}</p>
                         </div>
+                        <div>
+                            <p className="mb-2 text-xs font-medium text-neutral-700 dark:text-neutral-300">{t('cron.worker_queues')}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {queueNames.map(queue => (
+                                    <span key={queue} className={`rounded-full px-2.5 py-1 font-mono text-xs ${queue === 'ai' ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'}`}>
+                                        {queue}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
                         <CodeBlock code={queueCommand} label={t('cron.copy')} />
 
                         <p className="pt-1 text-xs font-medium text-neutral-700 dark:text-neutral-300">{t('cron.supervisor_title')}</p>
@@ -184,6 +197,10 @@ stdout_logfile=${basePath}/storage/logs/worker.log`;
                         <div className="space-y-1">
                             <p className="text-xs text-neutral-500 dark:text-neutral-400">{t('cron.verify_list')}</p>
                             <CodeBlock code="php artisan schedule:list" label={t('cron.copy')} />
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">{t('cron.verify_queues')}</p>
+                            <CodeBlock code="php artisan queue:failed" label={t('cron.copy')} />
                         </div>
                     </Card.Body>
                 </Card>
