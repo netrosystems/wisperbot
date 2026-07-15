@@ -11,6 +11,9 @@ use Inertia\Response;
 
 class CronSetupController extends Controller
 {
+    /** Every named queue used by application jobs in production. */
+    public const QUEUE_NAMES = ['default', 'whatsapp', 'broadcast', 'ai', 'social', 'leads', 'automation'];
+
     /**
      * Cache key written every minute by the scheduler heartbeat (see routes/console.php).
      * Reading it back lets the admin verify their cron entry is actually firing.
@@ -23,6 +26,7 @@ class CronSetupController extends Controller
             'basePath'        => base_path(),
             'phpBinary'       => PHP_BINARY,
             'queueConnection' => (string) config('queue.default'),
+            'queueNames'      => self::QUEUE_NAMES,
             'tasks'           => $this->scheduledTasks(),
             'schedulerLastRun' => $this->heartbeat()?->toIso8601String(),
             'schedulerStatus'  => $this->status($this->heartbeat()),

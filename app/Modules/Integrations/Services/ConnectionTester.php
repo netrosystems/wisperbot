@@ -2,8 +2,10 @@
 
 namespace App\Modules\Integrations\Services;
 
+use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Services\StorageManager;
+use Illuminate\Http\Client\Response as ClientResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http as HttpFacade;
 use Illuminate\Support\Facades\Storage;
@@ -24,7 +26,12 @@ class ConnectionTester
                 default => ['ok' => false, 'message' => 'No test available for this provider.'],
             };
         } catch (\Throwable $e) {
-            $result = ['ok' => false, 'message' => $e->getMessage()];
+            if (str_starts_with($config->provider, 'llm_')) {
+                $error = ProviderErrorPresenter::present($e);
+                $result = ['ok' => false, 'message' => $error['message']];
+            } else {
+                $result = ['ok' => false, 'message' => $e->getMessage()];
+            }
         }
 
         $config->update([
@@ -106,9 +113,20 @@ class ConnectionTester
                     'max_tokens' => 1,
                 ]);
 
-            return $resp->successful()
-                ? ['ok' => true,  'message' => 'OpenAI connection successful.']
-                : ['ok' => false, 'message' => $resp->json()['error']['message'] ?? 'OpenAI error.'];
+            if (! $resp->successful()) {
+                return $this->llmFailure('OpenAI chat test failed.', $resp);
+            }
+
+            $embeddingResp = $request->post('https://api.openai.com/v1/embeddings', [
+                'model' => 'text-embedding-3-small',
+                'input' => ['connection test'],
+            ]);
+
+            if (! $embeddingResp->successful()) {
+                return $this->llmFailure('OpenAI chat works, but Knowledge Base embeddings failed.', $embeddingResp);
+            }
+
+            return ['ok' => true, 'message' => 'OpenAI chat and Knowledge Base embeddings connected successfully.'];
         }
 
         if (str_contains($config->provider, 'anthropic')) {
@@ -121,8 +139,8 @@ class ConnectionTester
                 ]);
 
             return $resp->successful()
-                ? ['ok' => true,  'message' => 'Anthropic connection successful.']
-                : ['ok' => false, 'message' => $resp->json()['error']['message'] ?? 'Anthropic error.'];
+                ? ['ok' => true, 'message' => 'Anthropic chat connected. Knowledge Bases still require an enabled OpenAI or Gemini provider for embeddings.']
+                : $this->llmFailure('Anthropic chat test failed.', $resp);
         }
 
         if (str_contains($config->provider, 'gemini')) {
@@ -136,12 +154,37 @@ class ConnectionTester
                     'generationConfig' => ['maxOutputTokens' => 1],
                 ]);
 
-            return $resp->successful()
-                ? ['ok' => true,  'message' => 'Gemini connection successful.']
-                : ['ok' => false, 'message' => $resp->json()['error']['message'] ?? 'Gemini error.'];
+            if (! $resp->successful()) {
+                return $this->llmFailure('Gemini chat test failed.', $resp);
+            }
+
+            $embeddingResp = HttpFacade::timeout(15)
+                ->withHeaders(['x-goog-api-key' => $apiKey])
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents', [
+                    'requests' => [[
+                        'model' => 'models/gemini-embedding-2',
+                        'content' => ['parts' => [['text' => 'connection test']]],
+                    ]],
+                ]);
+
+            if (! $embeddingResp->successful()) {
+                return $this->llmFailure('Gemini chat works, but Knowledge Base embeddings failed.', $embeddingResp);
+            }
+
+            return ['ok' => true, 'message' => 'Gemini chat and Knowledge Base embeddings connected successfully.'];
         }
 
         return ['ok' => false, 'message' => 'Unknown LLM provider.'];
+    }
+
+    private function llmFailure(string $stage, ClientResponse $response): array
+    {
+        $exception = new \RuntimeException(
+            'AI provider request failed with HTTP '.$response->status().': '.$response->body()
+        );
+        $error = ProviderErrorPresenter::present($exception);
+
+        return ['ok' => false, 'message' => $stage.' '.$error['message']];
     }
 
     private function testSms(IntegrationConfig $config): array

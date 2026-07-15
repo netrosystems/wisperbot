@@ -21,6 +21,8 @@ class CmsPageController extends Controller
                 'meta_title' => $page->meta_title,
                 'meta_description' => $page->meta_description,
                 'layout' => $page->layout,
+                // Pre-formatted on the server to avoid SSR/CSR locale-format mismatch.
+                'last_updated' => $page->updated_at?->toFormattedDateString(),
             ],
         ]);
     }

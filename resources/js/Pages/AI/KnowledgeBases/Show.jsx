@@ -1,7 +1,7 @@
 import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import EmptyState from '@/Components/EmptyState';
-import { ArrowLeft, Plus, RefreshCw, Trash2, Globe, FileText, Type, X, Upload, CheckCircle2, Clock, Zap, AlertCircle, HelpCircle, Trash } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, RefreshCw, Trash, Trash2, Globe, FileText, Type, X, Upload, CheckCircle2, Clock, Zap, AlertCircle, HelpCircle } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 
@@ -25,6 +25,7 @@ export default function AiKnowledgeBaseShow({ kb }) {
     const { props } = usePage();
     const flash = props.flash ?? {};
     const [showAdd, setShowAdd] = useState(false);
+    const [showEdit, setShowEdit] = useState(false);
     const [dragOver, setDragOver] = useState(false);
     const [faqPairs, setFaqPairs] = useState([{ question: '', answer: '' }]);
     const fileRef = useRef();
@@ -35,6 +36,7 @@ export default function AiKnowledgeBaseShow({ kb }) {
         title: '',
         file: null,
     });
+    const renameForm = useForm({ name: kb.name });
     const [processing, setProcessing] = useState(false);
 
     const addFaqPair = () => setFaqPairs(p => [...p, { question: '', answer: '' }]);
@@ -70,6 +72,26 @@ export default function AiKnowledgeBaseShow({ kb }) {
         router.post(route('client.ai.documents.reindex', docId), {}, { preserveScroll: true });
     };
 
+    const openEdit = () => {
+        renameForm.clearErrors();
+        renameForm.setData('name', kb.name);
+        setShowEdit(true);
+    };
+
+    const handleEdit = (e) => {
+        e.preventDefault();
+        renameForm.put(route('client.ai.knowledge-bases.update', kb.uuid), {
+            preserveScroll: true,
+            onSuccess: () => setShowEdit(false),
+        });
+    };
+
+    const handleDeleteKnowledgeBase = () => {
+        if (confirm(t('ai.delete_kb_confirm', { name: kb.name }))) {
+            router.delete(route('client.ai.knowledge-bases.destroy', kb.uuid));
+        }
+    };
+
     const handleDrop = (e) => {
         e.preventDefault();
         setDragOver(false);
@@ -92,6 +114,24 @@ export default function AiKnowledgeBaseShow({ kb }) {
                     <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 truncate">{kb.name}</h2>
                     </div>
+                    <button
+                        type="button"
+                        onClick={openEdit}
+                        title={t('common.edit')}
+                        aria-label={`${t('common.edit')} ${kb.name}`}
+                        className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-2 text-neutral-500 hover:text-brand-600 hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition"
+                    >
+                        <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleDeleteKnowledgeBase}
+                        title={t('common.delete')}
+                        aria-label={`${t('common.delete')} ${kb.name}`}
+                        className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-2 text-neutral-500 hover:text-red-500 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
                     {(
                         <button
                             onClick={() => setShowAdd(true)}
@@ -159,9 +199,17 @@ export default function AiKnowledgeBaseShow({ kb }) {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
-                                                    <StatusIcon className="h-3 w-3" /> {t(`ai.doc_status_${doc.status}`)}
-                                                </span>
+                                                <div className="max-w-xs space-y-1.5">
+                                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
+                                                        <StatusIcon className="h-3 w-3" /> {t(`ai.doc_status_${doc.status}`)}
+                                                    </span>
+                                                    {doc.error_message && (
+                                                        <p className="text-xs leading-relaxed text-red-600 dark:text-red-300">{doc.error_message}</p>
+                                                    )}
+                                                    {doc.status === 'pending' && !doc.error_message && (
+                                                        <p className="text-xs leading-relaxed text-amber-600 dark:text-amber-300">{t('ai.doc_pending_hint')}</p>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-4 py-3 text-neutral-500 dark:text-neutral-400 tabular-nums">
                                                 {(doc.tokens ?? 0).toLocaleString()}
@@ -198,6 +246,50 @@ export default function AiKnowledgeBaseShow({ kb }) {
                     )}
                 </div>
             </div>
+
+            {/* Edit Knowledge Base Modal */}
+            {showEdit && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-neutral-900 shadow-2xl">
+                        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-neutral-100 dark:border-neutral-800">
+                            <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.edit_kb')}</h3>
+                            <button onClick={() => setShowEdit(false)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleEdit} className="px-6 py-4 space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('common.name')}</label>
+                                <input
+                                    type="text"
+                                    value={renameForm.data.name}
+                                    onChange={e => renameForm.setData('name', e.target.value)}
+                                    required
+                                    autoFocus
+                                    className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+                                />
+                                {renameForm.errors.name && <p className="mt-1 text-xs text-red-500">{renameForm.errors.name}</p>}
+                            </div>
+                            <div className="flex gap-2 pt-1 pb-2">
+                                <button
+                                    type="submit"
+                                    disabled={renameForm.processing}
+                                    className="flex-1 rounded-lg bg-brand-600 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition"
+                                >
+                                    {renameForm.processing ? t('common.saving') : t('common.save')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEdit(false)}
+                                    className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
+                                >
+                                    {t('common.cancel')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Add Document Modal */}
             {showAdd && (

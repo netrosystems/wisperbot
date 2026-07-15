@@ -182,3 +182,67 @@ body {
     direction: ltr;
     unicode-bidi: embed;
 }
+
+/* ── CMS / legal pages ──────────────────────────────────────────── */
+
+/* Article body for cms_pages (privacy, terms, cookies, gdpr, …).
+ * Replaces the `prose` class — @tailwindcss/typography is not installed,
+ * so we hand-roll a compact set tuned to the cream/orange palette. */
+.cms-prose {
+    color: #241f1a;
+    font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    line-height: 1.75;
+    font-size: 1.0625rem;
+}
+.cms-prose h2 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 600;
+    font-size: 1.75rem;
+    line-height: 1.2;
+    margin: 2.5rem 0 1rem;
+    color: #241f1a;
+    scroll-margin-top: 6rem;
+}
+.cms-prose h3 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 600;
+    font-size: 1.25rem;
+    line-height: 1.3;
+    margin: 2rem 0 0.75rem;
+    color: #241f1a;
+    scroll-margin-top: 6rem;
+}
+.cms-prose p { margin: 0 0 1.25rem; }
+.cms-prose ul { list-style: disc; margin: 0 0 1.25rem 1.5rem; }
+.cms-prose ol { list-style: decimal; margin: 0 0 1.25rem 1.5rem; }
+.cms-prose li { margin-bottom: 0.4rem; }
+.cms-prose li::marker { color: #ff762e; }
+.cms-prose a {
+    color: #ff762e;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color 0.15s;
+}
+.cms-prose a:hover { color: #e85a14; }
+.cms-prose strong { color: #14100c; font-weight: 600; }
+.cms-prose em { color: #6f6660; font-style: italic; }
+.cms-prose blockquote {
+    border-left: 3px solid #ff762e;
+    padding: 0.25rem 0 0.25rem 1.25rem;
+    margin: 1.5rem 0;
+    color: #6f6660;
+    font-style: italic;
+}
+
+/* Calm replacement for the old yellow "Template notice" box. Used by
+ * cms_pages content; can stay in all environments until the admin edits. */
+.cms-notice {
+    background: #fffdf9;
+    border: 1px solid #f6efe2;
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    margin: 0 0 2rem;
+    color: #6f6660;
+    font-size: 0.9375rem;
+}
+.cms-notice strong { color: #241f1a; }

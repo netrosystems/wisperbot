@@ -12,7 +12,7 @@ class ChatbotRunner
         private EmbeddingStore $embedStore,
     ) {}
 
-    public function run(AiChatbot $bot, Message $inboundMessage): ?string
+    public function run(AiChatbot $bot, Message $inboundMessage, bool $throwProviderErrors = false): ?string
     {
         if (! $bot->enabled) {
             return null;
@@ -28,7 +28,11 @@ class ChatbotRunner
             try {
                 $embeddings = $this->llmGateway->embed($workspaceId, [$body]);
                 $queryEmbedding = $embeddings[0] ?? [];
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                if ($throwProviderErrors) {
+                    throw $e;
+                }
+
                 // proceed without retrieval
             }
         }
@@ -92,6 +96,10 @@ class ChatbotRunner
 
             return $response->content;
         } catch (\Throwable $e) {
+            if ($throwProviderErrors) {
+                throw $e;
+            }
+
             // Fallback
             return $bot->fallback_reply ?? null;
         }

@@ -1,4 +1,3 @@
-import ApplicationLogo from '@/Components/ApplicationLogo';
 import { useTheme } from '@/context/ThemeContext';
 import { Sun, Moon, Check } from 'lucide-react';
 
@@ -63,8 +62,7 @@ function LeftPane({ steps, current, appName }) {
 
             {/* Logo + brand */}
             <div className="relative flex items-center gap-3">
-                <ApplicationLogo className="h-9 w-9 fill-current text-white/90" />
-                <span className="text-xl font-bold tracking-tight">{appName}</span>
+                <img src="/wisperbot-logo-white.svg" alt={appName} className="h-9 w-auto max-w-[220px] object-contain" />
                 <span className="inline-flex items-center rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90">
                     Setup
                 </span>
@@ -188,10 +186,16 @@ export default function InstallLayout({ steps = [], current = 0, title, subtitle
                 {/* Top bar */}
                 <div className="flex items-center justify-between px-6 py-4">
                     <div className="flex items-center gap-2 lg:invisible">
-                        <ApplicationLogo className="h-7 w-7 fill-current text-brand-600 dark:text-brand-400" />
-                        <span className="text-sm font-semibold text-neutral-900 dark:text-white">
-                            {appName}
-                        </span>
+                        <img
+                            src="/wisperbot-logo-with-title.svg"
+                            alt={appName}
+                            className="h-7 w-auto max-w-[170px] object-contain dark:hidden"
+                        />
+                        <img
+                            src="/wisperbot-logo-white.svg"
+                            alt={appName}
+                            className="hidden h-7 w-auto max-w-[170px] object-contain dark:block"
+                        />
                     </div>
                     <ThemeToggle />
                 </div>
