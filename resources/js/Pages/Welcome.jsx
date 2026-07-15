@@ -609,7 +609,7 @@ function Footer({ landing }) {
                     ))}
                 </div>
                 <div className="mt-12 border-t border-white/10 pt-6 text-center text-xs text-white/40">
-                    &copy; {year} WisperBot. {t('nav.all_rights_reserved', { defaultValue: 'All rights reserved.' })}
+                    &copy; {year} {t('nav.all_rights_reserved', { defaultValue: 'WisperBot(A Netro Systems Limited Company) All rights reserved.' })}
                 </div>
             </div>
         </footer>

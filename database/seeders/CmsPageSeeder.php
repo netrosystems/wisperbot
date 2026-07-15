@@ -19,9 +19,9 @@ class CmsPageSeeder extends Seeder
     {
         $app = config('app.name', 'WisperBot');
 
-        $notice = '<p style="padding:12px 16px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;color:#92400e;">'
-            .'<strong>⚠️ Template notice:</strong> This is placeholder text generated for convenience. '
-            .'Review and adapt it with qualified legal counsel before relying on it.</p>';
+        $notice = '<aside class="cms-notice">'
+            .'<strong>Template notice.</strong> This is placeholder copy. '
+            .'Review and adapt with qualified legal counsel before publishing.</aside>';
 
         $updated = 'Last updated: '.now()->format('F j, Y');
 
