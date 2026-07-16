@@ -4,8 +4,12 @@ namespace App\Modules\AI\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\AI\Models\AiProviderConfig;
+use App\Modules\AI\Services\Llm\LlmManager;
+use App\Modules\AI\Services\ProviderErrorPresenter;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -61,5 +65,65 @@ class AiProviderController extends Controller
         ])->save();
 
         return back()->with('success', ucfirst($provider).' configuration saved.');
+    }
+
+    public function test(Request $request, string $provider): JsonResponse
+    {
+        abort_unless(in_array($provider, ['openai', 'anthropic', 'gemini'], true), 404);
+        $workspaceId = (int) ($request->user()->current_workspace_id ?? $request->user()->workspace_id);
+
+        $config = AiProviderConfig::where('workspace_id', $workspaceId)
+            ->where('provider', $provider)
+            ->first();
+
+        if (! $config || empty($config->credentials['api_key'] ?? '')) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Save an API key before testing this provider.',
+                'error_code' => 'provider_not_configured',
+            ], 422);
+        }
+
+        try {
+            $client = LlmManager::build($provider, $config->credentials ?? [], [
+                'chat' => $config->default_model_chat,
+                'embed' => $config->default_model_embed,
+            ]);
+
+            $client->chat([
+                ['role' => 'user', 'content' => 'Reply with OK.'],
+            ], [
+                'max_tokens' => 8,
+                'temperature' => 0,
+            ]);
+
+            $supportsEmbeddings = in_array($provider, ['openai', 'gemini'], true);
+            if ($supportsEmbeddings) {
+                $client->embed(['connection test']);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'message' => ucfirst($provider).' connected successfully.',
+                'capabilities' => [
+                    'chat' => true,
+                    'embeddings' => $supportsEmbeddings,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ai.provider_test_failed', [
+                'workspace_id' => $workspaceId,
+                'provider' => $provider,
+                'exception' => $e,
+            ]);
+
+            $error = ProviderErrorPresenter::present($e);
+
+            return response()->json([
+                'ok' => false,
+                'error' => $error['message'],
+                'error_code' => $error['code'],
+            ], 422);
+        }
     }
 }

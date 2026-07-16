@@ -1,7 +1,7 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import EmptyState from '@/Components/EmptyState';
-import { Plus, BookOpen, FileText, Database, X } from 'lucide-react';
+import { Plus, BookOpen, FileText, Database, Pencil, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -10,12 +10,44 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
     const { props } = usePage();
     const flash = props.flash ?? {};
     const [showCreate, setShowCreate] = useState(false);
+    const [editingKb, setEditingKb] = useState(null);
 
-    const { data, setData, post, processing, reset, errors } = useForm({ name: '' });
+    const createForm = useForm({ name: '' });
+    const editForm = useForm({ name: '' });
 
     const handleCreate = (e) => {
         e.preventDefault();
-        post(route('client.ai.knowledge-bases.store'), { onSuccess: () => { reset(); setShowCreate(false); } });
+        createForm.post(route('client.ai.knowledge-bases.store'), {
+            onSuccess: () => {
+                createForm.reset();
+                setShowCreate(false);
+            },
+        });
+    };
+
+    const openEdit = (kb) => {
+        editForm.clearErrors();
+        editForm.setData('name', kb.name);
+        setEditingKb(kb);
+    };
+
+    const handleEdit = (e) => {
+        e.preventDefault();
+        editForm.put(route('client.ai.knowledge-bases.update', editingKb.uuid), {
+            preserveScroll: true,
+            onSuccess: () => {
+                editForm.reset();
+                setEditingKb(null);
+            },
+        });
+    };
+
+    const handleDelete = (kb) => {
+        if (confirm(t('ai.delete_kb_confirm', { name: kb.name }))) {
+            router.delete(route('client.ai.knowledge-bases.destroy', kb.uuid), {
+                preserveScroll: true,
+            });
+        }
     };
 
     const totalDocs = knowledgeBases.reduce((s, kb) => s + (kb.documents_count ?? 0), 0);
@@ -71,29 +103,50 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
                 {/* Grid */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {knowledgeBases.map(kb => (
-                        <Link
+                        <div
                             key={kb.id}
-                            href={route('client.ai.knowledge-bases.show', kb.uuid)}
-                            className="group rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 block hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-md transition-all"
+                            className="group rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-md transition-all"
                         >
                             <div className="flex items-start justify-between gap-2 mb-3">
-                                <div className="rounded-lg bg-brand-50 dark:bg-brand-900/20 p-2 group-hover:bg-brand-100 dark:group-hover:bg-brand-900/40 transition">
+                                <Link href={route('client.ai.knowledge-bases.show', kb.uuid)} className="rounded-lg bg-brand-50 dark:bg-brand-900/20 p-2 group-hover:bg-brand-100 dark:group-hover:bg-brand-900/40 transition">
                                     <BookOpen className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+                                </Link>
+                                <div className="flex items-center gap-1">
+                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                        kb.status === 'active'
+                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+                                    }`}>
+                                        {kb.status === 'active' ? t('common.active') : t('ai.kb_status_draft')}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => openEdit(kb)}
+                                        title={t('common.edit')}
+                                        aria-label={`${t('common.edit')} ${kb.name}`}
+                                        className="rounded-md p-1.5 text-neutral-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition"
+                                    >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDelete(kb)}
+                                        title={t('common.delete')}
+                                        aria-label={`${t('common.delete')} ${kb.name}`}
+                                        className="rounded-md p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
                                 </div>
-                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                    kb.status === 'active'
-                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                                        : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
-                                }`}>
-                                    {kb.status === 'active' ? t('common.active') : t('ai.kb_status_draft')}
-                                </span>
                             </div>
-                            <h3 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 mb-1 truncate">{kb.name}</h3>
-                            <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-                                <FileText className="h-3.5 w-3.5 shrink-0" />
-                                <span>{t('ai.document_count', { count: kb.documents_count ?? 0 })}</span>
-                            </div>
-                        </Link>
+                            <Link href={route('client.ai.knowledge-bases.show', kb.uuid)} className="block">
+                                <h3 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 mb-1 truncate">{kb.name}</h3>
+                                <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                                    <span>{t('ai.document_count', { count: kb.documents_count ?? 0 })}</span>
+                                </div>
+                            </Link>
+                        </div>
                     ))}
 
                     {knowledgeBases.length === 0 && (
@@ -124,26 +177,70 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
                                 <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('common.name')}</label>
                                 <input
                                     type="text"
-                                    value={data.name}
-                                    onChange={e => setData('name', e.target.value)}
+                                    value={createForm.data.name}
+                                    onChange={e => createForm.setData('name', e.target.value)}
                                     required
                                     autoFocus
                                     placeholder={t('ai.kb_name_placeholder')}
                                     className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                                 />
-                                {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
+                                {createForm.errors.name && <p className="mt-1 text-xs text-red-500">{createForm.errors.name}</p>}
                             </div>
                             <div className="flex gap-2 pt-1 pb-2">
                                 <button
                                     type="submit"
-                                    disabled={processing}
+                                    disabled={createForm.processing}
                                     className="flex-1 rounded-lg bg-brand-600 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition"
                                 >
-                                    {processing ? t('ai.creating') : t('ai.create_kb')}
+                                    {createForm.processing ? t('ai.creating') : t('ai.create_kb')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setShowCreate(false)}
+                                    className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
+                                >
+                                    {t('common.cancel')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal */}
+            {editingKb && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-neutral-900 shadow-2xl">
+                        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-neutral-100 dark:border-neutral-800">
+                            <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.edit_kb')}</h3>
+                            <button onClick={() => setEditingKb(null)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleEdit} className="px-6 py-4 space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('common.name')}</label>
+                                <input
+                                    type="text"
+                                    value={editForm.data.name}
+                                    onChange={e => editForm.setData('name', e.target.value)}
+                                    required
+                                    autoFocus
+                                    className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+                                />
+                                {editForm.errors.name && <p className="mt-1 text-xs text-red-500">{editForm.errors.name}</p>}
+                            </div>
+                            <div className="flex gap-2 pt-1 pb-2">
+                                <button
+                                    type="submit"
+                                    disabled={editForm.processing}
+                                    className="flex-1 rounded-lg bg-brand-600 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition"
+                                >
+                                    {editForm.processing ? t('common.saving') : t('common.save')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingKb(null)}
                                     className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
                                 >
                                     {t('common.cancel')}

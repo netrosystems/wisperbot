@@ -1,8 +1,7 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
 import { useLocale } from '@/hooks/useLocale';
-import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Sun, Moon, ShieldCheck, Zap, Users, Bot, TrendingUp } from 'lucide-react';
 
 /**
@@ -93,7 +92,7 @@ function AccentHeading({ text, className = '' }) {
 
 // ── Left brand pane ─────────────────────────────────────────────────────────
 
-function LeftPane({ variant }) {
+function LeftPane({ variant, logoUrl }) {
     const { t } = useTranslation();
     const features = variant === 'admin' ? ADMIN_FEATURES : CLIENT_FEATURES;
     const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
@@ -132,10 +131,7 @@ function LeftPane({ variant }) {
 
             {/* Logo + brand name */}
             <div className="relative flex items-center gap-3">
-                <ApplicationLogo className="h-9 w-9 fill-current text-[#241f1a]" />
-                <span className="font-display text-xl font-semibold tracking-tight text-[#241f1a]">
-                    {appName}
-                </span>
+                <img src={logoUrl || '/wisperbot-logo-with-title.svg'} alt={appName} className="h-9 w-auto max-w-[220px] object-contain" />
                 {variant === 'admin' && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-700">
                         <ShieldCheck className="h-3 w-3" />
@@ -241,9 +237,10 @@ export default function AuthLayout({
     children,
 }) {
     const { t } = useTranslation();
+    const { branding } = usePage().props;
     return (
         <div className="flex min-h-screen bg-[#faf5ec] text-[#241f1a]" style={{ color: INK }}>
-            <LeftPane variant={variant} />
+            <LeftPane variant={variant} logoUrl={branding?.logo_url} />
 
             {/* Right pane — slightly deeper cream than the left so the card
                 visibly separates. */}
@@ -258,10 +255,7 @@ export default function AuthLayout({
                 <div className="relative flex items-center justify-between px-6 py-5">
                     {/* Mobile logo */}
                     <Link href={route('home')} className="flex items-center gap-2 lg:hidden">
-                        <ApplicationLogo className="h-7 w-7 fill-current text-brand-600" />
-                        <span className="font-display text-base font-semibold text-[#241f1a]">
-                            {import.meta.env.VITE_APP_NAME || 'WisperBot'}
-                        </span>
+                        <img src={branding?.logo_url || '/wisperbot-logo-with-title.svg'} alt={branding?.app_name || import.meta.env.VITE_APP_NAME || 'WisperBot'} className="h-7 w-auto max-w-[170px] object-contain" />
                     </Link>
                     <span className="hidden lg:block" />
                     <div className="flex items-center gap-2">

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Services\ChatbotRunner;
+use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use Illuminate\Http\JsonResponse;
@@ -88,7 +89,12 @@ class AiChatbotController extends Controller
             'history' => ['nullable', 'array'],
         ]);
 
-        $wid = $this->workspaceId($request);
+        if (! $chatbot->enabled) {
+            return response()->json([
+                'error' => 'Enable this chatbot before testing it.',
+                'error_code' => 'chatbot_disabled',
+            ], 422);
+        }
 
         try {
             // Build a synthetic inbound Message model (unsaved) for ChatbotRunner
@@ -103,13 +109,25 @@ class AiChatbotController extends Controller
             $fakeConversation->id = 0;
             $fakeMessage->setRelation('conversation', $fakeConversation);
 
-            $reply = app(ChatbotRunner::class)->run($chatbot, $fakeMessage);
+            $reply = app(ChatbotRunner::class)->run($chatbot, $fakeMessage, throwProviderErrors: true);
+
+            if (blank($reply)) {
+                return response()->json([
+                    'error' => 'The AI provider returned an empty response. Check the selected model and try again.',
+                    'error_code' => 'provider_empty_response',
+                ], 422);
+            }
 
             return response()->json([
-                'reply' => $reply ?? $chatbot->fallback_reply ?? 'No response.',
+                'reply' => $reply,
             ]);
         } catch (\Throwable $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+            $error = ProviderErrorPresenter::present($e);
+
+            return response()->json([
+                'error' => $error['message'],
+                'error_code' => $error['code'],
+            ], 422);
         }
     }
 

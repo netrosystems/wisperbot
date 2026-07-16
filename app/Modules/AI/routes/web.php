@@ -9,11 +9,14 @@ Route::middleware(['web', 'client-app'])->prefix('app/ai')->name('client.ai.')->
     // Provider configs
     Route::get('/providers', [AiProviderController::class, 'index'])->name('providers.index');
     Route::put('/providers/{provider}', [AiProviderController::class, 'update'])->name('providers.update');
+    Route::post('/providers/{provider}/test', [AiProviderController::class, 'test'])->name('providers.test');
 
     // Knowledge bases
     Route::get('/knowledge-bases', [AiKnowledgeBaseController::class, 'index'])->name('knowledge-bases.index');
     Route::post('/knowledge-bases', [AiKnowledgeBaseController::class, 'store'])->name('knowledge-bases.store')->middleware('limit:knowledge_bases,knowledge_bases');
     Route::get('/knowledge-bases/{kb}', [AiKnowledgeBaseController::class, 'show'])->name('knowledge-bases.show');
+    Route::put('/knowledge-bases/{kb}', [AiKnowledgeBaseController::class, 'update'])->name('knowledge-bases.update');
+    Route::delete('/knowledge-bases/{kb}', [AiKnowledgeBaseController::class, 'destroy'])->name('knowledge-bases.destroy');
     Route::post('/knowledge-bases/{kb}/documents', [AiKnowledgeBaseController::class, 'addDocument'])->name('knowledge-bases.documents.add');
     Route::post('/documents/{document}/reindex', [AiKnowledgeBaseController::class, 'reindex'])->name('documents.reindex');
     Route::delete('/documents/{document}', [AiKnowledgeBaseController::class, 'destroyDocument'])->name('documents.destroy');
