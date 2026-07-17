@@ -95,7 +95,7 @@ class ChatWidgetController extends Controller
         $chatWidget->channelAccount?->update(['status' => 'inactive']);
         $chatWidget->delete();
 
-        return back()->with('success', 'Widget deleted.');
+        return redirect()->route('client.inbox.chat-widgets.index')->with('success', 'Widget deleted.');
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -158,6 +158,6 @@ class ChatWidgetController extends Controller
 
     private function assertOwner(Request $request, ChatWidget $widget): void
     {
-        abort_unless($widget->workspace_id === $this->workspaceId($request), 403);
+        abort_unless((int) $widget->workspace_id === $this->workspaceId($request), 403);
     }
 }
