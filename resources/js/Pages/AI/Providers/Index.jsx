@@ -123,7 +123,10 @@ function ProviderCard({ provider }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         setTestResult(null);
-        put(route('client.ai.providers.update', provider.provider), { preserveScroll: true });
+        put(route('client.ai.providers.update', provider.provider), {
+            preserveScroll: true,
+            onSuccess: () => setData('api_key', ''),
+        });
     };
 
     const handleTest = async () => {
