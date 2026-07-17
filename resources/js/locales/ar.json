@@ -174,13 +174,8 @@
     "client": {
         "profile": {
             "edit": "تعديل",
-            "2fa": {
-                "enable": "Enable",
-                "disable": "Disable"
-            },
-            "sessions": {
-                "destroy": "Destroy"
-            },
+            "2fa": "2Fa",
+            "sessions": "Sessions",
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -344,10 +339,7 @@
             "index": "القائمة",
             "store": "حفظ",
             "destroy": "حذف",
-            "contacts": {
-                "attach": "Attach",
-                "detach": "Detach"
-            }
+            "contacts": "Contacts"
         },
         "whatsapp": {
             "templates": {
@@ -369,7 +361,9 @@
                 "create": "إنشاء",
                 "edit": "تعديل"
             },
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "broadcasts": {
             "campaigns": {
@@ -400,14 +394,13 @@
             "start": "بدء",
             "templates": "القوالب",
             "assign": "تعيين",
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "ai": {
             "providers": {
                 "index": "القائمة",
-                "update": "تحديث"
+                "update": "تحديث",
+                "test": "Test"
             },
             "chatbots": {
                 "index": "القائمة",
@@ -528,7 +521,11 @@
                 "connect": "اتصال"
             }
         },
-        "workspaces": "Workspaces",
+        "workspaces": {
+            "switch": "Switch",
+            "index": "Index",
+            "store": "Store"
+        },
         "settings": {
             "update": "تحديث",
             "notifications": "الإشعارات",
@@ -897,38 +894,40 @@
         "secret_key_hint": "المفتاح السري للخادم — حافظ على سريته",
         "stripe_webhook_hint": "سر توقيع Webhook‏ (whsec_…) من لوحة تحكم Stripe",
         "webhook_hint": "سر Webhook المستخدم للتحقق من أحداث بوابة الدفع الواردة",
-        "clients": "Clients",
-        "subscriptions": {
+        "clients": {
             "index": "Index",
+            "users": {
+                "index": "Index",
+                "store": "Store",
+                "update": "Update",
+                "destroy": "Destroy"
+            },
+            "impersonate": "Impersonate",
+            "destroy": "Destroy",
+            "export": "Export",
             "store": "Store",
-            "export": "Export"
+            "update": "Update"
         },
-        "payments": "Payments",
-        "plans": "Plans",
-        "currencies": {
+        "subscriptions": "Subscriptions",
+        "payments": {
+            "index": "Index"
+        },
+        "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store"
+            "store": "Store",
+            "duplicate": "Duplicate",
+            "destroy": "Destroy",
+            "reorder": "Reorder"
         },
-        "admins": "Admins",
-        "settings": {
+        "currencies": "Currencies",
+        "admins": {
             "index": "Index",
-            "general": {
-                "update": "Update"
-            },
-            "logo": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "favicon": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "update": "Update",
-            "firebase": {
-                "update": "Update"
-            }
+            "destroy": "Destroy",
+            "store": "Store",
+            "update": "Update"
         },
+        "settings": "Settings",
         "ai": {
             "index": "الفهرس"
         },
@@ -1012,11 +1011,7 @@
         "recent_payments": "Recent payments",
         "amount": "Amount",
         "last_n_days": "Last {{n}} days",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
+        "license": "License",
         "add_currency": "Add Currency"
     },
     "open_menu": "فتح القائمة",
@@ -1655,7 +1650,9 @@
             "hours_ago": "قبل {{count}} ساعة",
             "days_ago": "قبل {{count}} يوم"
         },
-        "status_${schedulerStatus}": "Status ${Schedulerstatus}"
+        "status_${schedulerStatus}": "Status ${Schedulerstatus}",
+        "worker_queues": "Queues covered by this worker",
+        "verify_queues": "Check whether any background jobs have failed:"
     },
     "settings": {
         "tab_general": "عام",
@@ -3876,7 +3873,14 @@
         "tone_${chatbot": {
             "tone}": "Tone}"
         },
-        "tone_${tone}": "Tone ${Tone}"
+        "tone_${tone}": "Tone ${Tone}",
+        "edit_kb": "Edit Knowledge Base",
+        "delete_kb_confirm": "Permanently delete knowledge base “{{name}}” and all of its documents? Linked chatbots will continue without a knowledge base. This cannot be undone.",
+        "doc_pending_hint": "Waiting for the AI queue worker. If this remains pending, verify Admin → Cron Setup.",
+        "save_before_testing": "Save the API key and model settings before testing.",
+        "connection_failed": "The provider could not be reached. Check the server connection and try again.",
+        "testing": "Testing…",
+        "test_connection": "Test Connection"
     },
     "contact_page": {
         "title": "تواصل معنا",
@@ -4040,16 +4044,6 @@
             }
         }
     },
-    "127": [
-        [
-            {
-                "1": "1"
-            }
-        ]
-    ],
-    "v20": [
-        "0"
-    ],
     "2": {
         "5": "5"
     },
@@ -4061,5 +4055,18 @@
     },
     "1": {
         "6": "6"
-    }
+    },
+    "127": [
+        [
+            {
+                "1": "1"
+            }
+        ]
+    ],
+    "facebook": {
+        "com": "Com"
+    },
+    "v20": [
+        "0"
+    ]
 }

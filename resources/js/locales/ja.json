@@ -180,8 +180,13 @@
     "client": {
         "profile": {
             "edit": "編集",
-            "2fa": "2Fa",
-            "sessions": "Sessions",
+            "2fa": {
+                "enable": "Enable",
+                "disable": "Disable"
+            },
+            "sessions": {
+                "destroy": "Destroy"
+            },
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -345,7 +350,10 @@
             "index": "一覧",
             "store": "保存",
             "destroy": "削除",
-            "contacts": "Contacts"
+            "contacts": {
+                "attach": "Attach",
+                "detach": "Detach"
+            }
         },
         "whatsapp": {
             "templates": {
@@ -367,9 +375,7 @@
                 "create": "作成",
                 "edit": "編集"
             },
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "broadcasts": {
             "campaigns": {
@@ -400,12 +406,15 @@
             "start": "開始",
             "templates": "テンプレート",
             "assign": "割り当て",
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy"
+            }
         },
         "ai": {
             "providers": {
                 "index": "一覧",
-                "update": "更新"
+                "update": "更新",
+                "test": "Test"
             },
             "chatbots": {
                 "index": "一覧",
@@ -550,11 +559,7 @@
                 "connect": "接続"
             }
         },
-        "workspaces": {
-            "switch": "Switch",
-            "index": "Index",
-            "store": "Store"
-        },
+        "workspaces": "Workspaces",
         "settings": {
             "update": "更新",
             "notifications": "通知",
@@ -816,11 +821,7 @@
         "tax_rates": "税率",
         "landing_page": "サイトコンテンツ",
         "cms_pages": "CMSページ",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
+        "license": "License",
         "cron_setup": "Cron設定",
         "support": {
             "index": "一覧",
@@ -935,40 +936,38 @@
         "secret_key_hint": "サーバーサイドのシークレットキー — 厳重に管理してください",
         "stripe_webhook_hint": "Stripeダッシュボードで確認できるWebhook署名シークレット（whsec_…）",
         "webhook_hint": "受信したゲートウェイイベントの検証に使用するWebhookシークレット",
-        "clients": {
+        "clients": "Clients",
+        "subscriptions": {
             "index": "Index",
-            "users": {
-                "index": "Index",
-                "store": "Store",
-                "update": "Update",
-                "destroy": "Destroy"
-            },
-            "impersonate": "Impersonate",
-            "destroy": "Destroy",
-            "export": "Export",
             "store": "Store",
-            "update": "Update"
+            "export": "Export"
         },
-        "subscriptions": "Subscriptions",
-        "payments": {
-            "index": "Index"
-        },
-        "plans": {
+        "payments": "Payments",
+        "plans": "Plans",
+        "currencies": {
             "index": "Index",
             "update": "Update",
-            "store": "Store",
-            "duplicate": "Duplicate",
-            "destroy": "Destroy",
-            "reorder": "Reorder"
+            "store": "Store"
         },
-        "currencies": "Currencies",
-        "admins": {
+        "admins": "Admins",
+        "settings": {
             "index": "Index",
-            "destroy": "Destroy",
-            "store": "Store",
-            "update": "Update"
+            "general": {
+                "update": "Update"
+            },
+            "logo": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "favicon": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "update": "Update",
+            "firebase": {
+                "update": "Update"
+            }
         },
-        "settings": "Settings",
         "ai": {
             "index": "一覧"
         },
@@ -1659,7 +1658,9 @@
             "hours_ago": "{{count}}時間前",
             "days_ago": "{{count}}日前"
         },
-        "status_${schedulerStatus}": "Status ${Schedulerstatus}"
+        "status_${schedulerStatus}": "Status ${Schedulerstatus}",
+        "worker_queues": "Queues covered by this worker",
+        "verify_queues": "Check whether any background jobs have failed:"
     },
     "settings": {
         "tab_general": "General",
@@ -3319,7 +3320,14 @@
         "tone_${chatbot": {
             "tone}": "Tone}"
         },
-        "tone_${tone}": "Tone ${Tone}"
+        "tone_${tone}": "Tone ${Tone}",
+        "edit_kb": "Edit Knowledge Base",
+        "delete_kb_confirm": "Permanently delete knowledge base “{{name}}” and all of its documents? Linked chatbots will continue without a knowledge base. This cannot be undone.",
+        "doc_pending_hint": "Waiting for the AI queue worker. If this remains pending, verify Admin → Cron Setup.",
+        "save_before_testing": "Save the API key and model settings before testing.",
+        "connection_failed": "The provider could not be reached. Check the server connection and try again.",
+        "testing": "Testing…",
+        "test_connection": "Test Connection"
     },
     "whatsapp": {
         "setup_title": "WhatsApp Setup",
@@ -4045,16 +4053,6 @@
             }
         }
     },
-    "127": [
-        [
-            {
-                "1": "1"
-            }
-        ]
-    ],
-    "v20": [
-        "0"
-    ],
     "2": {
         "5": "5"
     },
@@ -4066,5 +4064,18 @@
     },
     "1": {
         "6": "6"
-    }
+    },
+    "127": [
+        [
+            {
+                "1": "1"
+            }
+        ]
+    ],
+    "facebook": {
+        "com": "Com"
+    },
+    "v20": [
+        "0"
+    ]
 }

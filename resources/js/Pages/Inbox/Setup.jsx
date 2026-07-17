@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 /* brand logos (accurate official paths) */
 
@@ -550,10 +551,6 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
 
     const handleWaEmbeddedCode = useCallback(async (code, wabaId, phoneNumberId = null) => {
         setWaApiError(null);
-        if (!wabaId) {
-            setWaApiError(t('inbox.could_not_detect_waba'));
-            return;
-        }
         setWaSubmitting(true);
         try {
             const res = await fetch(route('client.whatsapp.setup.embedded-signup'), {
@@ -569,7 +566,8 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
             if (!res.ok) {
                 setWaApiError(json.message ?? t('inbox.connection_failed'));
             } else {
-                if (json.webhook_warning) setWaApiError(json.webhook_warning);
+                toast.success(json.message ?? 'WhatsApp account connected successfully.');
+                if (json.webhook_warning) toast.warning(json.webhook_warning);
                 router.reload({ preserveScroll: true });
                 setShowForm(false);
             }
@@ -719,23 +717,44 @@ function AccountRow({ account, channel, chatbots }) {
  * Listens for the WA_EMBEDDED_SIGNUP postMessage that Meta sends when
  * sessionInfoVersion:'3' is set. Resolves with { waba_id, phone_number_id }.
  */
-function waitForWabaSessionInfo(timeout = 120000) {
+function waitForWabaSessionInfo(timeout = 15000) {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
             window.removeEventListener('message', handler);
-            reject(new Error('Timed out waiting for WABA session info'));
+            // Meta can return a valid OAuth code without sending the optional
+            // WA_EMBEDDED_SIGNUP payload (notably when previous settings are
+            // reused). The backend can discover the granted WABA from the token.
+            resolve({});
         }, timeout);
 
         function handler(event) {
-            if (event.origin !== 'https://www.facebook.com') return;
+            let hostname;
+            try {
+                hostname = new URL(event.origin).hostname;
+            } catch {
+                return;
+            }
+            if (hostname !== 'facebook.com' && !hostname.endsWith('.facebook.com')) return;
+
             try {
                 const parsed = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
                 if (parsed?.type === 'WA_EMBEDDED_SIGNUP') {
+                    if (parsed.event === 'CANCEL' || parsed.event === 'ERROR') {
+                        clearTimeout(timer);
+                        window.removeEventListener('message', handler);
+                        reject(new Error(parsed.data?.error_message ?? 'WhatsApp authorization was not completed.'));
+                        return;
+                    }
+
+                    if (parsed.event && parsed.event !== 'FINISH') return;
+
                     clearTimeout(timer);
                     window.removeEventListener('message', handler);
                     resolve(parsed.data ?? {});
                 }
-            } catch (_) {}
+            } catch {
+                // Ignore unrelated non-JSON cross-window messages.
+            }
         }
 
         window.addEventListener('message', handler);
@@ -1332,6 +1351,3 @@ export default function ChannelSetup({
         </ClientLayout>
     );
 }
-
-
-

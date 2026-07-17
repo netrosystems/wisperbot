@@ -3,6 +3,7 @@
 namespace Tests\Feature\ProductionHardening;
 
 use App\Modules\Whatsapp\Http\Controllers\WhatsappEmbeddedSignupController;
+use App\Modules\Integrations\Services\Credentials\MetaCredentials;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -28,6 +29,31 @@ class WhatsappEmbeddedSignupTest extends TestCase
         ]);
 
         $this->assertFalse($this->registerNumber());
+    }
+
+    public function test_waba_can_be_discovered_when_meta_omits_the_browser_session_message(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/debug_token*' => Http::response([
+                'data' => [
+                    'granular_scopes' => [
+                        ['scope' => 'pages_show_list', 'target_ids' => ['PAGE_123']],
+                        ['scope' => 'whatsapp_business_management', 'target_ids' => ['WABA_456']],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $method = new \ReflectionMethod(WhatsappEmbeddedSignupController::class, 'discoverWabaId');
+        $method->setAccessible(true);
+
+        $wabaId = $method->invoke(
+            new WhatsappEmbeddedSignupController,
+            'USER_TOKEN',
+            new MetaCredentials(['app_id' => 'APP_ID', 'app_secret' => 'APP_SECRET']),
+        );
+
+        $this->assertSame('WABA_456', $wabaId);
     }
 
     private function registerNumber(): bool
