@@ -2,9 +2,12 @@
 
 namespace Tests\Feature\Inbox;
 
+use App\Models\Plan;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\ChannelAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ChatWidgetCrudTest extends TestCase
@@ -71,5 +74,55 @@ class ChatWidgetCrudTest extends TestCase
             'id' => $channelAccount->id,
             'status' => 'active',
         ]);
+    }
+
+    public function test_widget_exposes_client_footer_brand_with_a_safe_default(): void
+    {
+        $workspace = $this->ctx['workspace'];
+        $channelAccount = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $channelAccount->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+
+        $this->assertSame('WisperBot', $widget->publicConfig()['footer_company_name']);
+
+        $widget->update(['footer_company_name' => 'Netro Systems']);
+
+        $this->assertSame('Netro Systems', $widget->fresh()->publicConfig()['footer_company_name']);
+    }
+
+    public function test_custom_launcher_logo_requires_white_label_and_is_served_to_eligible_widgets(): void
+    {
+        Storage::fake('public');
+        $workspace = $this->ctx['workspace'];
+        $plan = Plan::create([
+            'name' => 'Pro',
+            'slug' => 'pro-'.uniqid(),
+            'price_cents' => 4900,
+            'currency_code' => 'USD',
+            'white_label_enabled' => true,
+        ]);
+        $this->attachPlanToClient($this->ctx['client'], $plan);
+
+        $this->actingAs($this->ctx['user'])
+            ->post(route('client.inbox.chat-widgets.store'), [
+                'name' => 'Branded chat',
+                'position' => 'bottom_right',
+                'launcher_logo' => UploadedFile::fake()->image('logo.png', 96, 96),
+            ])
+            ->assertRedirect(route('client.inbox.chat-widgets.index'));
+
+        $widget = ChatWidget::where('workspace_id', $workspace->id)->sole();
+        $this->assertNotNull($widget->launcher_logo_path);
+        Storage::disk('public')->assertExists($widget->launcher_logo_path);
+        $this->assertStringContainsString('/storage/', $widget->publicConfig()['launcher_logo_url']);
     }
 }

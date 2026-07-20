@@ -1691,6 +1691,14 @@ export default function InboxShow({
         : conversation.contact?.phone_e164 ?? 'Unknown';
 
     const assignedAgent = teamMembers.find(m => m.id === assignedUserId);
+    // Marketing permissions only have meaning when this contact has a usable
+    // delivery address. Do not show an anonymous website visitor a misleading
+    // Email: Yes row when there is no email address at all.
+    const consentChannels = [
+        conversation.contact?.phone_e164 && { key: 'whatsapp', label: 'WhatsApp', value: conversation.contact?.opt_in_whatsapp },
+        conversation.contact?.phone_e164 && { key: 'sms', label: 'SMS', value: conversation.contact?.opt_in_sms },
+        conversation.contact?.email && { key: 'email', label: t('common.email'), value: conversation.contact?.opt_in_email },
+    ].filter(Boolean);
 
     return (
         <InboxLayout>
@@ -2147,22 +2155,19 @@ export default function InboxShow({
                         </div>
                     )}
 
-                    {/* Opt-ins */}
-                    <div className="p-4 border-b border-neutral-100 dark:border-neutral-800">
+                    {/* Marketing permissions — only show reachable channels. */}
+                    {consentChannels.length > 0 && <div className="p-4 border-b border-neutral-100 dark:border-neutral-800">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">{t('inbox.opt_ins')}</p>
-                        {[
-                            ['whatsapp', 'WhatsApp', conversation.contact?.opt_in_whatsapp],
-                            ['sms', 'SMS', conversation.contact?.opt_in_sms],
-                            ['email', t('common.email'), conversation.contact?.opt_in_email],
-                        ].map(([chKey, k, v]) => (
-                            <div key={k} className="flex items-center justify-between text-xs py-1">
+                        {consentChannels.map(({ key, label, value }) => (
+                            <div key={key} className="flex items-center justify-between text-xs py-1">
                                 <span className="flex items-center gap-1.5 text-neutral-500">
-                                    <ChannelBrandIcon channel={chKey} className="h-3.5 w-3.5 shrink-0" />{k}
+                                    <ChannelBrandIcon channel={key} className="h-3.5 w-3.5 shrink-0" />{label}
                                 </span>
-                                <span className={`font-semibold ${v ? 'text-green-500' : 'text-neutral-300 dark:text-neutral-600'}`}>{v ? t('common.yes') : t('common.no')}</span>
+                                <span className={`font-semibold ${value ? 'text-green-500' : 'text-neutral-300 dark:text-neutral-600'}`}>{value ? t('common.yes') : t('common.no')}</span>
                             </div>
                         ))}
                     </div>
+                    }
 
                     {/* AI Handover */}
                     <div className="p-4">

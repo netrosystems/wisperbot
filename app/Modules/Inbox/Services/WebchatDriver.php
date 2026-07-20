@@ -173,6 +173,12 @@ class WebchatDriver implements ChannelDriverInterface
                 'last_name' => $last,
                 'email' => $email,
                 'avatar' => $avatar,
+                // Starting a chat or providing a pre-chat email address is not
+                // marketing consent. Keep every marketing channel opted out
+                // until the visitor explicitly grants permission.
+                'opt_in_whatsapp' => false,
+                'opt_in_sms' => false,
+                'opt_in_email' => false,
                 'custom_fields' => array_filter([
                     'webchat_visitor_id' => $visitorId,
                     'webchat_external_id' => $externalId ?: null,

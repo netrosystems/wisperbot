@@ -44,7 +44,7 @@ function Card({ title, icon, children }) {
     );
 }
 
-export default function ChatWidgetForm({ widget = null, chatbots = [], submitLabel, onSubmit }) {
+export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCustomLauncherLogo = false, submitLabel, onSubmit }) {
     const { t } = useTranslation();
 
     const { data, setData, processing, errors } = useForm({
@@ -57,6 +57,10 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], submitLab
         primary_color: widget?.primary_color ?? '#ff762e',
         position: widget?.position ?? 'bottom_right',
         launcher_text: widget?.launcher_text ?? '',
+        footer_company_name: widget?.footer_company_name ?? 'WisperBot',
+        launcher_logo: null,
+        remove_launcher_logo: false,
+        launcher_logo_url: widget?.launcher_logo_url ?? null,
         enabled: widget?.enabled ?? true,
         ai_enabled: widget?.ai_enabled ?? false,
         ai_chatbot_id: widget?.ai_chatbot_id ?? '',
@@ -125,6 +129,20 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], submitLab
                         <Field label="Launcher label" hint="Optional text next to the bubble.">
                             <input className={inputCls} value={data.launcher_text} onChange={(e) => setData('launcher_text', e.target.value)} placeholder="Chat with us" />
                         </Field>
+                        <Field label="Footer company name" hint="Shown to visitors as “Powered by {Company name}”. Leave as WisperBot to use the default.">
+                            <input className={inputCls} value={data.footer_company_name} onChange={(e) => setData('footer_company_name', e.target.value)} placeholder="Your company name" />
+                        </Field>
+                        {canUseCustomLauncherLogo && (
+                            <Field label="Launcher logo" hint="Optional. Upload a square PNG, JPG, WebP or GIF (max 2 MB).">
+                                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className={inputCls} onChange={(e) => setData('launcher_logo', e.target.files?.[0] ?? null)} />
+                                {data.launcher_logo_url && !data.remove_launcher_logo && (
+                                    <label className="mt-2 flex items-center gap-2 text-xs text-neutral-500">
+                                        <input type="checkbox" checked={data.remove_launcher_logo} onChange={(e) => setData('remove_launcher_logo', e.target.checked)} className="rounded" />
+                                        Remove the current custom logo
+                                    </label>
+                                )}
+                            </Field>
+                        )}
                     </div>
                 </Card>
 
@@ -236,6 +254,7 @@ function WidgetPreview({ data }) {
                 <span className="flex-1 text-[13px] text-neutral-400">Type your message…</span>
                 <span className="flex h-8 w-8 items-center justify-center rounded-full text-white" style={{ background: color }}><Send className="h-4 w-4" /></span>
             </div>
+            <div className="border-t border-neutral-100 bg-white py-1.5 text-center text-[10px] text-neutral-400">Powered by <b className="font-semibold text-neutral-600">{data.footer_company_name || 'WisperBot'}</b></div>
         </div>
     );
 }

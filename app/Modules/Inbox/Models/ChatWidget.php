@@ -2,9 +2,12 @@
 
 namespace App\Modules\Inbox\Models;
 
+use App\Models\Workspace;
 use App\Modules\Shared\Models\ChannelAccount;
+use App\Services\StorageManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -18,13 +21,16 @@ class ChatWidget extends Model
     protected $fillable = [
         'workspace_id', 'channel_account_id', 'widget_key', 'name',
         'title', 'subtitle', 'welcome_message', 'agent_name', 'avatar_url',
-        'primary_color', 'position', 'launcher_text',
+        'primary_color', 'position', 'launcher_text', 'footer_company_name',
+        'launcher_logo_path', 'launcher_logo_disk',
         'ai_enabled', 'ai_chatbot_id', 'require_prechat', 'prechat_fields',
         'offline_message', 'allowed_domains', 'working_hours_json', 'enabled',
         'identity_verification', 'identity_secret',
     ];
 
     protected $hidden = ['identity_secret'];
+
+    protected $appends = ['launcher_logo_url'];
 
     protected function casts(): array
     {
@@ -56,6 +62,27 @@ class ChatWidget extends Model
         return $this->belongsTo(ChannelAccount::class);
     }
 
+    public function workspace(): BelongsTo
+    {
+        return $this->belongsTo(Workspace::class);
+    }
+
+    public function getLauncherLogoUrlAttribute(): ?string
+    {
+        if (! $this->launcher_logo_path || ! $this->canUseCustomLauncherLogo()) {
+            return null;
+        }
+
+        $disk = $this->launcher_logo_disk ?: app(StorageManager::class)->diskName();
+
+        return Storage::disk($disk)->url($this->launcher_logo_path);
+    }
+
+    private function canUseCustomLauncherLogo(): bool
+    {
+        return (bool) $this->workspace?->client?->effectivePlan()?->hasFeature('white_label');
+    }
+
     /** Public theming/config surfaced to the embed script + widget UI. */
     public function publicConfig(): array
     {
@@ -69,6 +96,12 @@ class ChatWidget extends Model
             'primary_color' => $this->primary_color ?: '#ff762e',
             'position' => $this->position ?: 'bottom_right',
             'launcher_text' => $this->launcher_text,
+            // Every plan can use its own brand in the embedded widget. Existing
+            // widgets retain the familiar WisperBot fallback until edited.
+            'footer_company_name' => $this->footer_company_name ?: 'WisperBot',
+            // The product icon remains the default for every free widget.
+            // A custom launcher mark is only exposed for white-label plans.
+            'launcher_logo_url' => $this->launcher_logo_url ?: url('/wisperbot-icon.svg'),
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,

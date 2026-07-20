@@ -1,0 +1,57 @@
+<?php
+
+namespace Tests\Feature\Inbox;
+
+use App\Modules\Shared\Models\ChannelAccount;
+use App\Modules\Shared\Models\Contact;
+use App\Modules\Shared\Models\Conversation;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
+use Tests\TestCase;
+
+class InboxStatusFilterTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_all_view_includes_open_resolved_and_snoozed_conversations(): void
+    {
+        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+
+        foreach (['open', 'resolved', 'snoozed'] as $status) {
+            $contact = Contact::create([
+                'workspace_id' => $workspace->id,
+                'source' => 'webchat',
+                'first_name' => ucfirst($status),
+            ]);
+            Conversation::create([
+                'workspace_id' => $workspace->id,
+                'channel_account_id' => $account->id,
+                'contact_id' => $contact->id,
+                'status' => $status,
+                'external_thread_id' => 'visitor-'.$status,
+                'last_message_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($user)->get(route('client.inbox.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Inbox/Index')
+                ->where('conversations.total', 3)
+            );
+
+        $this->actingAs($user)->get(route('client.inbox.index', ['folder' => 'resolved']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('conversations.total', 1));
+
+        $this->actingAs($user)->get(route('client.inbox.index', ['folder' => 'snoozed']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('conversations.total', 1));
+    }
+}

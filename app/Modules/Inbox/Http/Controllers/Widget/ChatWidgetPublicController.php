@@ -202,6 +202,11 @@ class ChatWidgetPublicController extends Controller
             'id' => $m->id,
             'role' => $isAgent ? 'agent' : 'visitor',
             'body' => (string) $m->body,
+            'type' => $m->type,
+            // Website-chat media is stored by the inbox reply action. Expose
+            // only its generated public URL, never a provider media ID.
+            'attachment_url' => $m->payload['preview_url'] ?? null,
+            'filename' => $m->payload['filename'] ?? null,
             'sent_by' => $m->sent_by,
             'agent_name' => $isAgent ? ($widget->agent_name ?: 'Support') : null,
             'created_at' => optional($m->sent_at ?? $m->created_at)->toIso8601String(),

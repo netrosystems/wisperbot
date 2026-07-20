@@ -11,7 +11,10 @@ return new class extends Migration
         Schema::create('channel_accounts', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('workspace_id');
-            $table->enum('channel', ['whatsapp', 'instagram', 'messenger', 'sms', 'email']);
+            // Keep fresh installs and SQLite test databases aligned with the
+            // later webchat migration. Existing MySQL installs are upgraded by
+            // 2026_07_11_000001_add_webchat_to_channel_accounts_enum.php.
+            $table->enum('channel', ['whatsapp', 'instagram', 'messenger', 'sms', 'email', 'webchat']);
             $table->string('provider', 64)->nullable();
             $table->text('credentials')->nullable(); // encrypted:array
             $table->string('display_name', 128);

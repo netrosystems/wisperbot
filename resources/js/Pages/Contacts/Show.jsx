@@ -1,7 +1,7 @@
 import { Head, useForm, router } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import { ArrowLeft, MessageSquare, Phone, Mail, Globe, Camera, Trash2, Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 function OptInBadge({ label, active }) {
@@ -18,6 +18,13 @@ function AvatarUploader({ contact }) {
     const [preview, setPreview] = useState(contact.avatar_url ?? null);
     const [uploading, setUploading] = useState(false);
     const [dragOver, setDragOver] = useState(false);
+    const [uploadError, setUploadError] = useState(null);
+
+    // Inertia keeps this component mounted for form visits. Keep the avatar
+    // shown here tied to the saved server value, rather than a stale local URL.
+    useEffect(() => {
+        setPreview(contact.avatar_url ?? null);
+    }, [contact.uuid, contact.avatar_url]);
 
     const name = `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim();
     const initials = name
@@ -27,6 +34,7 @@ function AvatarUploader({ contact }) {
     const uploadFile = (file) => {
         if (!file || !file.type.startsWith('image/')) return;
         setPreview(URL.createObjectURL(file));
+        setUploadError(null);
         setUploading(true);
 
         const formData = new FormData();
@@ -34,6 +42,11 @@ function AvatarUploader({ contact }) {
         router.post(route('client.contacts.avatar.upload', contact.uuid), formData, {
             forceFormData: true,
             preserveScroll: true,
+            preserveState: false,
+            onError: (errors) => {
+                setPreview(contact.avatar_url ?? null);
+                setUploadError(errors.avatar ?? 'The image could not be uploaded. Please try again.');
+            },
             onFinish: () => setUploading(false),
         });
     };
@@ -53,7 +66,15 @@ function AvatarUploader({ contact }) {
     const handleDelete = () => {
         if (!confirm(t('contacts_page.avatar_confirm_remove'))) return;
         setPreview(null);
-        router.delete(route('client.contacts.avatar.delete', contact.uuid), { preserveScroll: true });
+        setUploadError(null);
+        router.delete(route('client.contacts.avatar.delete', contact.uuid), {
+            preserveScroll: true,
+            preserveState: false,
+            onError: () => {
+                setPreview(contact.avatar_url ?? null);
+                setUploadError('The image could not be removed. Please try again.');
+            },
+        });
     };
 
     return (
@@ -116,6 +137,7 @@ function AvatarUploader({ contact }) {
                 )}
             </div>
             <p className="text-xs text-neutral-400">{t('contacts_page.avatar_hint')}</p>
+            {uploadError && <p className="text-center text-xs text-red-600 dark:text-red-400">{uploadError}</p>}
             {contact.avatar_url && contact.avatar_url.startsWith('http') && !contact.avatar_url.includes('/storage/') && (
                 <p className="text-xs text-blue-500 dark:text-blue-400">{t('contacts_page.avatar_synced')}</p>
             )}
@@ -125,7 +147,7 @@ function AvatarUploader({ contact }) {
 
 export default function ContactShow({ contact, staticSegments = [] }) {
     const { t } = useTranslation();
-    const { data, setData, put, processing } = useForm({
+    const { data, setData, put, processing, errors } = useForm({
         first_name: contact.first_name ?? '',
         last_name: contact.last_name ?? '',
         email: contact.email ?? '',
@@ -139,7 +161,12 @@ export default function ContactShow({ contact, staticSegments = [] }) {
 
     const handleSave = (e) => {
         e.preventDefault();
-        put(route('client.contacts.update', contact.uuid), { preserveScroll: true });
+        put(route('client.contacts.update', contact.uuid), {
+            preserveScroll: true,
+            // Reload the saved contact props after a successful update. This
+            // prevents an old Inertia page state from making a saved edit look lost.
+            preserveState: false,
+        });
     };
 
     return (
@@ -183,6 +210,7 @@ export default function ContactShow({ contact, staticSegments = [] }) {
                         <div key={k}>
                             <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{l}</label>
                             <input type="text" value={data[k]} onChange={e => setData(k, e.target.value)} className="mt-1 w-full rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-1.5 text-sm" />
+                            {errors[k] && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors[k]}</p>}
                         </div>
                     ))}
                     <div className="flex gap-3 flex-wrap">
@@ -212,6 +240,7 @@ export default function ContactShow({ contact, staticSegments = [] }) {
                             </div>
                         </div>
                     )}
+                    {errors.segment_ids && <p className="text-xs text-red-600 dark:text-red-400">{errors.segment_ids}</p>}
                     <button type="submit" disabled={processing} className="w-full rounded-lg bg-brand-600 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition">
                         {processing ? t('common.saving') : t('contacts_page.save_changes')}
                     </button>

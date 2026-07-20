@@ -6,8 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\ChannelAccount;
+use App\Services\StorageManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,6 +23,8 @@ use Inertia\Response;
  */
 class ChatWidgetController extends Controller
 {
+    public function __construct(private readonly StorageManager $storageManager) {}
+
     public function index(Request $request): Response
     {
         $widgets = ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->get();
@@ -33,6 +39,7 @@ class ChatWidgetController extends Controller
     {
         return Inertia::render('Chat/Widgets/Create', [
             'chatbots' => $this->chatbots($request),
+            'canUseCustomLauncherLogo' => $this->canUseCustomLauncherLogo($request),
         ]);
     }
 
@@ -47,6 +54,7 @@ class ChatWidgetController extends Controller
             // Server-side only (the model hides identity_secret); shown to the
             // client so they can HMAC-sign logged-in users on their backend.
             'identitySecret' => $chatWidget->identity_secret,
+            'canUseCustomLauncherLogo' => $this->canUseCustomLauncherLogo($request),
         ]);
     }
 
@@ -54,6 +62,7 @@ class ChatWidgetController extends Controller
     {
         $data = $this->validated($request);
         $workspaceId = $this->workspaceId($request);
+        $data = $this->applyLauncherLogo($request, $data);
 
         $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspaceId,
@@ -75,6 +84,7 @@ class ChatWidgetController extends Controller
     {
         $this->assertOwner($request, $chatWidget);
         $data = $this->validated($request);
+        $data = $this->applyLauncherLogo($request, $data, $chatWidget);
 
         $chatWidget->update($data);
 
@@ -113,6 +123,9 @@ class ChatWidgetController extends Controller
             'primary_color' => ['nullable', 'string', 'max:16'],
             'position' => ['required', 'in:bottom_right,bottom_left'],
             'launcher_text' => ['nullable', 'string', 'max:64'],
+            'footer_company_name' => ['nullable', 'string', 'max:128'],
+            'launcher_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:2048'],
+            'remove_launcher_logo' => ['nullable', 'boolean'],
             'ai_chatbot_id' => ['nullable', 'integer'],
             'prechat_fields' => ['nullable', 'array'],
             'offline_message' => ['nullable', 'string', 'max:512'],
@@ -126,7 +139,63 @@ class ChatWidgetController extends Controller
         $data['identity_verification'] = $request->boolean('identity_verification');
         $data['enabled'] = $request->has('enabled') ? $request->boolean('enabled') : true;
 
+        unset($data['launcher_logo'], $data['remove_launcher_logo']);
+
         return $data;
+    }
+
+    /** @param array<string, mixed> $data */
+    private function applyLauncherLogo(Request $request, array $data, ?ChatWidget $widget = null): array
+    {
+        $canUseCustomLogo = $this->canUseCustomLauncherLogo($request);
+        $hasUpload = $request->hasFile('launcher_logo');
+
+        if ($hasUpload && ! $canUseCustomLogo) {
+            throw ValidationException::withMessages([
+                'launcher_logo' => 'A custom launcher logo is available with white-label branding.',
+            ]);
+        }
+
+        // A downgrade never continues serving a paid white-label asset.
+        if (! $canUseCustomLogo || $request->boolean('remove_launcher_logo')) {
+            $this->deleteLauncherLogo($widget);
+
+            return array_merge($data, ['launcher_logo_path' => null, 'launcher_logo_disk' => null]);
+        }
+
+        if (! $hasUpload) {
+            return $data;
+        }
+
+        $this->deleteLauncherLogo($widget);
+        $file = $request->file('launcher_logo');
+        $path = $this->storageManager->prefixedPath('widget-launchers/'.Str::uuid().'.'.$file->getClientOriginalExtension());
+        $disk = $this->storageManager->disk();
+        if ($disk->putFileAs(dirname($path), $file, basename($path)) === false) {
+            throw ValidationException::withMessages([
+                'launcher_logo' => 'The logo could not be uploaded to the configured storage provider.',
+            ]);
+        }
+
+        return array_merge($data, [
+            'launcher_logo_path' => $path,
+            'launcher_logo_disk' => $this->storageManager->diskName(),
+        ]);
+    }
+
+    private function deleteLauncherLogo(?ChatWidget $widget): void
+    {
+        if (! $widget?->launcher_logo_path) {
+            return;
+        }
+
+        $disk = $widget->launcher_logo_disk ?: $this->storageManager->diskName();
+        Storage::disk($disk)->delete($widget->launcher_logo_path);
+    }
+
+    private function canUseCustomLauncherLogo(Request $request): bool
+    {
+        return (bool) $request->user()?->effectiveSubscription()?->plan?->hasFeature('white_label');
     }
 
     /**

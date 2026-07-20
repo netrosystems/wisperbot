@@ -42,8 +42,8 @@ export default function AddonsIndex({ addon, subscription, gateways = [], can_ma
                 {flash?.error && <div className="rounded-lg bg-coral-50 px-4 py-3 text-sm text-coral-800 dark:bg-coral-900/20 dark:text-coral-200">{flash.error}</div>}
 
                 <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-800/60">
-                    <div className="grid gap-6 p-6 md:grid-cols-[1fr_auto]">
-                        <div>
+                    <div className="grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_20rem]">
+                        <div className="min-w-0">
                             <div className="flex items-center gap-3">
                                 <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
                                     <Code2 className="h-5 w-5" />
@@ -58,14 +58,14 @@ export default function AddonsIndex({ addon, subscription, gateways = [], can_ma
                                 </div>
                             </div>
 
-                            <ul className="mt-5 grid gap-2 text-sm text-neutral-700 dark:text-neutral-300 sm:grid-cols-3">
+                            <ul className="mt-5 grid gap-x-5 gap-y-2 text-sm text-neutral-700 dark:text-neutral-300 sm:grid-cols-2">
                                 {['API token management', 'Outbound webhooks', 'Complete API documentation'].map((feature) => (
                                     <li key={feature} className="flex items-center gap-2"><Check className="h-4 w-4 shrink-0 text-green-500" />{feature}</li>
                                 ))}
                             </ul>
                         </div>
 
-                        <div className="min-w-48 border-t border-neutral-200 pt-5 md:border-l md:border-t-0 md:pl-6 md:pt-0 dark:border-neutral-700">
+                        <div className="min-w-0 border-t border-neutral-200 pt-5 md:border-l md:border-t-0 md:pl-6 md:pt-0 dark:border-neutral-700">
                             <div className="text-3xl font-bold text-neutral-900 dark:text-white">{price}<span className="text-sm font-normal text-neutral-500">/{addon.interval}</span></div>
 
                             {subscription?.active ? (

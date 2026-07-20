@@ -46,7 +46,10 @@ class InboxController extends Controller
             ->when($request->folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($request->channel, fn ($q) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $request->channel)))
             ->when($request->account_id, fn ($q) => $q->where('channel_account_id', $request->account_id))
-            ->when(! in_array($request->folder, ['resolved', 'snoozed'], true), fn ($q) => $q->where('status', 'open'))
+            // "All" is intentionally unfiltered: resolved and snoozed threads
+            // remain discoverable from the primary inbox view. The dedicated
+            // views below are narrower shortcuts, not the only place those
+            // conversations can be found.
             ->when($request->folder === 'resolved', fn ($q) => $q->where('status', 'resolved'))
             ->when($request->folder === 'snoozed', fn ($q) => $q->where('status', 'snoozed'))
             ->when($request->label, fn ($q) => $q->whereHas('labels', fn ($q) => $q->where('inbox_labels.id', $request->label)))
@@ -111,7 +114,8 @@ class InboxController extends Controller
             ->when(($filters['folder'] ?? null) === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($filters['channel'] ?? null, fn ($q, $ch) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $ch)))
             ->when($filters['account_id'] ?? null, fn ($q, $aid) => $q->where('channel_account_id', $aid))
-            ->when(! in_array($filters['folder'] ?? null, ['resolved', 'snoozed'], true), fn ($q) => $q->where('status', 'open'))
+            // Keep the list on the conversation page consistent with the main
+            // inbox: no folder means every status, including resolved/snoozed.
             ->when(($filters['folder'] ?? null) === 'resolved', fn ($q) => $q->where('status', 'resolved'))
             ->when(($filters['folder'] ?? null) === 'snoozed', fn ($q) => $q->where('status', 'snoozed'))
             ->when($filters['label'] ?? null, fn ($q, $lid) => $q->whereHas('labels', fn ($q) => $q->where('inbox_labels.id', $lid)))
@@ -163,6 +167,7 @@ class InboxController extends Controller
 
         $msgType = $validated['type'] ?? 'text';
         $msgPayload = $validated['payload'] ?? null;
+        $channel = $conversation->channelAccount?->channel ?? 'whatsapp';
 
         // Handle direct file attachment (image / document sent from compose bar)
         if ($request->hasFile('attachment')) {
@@ -175,23 +180,33 @@ class InboxController extends Controller
                     : (str_starts_with($mimeType, 'video/') ? 'video' : 'document');
             }
 
-            // Upload to WhatsApp so we have a media_id for sending
-            $client = CloudApiClient::forWorkspace($conversation->workspace_id);
-            if (! $client) {
-                return response()->json(['error' => 'No active WhatsApp account.'], 422);
-            }
-
-            $mediaId = $client->uploadMedia($file->getRealPath(), $mimeType);
+            // Every channel needs a public URL for the local preview. WhatsApp is
+            // the only channel that additionally needs a Graph API media ID. The
+            // old implementation performed that WhatsApp-only upload for every
+            // conversation, which prevented website-chat, Messenger, and
+            // Instagram agents from attaching a file when no WhatsApp account
+            // was connected.
             $storedPath = $this->storageManager->prefixedPath('message-media/'.$file->hashName());
             $this->storageManager->disk()->putFileAs(dirname($storedPath), $file, basename($storedPath));
             $previewUrl = $this->storageManager->disk()->url($storedPath);
 
-            $msgPayload = array_merge($msgPayload ?? [], [
-                'media_id' => $mediaId,
+            $attachmentPayload = [
                 'preview_url' => $previewUrl,
                 'caption' => $validated['body'] ?? null,
                 'filename' => $file->getClientOriginalName(),
-            ]);
+                'mime_type' => $mimeType,
+            ];
+
+            if ($channel === 'whatsapp') {
+                $client = CloudApiClient::forWorkspace($conversation->workspace_id);
+                if (! $client) {
+                    return response()->json(['error' => 'No active WhatsApp account.'], 422);
+                }
+
+                $attachmentPayload['media_id'] = $client->uploadMedia($file->getRealPath(), $mimeType);
+            }
+
+            $msgPayload = array_merge($msgPayload ?? [], $attachmentPayload);
 
             // For image/document the 'body' shown in the chat is the caption or filename
             $validated['body'] = $validated['body'] ?? $file->getClientOriginalName();
@@ -223,7 +238,6 @@ class InboxController extends Controller
         ]);
 
         // Send via the channel driver
-        $channel = $conversation->channelAccount?->channel ?? 'whatsapp';
         $sendError = null;
         try {
             $driver = $this->channelManager->driver($channel);

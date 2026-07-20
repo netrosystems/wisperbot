@@ -91,7 +91,7 @@
   thread.forEach(function (m) {
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    addBubble(m.role, m.body, m.agent_name);
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename);
   });
   updateStatus();
   if (prechatNeeded) { prechat.style.display = 'block'; form.style.display = 'none'; }
@@ -211,12 +211,12 @@
     if (!m || rendered[m.id]) return;
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name });
+    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename });
     saveThread();
-    addBubble(m.role, m.body, m.agent_name);
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename);
   }
 
-  function addBubble(role, text, name) {
+  function addBubble(role, text, name, attachmentUrl, type, filename) {
     var row = document.createElement('div');
     row.className = 'wb-row wb-' + (role === 'visitor' ? 'out' : 'in');
     var av = '';
@@ -225,7 +225,14 @@
         ? '<img class="wb-av" src="' + esc(CFG.avatar_url) + '" alt="">'
         : '<span class="wb-av wb-av-ini">' + esc(initial(name || CFG.agent_name)) + '</span>';
     }
-    row.innerHTML = av + '<div class="wb-bubble">' + esc(text).replace(/\n/g, '<br>') + '</div>';
+    var attachment = '';
+    if (attachmentUrl && type === 'image') {
+      attachment = '<img class="wb-media-image" src="' + esc(attachmentUrl) + '" alt="' + esc(filename || text || 'Image attachment') + '">';
+    } else if (attachmentUrl) {
+      attachment = '<a class="wb-media-file" href="' + esc(attachmentUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(filename || 'Open attachment') + '</a>';
+    }
+    var caption = text ? '<div class="wb-caption">' + esc(text).replace(/\n/g, '<br>') + '</div>' : '';
+    row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + '</div>';
     body.appendChild(row);
     scrollDown();
   }
@@ -265,6 +272,9 @@
       ? '<input class="wb-pc-name" type="text" placeholder="Your name" required>' : '';
     var pcEmail = (CFG.prechat_fields || []).indexOf('email') !== -1
       ? '<input class="wb-pc-email" type="email" placeholder="Email address" required>' : '';
+    var launcherIcon = CFG.launcher_logo_url
+      ? '<img class="wb-launcher-logo" src="' + esc(CFG.launcher_logo_url) + '" alt="">'
+      : '<svg class="wb-ic-chat" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.5 3 2 6.9 2 11.7c0 2.2 1 4.3 2.6 5.8-.1 1-.5 2.4-1.4 3.4 1.5-.2 3.2-.8 4.3-1.6 1.4.6 2.9.9 4.5.9 5.5 0 10-3.9 10-8.7S17.5 3 12 3z"/></svg>';
     return '' +
       '<div class="wb-panel" role="dialog" aria-label="Chat">' +
         '<div class="wb-header">' + av +
@@ -285,11 +295,11 @@
             '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>' +
           '</button>' +
         '</form>' +
-        '<div class="wb-brand">Powered by <b>WisperBot</b></div>' +
+        '<div class="wb-brand">Powered by <b>' + esc(CFG.footer_company_name || 'WisperBot') + '</b></div>' +
       '</div>' +
       '<button class="wb-launcher" aria-label="Open chat">' +
         '<span class="wb-badge"></span>' +
-        '<svg class="wb-ic-chat" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.5 3 2 6.9 2 11.7c0 2.2 1 4.3 2.6 5.8-.1 1-.5 2.4-1.4 3.4 1.5-.2 3.2-.8 4.3-1.6 1.4.6 2.9.9 4.5.9 5.5 0 10-3.9 10-8.7S17.5 3 12 3z"/></svg>' +
+        launcherIcon +
         '<svg class="wb-ic-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
       '</button>';
   }
@@ -303,7 +313,7 @@
       '.wb-launcher{position:relative;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;color:#fff;background:' + COLOR + ';box-shadow:0 6px 24px rgba(0,0,0,.24);display:flex;align-items:center;justify-content:center;transition:transform .2s}',
       '.wb-launcher:hover{transform:scale(1.06)}.wb-launcher:active{transform:scale(.96)}',
       '.wb-ic-close{display:none}',
-      '.wb-active .wb-ic-chat{display:none}.wb-active .wb-ic-close{display:block}',
+      '.wb-launcher-logo{width:30px;height:30px;object-fit:contain}.wb-active .wb-launcher-logo,.wb-active .wb-ic-chat{display:none}.wb-active .wb-ic-close{display:block}',
       '.wb-badge{display:none;position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#ef4444;border:2px solid #fff}',
       '.wb-panel{position:absolute;bottom:74px;' + (LEFT ? 'left:0' : 'right:0') + ';width:370px;max-width:calc(100vw - 40px);height:560px;max-height:calc(100vh - 120px);background:#fff;border-radius:18px;box-shadow:0 16px 50px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(12px) scale(.98);pointer-events:none;transition:opacity .2s,transform .22s cubic-bezier(.34,1.4,.6,1);transform-origin:bottom ' + (LEFT ? 'left' : 'right') + '}',
       '.wb-open .wb-panel{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}',
@@ -324,6 +334,7 @@
       '.wb-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;word-wrap:break-word;white-space:normal}',
       '.wb-in .wb-bubble{background:#fff;color:#1f2430;border:1px solid #eceef2;border-bottom-left-radius:5px}',
       '.wb-out .wb-bubble{background:' + COLOR + ';color:#fff;border-bottom-right-radius:5px}',
+      '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-caption:empty{display:none}.wb-media-file{display:block;color:inherit;font-weight:600;text-decoration:underline;word-break:break-word}',
       '.wb-prechat{display:none;padding:18px;background:#fff}',
       '.wb-pc-intro{font-size:13px;color:#6b7280;margin-bottom:12px}',
       '.wb-prechat-form{display:flex;flex-direction:column;gap:10px}',
