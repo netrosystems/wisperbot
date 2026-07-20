@@ -1,7 +1,7 @@
 import { useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, MessageCircle, Send, Sparkles } from 'lucide-react';
+import { Bot, Lock, MessageCircle, Send, Sparkles } from 'lucide-react';
 
 /** Small labelled field wrapper. */
 function Field({ label, hint, children }) {
@@ -132,8 +132,14 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                         <Field label="Footer company name" hint="Shown to visitors as “Powered by {Company name}”. Leave as WisperBot to use the default.">
                             <input className={inputCls} value={data.footer_company_name} onChange={(e) => setData('footer_company_name', e.target.value)} placeholder="Your company name" />
                         </Field>
-                        {canUseCustomLauncherLogo && (
-                            <Field label="Launcher logo" hint="Optional. Upload a square PNG, JPG, WebP or GIF (max 2 MB).">
+                        <Field
+                            label="Launcher icon"
+                            hint={canUseCustomLauncherLogo
+                                ? 'Optional. Upload a square PNG, JPG, WebP or GIF (max 2 MB).'
+                                : 'Your widget currently uses the WisperBot icon. Custom launcher icon change access comes with Paid plans only.'}
+                        >
+                            {canUseCustomLauncherLogo ? (
+                                <>
                                 <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className={inputCls} onChange={(e) => setData('launcher_logo', e.target.files?.[0] ?? null)} />
                                 {data.launcher_logo_url && !data.remove_launcher_logo && (
                                     <label className="mt-2 flex items-center gap-2 text-xs text-neutral-500">
@@ -141,8 +147,14 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                                         Remove the current custom logo
                                     </label>
                                 )}
-                            </Field>
-                        )}
+                                </>
+                            ) : (
+                                <div className="flex min-h-10 items-center gap-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-400">
+                                    <Lock className="h-4 w-4 shrink-0" />
+                                    Available with white-label branding
+                                </div>
+                            )}
+                        </Field>
                     </div>
                 </Card>
 

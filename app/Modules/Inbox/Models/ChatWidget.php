@@ -101,7 +101,7 @@ class ChatWidget extends Model
             'footer_company_name' => $this->footer_company_name ?: 'WisperBot',
             // The product icon remains the default for every free widget.
             // A custom launcher mark is only exposed for white-label plans.
-            'launcher_logo_url' => $this->launcher_logo_url ?: url('/wisperbot-icon.svg'),
+            'launcher_logo_url' => $this->launcher_logo_url ?: url('/wisperbot-icon-white.svg'),
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,
