@@ -27,6 +27,7 @@ class SmsStatusWebhookController extends Controller
             'messagebird' => $this->verifyMessageBird($request),
             'smsbd'       => $this->verifySmsBd($request),
             'reve'        => $this->verifyReve($request),
+            'alaris'      => $this->verifyGenericToken($request, 'alaris'),
             'bulksmsbd'   => $this->verifyGenericToken($request, 'bulksmsbd'),
             'sms_dot_bd'  => null, // sms.net.bd does not sign DLR callbacks
             'mimsms'      => $this->verifyGenericToken($request, 'mimsms'),
@@ -40,6 +41,7 @@ class SmsStatusWebhookController extends Controller
             'messagebird' => [$request->input('id'), $this->mapMessageBirdStatus($request->input('status'))],
             'smsbd'       => [$request->input('Message_ID') ?? $request->input('msgid'), $this->mapSmsBdStatus($request->input('Delivery_Status') ?? $request->input('status'))],
             'reve'        => [$request->input('message_id'), $this->mapReveStatus($request->input('status') ?? $request->input('delivery_status'))],
+            'alaris'      => [$request->input('dlvrMsgId') ?? $request->input('messageId') ?? $request->input('message_id'), $this->mapSmsBdStatus($request->input('dlvrMsgStat') ?? $request->input('status') ?? $request->input('delivery_status'))],
             'bulksmsbd'   => [$request->input('message_id'), $this->mapSmsBdStatus($request->input('status') ?? $request->input('delivery_status'))],
             'sms_dot_bd'  => [$request->input('batch_id') ?? $request->input('message_id'), $this->mapSmsBdStatus($request->input('status'))],
             'mimsms'      => [$request->input('message_id'), $this->mapSmsBdStatus($request->input('status') ?? $request->input('delivery_status'))],

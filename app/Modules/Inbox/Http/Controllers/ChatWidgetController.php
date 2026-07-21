@@ -152,7 +152,7 @@ class ChatWidgetController extends Controller
 
         if ($hasUpload && ! $canUseCustomLogo) {
             throw ValidationException::withMessages([
-                'launcher_logo' => 'A custom launcher logo is available with white-label branding.',
+                'launcher_logo' => 'Upgrade to Pro to upload a custom launcher icon.',
             ]);
         }
 

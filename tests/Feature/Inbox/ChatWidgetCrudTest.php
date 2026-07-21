@@ -100,7 +100,7 @@ class ChatWidgetCrudTest extends TestCase
         $this->assertSame('Netro Systems', $widget->fresh()->publicConfig()['footer_company_name']);
     }
 
-    public function test_custom_launcher_logo_requires_white_label_and_is_served_to_eligible_widgets(): void
+    public function test_custom_launcher_logo_requires_a_pro_entitlement_and_is_served_to_eligible_widgets(): void
     {
         Storage::fake('public');
         $workspace = $this->ctx['workspace'];
@@ -125,5 +125,25 @@ class ChatWidgetCrudTest extends TestCase
         $this->assertNotNull($widget->launcher_logo_path);
         Storage::disk('public')->assertExists($widget->launcher_logo_path);
         $this->assertStringContainsString('/storage/', $widget->publicConfig()['launcher_logo_url']);
+    }
+
+    public function test_non_pro_workspace_cannot_upload_a_custom_launcher_logo(): void
+    {
+        Storage::fake('public');
+
+        $this->actingAs($this->ctx['user'])
+            ->post(route('client.inbox.chat-widgets.store'), [
+                'name' => 'Free plan chat',
+                'position' => 'bottom_right',
+                'launcher_logo' => UploadedFile::fake()->image('logo.png', 96, 96),
+            ])
+            ->assertSessionHasErrors([
+                'launcher_logo' => 'Upgrade to Pro to upload a custom launcher icon.',
+            ]);
+
+        $this->assertDatabaseMissing('chat_widgets', [
+            'workspace_id' => $this->ctx['workspace']->id,
+            'name' => 'Free plan chat',
+        ]);
     }
 }

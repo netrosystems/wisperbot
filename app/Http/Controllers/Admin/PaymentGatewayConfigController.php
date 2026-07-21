@@ -73,10 +73,16 @@ class PaymentGatewayConfigController extends Controller
             'enabled' => $config->enabled,
             'test_publishable_key' => $test['publishable_key'] ?? '',
             'test_secret_key' => ($test['secret_key'] ?? '') !== '' ? '••••••••' : '',
-            'test_webhook_secret' => ($test['webhook_secret'] ?? '') !== '' ? '••••••••' : '',
+            // PayPal verifies incoming events with the webhook *ID*, not a
+            // signing secret. It is safe and much less confusing to show it.
+            'test_webhook_secret' => $config->gateway === 'paypal'
+                ? ($test['webhook_secret'] ?? '')
+                : (($test['webhook_secret'] ?? '') !== '' ? '••••••••' : ''),
             'live_publishable_key' => $live['publishable_key'] ?? '',
             'live_secret_key' => ($live['secret_key'] ?? '') !== '' ? '••••••••' : '',
-            'live_webhook_secret' => ($live['webhook_secret'] ?? '') !== '' ? '••••••••' : '',
+            'live_webhook_secret' => $config->gateway === 'paypal'
+                ? ($live['webhook_secret'] ?? '')
+                : (($live['webhook_secret'] ?? '') !== '' ? '••••••••' : ''),
         ];
 
         return response()->json($data);
@@ -147,7 +153,7 @@ class PaymentGatewayConfigController extends Controller
             $labels = [
                 'publishable_key' => $gateway === 'paypal' ? 'Client ID' : 'Publishable key',
                 'secret_key' => $gateway === 'paypal' ? 'Client secret' : 'Secret key',
-                'webhook_secret' => 'Webhook signing secret',
+                'webhook_secret' => $gateway === 'paypal' ? 'PayPal Webhook ID' : 'Webhook signing secret',
             ];
 
             $messages = [];

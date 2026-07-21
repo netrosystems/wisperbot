@@ -144,9 +144,13 @@ function EditGatewayModal({ show, gatewayKey, initialData, loading, error, valid
 
     // Gateway-specific guidance for legacy gateways is intentionally disabled.
     const isStripe = gatewayKey === 'stripe';
+    const isPayPal = gatewayKey === 'paypal';
     const publishableHint = isStripe ? t('admin.stripe_pk_hint') : t('admin.publishable_key_hint');
     const secretHint = isStripe ? t('admin.stripe_sk_hint') : t('admin.secret_key_hint');
-    const webhookHint = isStripe ? t('admin.stripe_webhook_hint') : t('admin.webhook_hint');
+    const webhookLabel = isPayPal ? 'PayPal Webhook ID' : t('admin.webhook_secret');
+    const webhookHint = isPayPal
+        ? 'Create a webhook in your PayPal dashboard for this site, then paste its Webhook ID here. This is not a signing secret.'
+        : (isStripe ? t('admin.stripe_webhook_hint') : t('admin.webhook_hint'));
     const gatewayNote = t('admin.gateway_credentials_note');
 
     return (
@@ -213,13 +217,23 @@ function EditGatewayModal({ show, gatewayKey, initialData, loading, error, valid
                                         <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{secretHint}</p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('admin.webhook_secret')}</label>
-                                        <PasswordInput
+                                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">{webhookLabel}</label>
+                                        {isPayPal ? (
+                                            <input
+                                                type="text"
+                                                value={data.test_webhook_secret}
+                                                onChange={(e) => setData('test_webhook_secret', e.target.value)}
+                                                placeholder="WH-…"
+                                                className="mt-1 w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                                            />
+                                        ) : (
+                                            <PasswordInput
                                             value={data.test_webhook_secret}
                                             onChange={(e) => setData('test_webhook_secret', e.target.value)}
                                             placeholder={t('admin.webhook_secret_placeholder')}
                                             className="mt-1 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                                        />
+                                            />
+                                        )}
                                         <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{webhookHint}</p>
                                     </div>
                                 </div>
@@ -255,13 +269,23 @@ function EditGatewayModal({ show, gatewayKey, initialData, loading, error, valid
                                         )}
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('admin.webhook_secret')}</label>
-                                        <PasswordInput
+                                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">{webhookLabel}</label>
+                                        {isPayPal ? (
+                                            <input
+                                                type="text"
+                                                value={data.live_webhook_secret}
+                                                onChange={(e) => setData('live_webhook_secret', e.target.value)}
+                                                placeholder="WH-…"
+                                                className="mt-1 w-full rounded-soft border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                                            />
+                                        ) : (
+                                            <PasswordInput
                                             value={data.live_webhook_secret}
                                             onChange={(e) => setData('live_webhook_secret', e.target.value)}
                                             placeholder={t('admin.webhook_secret_placeholder')}
                                             className="mt-1 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                                        />
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             </div>

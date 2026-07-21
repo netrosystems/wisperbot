@@ -73,4 +73,8 @@ return [
         'webhook_secret' => env('FAST2SMS_WEBHOOK_SECRET'),
     ],
 
+    'alaris' => [
+        'webhook_secret' => env('ALARIS_WEBHOOK_SECRET'),
+    ],
+
 ];

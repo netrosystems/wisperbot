@@ -60,7 +60,7 @@ class PlanSeeder extends Seeder
                 'monthly_price_cents' => 2900,
                 'yearly_price_cents' => 29000,
                 'trial_days' => 14,
-                'features' => ['Up to 10 team members', '50 GB storage', 'Priority support', 'Advanced analytics'],
+                'features' => ['Up to 10 team members', '50 GB storage', 'Priority support', 'Advanced analytics', 'Custom widget launcher icon'],
                 'limits' => [
                     'users' => 10,
                     'storage' => 51200,
@@ -78,7 +78,7 @@ class PlanSeeder extends Seeder
                     'social_posts_per_month' => 200,
                     'automations' => 20,
                 ],
-                'white_label_enabled' => false,
+                'white_label_enabled' => true,
                 'sort_order' => 2,
                 'enabled' => true,
                 'featured' => false,

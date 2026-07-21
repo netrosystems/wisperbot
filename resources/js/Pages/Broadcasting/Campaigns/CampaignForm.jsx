@@ -34,7 +34,6 @@ const STEPS = [
 const CHANNEL_META = {
     whatsapp: { label: 'WhatsApp', Icon: (p) => <ChannelBrandIcon channel="whatsapp" {...p} /> },
     sms: { label: 'SMS', Icon: (p) => <ChannelBrandIcon channel="sms" {...p} /> },
-    email: { label: 'Email', Icon: (p) => <ChannelBrandIcon channel="email" {...p} /> },
 };
 
 const inputClass =
@@ -705,7 +704,7 @@ function ChannelStep({ data, setData, errors, whatsappPhoneNumbers = [] }) {
                 <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 block mb-2">
                     {t('campaign.channel')}
                 </label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                     {Object.entries(CHANNEL_META).map(([val, meta]) => {
                         const Brand = meta.Icon;
                         const active = data.channel === val;

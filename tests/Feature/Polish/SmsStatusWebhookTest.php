@@ -73,6 +73,40 @@ class SmsStatusWebhookTest extends TestCase
         ]);
     }
 
+    public function test_alaris_delivery_report_updates_recipient_status(): void
+    {
+        config(['services.alaris.webhook_secret' => 'alaris-test-token']);
+        $recipient = $this->makeRecipient('ALARIS_001');
+
+        $this->postJson(route('webhooks.sms.status', 'alaris'), [
+            'token' => 'alaris-test-token',
+            'dlvrMsgId' => 'ALARIS_001',
+            'dlvrMsgStat' => 'DELIVRD',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('campaign_recipients', [
+            'provider_message_id' => 'ALARIS_001',
+            'status' => 'delivered',
+        ]);
+    }
+
+    public function test_alaris_delivery_report_can_be_received_by_get_callback(): void
+    {
+        config(['services.alaris.webhook_secret' => 'alaris-test-token']);
+        $recipient = $this->makeRecipient('ALARIS_GET_001');
+
+        $this->get(route('webhooks.sms.alaris', [
+            'token' => 'alaris-test-token',
+            'dlvrMsgId' => 'ALARIS_GET_001',
+            'dlvrMsgStat' => 'DELIVRD',
+        ]))->assertOk();
+
+        $this->assertDatabaseHas('campaign_recipients', [
+            'provider_message_id' => 'ALARIS_GET_001',
+            'status' => 'delivered',
+        ]);
+    }
+
     public function test_smsbd_failed_status_maps_correctly(): void
     {
         $recipient = $this->makeRecipient('SMSBD_FAIL');

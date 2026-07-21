@@ -12,7 +12,7 @@ use Inertia\Response;
 
 class SmsProviderController extends Controller
 {
-    public const PROVIDERS = ['twilio', 'nexmo', 'messagebird', 'smsbd', 'reve', 'bulksmsbd', 'sms_dot_bd', 'mimsms', 'fast2sms', 'amazon_sns'];
+    public const PROVIDERS = ['twilio', 'nexmo', 'messagebird', 'smsbd', 'reve', 'alaris', 'bulksmsbd', 'sms_dot_bd', 'mimsms', 'fast2sms', 'amazon_sns'];
 
     public const FIELDS = [
         'twilio' => [
@@ -37,6 +37,14 @@ class SmsProviderController extends Controller
             ['key' => 'api_key',    'label' => 'API Key',     'type' => 'password', 'required' => true],
             ['key' => 'api_secret', 'label' => 'API Secret',  'type' => 'password', 'required' => true],
             ['key' => 'mask',       'label' => 'Sender Mask', 'type' => 'text',     'required' => false],
+        ],
+        'alaris' => [
+            ['key' => 'base_url', 'label' => 'HTTPS API Base URL', 'type' => 'text', 'required' => true],
+            ['key' => 'username', 'label' => 'Username', 'type' => 'text', 'required' => true],
+            ['key' => 'password', 'label' => 'Password', 'type' => 'password', 'required' => true],
+            ['key' => 'sender_id', 'label' => 'Sender ID (ANI)', 'type' => 'text', 'required' => true],
+            ['key' => 'service_type', 'label' => 'Service Type', 'type' => 'text', 'required' => false],
+            ['key' => 'long_message_mode', 'label' => 'Long Message Mode', 'type' => 'text', 'required' => false],
         ],
         'bulksmsbd' => [
             ['key' => 'api_key',   'label' => 'API Key',   'type' => 'password', 'required' => true],
@@ -70,6 +78,7 @@ class SmsProviderController extends Controller
         'messagebird' => 'MessageBird',
         'smsbd'       => 'SMSBD',
         'reve'        => 'REVE SMS',
+        'alaris'      => 'Alaris SMS Platform',
         'bulksmsbd'   => 'BulkSMS BD',
         'sms_dot_bd'  => 'SMS.BD (sms.net.bd)',
         'mimsms'      => 'MimSMS',
@@ -107,6 +116,11 @@ class SmsProviderController extends Controller
         $rules = ['sender_id' => ['nullable', 'string', 'max:64'], 'default' => ['boolean']];
         foreach ($fields as $f) {
             $rules['credentials.'.$f['key']] = ['nullable', 'string', 'max:512'];
+        }
+        if ($provider === 'alaris') {
+            // The guide also documents plain HTTP, but credentials must never be
+            // sent unencrypted from a production WisperBot installation.
+            $rules['credentials.base_url'] = ['required', 'url', 'starts_with:https://', 'max:512'];
         }
 
         $validated = $request->validate($rules);

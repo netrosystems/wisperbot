@@ -77,7 +77,7 @@ class CampaignController extends Controller
         $validated = $request->validate([
             'uuid'                      => ['nullable', 'string', 'uuid'],
             'name'                      => ['required', 'string', 'max:128'],
-            'channel'                   => ['required', 'in:whatsapp,sms,email'],
+            'channel'                   => ['required', 'in:whatsapp,sms'],
             'whatsapp_phone_number_id'  => ['nullable', 'string'],
             'audience_type'             => ['nullable', 'in:segment,contact_list,tag,csv'],
             'audience_ref'              => ['nullable', 'string'],
@@ -239,7 +239,7 @@ class CampaignController extends Controller
         $validated = $request->validate([
             'audience_type' => ['required', 'in:segment,contact_list,tag,csv'],
             'audience_ref' => ['nullable', 'string'],
-            'channel' => ['required', 'in:whatsapp,sms,email'],
+            'channel' => ['required', 'in:whatsapp,sms'],
         ]);
 
         $contactIds = $this->resolveAudienceForPreview(
@@ -253,7 +253,6 @@ class CampaignController extends Controller
         $optInColumn = match ($validated['channel']) {
             'whatsapp' => 'opt_in_whatsapp',
             'sms' => 'opt_in_sms',
-            'email' => 'opt_in_email',
         };
 
         $deliverable = 0;
@@ -265,11 +264,7 @@ class CampaignController extends Controller
                 ->whereIn('id', $contactIds)
                 ->where($optInColumn, true);
 
-            if ($validated['channel'] === 'email') {
-                $query->whereNotNull('email')->where('email', '!=', '');
-            } else {
-                $query->whereNotNull('phone_e164')->where('phone_e164', '!=', '');
-            }
+            $query->whereNotNull('phone_e164')->where('phone_e164', '!=', '');
 
             $deliverable = $query->count();
             $sample = $query->limit(5)
@@ -374,7 +369,7 @@ class CampaignController extends Controller
     {
         return $request->validate([
             'name'                     => ['required', 'string', 'max:128'],
-            'channel'                  => ['required', 'in:whatsapp,sms,email'],
+            'channel'                  => ['required', 'in:whatsapp,sms'],
             'whatsapp_phone_number_id' => ['nullable', 'string'],
             'audience_type'            => ['required', 'in:segment,contact_list,tag,csv'],
             'audience_ref'             => ['nullable', 'string'],

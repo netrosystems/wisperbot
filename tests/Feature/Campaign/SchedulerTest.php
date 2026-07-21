@@ -175,6 +175,26 @@ class SchedulerTest extends TestCase
     }
 
     #[Test]
+    public function email_is_not_an_available_campaign_channel(): void
+    {
+        [$user, $workspace] = $this->ctx();
+
+        $this->actingAs($user)
+            ->post(route('client.campaigns.store'), [
+                'name' => 'Email should be unavailable',
+                'channel' => 'email',
+                'audience_type' => 'contact_list',
+                'payload_json' => ['subject' => 'Test', 'body' => 'Test'],
+            ])
+            ->assertSessionHasErrors('channel');
+
+        $this->assertDatabaseMissing('campaigns', [
+            'workspace_id' => $workspace->id,
+            'name' => 'Email should be unavailable',
+        ]);
+    }
+
+    #[Test]
     public function updating_a_draft_overwrites_schedule_in_utc_and_keeps_timezone(): void
     {
         [$user, $workspace] = $this->ctx();

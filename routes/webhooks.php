@@ -18,6 +18,7 @@ use App\Modules\Ecommerce\Http\Controllers\EcommerceOAuthController;
 use App\Modules\Ecommerce\Http\Controllers\EcommerceWebhookController;
 use App\Modules\Inbox\Http\Controllers\MetaWebhookController;
 use App\Modules\Whatsapp\Http\Controllers\WhatsappWebhookController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // ─── WhatsApp Cloud API ──────────────────────────────────────────────────────
@@ -39,10 +40,17 @@ Route::middleware('throttle:webhooks')->group(function () {
         Route::post('/{token}', [MetaWebhookController::class, 'receive'])->name('receive');
     });
 
-    // ─── SMS delivery status (Twilio, Nexmo/Vonage, MessageBird) ─────────────────
+    // ─── SMS delivery status ─────────────────────────────────────────────────────
     Route::post('webhooks/sms/{provider}', [SmsStatusWebhookController::class, 'handle'])
         ->name('webhooks.sms.status')
         ->where('provider', 'twilio|nexmo|messagebird|smsbd|reve|bulksmsbd|sms_dot_bd|mimsms|fast2sms');
+
+    // Alaris documents callback URL templates and providers may call them by
+    // either GET or POST. Restrict this flexibility to its dedicated route.
+    Route::match(['get', 'post'], 'webhooks/sms/alaris', function (Request $request, SmsStatusWebhookController $controller) {
+        return $controller->handle($request, 'alaris');
+    })
+        ->name('webhooks.sms.alaris');
 
     // ─── Automation inbound webhook trigger ─────────────────────────────────────
     Route::post('webhooks/automation/{trigger_token}', [AutomationWebhookController::class, 'receive'])

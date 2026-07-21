@@ -55,4 +55,26 @@ class SmsProviderConfigTest extends TestCase
         $this->assertSame('AC_test', $config->credentials['account_sid']);
         $this->assertSame('secret', $config->credentials['auth_token']);
     }
+
+    public function test_alaris_requires_an_https_api_endpoint(): void
+    {
+        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
+
+        $this->actingAs($user)
+            ->put(route('client.sms-gateways.update', 'alaris'), [
+                'default' => true,
+                'credentials' => [
+                    'base_url' => 'http://sms.example.test:8002/api',
+                    'username' => 'alaris-user',
+                    'password' => 'alaris-password',
+                    'sender_id' => 'WISPERBOT',
+                ],
+            ])
+            ->assertSessionHasErrors('credentials.base_url');
+
+        $this->assertDatabaseMissing('sms_provider_configs', [
+            'workspace_id' => $workspace->id,
+            'provider' => 'alaris',
+        ]);
+    }
 }

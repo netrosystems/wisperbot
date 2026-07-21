@@ -5,6 +5,7 @@ namespace Tests\Feature\ProductionHardening;
 use App\Modules\Broadcasting\Services\Sms\SmsBdDriver;
 use App\Modules\Broadcasting\Services\Sms\MessageBirdDriver;
 use App\Modules\Broadcasting\Services\Sms\TwilioDriver;
+use App\Modules\Broadcasting\Services\Sms\AlarisSmsDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -59,5 +60,50 @@ class SmsDriverHttpTest extends TestCase
         $this->assertTrue($result->success);
         $this->assertSame('mb-123', $result->messageId);
         Http::assertSent(fn ($request) => $request['recipients'] === ['8801712345678']);
+    }
+
+    public function test_alaris_driver_sends_with_basic_auth_and_tracks_the_returned_message_id(): void
+    {
+        Http::fake([
+            'https://sms.alaris.test:8002/api?command=submit' => Http::response([
+                ['dnis' => '8801712345678', 'message_id' => 'ALARIS_123'],
+            ], 200),
+        ]);
+
+        $result = (new AlarisSmsDriver(
+            'https://sms.alaris.test:8002/api',
+            'client-user',
+            'client-password',
+            'WISPER',
+        ))->send('+8801712345678', 'Campaign message');
+
+        $this->assertTrue($result->success);
+        $this->assertSame('ALARIS_123', $result->messageId);
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://sms.alaris.test:8002/api?command=submit'
+                && $request['ani'] === 'WISPER'
+                && $request['dnis'] === '8801712345678'
+                && $request['message'] === 'Campaign message'
+                && str_starts_with($request->header('Authorization')[0] ?? '', 'Basic ');
+        });
+    }
+
+    public function test_alaris_driver_queries_and_maps_delivery_status(): void
+    {
+        Http::fake([
+            'https://sms.alaris.test:8002/api?command=query*' => Http::response([
+                'status' => 'DELIVRD',
+            ], 200),
+        ]);
+
+        $status = (new AlarisSmsDriver(
+            'https://sms.alaris.test:8002/api',
+            'client-user',
+            'client-password',
+            'WISPER',
+        ))->status('ALARIS_123');
+
+        $this->assertSame('delivered', $status->status);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'command=query') && str_contains($request->url(), 'messageId=ALARIS_123'));
     }
 }

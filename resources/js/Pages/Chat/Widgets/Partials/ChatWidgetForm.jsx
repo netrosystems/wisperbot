@@ -133,10 +133,10 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                             <input className={inputCls} value={data.footer_company_name} onChange={(e) => setData('footer_company_name', e.target.value)} placeholder="Your company name" />
                         </Field>
                         <Field
-                            label="Launcher icon"
+                            label="Custom launcher icon — Pro feature"
                             hint={canUseCustomLauncherLogo
                                 ? 'Optional. Upload a square PNG, JPG, WebP or GIF (max 2 MB).'
-                                : 'Your widget currently uses the WisperBot icon. Custom launcher icon change access comes with Paid plans only.'}
+                                : 'Free workspaces use the default WisperBot icon. Upgrade to Pro to use your own launcher icon.'}
                         >
                             {canUseCustomLauncherLogo ? (
                                 <>
@@ -151,7 +151,7 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                             ) : (
                                 <div className="flex min-h-10 items-center gap-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-400">
                                     <Lock className="h-4 w-4 shrink-0" />
-                                    Available with white-label branding
+                                    Upgrade to Pro to replace the default WisperBot icon
                                 </div>
                             )}
                         </Field>

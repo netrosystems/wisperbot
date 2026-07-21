@@ -4,7 +4,7 @@ import { ChannelBrandIcon } from '@/Components/BrandIcons';
 import {
     LayoutDashboard, CreditCard, Package, FileText, Users, Settings,
     Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot, Database,
-    Zap, Share2, Tag, LifeBuoy, ExternalLink, Mail, MessageSquare,
+    Zap, Share2, Tag, LifeBuoy, ExternalLink, MessageSquare,
     ShoppingBag, MessageCircle,
 } from 'lucide-react';
 
@@ -85,7 +85,6 @@ export default function useClientNav() {
     const broadcastItems = [
         { label: t('nav.campaigns'),    href: safeRoute('client.campaigns.index'),    icon: <Radio className={iconClass} />,        activePattern: 'client.campaigns.*' },
         { label: t('nav.sms_gateways'), href: safeRoute('client.sms-gateways.index'), icon: <MessageSquare className={iconClass} />, activePattern: 'client.sms-gateways.*' },
-        { label: t('nav.email_server'), href: safeRoute('client.email-server.index'), icon: <Mail className={iconClass} />,          activePattern: 'client.email-server.*' },
     ];
 
     const inboxItems = [

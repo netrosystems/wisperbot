@@ -53,6 +53,14 @@ const SETUP_GUIDES = {
             'Enter the credentials below.',
         ],
     },
+    alaris: {
+        steps: [
+            'Request your HTTPS API base URL, username, password, and approved Sender ID (ANI) from Alaris.',
+            'Enter the credentials below. WisperBot sends campaigns through command=submit using secure HTTP Basic authentication.',
+            'Use E.164 destination numbers. WisperBot sends one contact at a time, which is compatible with long SMS handling.',
+            'Ask Alaris to configure delivery reports to your WisperBot callback URL after saving this gateway.',
+        ],
+    },
     bulksmsbd: {
         steps: [
             'Register at bulksmsbd.com.',
@@ -161,6 +169,10 @@ const BRAND = {
         color: '#4f46e5',
         logo: 'revesms',
     },
+    alaris: {
+        color: '#1f4f8f',
+        logo: null,
+    },
     bulksmsbd: {
         color: '#16a34a',
         logo: 'bulksmsbd',
@@ -190,12 +202,16 @@ function ProviderBadge({ provider }) {
             className="flex items-center justify-center w-9 h-9 rounded-xl shrink-0"
             style={{ backgroundColor: brand.color }}
         >
-            <img
-                src={`/images/integrations/${brand.logo}.svg`}
-                alt={provider}
-                className="h-5 w-5"
-                style={{ filter: 'brightness(0) invert(1)' }}
-            />
+            {brand.logo ? (
+                <img
+                    src={`/images/integrations/${brand.logo}.svg`}
+                    alt={provider}
+                    className="h-5 w-5"
+                    style={{ filter: 'brightness(0) invert(1)' }}
+                />
+            ) : (
+                <span className="text-[11px] font-bold tracking-tight text-white">AL</span>
+            )}
         </div>
     );
 }
