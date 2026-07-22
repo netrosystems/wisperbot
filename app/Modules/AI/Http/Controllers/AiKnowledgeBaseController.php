@@ -111,7 +111,7 @@ class AiKnowledgeBaseController extends Controller
 
         $validated = $request->validate([
             'source_type' => ['required', 'in:file,url,text,sitemap,faq'],
-            'source_ref' => ['nullable', 'string', 'max:512'],
+            'source_ref' => $this->sourceRefRules((string) $request->input('source_type')),
             'title' => ['nullable', 'string', 'max:256'],
         ]);
 
@@ -227,6 +227,17 @@ class AiKnowledgeBaseController extends Controller
             'm' => (int) ($number * 1024),
             'k' => (int) $number,
             default => (int) ceil($number / 1024),
+        };
+    }
+
+    private function sourceRefRules(string $sourceType): array
+    {
+        return match ($sourceType) {
+            'url', 'sitemap' => ['required', 'url', 'max:2048'],
+            'text' => ['required', 'string', 'max:200000'],
+            'faq' => ['required', 'string', 'max:200000'],
+            'file' => ['nullable', 'string', 'max:512'],
+            default => ['nullable', 'string', 'max:512'],
         };
     }
 }

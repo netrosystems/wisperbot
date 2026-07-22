@@ -31,7 +31,7 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
     const [fileError, setFileError] = useState('');
     const fileRef = useRef();
 
-    const { data, setData, reset } = useForm({
+    const { data, setData, reset, errors, clearErrors } = useForm({
         source_type: 'url',
         source_ref: '',
         title: '',
@@ -333,7 +333,7 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                                         <button
                                             key={type}
                                             type="button"
-                                            onClick={() => setData('source_type', type)}
+                                            onClick={() => { setData('source_type', type); clearErrors('source_ref', 'file'); setFileError(''); }}
                                             className={`flex flex-col items-center gap-0.5 rounded-md py-1.5 px-1 text-xs font-medium transition ${
                                                 data.source_type === type
                                                     ? 'bg-white dark:bg-neutral-700 text-brand-600 dark:text-brand-400 shadow-sm'
@@ -373,6 +373,9 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                                     {fileError && (
                                         <p className="mt-2 text-xs font-medium text-red-500">{fileError}</p>
                                     )}
+                                    {errors.file && (
+                                        <p className="mt-2 text-xs font-medium text-red-500">{errors.file}</p>
+                                    )}
                                 </div>
                             ) : data.source_type === 'text' ? (
                                 <div>
@@ -384,6 +387,9 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                                         placeholder={t('ai.text_content_placeholder')}
                                         className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none transition"
                                     />
+                                    {errors.source_ref && (
+                                        <p className="mt-1 text-xs font-medium text-red-500">{errors.source_ref}</p>
+                                    )}
                                 </div>
                             ) : data.source_type === 'faq' ? (
                                 <div className="space-y-2">
@@ -426,6 +432,9 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                                     >
                                         {t('ai.add_another_qa')}
                                     </button>
+                                    {errors.source_ref && (
+                                        <p className="text-xs font-medium text-red-500">{errors.source_ref}</p>
+                                    )}
                                 </div>
                             ) : (
                                 <div>
@@ -441,6 +450,9 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                                     />
                                     {data.source_type === 'sitemap' && (
                                         <p className="mt-1 text-xs text-neutral-400">{t('ai.sitemap_hint')}</p>
+                                    )}
+                                    {errors.source_ref && (
+                                        <p className="mt-1 text-xs font-medium text-red-500">{errors.source_ref}</p>
                                     )}
                                 </div>
                             )}
