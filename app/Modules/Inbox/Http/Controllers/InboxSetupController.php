@@ -324,7 +324,9 @@ class InboxSetupController extends Controller
     public function embeddedSignupMessenger(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:2048'],
+            'code' => ['nullable', 'required_without:selection_token', 'string', 'max:2048'],
+            'selection_token' => ['nullable', 'required_without:code', 'string', 'max:96'],
+            'selected_facebook_page_id' => ['nullable', 'string', 'max:64'],
         ]);
 
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
@@ -333,48 +335,85 @@ class InboxSetupController extends Controller
             return response()->json(['message' => 'Meta App credentials are not configured. Please ask your administrator to configure them in Admin → Integrations → Meta App.'], 422);
         }
 
-        // Ensure the Meta App delivers `page` (Messenger) webhook events to our
-        // endpoint. Without this app-level subscription Meta has no callback URL for
-        // the page object, so inbound Messenger messages never reach the server.
-        if (! $this->registerMessengerAppWebhook()) {
-            return response()->json([
-                'message' => 'Meta authorization succeeded, but WisperBot could not register the Messenger webhook. Check the app secret, verify token, public HTTPS callback URL, and Meta app permissions.',
-            ], 422);
-        }
+        if (! empty($validated['selection_token'])) {
+            $pending = $request->session()->pull('messenger_connect_selection.'.$validated['selection_token']);
+            if (! is_array($pending) || (int) ($pending['workspace_id'] ?? 0) !== (int) $workspaceId) {
+                return response()->json(['message' => 'Facebook Page selection expired. Please reconnect with Meta and choose the Page again.'], 422);
+            }
 
-        $accessToken = $this->exchangeCodeForToken($validated['code']);
-        if (! $accessToken) {
-            return response()->json(['message' => 'Failed to exchange authorization code with Meta.'], 422);
-        }
+            $selectedPageId = (string) ($validated['selected_facebook_page_id'] ?? '');
+            $selectedPage = collect($pending['pages'] ?? [])->first(function (array $page) use ($selectedPageId): bool {
+                return (string) ($page['id'] ?? '') === $selectedPageId;
+            });
 
-        $longToken = $this->exchangeForLongLivedToken($accessToken);
-        if (! $longToken) {
-            return response()->json(['message' => 'Meta authorization succeeded, but the long-lived token exchange failed. Reconnect and try again.'], 422);
-        }
+            if (! $selectedPage) {
+                return response()->json(['message' => 'Choose one Facebook Page to connect.'], 422);
+            }
 
-        $discovery = $this->metaPages->discover($longToken, 'id,name,access_token');
-        $pages = $discovery['pages'];
-        $selectedPageIds = $this->selectedMetaTargetIds($longToken, ['pages_show_list']);
+            $pages = [$selectedPage];
+        } else {
+            // Ensure the Meta App delivers `page` (Messenger) webhook events to our
+            // endpoint. Without this app-level subscription Meta has no callback URL for
+            // the page object, so inbound Messenger messages never reach the server.
+            if (! $this->registerMessengerAppWebhook()) {
+                return response()->json([
+                    'message' => 'Meta authorization succeeded, but WisperBot could not register the Messenger webhook. Check the app secret, verify token, public HTTPS callback URL, and Meta app permissions.',
+                ], 422);
+            }
 
-        // Avoid auto-connecting every Page the user/business can discover. Meta's
-        // debug_token response tells us which Page assets were selected in the
-        // OAuth dialog; use that as the source of truth when present.
-        if ($selectedPageIds !== []) {
-            $pages = $this->filterPagesToSelectedTargets($pages, $selectedPageIds);
-        }
+            $accessToken = $this->exchangeCodeForToken($validated['code']);
+            if (! $accessToken) {
+                return response()->json(['message' => 'Failed to exchange authorization code with Meta.'], 422);
+            }
 
-        if ($discovery['errors'] !== []) {
-            Log::warning('Messenger embedded signup: some Page discovery sources failed', [
-                'workspace_id' => $workspaceId,
-                'errors' => $discovery['errors'],
-                'successful_sources' => $discovery['successful_sources'],
-            ]);
-        }
+            $longToken = $this->exchangeForLongLivedToken($accessToken);
+            if (! $longToken) {
+                return response()->json(['message' => 'Meta authorization succeeded, but the long-lived token exchange failed. Reconnect and try again.'], 422);
+            }
 
-        if ($pages === [] && $discovery['successful_sources'] === []) {
-            return response()->json([
-                'message' => 'Could not fetch your Facebook pages: '.($discovery['errors'][0]['message'] ?? 'unknown error'),
-            ], 422);
+            $discovery = $this->metaPages->discover($longToken, 'id,name,access_token');
+            $pages = $discovery['pages'];
+            $selectedPageIds = $this->selectedMetaTargetIds($longToken, ['pages_show_list']);
+
+            // Avoid auto-connecting every Page the user/business can discover. Meta's
+            // debug_token response tells us which Page assets were selected in the
+            // OAuth dialog; use that as the source of truth when present.
+            if ($selectedPageIds !== []) {
+                $pages = $this->filterPagesToSelectedTargets($pages, $selectedPageIds);
+            }
+
+            if ($discovery['errors'] !== []) {
+                Log::warning('Messenger embedded signup: some Page discovery sources failed', [
+                    'workspace_id' => $workspaceId,
+                    'errors' => $discovery['errors'],
+                    'successful_sources' => $discovery['successful_sources'],
+                ]);
+            }
+
+            if ($pages === [] && $discovery['successful_sources'] === []) {
+                return response()->json([
+                    'message' => 'Could not fetch your Facebook pages: '.($discovery['errors'][0]['message'] ?? 'unknown error'),
+                ], 422);
+            }
+
+            $connectablePages = $this->messengerConnectablePages($pages);
+            if (count($connectablePages) > 1) {
+                $selectionToken = Str::random(48);
+                $request->session()->put('messenger_connect_selection.'.$selectionToken, [
+                    'workspace_id' => $workspaceId,
+                    'pages' => $connectablePages,
+                ]);
+
+                return response()->json([
+                    'requires_selection' => true,
+                    'selection_token' => $selectionToken,
+                    'message' => 'Choose the Facebook Page you want to connect.',
+                    'accounts' => collect($connectablePages)->map(fn (array $page) => [
+                        'facebook_page_id' => (string) ($page['id'] ?? ''),
+                        'name' => (string) ($page['name'] ?? $page['id']),
+                    ])->values()->all(),
+                ], 409);
+            }
         }
 
         $connected = 0;
@@ -615,6 +654,17 @@ class InboxSetupController extends Controller
             return ! empty($page['access_token'])
                 && ! empty($page['id'])
                 && ! empty($page['instagram_business_account']['id']);
+        }));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $pages
+     * @return list<array<string, mixed>>
+     */
+    private function messengerConnectablePages(array $pages): array
+    {
+        return array_values(array_filter($pages, function (array $page): bool {
+            return ! empty($page['id']);
         }));
     }
 
@@ -930,8 +980,33 @@ class InboxSetupController extends Controller
         abort_unless((int) $channelAccount->workspace_id === (int) $workspaceId, 403);
         abort_unless(in_array($channelAccount->channel, ['instagram', 'messenger'], true), 403);
 
+        $this->unsubscribeMetaPageBestEffort($channelAccount);
         $channelAccount->delete();
 
         return back()->with('success', 'Account disconnected.');
+    }
+
+    private function unsubscribeMetaPageBestEffort(ChannelAccount $channelAccount): void
+    {
+        $meta = $channelAccount->meta_json ?? [];
+        $pageId = $channelAccount->channel === 'instagram'
+            ? (string) ($meta['facebook_page_id'] ?? '')
+            : (string) ($meta['page_id'] ?? '');
+        $pageToken = (string) (($channelAccount->credentials ?? [])['page_access_token'] ?? '');
+
+        if ($pageId === '' || $pageToken === '') {
+            return;
+        }
+
+        try {
+            Http::withToken($pageToken)->delete("https://graph.facebook.com/v25.0/{$pageId}/subscribed_apps");
+        } catch (\Throwable $e) {
+            Log::warning('Meta Page unsubscribe failed while disconnecting channel account', [
+                'channel_account_id' => $channelAccount->id,
+                'channel' => $channelAccount->channel,
+                'page_id' => $pageId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
