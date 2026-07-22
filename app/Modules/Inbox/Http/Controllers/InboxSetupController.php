@@ -126,6 +126,15 @@ class InboxSetupController extends Controller
             'id,name,access_token,instagram_business_account{id,name,username}',
         );
         $pages = $discovery['pages'];
+        $selectedPageIds = $this->selectedMetaTargetIds($longToken, ['pages_show_list']);
+        $selectedInstagramIds = $this->selectedMetaTargetIds($longToken, ['instagram_basic']);
+
+        // Facebook Login for Business can expose every Page discoverable via a
+        // Business Portfolio. Respect the assets selected in the Meta popup so
+        // connecting Instagram does not unexpectedly connect unrelated Pages.
+        if ($selectedPageIds !== [] || $selectedInstagramIds !== []) {
+            $pages = $this->filterPagesToSelectedTargets($pages, $selectedPageIds, $selectedInstagramIds);
+        }
 
         if ($discovery['errors'] !== []) {
             Log::warning('Instagram embedded signup: some Page discovery sources failed', [
@@ -299,6 +308,14 @@ class InboxSetupController extends Controller
 
         $discovery = $this->metaPages->discover($longToken, 'id,name,access_token');
         $pages = $discovery['pages'];
+        $selectedPageIds = $this->selectedMetaTargetIds($longToken, ['pages_show_list']);
+
+        // Avoid auto-connecting every Page the user/business can discover. Meta's
+        // debug_token response tells us which Page assets were selected in the
+        // OAuth dialog; use that as the source of truth when present.
+        if ($selectedPageIds !== []) {
+            $pages = $this->filterPagesToSelectedTargets($pages, $selectedPageIds);
+        }
 
         if ($discovery['errors'] !== []) {
             Log::warning('Messenger embedded signup: some Page discovery sources failed', [
@@ -467,6 +484,75 @@ class InboxSetupController extends Controller
         ]);
 
         return ($res->successful() && $res->json('access_token')) ? $res->json('access_token') : null;
+    }
+
+    /**
+     * Return asset IDs Meta says were selected for one or more granular scopes.
+     * If Meta does not include target_ids, callers keep their existing fallback
+     * discovery behaviour so older/quirky responses do not hard-fail connects.
+     *
+     * @param  list<string>  $scopes
+     * @return list<string>
+     */
+    private function selectedMetaTargetIds(string $accessToken, array $scopes): array
+    {
+        $meta = CredentialResolver::system()->meta();
+        if (! $meta?->appId() || ! $meta?->appSecret()) {
+            return [];
+        }
+
+        try {
+            $response = Http::get('https://graph.facebook.com/v25.0/debug_token', [
+                'input_token' => $accessToken,
+                'access_token' => $meta->appId().'|'.$meta->appSecret(),
+            ]);
+
+            if (! $response->successful()) {
+                Log::warning('Meta embedded signup: token inspection failed', [
+                    'response' => $response->json(),
+                ]);
+
+                return [];
+            }
+
+            $targetIds = [];
+            foreach ((array) $response->json('data.granular_scopes', []) as $scope) {
+                if (! in_array((string) ($scope['scope'] ?? ''), $scopes, true)) {
+                    continue;
+                }
+
+                foreach ((array) ($scope['target_ids'] ?? []) as $targetId) {
+                    if (is_string($targetId) || is_int($targetId)) {
+                        $targetIds[] = (string) $targetId;
+                    }
+                }
+            }
+
+            return array_values(array_unique($targetIds));
+        } catch (\Throwable $e) {
+            Log::warning('Meta embedded signup: token inspection exception', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $pages
+     * @param  list<string>  $selectedPageIds
+     * @param  list<string>  $selectedInstagramIds
+     * @return list<array<string, mixed>>
+     */
+    private function filterPagesToSelectedTargets(array $pages, array $selectedPageIds, array $selectedInstagramIds = []): array
+    {
+        return array_values(array_filter($pages, function (array $page) use ($selectedPageIds, $selectedInstagramIds): bool {
+            $pageId = (string) ($page['id'] ?? '');
+            $igId = (string) ($page['instagram_business_account']['id'] ?? '');
+
+            return ($pageId !== '' && in_array($pageId, $selectedPageIds, true))
+                || ($igId !== '' && in_array($igId, $selectedInstagramIds, true));
+        }));
     }
 
     /**

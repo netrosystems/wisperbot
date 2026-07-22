@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import SeoHead from '@/Components/SeoHead';
+import CookieConsent from '@/Components/CookieConsent';
 import { Reveal } from '@/Components/Reveal';
 import { FeatureIcon } from '@/Components/LandingIcons';
 import { useTranslation } from 'react-i18next';
@@ -650,6 +651,7 @@ export default function Welcome({ auth, canLogin, canRegister, landing = {}, pla
                 <CtaBand landing={landing} auth={auth} canRegister={canRegister} />
             </main>
             <Footer landing={landing} />
+            <CookieConsent />
         </div>
     );
 }
