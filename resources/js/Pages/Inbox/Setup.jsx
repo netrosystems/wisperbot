@@ -1075,9 +1075,10 @@ function AddMessengerForm({ onSuccess, metaConfigIdSocial, metaAppId, metaConfig
     const { t } = useTranslation();
     const [apiError, setApiError] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+    const [selection, setSelection] = useState(null);
     const configMismatch = metaConfigIdSocial && metaConfigIdWhatsapp && metaConfigIdSocial === metaConfigIdWhatsapp;
 
-    const handleEmbeddedCode = useCallback(async (code) => {
+    const submitConnection = useCallback(async (payload) => {
         setApiError(null);
         setSubmitting(true);
         try {
@@ -1088,10 +1089,16 @@ function AddMessengerForm({ onSuccess, metaConfigIdSocial, metaAppId, metaConfig
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({ code }),
+                body: JSON.stringify(payload),
             });
             const json = await res.json();
-            if (!res.ok) {
+            if (res.status === 409 && json.requires_selection) {
+                setSelection({
+                    token: json.selection_token,
+                    accounts: json.accounts ?? [],
+                    message: json.message ?? 'Choose the Facebook Page you want to connect.',
+                });
+            } else if (!res.ok) {
                 setApiError(json.message ?? t('inbox.connection_failed'));
             } else {
                 router.reload({ preserveScroll: true });
@@ -1103,6 +1110,20 @@ function AddMessengerForm({ onSuccess, metaConfigIdSocial, metaAppId, metaConfig
             setSubmitting(false);
         }
     }, [onSuccess, t]);
+
+    const handleEmbeddedCode = useCallback(async (code) => {
+        setSelection(null);
+        await submitConnection({ code });
+    }, [submitConnection]);
+
+    const connectSelectedPage = useCallback(async (pageId) => {
+        if (!selection?.token || !pageId) return;
+
+        await submitConnection({
+            selection_token: selection.token,
+            selected_facebook_page_id: pageId,
+        });
+    }, [selection, submitConnection]);
 
     if (!metaConfigIdSocial) {
         return (
@@ -1132,6 +1153,27 @@ function AddMessengerForm({ onSuccess, metaConfigIdSocial, metaAppId, metaConfig
                 color="blue"
                 onCode={handleEmbeddedCode}
             />
+            {selection && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+                    <p className="text-xs font-medium text-neutral-800 dark:text-neutral-100">{selection.message}</p>
+                    <div className="mt-2 space-y-2">
+                        {selection.accounts.map((account) => (
+                            <button
+                                type="button"
+                                key={account.facebook_page_id}
+                                onClick={() => connectSelectedPage(account.facebook_page_id)}
+                                disabled={submitting}
+                                className="w-full rounded-lg border border-white bg-white px-3 py-2 text-left text-xs shadow-sm transition hover:border-blue-200 hover:bg-blue-50 disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-blue-800"
+                            >
+                                <span className="block font-semibold text-neutral-900 dark:text-neutral-100">{account.name}</span>
+                                <span className="mt-0.5 block text-neutral-500 dark:text-neutral-400">
+                                    Page ID: {account.facebook_page_id}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
             {submitting && <p className="text-xs text-neutral-400">{t('inbox.connecting_pages')}</p>}
             {apiError && (
                 <p className="text-xs text-red-500 flex items-start gap-1.5">
