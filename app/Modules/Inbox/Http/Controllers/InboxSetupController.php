@@ -183,18 +183,21 @@ class InboxSetupController extends Controller
                 continue;
             }
 
-            // Inbound routing is keyed by Meta's global Instagram account ID. It
-            // cannot safely select a tenant if the same account is attached to two
-            // workspaces, so reject that configuration instead of routing to the
-            // first database match.
-            $belongsToAnotherWorkspace = ChannelAccount::where('channel', 'instagram')
-                ->where('workspace_id', '!=', $workspaceId)
+            // Inbound routing is keyed by Meta's global Instagram account ID. If
+            // the same client reconnects from another workspace they can access,
+            // move/update the row instead of leaving a stale hidden connection.
+            // Still block accounts that belong to a workspace this user cannot
+            // access, because routing would be unsafe across tenants.
+            $existingAnyWorkspace = ChannelAccount::where('channel', 'instagram')
                 ->whereJsonContains('meta_json->instagram_page_id', $igId)
-                ->exists();
-            if ($belongsToAnotherWorkspace) {
+                ->first();
+            if ($existingAnyWorkspace
+                && (int) $existingAnyWorkspace->workspace_id !== (int) $workspaceId
+                && ! in_array((int) $existingAnyWorkspace->workspace_id, $this->accessibleWorkspaceIds($request), true)) {
                 $workspaceConflicts++;
                 Log::warning('Instagram embedded signup: account already belongs to another workspace', [
                     'workspace_id' => $workspaceId,
+                    'existing_workspace_id' => $existingAnyWorkspace->workspace_id,
                     'instagram_account_id' => $igId,
                 ]);
                 continue;
@@ -217,20 +220,18 @@ class InboxSetupController extends Controller
                 'facebook_page_id'     => $pageId,
             ];
 
-            $alreadyExists = ChannelAccount::where('workspace_id', $workspaceId)
+            $existing = $existingAnyWorkspace ?: ChannelAccount::where('workspace_id', $workspaceId)
                 ->where('channel', 'instagram')
                 ->whereJsonContains('meta_json->instagram_page_id', $igId)
-                ->exists();
+                ->first();
+            $alreadyExists = $existing !== null;
 
-            if ($alreadyExists) {
+            if ($existing) {
                 // Update the token on re-connect (preserve any extra meta_json keys
                 // such as an assigned ai_chatbot_id by merging rather than replacing).
-                $existing = ChannelAccount::where('workspace_id', $workspaceId)
-                    ->where('channel', 'instagram')
-                    ->whereJsonContains('meta_json->instagram_page_id', $igId)
-                    ->first();
-
-                $existing?->update([
+                $existing->update([
+                    'workspace_id' => $workspaceId,
+                    'display_name' => mb_substr((string) $name, 0, 128),
                     'credentials' => $credentials,
                     'meta_json'   => array_merge($existing->meta_json ?? [], $metaJson),
                     'status'      => 'active',
@@ -372,14 +373,16 @@ class InboxSetupController extends Controller
                 continue;
             }
 
-            $belongsToAnotherWorkspace = ChannelAccount::where('channel', 'messenger')
-                ->where('workspace_id', '!=', $workspaceId)
+            $existingAnyWorkspace = ChannelAccount::where('channel', 'messenger')
                 ->whereJsonContains('meta_json->page_id', $pageId)
-                ->exists();
-            if ($belongsToAnotherWorkspace) {
+                ->first();
+            if ($existingAnyWorkspace
+                && (int) $existingAnyWorkspace->workspace_id !== (int) $workspaceId
+                && ! in_array((int) $existingAnyWorkspace->workspace_id, $this->accessibleWorkspaceIds($request), true)) {
                 $workspaceConflicts++;
                 Log::warning('Messenger embedded signup: Page already belongs to another workspace', [
                     'workspace_id' => $workspaceId,
+                    'existing_workspace_id' => $existingAnyWorkspace->workspace_id,
                     'page_id' => $pageId,
                 ]);
                 continue;
@@ -392,7 +395,7 @@ class InboxSetupController extends Controller
                 continue;
             }
 
-            $existing = ChannelAccount::where('workspace_id', $workspaceId)
+            $existing = $existingAnyWorkspace ?: ChannelAccount::where('workspace_id', $workspaceId)
                 ->where('channel', 'messenger')
                 ->whereJsonContains('meta_json->page_id', $pageId)
                 ->first();
@@ -405,6 +408,8 @@ class InboxSetupController extends Controller
                 // which then fail to decrypt — breaking send() and the profile fetch.
                 // Merge meta_json so an assigned ai_chatbot_id is preserved.
                 $existing->update([
+                    'workspace_id' => $workspaceId,
+                    'display_name' => mb_substr((string) $pageName, 0, 128),
                     'credentials' => ['page_access_token' => $pageToken],
                     'meta_json'   => array_merge($existing->meta_json ?? [], ['page_id' => $pageId]),
                     'status'      => 'active',
@@ -553,6 +558,31 @@ class InboxSetupController extends Controller
             return ($pageId !== '' && in_array($pageId, $selectedPageIds, true))
                 || ($igId !== '' && in_array($igId, $selectedInstagramIds, true));
         }));
+    }
+
+    /** @return list<int> */
+    private function accessibleWorkspaceIds(Request $request): array
+    {
+        $user = $request->user();
+        if (! $user) {
+            return [];
+        }
+
+        $ids = collect([
+            $user->workspace_id ?? null,
+            $user->current_workspace_id ?? null,
+        ]);
+
+        if (method_exists($user, 'accessibleWorkspaces')) {
+            $ids = $ids->merge($user->accessibleWorkspaces()->pluck('id'));
+        }
+
+        return $ids
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
