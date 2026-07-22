@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -90,7 +91,9 @@ class InboxSetupController extends Controller
     public function embeddedSignupInstagram(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:2048'],
+            'code' => ['nullable', 'required_without:selection_token', 'string', 'max:2048'],
+            'selection_token' => ['nullable', 'required_without:code', 'string', 'max:96'],
+            'selected_instagram_account_id' => ['nullable', 'string', 'max:64'],
         ]);
 
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
@@ -99,55 +102,97 @@ class InboxSetupController extends Controller
             return response()->json(['message' => 'Meta App credentials are not configured. Please ask your administrator to configure them in Admin → Integrations → Meta App.'], 422);
         }
 
-        // Ensure the Meta App delivers `instagram` webhook events to our endpoint.
-        // Without this app-level subscription Meta has no callback URL for the
-        // instagram object, so inbound Instagram messages never reach the server.
-        if (! $this->registerInstagramAppWebhook()) {
-            return response()->json([
-                'message' => 'Meta authorization succeeded, but WisperBot could not register the Instagram webhook. Check the app secret, verify token, public HTTPS callback URL, and Meta app permissions.',
-            ], 422);
-        }
+        if (! empty($validated['selection_token'])) {
+            $pending = $request->session()->pull('instagram_connect_selection.'.$validated['selection_token']);
+            if (! is_array($pending) || (int) ($pending['workspace_id'] ?? 0) !== (int) $workspaceId) {
+                return response()->json(['message' => 'Instagram selection expired. Please reconnect with Meta and choose the account again.'], 422);
+            }
 
-        $accessToken = $this->exchangeCodeForToken($validated['code']);
-        if (! $accessToken) {
-            return response()->json(['message' => 'Failed to exchange authorization code with Meta.'], 422);
-        }
+            $selectedIgId = (string) ($validated['selected_instagram_account_id'] ?? '');
+            $selectedPage = collect($pending['pages'] ?? [])->first(function (array $page) use ($selectedIgId): bool {
+                return (string) ($page['instagram_business_account']['id'] ?? '') === $selectedIgId;
+            });
 
-        $longToken = $this->exchangeForLongLivedToken($accessToken);
-        if (! $longToken) {
-            return response()->json(['message' => 'Meta authorization succeeded, but the long-lived token exchange failed. Reconnect and try again.'], 422);
-        }
+            if (! $selectedPage) {
+                return response()->json(['message' => 'Choose one Instagram account to connect.'], 422);
+            }
 
-        // Include classic Page roles plus Business Portfolio owned/client Pages.
-        // A successful but empty /me/accounts response is common for New Pages
-        // Experience assets assigned only through a Business Portfolio.
-        $discovery = $this->metaPages->discover(
-            $longToken,
-            'id,name,access_token,instagram_business_account{id,name,username}',
-        );
-        $pages = $discovery['pages'];
-        $selectedPageIds = $this->selectedMetaTargetIds($longToken, ['pages_show_list']);
-        $selectedInstagramIds = $this->selectedMetaTargetIds($longToken, ['instagram_basic']);
+            $pages = [$selectedPage];
+        } else {
+            // Ensure the Meta App delivers `instagram` webhook events to our endpoint.
+            // Without this app-level subscription Meta has no callback URL for the
+            // instagram object, so inbound Instagram messages never reach the server.
+            if (! $this->registerInstagramAppWebhook()) {
+                return response()->json([
+                    'message' => 'Meta authorization succeeded, but WisperBot could not register the Instagram webhook. Check the app secret, verify token, public HTTPS callback URL, and Meta app permissions.',
+                ], 422);
+            }
 
-        // Facebook Login for Business can expose every Page discoverable via a
-        // Business Portfolio. Respect the assets selected in the Meta popup so
-        // connecting Instagram does not unexpectedly connect unrelated Pages.
-        if ($selectedPageIds !== [] || $selectedInstagramIds !== []) {
-            $pages = $this->filterPagesToSelectedTargets($pages, $selectedPageIds, $selectedInstagramIds);
-        }
+            $accessToken = $this->exchangeCodeForToken($validated['code']);
+            if (! $accessToken) {
+                return response()->json(['message' => 'Failed to exchange authorization code with Meta.'], 422);
+            }
 
-        if ($discovery['errors'] !== []) {
-            Log::warning('Instagram embedded signup: some Page discovery sources failed', [
-                'workspace_id' => $workspaceId,
-                'errors' => $discovery['errors'],
-                'successful_sources' => $discovery['successful_sources'],
-            ]);
-        }
+            $longToken = $this->exchangeForLongLivedToken($accessToken);
+            if (! $longToken) {
+                return response()->json(['message' => 'Meta authorization succeeded, but the long-lived token exchange failed. Reconnect and try again.'], 422);
+            }
 
-        if ($pages === [] && $discovery['successful_sources'] === []) {
-            return response()->json([
-                'message' => 'Could not fetch your Facebook pages: '.($discovery['errors'][0]['message'] ?? 'unknown error'),
-            ], 422);
+            // Include classic Page roles plus Business Portfolio owned/client Pages.
+            // A successful but empty /me/accounts response is common for New Pages
+            // Experience assets assigned only through a Business Portfolio.
+            $discovery = $this->metaPages->discover(
+                $longToken,
+                'id,name,access_token,instagram_business_account{id,name,username}',
+            );
+            $pages = $discovery['pages'];
+            $selectedPageIds = $this->selectedMetaTargetIds($longToken, ['pages_show_list']);
+            $selectedInstagramIds = $this->selectedMetaTargetIds($longToken, ['instagram_basic']);
+
+            // Facebook Login for Business can expose every Page discoverable via a
+            // Business Portfolio. Respect the assets selected in the Meta popup so
+            // connecting Instagram does not unexpectedly connect unrelated Pages.
+            if ($selectedPageIds !== [] || $selectedInstagramIds !== []) {
+                $pages = $this->filterPagesToSelectedTargets($pages, $selectedPageIds, $selectedInstagramIds);
+            }
+
+            if ($discovery['errors'] !== []) {
+                Log::warning('Instagram embedded signup: some Page discovery sources failed', [
+                    'workspace_id' => $workspaceId,
+                    'errors' => $discovery['errors'],
+                    'successful_sources' => $discovery['successful_sources'],
+                ]);
+            }
+
+            if ($pages === [] && $discovery['successful_sources'] === []) {
+                return response()->json([
+                    'message' => 'Could not fetch your Facebook pages: '.($discovery['errors'][0]['message'] ?? 'unknown error'),
+                ], 422);
+            }
+
+            $connectablePages = $this->instagramConnectablePages($pages);
+            if (count($connectablePages) > 1) {
+                $selectionToken = Str::random(48);
+                $request->session()->put('instagram_connect_selection.'.$selectionToken, [
+                    'workspace_id' => $workspaceId,
+                    'pages' => $connectablePages,
+                ]);
+
+                return response()->json([
+                    'requires_selection' => true,
+                    'selection_token' => $selectionToken,
+                    'message' => 'Choose the Instagram account you want to connect.',
+                    'accounts' => collect($connectablePages)->map(fn (array $page) => [
+                        'instagram_account_id' => (string) ($page['instagram_business_account']['id'] ?? ''),
+                        'name' => (string) ($page['instagram_business_account']['username']
+                            ?? $page['instagram_business_account']['name']
+                            ?? $page['name']
+                            ?? $page['instagram_business_account']['id']),
+                        'facebook_page_id' => (string) ($page['id'] ?? ''),
+                        'facebook_page_name' => (string) ($page['name'] ?? ''),
+                    ])->values()->all(),
+                ], 409);
+            }
         }
 
         $connected = 0;
@@ -557,6 +602,19 @@ class InboxSetupController extends Controller
 
             return ($pageId !== '' && in_array($pageId, $selectedPageIds, true))
                 || ($igId !== '' && in_array($igId, $selectedInstagramIds, true));
+        }));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $pages
+     * @return list<array<string, mixed>>
+     */
+    private function instagramConnectablePages(array $pages): array
+    {
+        return array_values(array_filter($pages, function (array $page): bool {
+            return ! empty($page['access_token'])
+                && ! empty($page['id'])
+                && ! empty($page['instagram_business_account']['id']);
         }));
     }
 
