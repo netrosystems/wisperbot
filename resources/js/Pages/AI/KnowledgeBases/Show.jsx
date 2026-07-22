@@ -20,7 +20,7 @@ const STATUS_CONFIG = {
     error:    { color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',            icon: AlertCircle },
 };
 
-export default function AiKnowledgeBaseShow({ kb }) {
+export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploadMaxMb = 20 }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
@@ -28,6 +28,7 @@ export default function AiKnowledgeBaseShow({ kb }) {
     const [showEdit, setShowEdit] = useState(false);
     const [dragOver, setDragOver] = useState(false);
     const [faqPairs, setFaqPairs] = useState([{ question: '', answer: '' }]);
+    const [fileError, setFileError] = useState('');
     const fileRef = useRef();
 
     const { data, setData, reset } = useForm({
@@ -42,9 +43,30 @@ export default function AiKnowledgeBaseShow({ kb }) {
     const addFaqPair = () => setFaqPairs(p => [...p, { question: '', answer: '' }]);
     const removeFaqPair = (i) => setFaqPairs(p => p.filter((_, idx) => idx !== i));
     const updateFaqPair = (i, field, value) => setFaqPairs(p => p.map((pair, idx) => idx === i ? { ...pair, [field]: value } : pair));
+    const maxFileBytes = Number(kbUploadMaxKb) * 1024;
+
+    const selectFile = (file) => {
+        if (!file) return;
+
+        if (file.size > maxFileBytes) {
+            setFileError(`This file is too large. Please upload a file up to ${kbUploadMaxMb} MB, or increase the server upload limit first.`);
+            setData('file', null);
+            if (fileRef.current) fileRef.current.value = '';
+            return;
+        }
+
+        setFileError('');
+        setData('file', file);
+        setData('source_type', 'file');
+    };
 
     const handleAdd = (e) => {
         e.preventDefault();
+        if (data.source_type === 'file' && data.file?.size > maxFileBytes) {
+            setFileError(`This file is too large. Please upload a file up to ${kbUploadMaxMb} MB, or increase the server upload limit first.`);
+            return;
+        }
+
         setProcessing(true);
         const formData = new FormData();
         formData.append('source_type', data.source_type);
@@ -96,7 +118,7 @@ export default function AiKnowledgeBaseShow({ kb }) {
         e.preventDefault();
         setDragOver(false);
         const file = e.dataTransfer.files[0];
-        if (file) { setData('file', file); setData('source_type', 'file'); }
+        selectFile(file);
     };
 
     const totalTokens = kb.documents?.reduce((s, d) => s + (d.tokens ?? 0), 0) ?? 0;
@@ -338,15 +360,18 @@ export default function AiKnowledgeBaseShow({ kb }) {
                                             : 'border-neutral-300 dark:border-neutral-600 hover:border-brand-400 dark:hover:border-brand-600'
                                     }`}
                                 >
-                                    <input ref={fileRef} type="file" accept=".pdf,.txt,.md,.docx" className="hidden" onChange={e => setData('file', e.target.files[0])} />
+                                    <input ref={fileRef} type="file" accept=".pdf,.txt,.md,.csv,.docx,.doc,.xlsx,.xls,.json" className="hidden" onChange={e => selectFile(e.target.files[0])} />
                                     <Upload className="h-6 w-6 mx-auto mb-2 text-neutral-400" />
                                     {data.file ? (
                                         <p className="text-sm font-medium text-brand-600 dark:text-brand-400">{data.file.name}</p>
                                     ) : (
                                         <>
                                             <p className="text-sm text-neutral-600 dark:text-neutral-400"><Trans i18nKey="ai.drop_a_file_or_browse" components={{ 1: <span className="text-brand-600 dark:text-brand-400 font-medium" /> }} /></p>
-                                            <p className="text-xs text-neutral-400 mt-1">PDF, TXT, MD, DOCX</p>
+                                            <p className="text-xs text-neutral-400 mt-1">PDF, TXT, MD, CSV, DOCX, DOC, XLSX, XLS, JSON · max {kbUploadMaxMb} MB</p>
                                         </>
+                                    )}
+                                    {fileError && (
+                                        <p className="mt-2 text-xs font-medium text-red-500">{fileError}</p>
                                     )}
                                 </div>
                             ) : data.source_type === 'text' ? (
