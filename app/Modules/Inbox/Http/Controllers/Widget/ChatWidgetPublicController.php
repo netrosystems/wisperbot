@@ -63,10 +63,10 @@ class ChatWidgetPublicController extends Controller
         $data = $request->validate([
             'key' => ['required', 'string'],
             'message' => ['nullable', 'string', 'max:4000'],
-            'type' => ['nullable', 'in:text,audio'],
+            'type' => ['nullable', 'in:text,audio,image'],
             'attachment' => [
                 'nullable', 'file', 'max:10240',
-                'mimes:mp3,aac,m4a,amr,ogg,oga,wav,webm',
+                'mimes:jpg,jpeg,png,webp,mp3,aac,m4a,amr,ogg,oga,wav,webm',
             ],
         ]);
 
@@ -90,9 +90,10 @@ class ChatWidgetPublicController extends Controller
             $mimeType = $file->getMimeType() ?? 'application/octet-stream';
             $isAudioRecording = str_starts_with($mimeType, 'audio/')
                 || in_array($mimeType, ['video/webm', 'application/ogg'], true);
-            abort_unless($isAudioRecording, 422, 'Only audio recordings are accepted here.');
+            $isImage = str_starts_with($mimeType, 'image/');
+            abort_unless($isAudioRecording || $isImage, 422, 'Only image uploads and audio recordings are accepted here.');
 
-            $type = 'audio';
+            $type = $isImage ? 'image' : 'audio';
             $storedPath = $this->storageManager->prefixedPath('message-media/'.$file->hashName());
             $this->storageManager->disk()->putFileAs(dirname($storedPath), $file, basename($storedPath));
 
@@ -102,7 +103,7 @@ class ChatWidgetPublicController extends Controller
                 'mime_type' => $mimeType,
                 'caption' => $body !== '' ? $body : null,
             ];
-            $body = $body !== '' ? $body : ($file->getClientOriginalName() ?: 'Voice message');
+            $body = $body !== '' ? $body : ($file->getClientOriginalName() ?: ($isImage ? 'Image attachment' : 'Voice message'));
         }
 
         abort_if($type === 'text' && $body === '', 422, 'Message body is required.');
