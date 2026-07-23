@@ -33,6 +33,9 @@
   var online = true;
   var pollTimer = null;
   var inviteTimer = null;
+  var unreadCount = 0;
+  var audioCtx = null;
+  var audioUnlocked = false;
   var prechatNeeded = !!CFG.require_prechat && !safeGet('wb_chat_prechat_' + KEY);
 
   function safeGet(k) { try { return window.localStorage.getItem(k) || ''; } catch (e) { return ''; } }
@@ -102,6 +105,9 @@
   launcher.addEventListener('click', function () { open ? close() : openPanel(); });
   invite.addEventListener('click', openPanel);
   root.querySelector('.wb-close').addEventListener('click', close);
+  ['click', 'touchstart', 'keydown'].forEach(function (eventName) {
+    document.addEventListener(eventName, unlockSound, { once: true, passive: true });
+  });
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -157,7 +163,8 @@
     wrap.classList.remove('wb-show-invite');
     wrap.classList.add('wb-open');
     launcher.classList.add('wb-active');
-    badge.style.display = 'none';
+    unreadCount = 0;
+    updateBadge();
     if (!prechatNeeded && !started) { ensureSession().then(startPolling); }
     else { startPolling(); }
     setTimeout(function () { if (!prechatNeeded) input.focus(); scrollDown(); }, 60);
@@ -221,20 +228,25 @@
       if (!data) return;
       if (typeof data.online === 'boolean') { online = data.online; updateStatus(); }
       (data.messages || []).forEach(function (m) {
-        if (m.role === 'agent') { addMessage(m); if (!open) showBadge(); }
-        else { addMessage(m); }
+        var added = addMessage(m);
+        if (added && m.role === 'agent' && (!open || document.hidden)) {
+          unreadCount += 1;
+          updateBadge();
+          playNotificationSound();
+        }
       });
     });
   }
 
   // ── Rendering ──────────────────────────────────────────────────────────────
   function addMessage(m) {
-    if (!m || rendered[m.id]) return;
+    if (!m || rendered[m.id]) return false;
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
     thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename });
     saveThread();
     addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename);
+    return true;
   }
 
   function addBubble(role, text, name, attachmentUrl, type, filename) {
@@ -265,7 +277,55 @@
       : '<span class="wb-dot wb-dot-off"></span>' + esc(CFG.offline_message || 'Away — leave a message');
   }
 
-  function showBadge() { badge.style.display = 'block'; }
+  function updateBadge() {
+    if (!badge) return;
+    if (unreadCount > 0 && !open) {
+      badge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+      badge.style.display = 'flex';
+      launcher.classList.add('wb-has-unread');
+    } else {
+      badge.textContent = '';
+      badge.style.display = 'none';
+      launcher.classList.remove('wb-has-unread');
+    }
+  }
+
+  function unlockSound() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      audioUnlocked = true;
+    } catch (e) {
+      audioUnlocked = false;
+    }
+  }
+
+  function playNotificationSound() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioUnlocked && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(function () {});
+      }
+      if (audioCtx.state === 'suspended') return;
+
+      var now = audioCtx.currentTime;
+      var gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+      gain.connect(audioCtx.destination);
+
+      [740, 980].forEach(function (freq, index) {
+        var osc = audioCtx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + (index * 0.08));
+        osc.connect(gain);
+        osc.start(now + (index * 0.08));
+        osc.stop(now + 0.28 + (index * 0.08));
+      });
+    } catch (e) {}
+  }
+
   function scrollDown() { setTimeout(function () { body.scrollTop = body.scrollHeight; }, 30); }
 
   // ── HTTP ───────────────────────────────────────────────────────────────────
@@ -324,7 +384,7 @@
         '<span class="wb-invite-card"><strong>' + esc(inviteTitle) + '</strong><small>' + esc(inviteSubtitle) + '</small></span>' +
       '</button>' +
       '<button class="wb-launcher" aria-label="Open chat">' +
-        '<span class="wb-badge"></span>' +
+        '<span class="wb-badge" aria-live="polite"></span>' +
         '<span class="wb-launcher-default">' + launcherIcon + '</span>' +
         '<svg class="wb-ic-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
       '</button>';
@@ -336,14 +396,15 @@
       '*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}',
       '.wb-wrap{position:fixed;bottom:20px;z-index:2147483647}',
       '.wb-right{right:20px}.wb-left{left:20px}',
-      '.wb-launcher{position:relative;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;color:#fff;background:' + COLOR + ';box-shadow:0 6px 24px rgba(0,0,0,.24);display:flex;align-items:center;justify-content:center;overflow:hidden;transition:opacity .2s,transform .2s}',
+      '.wb-launcher{position:relative;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;color:#fff;background:' + COLOR + ';box-shadow:0 6px 24px rgba(0,0,0,.24);display:flex;align-items:center;justify-content:center;overflow:visible;transition:opacity .2s,transform .2s}',
       '.wb-launcher:hover{transform:scale(1.06)}.wb-launcher:active{transform:scale(.96)}',
+      '.wb-launcher:before{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px solid ' + COLOR + ';opacity:0;transform:scale(.82);pointer-events:none}.wb-has-unread:before{animation:wb-pulse 1.35s ease-out infinite}',
       '.wb-ic-close{display:none}',
       '.wb-launcher-default{display:flex;align-items:center;justify-content:center}.wb-launcher-logo{width:30px;height:30px;object-fit:contain}.wb-active .wb-launcher-default{display:none}.wb-active .wb-ic-close{display:block}',
       '.wb-launcher-invite{position:absolute;bottom:3px;width:224px;max-width:calc(100vw - 104px);border:0;background:transparent;padding:0;cursor:pointer;text-align:left;opacity:0;pointer-events:none;transform:translateX(14px) scale(.92);transition:opacity .28s ease,transform .48s cubic-bezier(.18,1.18,.35,1)}',
       '.wb-right .wb-launcher-invite{right:72px;transform-origin:right center}.wb-left .wb-launcher-invite{left:72px;transform:translateX(-12px) scale(.96);transform-origin:left center}.wb-show-invite .wb-launcher-invite{opacity:1;pointer-events:auto;transform:translateX(0) scale(1)}',
       '.wb-invite-card{position:relative;display:block;width:100%;background:#fff;border-radius:11px;padding:11px 15px;box-shadow:0 5px 18px rgba(0,0,0,.16);color:#20242c}.wb-invite-card:after{content:"";position:absolute;top:50%;right:-8px;margin-top:-8px;border-width:8px 0 8px 9px;border-style:solid;border-color:transparent transparent transparent #fff}.wb-left .wb-invite-card:after{right:auto;left:-8px;border-width:8px 9px 8px 0;border-color:transparent #fff transparent transparent}.wb-invite-card strong{display:block;font-size:15px;line-height:1.2;font-weight:700}.wb-invite-card small{display:block;margin-top:3px;font-size:12px;line-height:1.3;color:#737984;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.wb-badge{display:none;position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#ef4444;border:2px solid #fff}',
+      '.wb-badge{display:none;position:absolute;top:-3px;right:-3px;min-width:22px;height:22px;border-radius:999px;background:#ef4444;border:2px solid #fff;color:#fff;align-items:center;justify-content:center;font-size:11px;font-weight:800;line-height:1;box-shadow:0 3px 10px rgba(239,68,68,.42);z-index:2}',
       '.wb-panel{position:absolute;bottom:74px;' + (LEFT ? 'left:0' : 'right:0') + ';width:370px;max-width:calc(100vw - 40px);height:560px;max-height:calc(100vh - 120px);background:#fff;border-radius:18px;box-shadow:0 16px 50px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(12px) scale(.98);pointer-events:none;transition:opacity .2s,transform .22s cubic-bezier(.34,1.4,.6,1);transform-origin:bottom ' + (LEFT ? 'left' : 'right') + '}',
       '.wb-open .wb-panel{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}',
       '.wb-header{background:' + COLOR + ';color:#fff;padding:16px;display:flex;align-items:center;gap:11px}',
@@ -376,6 +437,7 @@
       '.wb-send:hover{opacity:.88}',
       '.wb-brand{text-align:center;font-size:11px;color:#9aa1ad;padding:7px;background:#fff;border-top:1px solid #f1f2f4}',
       '.wb-brand b{color:#6b7280}',
+      '@keyframes wb-pulse{0%{opacity:.48;transform:scale(.86)}70%{opacity:0;transform:scale(1.28)}100%{opacity:0;transform:scale(1.28)}}',
       '@media(max-width:420px){.wb-panel{height:calc(100vh - 96px)}}'
     ].join('');
   }
