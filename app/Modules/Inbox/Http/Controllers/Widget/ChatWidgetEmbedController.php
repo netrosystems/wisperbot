@@ -17,7 +17,7 @@ use Illuminate\Http\Response;
 class ChatWidgetEmbedController extends Controller
 {
     /** Bump when the static widget bundle changes, to bust the browser cache. */
-    private const BUNDLE_VERSION = '11';
+    private const BUNDLE_VERSION = '12';
 
     public function script(string $key): Response
     {

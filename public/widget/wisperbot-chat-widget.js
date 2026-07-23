@@ -118,6 +118,11 @@
   ['click', 'touchstart', 'keydown'].forEach(function (eventName) {
     document.addEventListener(eventName, unlockSound, { once: true, passive: true });
   });
+  ['wheel', 'touchmove'].forEach(function (eventName) {
+    body.addEventListener(eventName, function (event) {
+      event.stopPropagation();
+    }, { passive: true });
+  });
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -564,7 +569,7 @@
       '.wb-dot-off{background:#d1d5db}',
       '.wb-close{background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer;opacity:.85;padding:4px;line-height:1}',
       '.wb-close:hover{opacity:1}',
-      '.wb-body{flex:1;overflow-y:auto;padding:16px;background:#f7f8fa;display:flex;flex-direction:column;gap:10px}',
+      '.wb-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:16px;background:#f7f8fa;display:flex;flex-direction:column;gap:10px}',
       '.wb-row{display:flex;align-items:flex-end;gap:8px;max-width:85%}',
       '.wb-in{align-self:flex-start}.wb-out{align-self:flex-end;flex-direction:row-reverse}',
       '.wb-row .wb-av{width:26px;height:26px;font-size:11px}',
