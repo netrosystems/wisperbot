@@ -460,7 +460,8 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                                         {data.source_type === 'sitemap' ? t('ai.sitemap_url') : t('ai.source_url')}
                                     </label>
                                     <input
-                                        type="url"
+                                        type="text"
+                                        inputMode="url"
                                         value={data.source_ref}
                                         onChange={e => setData('source_ref', e.target.value)}
                                         placeholder={data.source_type === 'sitemap' ? 'https://example.com/sitemap.xml' : 'https://example.com'}

@@ -135,7 +135,7 @@ class IndexDocumentJob implements ShouldQueue
         }
 
         $message = strtolower($exception->getMessage());
-        foreach (['url indexing failed', 'document indexing failed'] as $safeMarker) {
+        foreach (['url indexing failed', 'sitemap indexing failed', 'document indexing failed'] as $safeMarker) {
             if (str_contains($message, $safeMarker)) {
                 return $exception->getMessage();
             }
@@ -291,9 +291,12 @@ class IndexDocumentJob implements ShouldQueue
         if (empty($sitemapUrl)) {
             return '';
         }
-        $resp = Http::retry(2, 500)->timeout(20)->get($sitemapUrl);
+        $resp = Http::withHeaders([
+            'User-Agent' => 'WisperBotKnowledgeIndexer/1.0 (+https://wisperbot.com)',
+            'Accept' => 'application/xml,text/xml,text/plain;q=0.9,*/*;q=0.7',
+        ])->retry(2, 500)->timeout(20)->get($sitemapUrl);
         if (! $resp->successful()) {
-            return '';
+            throw new \RuntimeException('Sitemap indexing failed: '.$sitemapUrl.' returned HTTP '.$resp->status().'.');
         }
 
         try {
@@ -314,6 +317,10 @@ class IndexDocumentJob implements ShouldQueue
                 }
             }
 
+            if ($locs === []) {
+                throw new \RuntimeException('Sitemap indexing failed: no page URLs were found in '.$sitemapUrl.'.');
+            }
+
             foreach (array_slice(array_keys($locs), 0, 200) as $loc) {
                 $child = AiKbDocument::create([
                     'kb_id' => $doc->kb_id,
@@ -324,7 +331,11 @@ class IndexDocumentJob implements ShouldQueue
                 ]);
                 static::dispatch($child->id)->onQueue('ai');
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            if (str_contains(strtolower($exception->getMessage()), 'sitemap indexing failed')) {
+                throw $exception;
+            }
+
             // Malformed sitemap; fall back to fetching the URL as HTML
             return $this->fetchUrl($sitemapUrl);
         }
