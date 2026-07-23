@@ -36,6 +36,10 @@
   var unreadCount = 0;
   var audioCtx = null;
   var audioUnlocked = false;
+  var mediaRecorder = null;
+  var recordingStream = null;
+  var recordingChunks = [];
+  var pendingAudio = null;
   var prechatNeeded = !!CFG.require_prechat && !safeGet('wb_chat_prechat_' + KEY);
 
   function safeGet(k) { try { return window.localStorage.getItem(k) || ''; } catch (e) { return ''; } }
@@ -86,6 +90,12 @@
   var body = root.querySelector('.wb-body');
   var form = root.querySelector('.wb-inputbar');
   var input = root.querySelector('.wb-input');
+  var micBtn = root.querySelector('.wb-mic');
+  var audioPreview = root.querySelector('.wb-audio-preview');
+  var audioPreviewPlayer = root.querySelector('.wb-audio-player');
+  var audioStatus = root.querySelector('.wb-audio-status');
+  var audioSendBtn = root.querySelector('.wb-audio-send');
+  var audioDiscardBtn = root.querySelector('.wb-audio-discard');
   var prechat = root.querySelector('.wb-prechat');
   var prechatForm = root.querySelector('.wb-prechat-form');
   var statusEl = root.querySelector('.wb-status');
@@ -116,6 +126,9 @@
     input.value = '';
     send(text);
   });
+  micBtn.addEventListener('click', toggleRecording);
+  audioSendBtn.addEventListener('click', sendPendingAudio);
+  audioDiscardBtn.addEventListener('click', discardPendingAudio);
 
   if (prechatForm) {
     prechatForm.addEventListener('submit', function (e) {
@@ -174,6 +187,7 @@
     open = false;
     wrap.classList.remove('wb-open');
     launcher.classList.remove('wb-active');
+    stopRecording(false);
   }
 
   function scheduleInvite() {
@@ -211,6 +225,116 @@
       // against the next poll — no optimistic double-render.
       if (data && data.message) addMessage(data.message);
     }).catch(function () {});
+  }
+
+  function toggleRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      stopRecording(true);
+      return;
+    }
+    startRecording();
+  }
+
+  function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+      setAudioStatus('Audio recording is not supported in this browser.');
+      return;
+    }
+    discardPendingAudio();
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      recordingStream = stream;
+      recordingChunks = [];
+      var mimeType = pickRecorderMimeType();
+      mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType: mimeType }) : new MediaRecorder(stream);
+      mediaRecorder.addEventListener('dataavailable', function (event) {
+        if (event.data && event.data.size > 0) recordingChunks.push(event.data);
+      });
+      mediaRecorder.addEventListener('stop', function () {
+        stopTracks();
+        micBtn.classList.remove('wb-recording');
+        micBtn.setAttribute('aria-label', 'Record voice message');
+        if (!recordingChunks.length) return;
+        var blobType = mediaRecorder.mimeType || 'audio/webm';
+        var blob = new Blob(recordingChunks, { type: blobType });
+        var extension = blobType.indexOf('ogg') !== -1 ? 'ogg' : (blobType.indexOf('mp4') !== -1 ? 'm4a' : 'webm');
+        pendingAudio = {
+          blob: blob,
+          file: new File([blob], 'voice-message.' + extension, { type: blobType }),
+          url: URL.createObjectURL(blob)
+        };
+        audioPreviewPlayer.src = pendingAudio.url;
+        audioPreview.style.display = 'flex';
+        setAudioStatus('Voice message ready. Send or discard it.');
+      });
+      mediaRecorder.start();
+      micBtn.classList.add('wb-recording');
+      micBtn.setAttribute('aria-label', 'Stop recording');
+      setAudioStatus('Recording… tap the microphone again to stop.');
+    }).catch(function () {
+      setAudioStatus('Microphone permission was not granted.');
+    });
+  }
+
+  function stopRecording(keepRecording) {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    } else {
+      stopTracks();
+    }
+    if (!keepRecording) {
+      recordingChunks = [];
+      micBtn.classList.remove('wb-recording');
+    }
+  }
+
+  function stopTracks() {
+    if (recordingStream) {
+      recordingStream.getTracks().forEach(function (track) { track.stop(); });
+      recordingStream = null;
+    }
+  }
+
+  function sendPendingAudio() {
+    if (!pendingAudio) return;
+    ensureSession().then(function () {
+      startPolling();
+      audioSendBtn.disabled = true;
+      var fd = new FormData();
+      fd.append('key', KEY);
+      fd.append('type', 'audio');
+      fd.append('message', input.value.trim());
+      fd.append('attachment', pendingAudio.file);
+      return postForm('/widget/v1/messages', fd);
+    }).then(function (data) {
+      if (data && data.message) addMessage(data.message);
+      input.value = '';
+      discardPendingAudio();
+    }).catch(function () {
+      setAudioStatus('Could not send voice message. Please try again.');
+    }).then(function () {
+      audioSendBtn.disabled = false;
+    });
+  }
+
+  function discardPendingAudio() {
+    if (pendingAudio && pendingAudio.url) URL.revokeObjectURL(pendingAudio.url);
+    pendingAudio = null;
+    audioPreviewPlayer.removeAttribute('src');
+    audioPreview.style.display = 'none';
+    setAudioStatus('');
+  }
+
+  function setAudioStatus(text) {
+    audioStatus.textContent = text || '';
+    audioStatus.style.display = text ? 'block' : 'none';
+  }
+
+  function pickRecorderMimeType() {
+    var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4'];
+    for (var i = 0; i < types.length; i++) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
+    }
+    return '';
   }
 
   function startPolling() {
@@ -261,6 +385,8 @@
     var attachment = '';
     if (attachmentUrl && type === 'image') {
       attachment = '<img class="wb-media-image" src="' + esc(attachmentUrl) + '" alt="' + esc(filename || text || 'Image attachment') + '">';
+    } else if (attachmentUrl && type === 'audio') {
+      attachment = '<audio class="wb-media-audio" src="' + esc(attachmentUrl) + '" controls preload="metadata"></audio>';
     } else if (attachmentUrl) {
       attachment = '<a class="wb-media-file" href="' + esc(attachmentUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(filename || 'Open attachment') + '</a>';
     }
@@ -336,9 +462,21 @@
       body: JSON.stringify(payload)
     }).then(handle);
   }
+  function postForm(path, payload) {
+    return fetch(API + path, {
+      method: 'POST',
+      headers: formHeaders(),
+      body: payload
+    }).then(handle);
+  }
   function get(path) { return fetch(API + path, { method: 'GET', headers: headers() }).then(handle); }
   function headers() {
     var h = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (token) h['X-Widget-Token'] = token;
+    return h;
+  }
+  function formHeaders() {
+    var h = { 'Accept': 'application/json' };
     if (token) h['X-Widget-Token'] = token;
     return h;
   }
@@ -373,6 +511,15 @@
           '</form>' +
         '</div>' +
         '<form class="wb-inputbar">' +
+          '<div class="wb-audio-preview">' +
+            '<audio class="wb-audio-player" controls preload="metadata"></audio>' +
+            '<button class="wb-audio-send" type="button">Send</button>' +
+            '<button class="wb-audio-discard" type="button" aria-label="Discard voice message">&#x2715;</button>' +
+          '</div>' +
+          '<div class="wb-audio-status" aria-live="polite"></div>' +
+          '<button class="wb-mic" type="button" aria-label="Record voice message" title="Record voice message">' +
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>' +
+          '</button>' +
           '<input class="wb-input" type="text" placeholder="Type your message…" autocomplete="off">' +
           '<button class="wb-send" type="submit" aria-label="Send">' +
             '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>' +
@@ -424,20 +571,22 @@
       '.wb-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;word-wrap:break-word;white-space:normal}',
       '.wb-in .wb-bubble{background:#fff;color:#1f2430;border:1px solid #eceef2;border-bottom-left-radius:5px}',
       '.wb-out .wb-bubble{background:' + COLOR + ';color:#fff;border-bottom-right-radius:5px}',
-      '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-caption:empty{display:none}.wb-media-file{display:block;color:inherit;font-weight:600;text-decoration:underline;word-break:break-word}',
+      '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-media-audio{display:block;width:220px;max-width:100%;height:38px;margin-bottom:6px}.wb-caption:empty{display:none}.wb-media-file{display:block;color:inherit;font-weight:600;text-decoration:underline;word-break:break-word}',
       '.wb-prechat{display:none;padding:18px;background:#fff}',
       '.wb-pc-intro{font-size:13px;color:#6b7280;margin-bottom:12px}',
       '.wb-prechat-form{display:flex;flex-direction:column;gap:10px}',
       '.wb-prechat-form input{border:1px solid #dfe2e8;border-radius:10px;padding:11px 13px;font-size:14px;outline:none}',
       '.wb-prechat-form input:focus{border-color:' + COLOR + '}',
       '.wb-pc-btn{background:' + COLOR + ';color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer}',
-      '.wb-inputbar{display:flex;align-items:center;gap:8px;padding:12px;border-top:1px solid #eceef2;background:#fff}',
+      '.wb-inputbar{display:flex;align-items:center;gap:8px;padding:12px;border-top:1px solid #eceef2;background:#fff;position:relative;flex-wrap:wrap}',
+      '.wb-audio-preview{display:none;align-items:center;gap:8px;width:100%;padding:8px 9px;border:1px solid #eceef2;border-radius:12px;background:#f8fafc}.wb-audio-player{flex:1;min-width:160px;height:34px}.wb-audio-send{border:none;border-radius:999px;background:' + COLOR + ';color:#fff;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}.wb-audio-send:disabled{opacity:.6;cursor:wait}.wb-audio-discard{width:30px;height:30px;border:none;border-radius:999px;background:#fff;color:#8b93a1;cursor:pointer;border:1px solid #e5e7eb}.wb-audio-status{display:none;width:100%;font-size:11px;color:#6b7280;padding:0 4px 2px}.wb-mic{width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;background:#f1f3f6;color:#687386;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,color .15s,transform .15s}.wb-mic:hover{background:#e7eaf0;color:#303744}.wb-mic.wb-recording{background:#ef4444;color:#fff;animation:wb-record 1s ease-in-out infinite}',
       '.wb-input{flex:1;border:none;outline:none;font-size:14px;padding:8px 4px;background:transparent}',
       '.wb-send{width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;background:' + COLOR + ';color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}',
       '.wb-send:hover{opacity:.88}',
       '.wb-brand{text-align:center;font-size:11px;color:#9aa1ad;padding:7px;background:#fff;border-top:1px solid #f1f2f4}',
       '.wb-brand b{color:#6b7280}',
       '@keyframes wb-pulse{0%{opacity:.48;transform:scale(.86)}70%{opacity:0;transform:scale(1.28)}100%{opacity:0;transform:scale(1.28)}}',
+      '@keyframes wb-record{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}',
       '@media(max-width:420px){.wb-panel{height:calc(100vh - 96px)}}'
     ].join('');
   }
