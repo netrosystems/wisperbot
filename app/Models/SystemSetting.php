@@ -21,7 +21,11 @@ class SystemSetting extends Model
             try {
                 return Crypt::decryptString($raw);
             } catch (\Throwable) {
-                return null;
+                // Older saves could mark a value as secret after assigning the
+                // value, leaving the raw secret stored as plain text. Return the
+                // raw value so existing Pusher/API settings do not become
+                // unreadable; the next save will re-encrypt it correctly.
+                return $raw;
             }
         }
 
@@ -47,8 +51,8 @@ class SystemSetting extends Model
     public static function set(string $key, $value, bool $isSecret = false, ?string $group = null): void
     {
         $s = static::firstOrNew(['key' => $key]);
-        $s->value = $value;
         $s->is_secret = $isSecret;
+        $s->value = $value;
         $s->group = $group;
         $s->save();
     }
