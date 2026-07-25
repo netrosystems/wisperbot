@@ -15,6 +15,7 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
     Route::get('/templates', [InboxController::class, 'templates'])->name('templates');
     Route::post('/conversations/{conversation}/upload-media', [InboxController::class, 'uploadMedia'])->name('upload-media');
     Route::get('/conversations/{conversation}/messages/{message}/media', [InboxController::class, 'serveMedia'])->name('message-media');
+    Route::get('/conversations/{conversation}/messages', [InboxController::class, 'messages'])->name('messages');
     Route::post('/conversations/start', [InboxController::class, 'startConversation'])->name('start');
     Route::get('/conversations/{conversation}', [InboxController::class, 'show'])->name('show');
     Route::post('/conversations/{conversation}/reply', [InboxController::class, 'reply'])->name('reply')->middleware('limit:whatsapp_messages_per_month,whatsapp_messages');

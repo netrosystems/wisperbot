@@ -1460,6 +1460,7 @@ export default function InboxShow({
     const recordingChunksRef = useRef([]);
     const fileRef = useRef(null);
     const bottomRef = useRef(null);
+    const messagesRef = useRef(initialMessages ?? []);
 
     const { data, setData, reset } = useForm({ body: '', type: 'text', payload: null });
 
@@ -1475,6 +1476,49 @@ export default function InboxShow({
 
     useEffect(() => { scrollToBottom(); }, [messages]);
 
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
+    const mergeIncomingMessages = useCallback((incoming = [], { playSound = false } = {}) => {
+        const fresh = Array.isArray(incoming) ? incoming.filter(Boolean) : [];
+        if (fresh.length === 0) return;
+
+        setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const nextMessages = [...prev];
+            const trulyNew = [];
+
+            fresh.forEach((message) => {
+                if (!message?.id) return;
+                if (existingIds.has(message.id)) {
+                    const idx = nextMessages.findIndex(m => m.id === message.id);
+                    if (idx >= 0) {
+                        nextMessages[idx] = { ...nextMessages[idx], ...message };
+                    }
+                    return;
+                }
+
+                existingIds.add(message.id);
+                nextMessages.push(message);
+                trulyNew.push(message);
+            });
+
+            if (playSound) {
+                trulyNew
+                    .filter(m => m.direction === 'in')
+                    .forEach(m => playInboundSound(m.channel));
+            }
+
+            return nextMessages.sort((a, b) => {
+                const aTime = new Date(a.sent_at || a.created_at || 0).getTime();
+                const bTime = new Date(b.sent_at || b.created_at || 0).getTime();
+                if (aTime !== bTime) return aTime - bTime;
+                return (a.id ?? 0) - (b.id ?? 0);
+            });
+        });
+    }, []);
+
     // WS: conversation events
     useEffect(() => {
         if (!window.Echo) {
@@ -1484,16 +1528,10 @@ export default function InboxShow({
         const ch = window.Echo.private(`conversation.${conversation.id}`);
         ch
             .listen('.MessageReceived', (e) => {
-                setMessages(prev => prev.some(m => m.id === e.id) ? prev : [...prev, e]);
+                mergeIncomingMessages([e]);
             })
             .listen('.MessageSent', (e) => {
-                setMessages(prev => {
-                    if (prev.some(m => m.id === e.id)) {
-                        // Existing optimistic message — refresh status / payload from server.
-                        return prev.map(m => m.id === e.id ? { ...m, ...e } : m);
-                    }
-                    return [...prev, e];
-                });
+                mergeIncomingMessages([e]);
             })
             .listen('.MessageStatusUpdated', (e) => {
                 setMessages(prev => prev.map(m =>
@@ -1520,7 +1558,73 @@ export default function InboxShow({
             window.Echo.leave(`conversation.${conversation.id}`);
             window.Echo.leave(`presence-conversation.${conversation.id}`);
         };
-    }, [conversation.id]);
+    }, [conversation.id, mergeIncomingMessages]);
+
+    // Safety net: if Pusher auth/socket misses an event, automatically catch up
+    // from the server while the agent is actively viewing the conversation.
+    useEffect(() => {
+        let cancelled = false;
+        let inFlight = false;
+
+        const fetchNewMessages = async () => {
+            if (cancelled || inFlight || document.hidden) return;
+
+            const current = messagesRef.current ?? [];
+            const afterId = current.reduce((max, message) => Math.max(max, Number(message?.id ?? 0)), 0);
+            inFlight = true;
+
+            try {
+                const { data: res } = await axios.get(route('client.inbox.messages', conversation.uuid), {
+                    params: { after_id: afterId },
+                    headers: { Accept: 'application/json' },
+                });
+
+                if (cancelled) return;
+
+                const incoming = res?.messages ?? [];
+                mergeIncomingMessages(incoming, { playSound: true });
+
+                if (incoming.length > 0) {
+                    const latest = incoming[incoming.length - 1];
+                    setConversations(prev => {
+                        if (!prev?.data) return prev;
+                        return {
+                            ...prev,
+                            data: prev.data.map(item => item.id === conversation.id
+                                ? {
+                                    ...item,
+                                    unread_count: 0,
+                                    status: res?.conversation?.status ?? item.status,
+                                    last_message_at: latest.created_at ?? latest.sent_at ?? item.last_message_at,
+                                    last_message: { ...(item.last_message ?? {}), body: latest.body, type: latest.type },
+                                }
+                                : item
+                            ),
+                        };
+                    });
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    console.warn('[inbox] message catch-up failed', error);
+                }
+            } finally {
+                inFlight = false;
+            }
+        };
+
+        fetchNewMessages();
+        const timer = window.setInterval(fetchNewMessages, 3500);
+        const onVisible = () => {
+            if (!document.hidden) fetchNewMessages();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+    }, [conversation.id, conversation.uuid, mergeIncomingMessages]);
 
     // WS: list updates
     useEffect(() => {
