@@ -150,6 +150,56 @@ class InboxController extends Controller
         ]);
     }
 
+    public function messages(Request $request, Conversation $conversation): JsonResponse
+    {
+        $this->authorise($request, $conversation);
+
+        $validated = $request->validate([
+            'after_id' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $afterId = (int) ($validated['after_id'] ?? 0);
+
+        $messages = $conversation->messages()
+            ->when($afterId > 0, fn ($q) => $q->where('id', '>', $afterId))
+            ->orderBy('sent_at')
+            ->orderBy('id')
+            ->limit(100)
+            ->get()
+            ->map(fn (Message $message) => [
+                'id' => $message->id,
+                'conversation_id' => $message->conversation_id,
+                'direction' => $message->direction,
+                'channel' => $message->channel,
+                'type' => $message->type,
+                'body' => $message->body,
+                'payload' => $message->payload,
+                'status' => $message->status,
+                'provider_message_id' => $message->provider_message_id,
+                'sent_by' => $message->sent_by,
+                'sent_at' => $message->sent_at?->toIso8601String(),
+                'created_at' => $message->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        // If the agent is actively viewing this conversation, keep the unread
+        // badge cleared even when realtime Pusher events are missed and the
+        // automatic catch-up poll retrieves the new messages.
+        if ($messages->isNotEmpty() && (int) $conversation->unread_count > 0) {
+            $conversation->update(['unread_count' => 0]);
+        }
+
+        return response()->json([
+            'messages' => $messages,
+            'conversation' => [
+                'id' => $conversation->id,
+                'status' => $conversation->fresh()?->status ?? $conversation->status,
+                'unread_count' => $conversation->fresh()?->unread_count ?? $conversation->unread_count,
+                'last_message_at' => $conversation->fresh()?->last_message_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
     public function reply(Request $request, Conversation $conversation): JsonResponse|RedirectResponse
     {
         $this->authorise($request, $conversation);
