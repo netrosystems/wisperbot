@@ -17,7 +17,7 @@ class PusherSettingsServiceProvider extends ServiceProvider
                 $cluster = SystemSetting::get('pusher_app_cluster');
                 $enabled = SystemSetting::get('pusher_enabled', 'false');
 
-                if ($key && $secret && $appId) {
+                if ($enabled === 'true' && $key && $secret && $appId) {
                     config([
                         'broadcasting.default' => 'pusher',
                         'broadcasting.connections.pusher.key' => $key,

@@ -25,7 +25,9 @@ class PusherSettingsController extends Controller
         }
 
         $settings['pusher_enabled'] = SystemSetting::get('pusher_enabled', 'false');
-        $configured = ! empty(SystemSetting::get('pusher_app_key')) && ! empty(SystemSetting::get('pusher_app_secret'));
+        $configured = ! empty(SystemSetting::get('pusher_app_id'))
+            && ! empty(SystemSetting::get('pusher_app_key'))
+            && ! empty(SystemSetting::get('pusher_app_secret'));
 
         return Inertia::render('Admin/PusherSettings/Index', [
             'settings'   => $settings,
@@ -51,7 +53,7 @@ class PusherSettingsController extends Controller
             }
             $isSecret = in_array($key, $secrets, true);
             // Skip masked placeholder — keep existing secret
-            if ($isSecret && preg_match('/^•+$/', (string) $value)) {
+            if ($isSecret && ((string) $value === '' || preg_match('/^•+$/', (string) $value))) {
                 continue;
             }
             SystemSetting::set($key, $value, $isSecret, 'pusher');
