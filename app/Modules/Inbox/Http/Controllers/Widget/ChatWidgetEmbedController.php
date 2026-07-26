@@ -17,7 +17,7 @@ use Illuminate\Http\Response;
 class ChatWidgetEmbedController extends Controller
 {
     /** Bump when the static widget bundle changes, to bust the browser cache. */
-    private const BUNDLE_VERSION = '14';
+    private const BUNDLE_VERSION = '15';
 
     public function script(string $key): Response
     {
@@ -68,7 +68,9 @@ JS;
 
         return response($js, 200, [
             'Content-Type' => 'application/javascript; charset=utf-8',
-            'Cache-Control' => 'public, max-age=300',
+            // Widget branding/config must reflect an admin save immediately.
+            // The shared bundle remains cacheable through its versioned URL.
+            'Cache-Control' => 'no-cache, must-revalidate',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }

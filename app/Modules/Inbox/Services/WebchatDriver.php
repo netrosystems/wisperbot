@@ -151,7 +151,8 @@ class WebchatDriver implements ChannelDriverInterface
         $email = filter_var((string) ($identity['email'] ?? ''), FILTER_VALIDATE_EMAIL) ?: null;
         $avatar = (string) ($identity['avatar'] ?? '');
         $avatar = str_starts_with($avatar, 'http') ? $avatar : null; // only accept URLs
-        $externalId = trim((string) ($identity['external_id'] ?? ''));
+        $identityVerified = (bool) ($identity['identity_verified'] ?? false);
+        $externalId = $identityVerified ? trim((string) ($identity['external_id'] ?? '')) : '';
 
         $contact = null;
         if ($externalId !== '') {
@@ -166,10 +167,11 @@ class WebchatDriver implements ChannelDriverInterface
         }
 
         if (! $contact) {
+            $anonymousName = $this->nextAnonymousCustomerName($workspaceId);
             $contact = Contact::create([
                 'workspace_id' => $workspaceId,
                 'source' => 'webchat',
-                'first_name' => $first ?: 'Website visitor',
+                'first_name' => $first ?: $anonymousName,
                 'last_name' => $last,
                 'email' => $email,
                 'avatar' => $avatar,
@@ -182,6 +184,7 @@ class WebchatDriver implements ChannelDriverInterface
                 'custom_fields' => array_filter([
                     'webchat_visitor_id' => $visitorId,
                     'webchat_external_id' => $externalId ?: null,
+                    'webchat_identity_type' => $identityVerified ? 'logged_in' : 'anonymous',
                 ]),
                 'last_seen_at' => now(),
             ]);
@@ -202,7 +205,7 @@ class WebchatDriver implements ChannelDriverInterface
         }
 
         $updates = ['last_seen_at' => now(), 'custom_fields' => $cf];
-        if ($first && (! $contact->first_name || $contact->first_name === 'Website visitor')) {
+        if ($first && (! $contact->first_name || $contact->first_name === 'Website visitor' || str_starts_with($contact->first_name, 'Customer '))) {
             $updates['first_name'] = $first;
             $updates['last_name'] = $last;
         }
@@ -215,5 +218,20 @@ class WebchatDriver implements ChannelDriverInterface
         $contact->update($updates);
 
         return $contact;
+    }
+
+    private function nextAnonymousCustomerName(int $workspaceId): string
+    {
+        $highest = Contact::where('workspace_id', $workspaceId)
+            ->where('source', 'webchat')
+            ->where('first_name', 'like', 'Customer %')
+            ->pluck('first_name')
+            ->reduce(function (int $max, string $name): int {
+                return preg_match('/^Customer\s+(\d+)$/', $name, $matches)
+                    ? max($max, (int) $matches[1])
+                    : $max;
+            }, 0);
+
+        return 'Customer '.($highest + 1);
     }
 }

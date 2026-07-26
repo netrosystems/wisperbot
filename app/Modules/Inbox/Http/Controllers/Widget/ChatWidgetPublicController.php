@@ -42,10 +42,24 @@ class ChatWidgetPublicController extends Controller
         $widget = $this->resolveWidget($data['key']);
         $this->assertDomainAllowed($widget, $request);
 
-        $visitorId = ($data['visitor_id'] ?? '') ?: (string) Str::uuid();
         $identity = $this->resolveIdentity($widget, $data);
+        $resume = $this->verifiedResumePayload($request, $widget, (string) ($data['visitor_id'] ?? ''));
 
-        $conversation = $this->driver->resolveConversation($widget, $visitorId, $identity);
+        if ($resume) {
+            $visitorId = (string) $resume['v'];
+            $conversation = Conversation::where('id', (int) $resume['c'])
+                ->where('workspace_id', $widget->workspace_id)
+                ->where('channel_account_id', $widget->channel_account_id)
+                ->first();
+        } else {
+            // Never mint access to a previous thread from a caller-supplied
+            // visitor id alone. A valid encrypted token is required to resume;
+            // otherwise the server creates a new, isolated browser identity.
+            $visitorId = (string) Str::uuid();
+            $conversation = null;
+        }
+
+        $conversation ??= $this->driver->resolveConversation($widget, $visitorId, $identity);
         $token = WebchatVisitorToken::issue($conversation->id, $widget->widget_key, $visitorId);
 
         return response()->json([
@@ -103,7 +117,9 @@ class ChatWidgetPublicController extends Controller
                 'mime_type' => $mimeType,
                 'caption' => $body !== '' ? $body : null,
             ];
-            $body = $body !== '' ? $body : ($file->getClientOriginalName() ?: ($isImage ? 'Image attachment' : 'Voice message'));
+            $body = $body !== ''
+                ? $body
+                : ($isImage ? ($file->getClientOriginalName() ?: 'Image attachment') : 'Voice message');
         }
 
         abort_if($type === 'text' && $body === '', 422, 'Message body is required.');
@@ -169,9 +185,36 @@ class ChatWidgetPublicController extends Controller
             if ($signedValue === '' || $provided === '' || ! hash_equals($expected, $provided)) {
                 return []; // unverified → treat visitor as anonymous
             }
+
+            $identity['identity_verified'] = true;
+        } else {
+            // Names/emails may still improve the agent experience, but an
+            // unsigned public external_id must never unlock another customer's
+            // cross-device history. Cross-device identity requires HMAC mode.
+            unset($identity['external_id']);
+            $identity['identity_verified'] = false;
         }
 
         return $identity;
+    }
+
+    /**
+     * A browser may resume only the conversation named by its valid encrypted
+     * token. Supplying a visitor UUID without that token is intentionally
+     * insufficient because the embed key is public.
+     *
+     * @return array{c:int,w:string,v:string,e:int}|null
+     */
+    private function verifiedResumePayload(Request $request, ChatWidget $widget, string $visitorId): ?array
+    {
+        $token = $request->headers->get('X-Widget-Token') ?: (string) $request->input('token');
+        $payload = $token ? WebchatVisitorToken::verify($token, $widget->widget_key) : null;
+
+        if (! $payload || $visitorId === '' || ! hash_equals((string) $payload['v'], $visitorId)) {
+            return null;
+        }
+
+        return $payload;
     }
 
     /** Reject requests whose Origin/Referer host isn't in the widget whitelist. */

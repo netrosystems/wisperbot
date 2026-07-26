@@ -89,13 +89,17 @@ class ChatWidget extends Model
     /** Public theming/config surfaced to the embed script + widget UI. */
     public function publicConfig(): array
     {
+        $launcherLogoUrl = $this->launcher_logo_url ?: url('/wisperbot-icon-white.svg');
+
         return [
             'key' => $this->widget_key,
             'title' => $this->title ?: 'Chat with us',
             'subtitle' => $this->subtitle ?: 'We typically reply in a few minutes',
             'welcome_message' => $this->welcome_message ?: 'Hi there 👋 How can we help?',
             'agent_name' => $this->agent_name ?: 'Support',
-            'avatar_url' => $this->avatar_url,
+            // Keep the agent/header avatar aligned with the launcher branding.
+            // Updating the paid custom icon therefore updates both surfaces.
+            'avatar_url' => $launcherLogoUrl,
             'primary_color' => $this->primary_color ?: '#ff762e',
             'position' => $this->position ?: 'bottom_right',
             'launcher_text' => $this->launcher_text,
@@ -104,7 +108,7 @@ class ChatWidget extends Model
             'footer_company_name' => $this->footer_company_name ?: 'WisperBot',
             // The product icon remains the default for every free widget.
             // A custom launcher mark is only exposed for white-label plans.
-            'launcher_logo_url' => $this->launcher_logo_url ?: url('/wisperbot-icon-white.svg'),
+            'launcher_logo_url' => $launcherLogoUrl,
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,
