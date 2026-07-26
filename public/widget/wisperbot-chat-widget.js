@@ -18,9 +18,11 @@
   var API = (CFG.api_base || '').replace(/\/$/, '');
   var COLOR = CFG.primary_color || '#ff762e';
   var LEFT = CFG.position === 'bottom_left';
-  var LS_VISITOR = 'wb_chat_visitor_' + KEY;
-  var LS_TOKEN = 'wb_chat_token_' + KEY;
-  var LS_THREAD = 'wb_chat_thread_' + KEY;   // device-cached message history
+  var storageScope = identityStorageScope();
+  var LS_VISITOR = storageKey('visitor');
+  var LS_TOKEN = storageKey('token');
+  var LS_THREAD = storageKey('thread');   // identity-scoped cached message history
+  var LS_PRECHAT = storageKey('prechat');
 
   // ── State ──────────────────────────────────────────────────────────────────
   var visitorId = safeGet(LS_VISITOR);
@@ -41,12 +43,25 @@
   var recordingChunks = [];
   var pendingAudio = null;
   var pendingImage = null;
-  var prechatNeeded = !!CFG.require_prechat && !safeGet('wb_chat_prechat_' + KEY);
+  var prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
 
   function safeGet(k) { try { return window.localStorage.getItem(k) || ''; } catch (e) { return ''; } }
   function safeSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
   function initial(s) { return (s || 'S').trim().charAt(0).toUpperCase(); }
+  function getSettings() { return window.WisperBotSettings || window.wisperBotSettings || {}; }
+  function identityStorageScope() {
+    var s = getSettings();
+    var identity = String(s.external_id || s.user_id || s.email || '').trim();
+    if (!identity) return 'anonymous';
+    var hash = 2166136261;
+    for (var i = 0; i < identity.length; i++) {
+      hash ^= identity.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return 'identity_' + (hash >>> 0).toString(36);
+  }
+  function storageKey(kind) { return 'wb_chat_' + kind + '_' + KEY + '_' + storageScope; }
 
   // Device-cached message history: shows instantly on return visits (incl. any
   // agent replies that arrived while the visitor was away) before the network.
@@ -56,7 +71,6 @@
 
   // Identity passed from the client's website (e.g. their logged-in user).
   // Read once here and merged into the session request.
-  function getSettings() { return window.WisperBotSettings || window.wisperBotSettings || {}; }
   function identityPayload(extra) {
     var s = getSettings();
     return {
@@ -152,7 +166,7 @@
       var name = (root.querySelector('.wb-pc-name') || {}).value || '';
       var email = (root.querySelector('.wb-pc-email') || {}).value || '';
       ensureSession({ name: name, email: email }).then(function () {
-        safeSet('wb_chat_prechat_' + KEY, '1');
+        safeSet(LS_PRECHAT, '1');
         prechat.style.display = 'none';
         form.style.display = 'flex';
         input.focus();
@@ -179,9 +193,14 @@
     if (action === 'open') { openPanel(); }
     else if (action === 'close') { close(); }
     else if (action === 'identify' || action === 'update') {
-      window.WisperBotSettings = Object.assign({}, getSettings(), data || {});
-      started = false;
+      window.WisperBotSettings = action === 'identify'
+        ? Object.assign({}, data || {})
+        : Object.assign({}, getSettings(), data || {});
+      switchIdentityScope();
       ensureSession().then(startPolling);
+    } else if (action === 'logout' || action === 'reset') {
+      window.WisperBotSettings = {};
+      switchIdentityScope();
     }
   };
 
@@ -212,6 +231,44 @@
     inviteTimer = setTimeout(function () {
       if (!open) wrap.classList.add('wb-show-invite');
     }, 5000);
+  }
+
+  function switchIdentityScope() {
+    var nextScope = identityStorageScope();
+    if (nextScope === storageScope) {
+      started = false;
+      return;
+    }
+
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+    storageScope = nextScope;
+    LS_VISITOR = storageKey('visitor');
+    LS_TOKEN = storageKey('token');
+    LS_THREAD = storageKey('thread');
+    LS_PRECHAT = storageKey('prechat');
+    visitorId = safeGet(LS_VISITOR);
+    token = safeGet(LS_TOKEN);
+    thread = loadThread();
+    rendered = {};
+    lastId = 0;
+    started = false;
+    starting = false;
+    unreadCount = 0;
+    prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
+
+    body.innerHTML = '';
+    if (CFG.welcome_message) addBubble('agent', CFG.welcome_message, CFG.agent_name);
+    thread.forEach(function (m) {
+      rendered[m.id] = true;
+      if (m.id > lastId) lastId = m.id;
+      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename);
+    });
+    prechat.style.display = prechatNeeded ? 'block' : 'none';
+    form.style.display = prechatNeeded ? 'none' : 'flex';
+    updateBadge();
   }
 
   function ensureSession(prechatData) {
@@ -455,7 +512,13 @@
     } else if (attachmentUrl) {
       attachment = '<a class="wb-media-file" href="' + esc(attachmentUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(filename || 'Open attachment') + '</a>';
     }
-    var caption = text ? '<div class="wb-caption">' + esc(text).replace(/\n/g, '<br>') + '</div>' : '';
+    var genericAudioLabel = type === 'audio' && (
+      !text ||
+      text === filename ||
+      text === 'Voice message' ||
+      /\.(wav|mp3|m4a|aac|ogg|oga|webm|amr)$/i.test(text)
+    );
+    var caption = text && !genericAudioLabel ? '<div class="wb-caption">' + esc(text).replace(/\n/g, '<br>') + '</div>' : '';
     row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + '</div>';
     body.appendChild(row);
     scrollDown();
@@ -621,7 +684,7 @@
       '.wb-launcher:hover{transform:scale(1.06)}.wb-launcher:active{transform:scale(.96)}',
       '.wb-launcher:before{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px solid ' + COLOR + ';opacity:0;transform:scale(.82);pointer-events:none}.wb-has-unread:before{animation:wb-pulse 1.35s ease-out infinite}',
       '.wb-ic-close{display:none}',
-      '.wb-launcher-default{display:flex;align-items:center;justify-content:center}.wb-launcher-logo{width:30px;height:30px;object-fit:contain}.wb-active .wb-launcher-default{display:none}.wb-active .wb-ic-close{display:block}',
+      '.wb-launcher-default{display:flex;align-items:center;justify-content:center;width:100%;height:100%}.wb-launcher-logo{display:block;width:32px;height:32px;max-width:32px;max-height:32px;object-fit:contain}.wb-active .wb-launcher-default{display:none}.wb-active .wb-ic-close{display:block}',
       '.wb-launcher-invite{position:absolute;bottom:3px;width:224px;max-width:calc(100vw - 104px);border:0;background:transparent;padding:0;cursor:pointer;text-align:left;opacity:0;pointer-events:none;transform:translateX(14px) scale(.92);transition:opacity .28s ease,transform .48s cubic-bezier(.18,1.18,.35,1)}',
       '.wb-right .wb-launcher-invite{right:72px;transform-origin:right center}.wb-left .wb-launcher-invite{left:72px;transform:translateX(-12px) scale(.96);transform-origin:left center}.wb-show-invite .wb-launcher-invite{opacity:1;pointer-events:auto;transform:translateX(0) scale(1)}',
       '.wb-invite-card{position:relative;display:block;width:100%;background:#fff;border-radius:11px;padding:11px 15px;box-shadow:0 5px 18px rgba(0,0,0,.16);color:#20242c}.wb-invite-card:after{content:"";position:absolute;top:50%;right:-8px;margin-top:-8px;border-width:8px 0 8px 9px;border-style:solid;border-color:transparent transparent transparent #fff}.wb-left .wb-invite-card:after{right:auto;left:-8px;border-width:8px 9px 8px 0;border-color:transparent #fff transparent transparent}.wb-invite-card strong{display:block;font-size:15px;line-height:1.2;font-weight:700}.wb-invite-card small{display:block;margin-top:3px;font-size:12px;line-height:1.3;color:#737984;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -638,7 +701,7 @@
       '.wb-dot-off{background:#d1d5db}',
       '.wb-close{background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer;opacity:.85;padding:4px;line-height:1}',
       '.wb-close:hover{opacity:1}',
-      '.wb-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:16px;background:#f7f8fa;display:flex;flex-direction:column;gap:10px}',
+      '.wb-body{flex:1;min-height:0;overflow-x:hidden;overflow-y:scroll;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:16px;background:#f7f8fa;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}',
       '.wb-row{display:flex;align-items:flex-end;gap:8px;max-width:85%}',
       '.wb-in{align-self:flex-start}.wb-out{align-self:flex-end;flex-direction:row-reverse}',
       '.wb-row .wb-av{width:26px;height:26px;font-size:11px}',
@@ -663,7 +726,7 @@
       '.wb-brand b{color:#6b7280}',
       '@keyframes wb-pulse{0%{opacity:.48;transform:scale(.86)}70%{opacity:0;transform:scale(1.28)}100%{opacity:0;transform:scale(1.28)}}',
       '@keyframes wb-record{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}',
-      '@media(max-width:420px){.wb-panel{height:calc(100vh - 96px)}}'
+      '@media(max-width:600px){.wb-wrap{bottom:max(12px,env(safe-area-inset-bottom))}.wb-right{right:12px}.wb-left{left:12px}.wb-panel{position:fixed;left:8px;right:8px;top:max(8px,env(safe-area-inset-top));bottom:84px;width:auto;max-width:none;height:auto;max-height:none;border-radius:16px}.wb-header{padding:13px 14px}.wb-body{padding:12px}.wb-inputbar{padding:9px;gap:6px}.wb-brand{padding-bottom:max(7px,env(safe-area-inset-bottom))}}'
     ].join('');
   }
 })();

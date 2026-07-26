@@ -32,6 +32,30 @@ function StatusDot({ status }) {
     return <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${colors[status] ?? 'bg-neutral-300'}`} />;
 }
 
+function StatusBadge({ status = 'open' }) {
+    const labels = { open: 'Open', pending: 'Pending', resolved: 'Resolved', snoozed: 'Snoozed' };
+    return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 dark:text-neutral-400">
+            <StatusDot status={status} />
+            {labels[status] ?? status}
+        </span>
+    );
+}
+
+function AnonymousVisitorBadge({ conversation }) {
+    const identityType = conversation.contact?.custom_fields?.webchat_identity_type;
+    const isWebchat = conversation.channel_account?.channel === 'webchat';
+    const hasVerifiedExternalIdentity = Boolean(conversation.contact?.custom_fields?.webchat_external_id);
+
+    if (!isWebchat || identityType === 'logged_in' || hasVerifiedExternalIdentity) return null;
+
+    return (
+        <span className="inline-flex items-center rounded-full bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
+            Not logged in
+        </span>
+    );
+}
+
 function ConversationCard({ conv, isFlashing, isActive, userTz }) {
     const { t } = useTranslation();
     const channel = conv.channel_account?.channel ?? 'whatsapp';
@@ -97,6 +121,10 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
                                 {conv.unread_count > 99 ? '99+' : conv.unread_count}
                             </span>
                         )}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        <StatusBadge status={conv.status} />
+                        <AnonymousVisitorBadge conversation={conv} />
                     </div>
                     {conv.labels?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
@@ -258,6 +286,29 @@ export default function InboxIndex({ conversations: initialConversations, filter
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);
+
+    // Socket delivery remains primary. This partial Inertia refresh is a quiet
+    // recovery path for suspended browser tabs, temporary Pusher disconnects,
+    // or a newly-created thread whose first event arrived before subscription.
+    useEffect(() => {
+        let refreshing = false;
+        const refreshList = () => {
+            if (document.hidden || refreshing) return;
+            refreshing = true;
+            router.reload({
+                only: ['conversations'],
+                preserveScroll: true,
+                preserveState: true,
+                onFinish: () => { refreshing = false; },
+            });
+        };
+        const timer = window.setInterval(refreshList, 6000);
+        document.addEventListener('visibilitychange', refreshList);
+        return () => {
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', refreshList);
+        };
+    }, []);
 
     const navigate = (params) => {
         setLoading(true);

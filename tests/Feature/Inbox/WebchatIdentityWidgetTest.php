@@ -147,8 +147,114 @@ class WebchatIdentityWidgetTest extends TestCase
         ])->assertOk();
 
         $contact = Contact::where('workspace_id', $workspace->id)->sole();
-        $this->assertSame('Website visitor', $contact->first_name);
+        $this->assertSame('Customer 1', $contact->first_name);
         $this->assertNull($contact->email);
         $this->assertArrayNotHasKey('webchat_external_id', $contact->custom_fields ?? []);
+        $this->assertSame('anonymous', $contact->custom_fields['webchat_identity_type']);
+    }
+
+    public function test_anonymous_visitors_receive_incrementing_customer_names(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+
+        $this->postJson(route('widget.session'), ['key' => $widget->widget_key])->assertOk();
+        $this->postJson(route('widget.session'), ['key' => $widget->widget_key])->assertOk();
+
+        $this->assertSame(
+            ['Customer 1', 'Customer 2'],
+            Contact::where('workspace_id', $workspace->id)->orderBy('id')->pluck('first_name')->all(),
+        );
+    }
+
+    public function test_a_visitor_id_without_its_encrypted_token_cannot_restore_private_history(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+
+        $first = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+            'visitor_id' => 'caller-controlled-id',
+        ])->assertOk();
+
+        $this->withHeaders(['X-Widget-Token' => $first->json('token')])
+            ->postJson(route('widget.send'), [
+                'key' => $widget->widget_key,
+                'message' => 'Private message',
+            ])
+            ->assertOk();
+
+        $attemptedRestore = $this
+            ->withHeader('X-Widget-Token', '')
+            ->postJson(route('widget.session'), [
+                'key' => $widget->widget_key,
+                'visitor_id' => $first->json('visitor_id'),
+            ])
+            ->assertOk();
+
+        $this->assertNotSame($first->json('visitor_id'), $attemptedRestore->json('visitor_id'));
+        $this->assertSame([], $attemptedRestore->json('messages'));
+        $this->assertCount(2, Contact::where('workspace_id', $workspace->id)->get());
+    }
+
+    public function test_a_valid_encrypted_token_restores_only_its_bound_conversation(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+
+        $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key])->assertOk();
+        $this->withHeaders(['X-Widget-Token' => $session->json('token')])
+            ->postJson(route('widget.send'), [
+                'key' => $widget->widget_key,
+                'message' => 'My private history',
+            ])
+            ->assertOk();
+
+        $restored = $this->withHeaders(['X-Widget-Token' => $session->json('token')])
+            ->postJson(route('widget.session'), [
+                'key' => $widget->widget_key,
+                'visitor_id' => $session->json('visitor_id'),
+            ])
+            ->assertOk();
+
+        $this->assertSame($session->json('visitor_id'), $restored->json('visitor_id'));
+        $this->assertSame('My private history', $restored->json('messages.0.body'));
+        $this->assertCount(1, Contact::where('workspace_id', $workspace->id)->get());
     }
 }

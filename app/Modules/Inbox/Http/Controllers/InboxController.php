@@ -259,8 +259,10 @@ class InboxController extends Controller
 
             $msgPayload = array_merge($msgPayload ?? [], $attachmentPayload);
 
-            // For image/document the 'body' shown in the chat is the caption or filename
-            $validated['body'] = $validated['body'] ?? $file->getClientOriginalName();
+            // Audio should render as a playable voice message, not as a raw
+            // .wav/.webm filename beneath the player.
+            $validated['body'] = $validated['body']
+                ?? ($msgType === 'audio' ? 'Voice message' : $file->getClientOriginalName());
         }
 
         // Require body for plain text messages

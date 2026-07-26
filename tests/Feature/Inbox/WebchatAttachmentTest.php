@@ -60,6 +60,47 @@ class WebchatAttachmentTest extends TestCase
         Storage::disk('public')->assertExists('message-media/'.$image->hashName());
     }
 
+    public function test_agent_audio_is_saved_as_a_playable_voice_message_instead_of_a_filename(): void
+    {
+        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
+        Storage::fake('public');
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $contact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'source' => 'webchat',
+            'first_name' => 'Customer 1',
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'external_thread_id' => 'visitor-audio',
+            'last_message_at' => now(),
+        ]);
+
+        $audio = UploadedFile::fake()->create('recording.wav', 32, 'audio/wav');
+        $response = $this->actingAs($user)->post(
+            route('client.inbox.reply', $conversation),
+            ['type' => 'audio', 'attachment' => $audio],
+            ['Accept' => 'application/json'],
+        );
+
+        $response->assertOk()->assertJsonPath('error', null);
+
+        $message = Message::where('conversation_id', $conversation->id)->sole();
+        $this->assertSame('audio', $message->type);
+        $this->assertSame('Voice message', $message->body);
+        $this->assertSame('recording.wav', $message->payload['filename']);
+        $this->assertNotEmpty($message->payload['preview_url'] ?? null);
+    }
+
     public function test_website_visitors_are_not_automatically_opted_into_marketing(): void
     {
         ['workspace' => $workspace] = $this->createWorkspaceContext();

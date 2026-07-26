@@ -35,6 +35,29 @@ const STATUS_COLORS = {
     snoozed:  'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
 };
 
+function ConversationStatusBadge({ status = 'open' }) {
+    const labels = { open: 'Open', pending: 'Pending', resolved: 'Resolved', snoozed: 'Snoozed' };
+    return (
+        <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${STATUS_COLORS[status] ?? STATUS_COLORS.open}`}>
+            {labels[status] ?? status}
+        </span>
+    );
+}
+
+function AnonymousVisitorBadge({ conversation }) {
+    const identityType = conversation.contact?.custom_fields?.webchat_identity_type;
+    const isWebchat = conversation.channel_account?.channel === 'webchat';
+    const hasVerifiedExternalIdentity = Boolean(conversation.contact?.custom_fields?.webchat_external_id);
+
+    if (!isWebchat || identityType === 'logged_in' || hasVerifiedExternalIdentity) return null;
+
+    return (
+        <span className="inline-flex items-center rounded-full bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
+            Not logged in
+        </span>
+    );
+}
+
 // Common emoji set for the picker
 const EMOJI_LIST = [
     '😀','😂','😊','😍','🤔','😢','😡','👍','👎','❤️',
@@ -665,7 +688,13 @@ function MessageBubble({ msg, conversationId }) {
     const contacts = p.contacts;
     const reaction = p.reaction;
     const sticker  = mediaType === 'sticker';
-    const caption  = p.caption ?? p[mediaType]?.caption ?? (msg.body && msg.body !== '(media)' ? msg.body : '');
+    const rawCaption = p.caption ?? p[mediaType]?.caption ?? (msg.body && msg.body !== '(media)' ? msg.body : '');
+    const caption = mediaType === 'audio' && (
+        !rawCaption ||
+        rawCaption === p.filename ||
+        rawCaption === 'Voice message' ||
+        /\.(wav|mp3|m4a|aac|ogg|oga|webm|amr)$/i.test(rawCaption)
+    ) ? '' : rawCaption;
 
     const bubbleBase = `max-w-[70%] rounded-2xl overflow-hidden text-sm ${isOut
         ? 'bg-brand-600 text-white rounded-br-sm'
@@ -848,6 +877,10 @@ function ConversationCard({ conv, isActive, userTz }) {
                     <p className={`text-xs truncate mt-0.5 ${conv.unread_count > 0 ? 'text-neutral-700 dark:text-neutral-300' : 'text-neutral-400'}`}>
                         {conv.last_message?.body || '(media)'}
                     </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        <ConversationStatusBadge status={conv.status} />
+                        <AnonymousVisitorBadge conversation={conv} />
+                    </div>
                     {conv.labels?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                             {conv.labels.map(l => (
@@ -1637,7 +1670,14 @@ export default function InboxShow({
                 setConversations(prev => {
                     if (!prev) return prev;
                     const exists = prev.data?.find(c => c.id === e.conversation_id);
-                    if (!exists) return prev;
+                    if (!exists) {
+                        router.reload({
+                            only: ['conversations'],
+                            preserveScroll: true,
+                            preserveState: true,
+                        });
+                        return prev;
+                    }
                     return { ...prev, data: [
                         { ...exists, unread_count: (exists.unread_count ?? 0) + 1, last_message_at: e.created_at, last_message: { body: e.body } },
                         ...prev.data.filter(c => c.id !== e.conversation_id),
@@ -1646,6 +1686,26 @@ export default function InboxShow({
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);
+
+    useEffect(() => {
+        let refreshing = false;
+        const refreshList = () => {
+            if (document.hidden || refreshing) return;
+            refreshing = true;
+            router.reload({
+                only: ['conversations'],
+                preserveScroll: true,
+                preserveState: true,
+                onFinish: () => { refreshing = false; },
+            });
+        };
+        const timer = window.setInterval(refreshList, 6000);
+        document.addEventListener('visibilitychange', refreshList);
+        return () => {
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', refreshList);
+        };
+    }, []);
 
     const typingTimer = useRef(null);
     const handleTyping = () => {
