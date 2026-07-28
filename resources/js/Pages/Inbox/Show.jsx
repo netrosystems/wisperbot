@@ -741,9 +741,25 @@ function MessageBubble({ msg, conversationId }) {
     const statusClass = msg.status === 'read'   ? 'text-sky-200'
                       : msg.status === 'failed' ? 'text-red-200'
                       : '';
+    const responderName = msg.sender?.name
+        ?? (msg.sent_by === 'bot'
+            ? 'AI assistant'
+            : msg.sent_by === 'automation'
+                ? 'Automation'
+                : msg.sent_by === 'broadcast'
+                    ? 'Broadcast'
+                    : null);
 
     const timeRow = (
         <div className={`flex items-center gap-1 text-[10px] mt-1 ${isOut ? 'text-white/60 justify-end' : 'text-neutral-400'}`}>
+            {isOut && responderName && (
+                <>
+                    <span className="max-w-28 truncate font-semibold text-white/85" title={`Replied by ${responderName}`}>
+                        {responderName}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                </>
+            )}
             {msg.sent_at ? formatTimeTz(msg.sent_at, bubbleTz) : ''}
             {isOut && (
                 <span title={msg.status} className={statusClass}>{statusGlyph}</span>
@@ -846,6 +862,9 @@ function MessageBubble({ msg, conversationId }) {
 function ConversationCard({ conv, isActive, userTz }) {
     const { t } = useTranslation();
     const channel = conv.channel_account?.channel ?? 'whatsapp';
+    const lastResponder = conv.last_message?.direction === 'out'
+        ? (conv.last_message?.sender?.name ?? (conv.last_message?.sent_by === 'bot' ? 'AI assistant' : null))
+        : null;
     const name = conv.contact?.first_name || conv.contact?.last_name
         ? `${conv.contact.first_name ?? ''} ${conv.contact.last_name ?? ''}`.trim()
         : conv.contact?.phone_e164 ?? 'Unknown';
@@ -895,6 +914,11 @@ function ConversationCard({ conv, isActive, userTz }) {
                     <p className={`text-xs truncate mt-0.5 ${conv.unread_count > 0 ? 'text-neutral-700 dark:text-neutral-300' : 'text-neutral-400'}`}>
                         {conv.last_message?.body || '(media)'}
                     </p>
+                    {lastResponder && (
+                        <p className="mt-1 truncate text-[10px] font-medium text-neutral-400 dark:text-neutral-500">
+                            Replied by {lastResponder}
+                        </p>
+                    )}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
                         <ConversationStatusBadge status={conv.status} />
                         <AnonymousVisitorBadge conversation={conv} />
@@ -1647,7 +1671,14 @@ export default function InboxShow({
                                     unread_count: 0,
                                     status: res?.conversation?.status ?? item.status,
                                     last_message_at: latest.created_at ?? latest.sent_at ?? item.last_message_at,
-                                    last_message: { ...(item.last_message ?? {}), body: latest.body, type: latest.type },
+                                    last_message: {
+                                        ...(item.last_message ?? {}),
+                                        body: latest.body,
+                                        type: latest.type,
+                                        direction: latest.direction,
+                                        sent_by: latest.sent_by,
+                                        sender: latest.sender,
+                                    },
                                 }
                                 : item
                             ),
@@ -1697,7 +1728,17 @@ export default function InboxShow({
                         return prev;
                     }
                     return { ...prev, data: [
-                        { ...exists, unread_count: (exists.unread_count ?? 0) + 1, last_message_at: e.created_at, last_message: { body: e.body } },
+                        {
+                            ...exists,
+                            unread_count: (exists.unread_count ?? 0) + 1,
+                            last_message_at: e.created_at,
+                            last_message: {
+                                body: e.body,
+                                direction: e.direction,
+                                sent_by: e.sent_by,
+                                sender: e.sender,
+                            },
+                        },
                         ...prev.data.filter(c => c.id !== e.conversation_id),
                     ]};
                 });

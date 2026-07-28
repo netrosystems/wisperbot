@@ -111,6 +111,7 @@ class ChatWidget extends Model
     public function publicConfig(): array
     {
         $launcherLogoUrl = $this->launcher_logo_url ?: url('/wisperbot-icon-white.svg');
+        $teamMembers = $this->publicTeamMembers();
 
         return [
             'key' => $this->widget_key,
@@ -130,11 +131,42 @@ class ChatWidget extends Model
             // The product icon remains the default for every free widget.
             // A custom launcher mark is only exposed for white-label plans.
             'launcher_logo_url' => $launcherLogoUrl,
+            'team_members' => $teamMembers,
+            'team_member_count' => count($teamMembers),
             // Only expose whether AI is active; never expose the internal bot id.
             'ai_enabled' => $this->hasActiveAiChatbot(),
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,
         ];
+    }
+
+    /**
+     * Small, public-safe team presence summary for the widget header.
+     *
+     * @return array<int, array{name:string,avatar_url:?string}>
+     */
+    private function publicTeamMembers(): array
+    {
+        $workspace = $this->workspace()
+            ->with(['owner', 'members', 'users'])
+            ->first();
+
+        if (! $workspace) {
+            return [];
+        }
+
+        return collect([$workspace->owner])
+            ->merge($workspace->members)
+            ->merge($workspace->users)
+            ->filter(fn ($user) => $user && $user->status === 'active')
+            ->unique('id')
+            ->take(5)
+            ->map(fn ($user) => [
+                'name' => $user->name,
+                'avatar_url' => $user->avatarUrl(),
+            ])
+            ->values()
+            ->all();
     }
 }

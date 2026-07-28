@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\Inbox;
 
+use App\Modules\Inbox\Models\ChatWidget;
+use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
-use App\Modules\Inbox\Models\ChatWidget;
-use App\Modules\Inbox\Services\WebchatDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -49,7 +49,10 @@ class WebchatAttachmentTest extends TestCase
             ['Accept' => 'application/json'],
         );
 
-        $response->assertOk()->assertJsonPath('error', null);
+        $response->assertOk()
+            ->assertJsonPath('error', null)
+            ->assertJsonPath('message.user_id', $user->id)
+            ->assertJsonPath('message.sender.name', $user->name);
 
         $message = Message::where('conversation_id', $conversation->id)->sole();
         $this->assertSame('webchat', $message->channel);

@@ -514,7 +514,7 @@
     var av = '';
     if (role !== 'visitor') {
       av = CFG.avatar_url
-        ? '<img class="wb-av" src="' + esc(CFG.avatar_url) + '" alt="">'
+        ? '<span class="wb-av-shell"><img class="wb-av" src="' + esc(CFG.avatar_url) + '" alt=""></span>'
         : '<span class="wb-av wb-av-ini">' + esc(initial(name || CFG.agent_name)) + '</span>';
     }
     var attachment = '';
@@ -540,12 +540,30 @@
   function updateStatus() {
     if (!statusEl) return;
     if (handoff.status === 'connected') {
-      statusEl.innerHTML = '<span class="wb-dot"></span>Connected to a human agent';
+      statusEl.innerHTML = teamPresenceMarkup('Connected to a human agent');
       return;
     }
-    statusEl.innerHTML = online
-      ? '<span class="wb-dot"></span>' + esc(CFG.subtitle || 'Online')
-      : '<span class="wb-dot wb-dot-off"></span>' + esc(CFG.offline_message || 'Away — leave a message');
+    // Presence is intentionally always shown as active. Working-hours rules can
+    // still control automated behaviour, but the launcher/header consistently
+    // communicate that the team can receive a message.
+    statusEl.innerHTML = teamPresenceMarkup(CFG.subtitle || 'Team available');
+  }
+
+  function teamPresenceMarkup(label) {
+    var members = Array.isArray(CFG.team_members) ? CFG.team_members.slice(0, 3) : [];
+    var avatars = members.map(function (member) {
+      var title = esc(member.name || 'Team member');
+      return member.avatar_url
+        ? '<span class="wb-team-avatar" title="' + title + '"><img src="' + esc(member.avatar_url) + '" alt=""></span>'
+        : '<span class="wb-team-avatar wb-team-initial" title="' + title + '">' + esc(initial(member.name || 'T')) + '</span>';
+    }).join('');
+    var total = Number(CFG.team_member_count || members.length || 0);
+    var extra = total > members.length
+      ? '<span class="wb-team-more">+' + (total - members.length) + '</span>'
+      : '';
+
+    return '<span class="wb-team-stack">' + avatars + extra + '</span>' +
+      '<span class="wb-dot"></span><span class="wb-status-label">' + esc(label) + '</span>';
   }
 
   function applyHandoff(next) {
@@ -705,7 +723,7 @@
   // ── Markup + styles ──────────────────────────────────────────────────────────
   function template() {
     var av = CFG.avatar_url
-      ? '<img class="wb-head-av" src="' + esc(CFG.avatar_url) + '" alt="">'
+      ? '<span class="wb-head-av-shell"><img class="wb-head-av" src="' + esc(CFG.avatar_url) + '" alt=""></span>'
       : '<span class="wb-head-av wb-av-ini">' + esc(initial(CFG.agent_name)) + '</span>';
     var pcName = (CFG.prechat_fields || []).indexOf('name') !== -1
       ? '<input class="wb-pc-name" type="text" placeholder="Your name" required>' : '';
@@ -762,6 +780,7 @@
       '</button>' +
       '<button class="wb-launcher" aria-label="Open chat">' +
         '<span class="wb-badge" aria-live="polite"></span>' +
+        '<span class="wb-launcher-online" aria-label="Team online" title="Team online"></span>' +
         '<span class="wb-launcher-default">' + launcherIcon + '</span>' +
         '<svg class="wb-ic-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
       '</button>';
@@ -776,6 +795,7 @@
       '.wb-launcher{position:relative;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;color:#fff;background:' + COLOR + ';box-shadow:0 6px 24px rgba(0,0,0,.24);display:flex;align-items:center;justify-content:center;overflow:visible;transition:opacity .2s,transform .2s}',
       '.wb-launcher:hover{transform:scale(1.06)}.wb-launcher:active{transform:scale(.96)}',
       '.wb-launcher:before{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px solid ' + COLOR + ';opacity:0;transform:scale(.82);pointer-events:none}.wb-has-unread:before{animation:wb-pulse 1.35s ease-out infinite}',
+      '.wb-launcher-online{position:absolute;right:1px;bottom:3px;width:14px;height:14px;border-radius:50%;background:#22c55e;border:3px solid #fff;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.18)}',
       '.wb-ic-close{display:none}',
       '.wb-launcher-default{display:flex;align-items:center;justify-content:center;width:100%;height:100%}.wb-launcher-logo{display:block;width:32px;height:32px;max-width:32px;max-height:32px;object-fit:contain}.wb-active .wb-launcher-default{display:none}.wb-active .wb-ic-close{display:block}',
       '.wb-launcher-invite{position:absolute;bottom:3px;width:224px;max-width:calc(100vw - 104px);border:0;background:transparent;padding:0;cursor:pointer;text-align:left;opacity:0;pointer-events:none;transform:translateX(14px) scale(.92);transition:opacity .28s ease,transform .48s cubic-bezier(.18,1.18,.35,1)}',
@@ -785,11 +805,12 @@
       '.wb-panel{position:absolute;bottom:74px;' + (LEFT ? 'left:0' : 'right:0') + ';width:370px;max-width:calc(100vw - 40px);height:560px;max-height:calc(100vh - 120px);background:#fff;border-radius:18px;box-shadow:0 16px 50px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(12px) scale(.98);pointer-events:none;transition:opacity .2s,transform .22s cubic-bezier(.34,1.4,.6,1);transform-origin:bottom ' + (LEFT ? 'left' : 'right') + '}',
       '.wb-open .wb-panel{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}',
       '.wb-header{background:' + COLOR + ';color:#fff;padding:16px;display:flex;align-items:center;gap:11px}',
-      '.wb-head-av,.wb-av{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0}',
+      '.wb-head-av-shell,.wb-av-shell{width:40px;height:40px;border-radius:50%;background:' + COLOR + ';border:2px solid rgba(255,255,255,.62);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}.wb-head-av,.wb-av{width:28px;height:28px;object-fit:contain;flex-shrink:0}.wb-av-shell{width:28px;height:28px;border-width:1px}',
       '.wb-av-ini{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;background:rgba(255,255,255,.25);color:#fff}',
       '.wb-head-info{flex:1;min-width:0}',
       '.wb-title{font-weight:700;font-size:15px;line-height:1.3}',
-      '.wb-status{font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px;margin-top:2px}',
+      '.wb-status{font-size:11px;opacity:.96;display:flex;align-items:center;gap:5px;margin-top:3px;min-width:0}.wb-status-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.wb-team-stack{display:flex;align-items:center;margin-right:1px}.wb-team-avatar,.wb-team-more{width:18px;height:18px;margin-left:-5px;border-radius:50%;border:1.5px solid rgba(255,255,255,.9);background:rgba(255,255,255,.24);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;font-size:7px;font-weight:800}.wb-team-avatar:first-child{margin-left:0}.wb-team-avatar img{width:100%;height:100%;object-fit:cover}.wb-team-more{background:rgba(17,24,39,.4);font-size:7px}',
       '.wb-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;display:inline-block}',
       '.wb-dot-off{background:#d1d5db}',
       '.wb-close{background:transparent;border:none;color:#fff;font-size:16px;cursor:pointer;opacity:.85;padding:4px;line-height:1}',
@@ -797,7 +818,7 @@
       '.wb-body{flex:1;min-height:0;overflow-x:hidden;overflow-y:scroll;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:16px;background:#f7f8fa;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}',
       '.wb-row{display:flex;align-items:flex-end;gap:8px;max-width:85%}',
       '.wb-in{align-self:flex-start}.wb-out{align-self:flex-end;flex-direction:row-reverse}',
-      '.wb-row .wb-av{width:26px;height:26px;font-size:11px}',
+      '.wb-row .wb-av{width:19px;height:19px;font-size:11px}',
       '.wb-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;word-wrap:break-word;white-space:normal}',
       '.wb-in .wb-bubble{background:#fff;color:#1f2430;border:1px solid #eceef2;border-bottom-left-radius:5px}',
       '.wb-out .wb-bubble{background:' + COLOR + ';color:#fff;border-bottom-right-radius:5px}',

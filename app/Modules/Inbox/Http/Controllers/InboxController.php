@@ -41,7 +41,7 @@ class InboxController extends Controller
         $userId = $request->user()->id;
 
         $conversations = Conversation::where('workspace_id', $workspaceId)
-            ->with(['contact', 'channelAccount', 'lastMessage', 'labels'])
+            ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
             ->when($request->folder === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when($request->folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($request->channel, fn ($q) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $request->channel)))
@@ -77,7 +77,7 @@ class InboxController extends Controller
         $this->authorise($request, $conversation);
 
         $conversation->load(['contact', 'channelAccount', 'labels']);
-        $messages = $conversation->messages()->with('conversation')->orderBy('sent_at')->get();
+        $messages = $conversation->messages()->with(['conversation', 'sender'])->orderBy('sent_at')->get();
 
         // Mark as read
         $conversation->update(['unread_count' => 0]);
@@ -109,7 +109,7 @@ class InboxController extends Controller
         // Pass conversation list so the left panel stays populated on the show page
         $filters = $request->only('folder', 'channel', 'label', 'account_id');
         $conversations = Conversation::where('workspace_id', $workspaceId)
-            ->with(['contact', 'channelAccount', 'lastMessage', 'labels'])
+            ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
             ->when(($filters['folder'] ?? null) === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when(($filters['folder'] ?? null) === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($filters['channel'] ?? null, fn ($q, $ch) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $ch)))
@@ -161,6 +161,7 @@ class InboxController extends Controller
         $afterId = (int) ($validated['after_id'] ?? 0);
 
         $messages = $conversation->messages()
+            ->with('sender')
             ->when($afterId > 0, fn ($q) => $q->where('id', '>', $afterId))
             ->orderBy('sent_at')
             ->orderBy('id')
@@ -177,6 +178,14 @@ class InboxController extends Controller
                 'status' => $message->status,
                 'provider_message_id' => $message->provider_message_id,
                 'sent_by' => $message->sent_by,
+                'user_id' => $message->user_id,
+                'sender' => $message->sender
+                    ? [
+                        'id' => $message->sender->id,
+                        'name' => $message->sender->name,
+                        'avatar_url' => $message->sender->avatarUrl(),
+                    ]
+                    : null,
                 'sent_at' => $message->sent_at?->toIso8601String(),
                 'created_at' => $message->created_at?->toIso8601String(),
             ])
@@ -314,7 +323,7 @@ class InboxController extends Controller
         }
 
         // Re-load the relation so the broadcast event can resolve workspace_id
-        $message->load('conversation');
+        $message->load(['conversation', 'sender']);
 
         MessageSent::dispatch($message);
 
@@ -414,7 +423,7 @@ class InboxController extends Controller
             $conversation->update(['first_response_at' => now()]);
         }
 
-        $message->load('conversation');
+        $message->load(['conversation', 'sender']);
         MessageSent::dispatch($message);
 
         return response()->json(['message' => $message, 'error' => $sendError]);

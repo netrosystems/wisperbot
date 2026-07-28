@@ -1,12 +1,12 @@
 <?php
 
+use App\Http\Controllers\Admin\CronSetupController;
 use App\Modules\Broadcasting\Jobs\LaunchScheduledCampaignsJob;
 use App\Modules\Broadcasting\Models\UsageMeter;
 use App\Modules\Social\Jobs\DispatchScheduledPostsJob;
 use App\Modules\Social\Jobs\RefreshSocialTokensJob;
 use App\Modules\Whatsapp\Jobs\TemplateSyncJob;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
-use App\Http\Controllers\Admin\CronSetupController;
 use App\Services\WebhookIdempotencyService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -88,5 +88,13 @@ Schedule::command('reports:weekly-digest')
     ->mondays()
     ->at('09:00')
     ->name('weekly-digest-emails')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Email the assigned teammate and workspace owner when the latest customer
+// message has not received a reply within one hour.
+Schedule::command('inbox:send-unanswered-reminders')
+    ->everyTenMinutes()
+    ->name('inbox-unanswered-conversation-reminders')
     ->withoutOverlapping()
     ->onOneServer();
