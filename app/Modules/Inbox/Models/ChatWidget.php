@@ -96,7 +96,9 @@ class ChatWidget extends Model
 
         $disk = $this->launcher_logo_disk ?: app(StorageManager::class)->diskName();
 
-        return Storage::disk($disk)->url($this->launcher_logo_path);
+        return $this->browserSafePublicUrl(
+            Storage::disk($disk)->url($this->launcher_logo_path)
+        );
     }
 
     private function canUseCustomLauncherLogo(): bool
@@ -110,7 +112,8 @@ class ChatWidget extends Model
     /** Public theming/config surfaced to the embed script + widget UI. */
     public function publicConfig(): array
     {
-        $launcherLogoUrl = $this->launcher_logo_url ?: url('/wisperbot-icon-white.svg');
+        $launcherLogoUrl = $this->launcher_logo_url
+            ?: $this->browserSafePublicUrl(url('/wisperbot-icon-white.svg'));
         $teamMembers = $this->publicTeamMembers();
 
         return [
@@ -139,6 +142,28 @@ class ChatWidget extends Model
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,
         ];
+    }
+
+    /**
+     * Storage's local disk URL is based on APP_URL, which can remain http://
+     * behind a TLS-terminating proxy. Never send that mixed-content URL to an
+     * HTTPS widget request. External storage/CDN hosts are left untouched.
+     */
+    private function browserSafePublicUrl(?string $url): ?string
+    {
+        if (! $url || ! str_starts_with(strtolower($url), 'http://')) {
+            return $url;
+        }
+
+        $assetHost = parse_url($url, PHP_URL_HOST);
+        $requestHost = request()->getHost();
+        $shouldUseHttps = request()->isSecure() || app()->environment('production');
+
+        if ($shouldUseHttps && $assetHost && strcasecmp($assetHost, $requestHost) === 0) {
+            return 'https://'.substr($url, strlen('http://'));
+        }
+
+        return $url;
     }
 
     /**

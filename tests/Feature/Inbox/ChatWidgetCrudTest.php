@@ -127,6 +127,53 @@ class ChatWidgetCrudTest extends TestCase
         $this->assertStringContainsString('/storage/', $widget->publicConfig()['launcher_logo_url']);
     }
 
+    public function test_https_embed_never_exposes_an_http_launcher_logo_from_local_storage(): void
+    {
+        config(['filesystems.disks.public.url' => 'http://localhost/storage']);
+        Storage::fake('public');
+        $workspace = $this->ctx['workspace'];
+        $plan = Plan::create([
+            'name' => 'Pro',
+            'slug' => 'pro-'.uniqid(),
+            'price_cents' => 4900,
+            'currency_code' => 'USD',
+            'white_label_enabled' => true,
+        ]);
+        $this->attachPlanToClient($this->ctx['client'], $plan);
+
+        $channelAccount = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $channelAccount->id,
+            'name' => 'Branded chat',
+            'position' => 'bottom_right',
+            'launcher_logo_path' => 'widget-launchers/custom.png',
+            'launcher_logo_disk' => 'public',
+            'enabled' => true,
+        ]);
+
+        Storage::disk('public')->put($widget->launcher_logo_path, 'png');
+
+        $response = $this->get(
+            'https://localhost/widgets/chat/'.$widget->widget_key.'.js'
+        );
+
+        $response->assertOk();
+        $this->assertStringContainsString(
+            '/storage/widget-launchers/custom.png',
+            $response->getContent()
+        );
+        $this->assertStringNotContainsString(
+            '"launcher_logo_url":"http://localhost/storage/',
+            $response->getContent()
+        );
+    }
+
     public function test_non_pro_workspace_cannot_upload_a_custom_launcher_logo(): void
     {
         Storage::fake('public');
