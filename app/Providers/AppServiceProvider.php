@@ -112,6 +112,20 @@ class AppServiceProvider extends ServiceProvider
                 ->by(optional($request->user())->id ?: $request->ip());
         });
 
+        RateLimiter::for('mobile-login', function (Request $request) {
+            return Limit::perMinute(30)
+                ->by('mobile-login:ip:'.$request->ip())
+                ->response(function (Request $request, array $headers) {
+                    $retryAfter = max(1, (int) ($headers['Retry-After'] ?? 60));
+
+                    return response()->json([
+                        'code' => 'login_rate_limited',
+                        'message' => 'Too many login attempts. Please wait before trying again.',
+                        'retry_after' => $retryAfter,
+                    ], 429, $headers);
+                });
+        });
+
         RateLimiter::for('webhooks', function (Request $request) {
             // Use the real client IP (respects X-Forwarded-For when trusted proxies are set).
             // Limit is intentionally high: a single Meta app services multiple workspaces and
