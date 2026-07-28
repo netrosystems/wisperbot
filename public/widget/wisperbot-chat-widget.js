@@ -304,7 +304,11 @@
       visitorId = data.visitor_id; token = data.token;
       safeSet(LS_VISITOR, visitorId); safeSet(LS_TOKEN, token);
       online = data.online !== false;
-      (data.messages || []).forEach(function (m) { addMessage(m); });
+      var newAgentMessages = 0;
+      (data.messages || []).forEach(function (m) {
+        if (addMessage(m) && m.role === 'agent') newAgentMessages += 1;
+      });
+      notifyAboutAgentMessages(newAgentMessages);
       applyHandoff(data.handoff);
       updateStatus(); scrollDown();
     }).catch(function () {}).then(function () { starting = false; });
@@ -526,10 +530,10 @@
   function startPolling() {
     if (pollTimer || !started) return;
     var tick = function () {
-      poll().then(function () { pollTimer = setTimeout(tick, open ? 3000 : 12000); })
+      poll().then(function () { pollTimer = setTimeout(tick, open ? 3000 : 8000); })
             .catch(function () { pollTimer = setTimeout(tick, 8000); });
     };
-    pollTimer = setTimeout(tick, open ? 2500 : 12000);
+    pollTimer = setTimeout(tick, open ? 2500 : 8000);
   }
 
   function poll() {
@@ -539,14 +543,12 @@
       if (typeof data.online === 'boolean') { online = data.online; updateStatus(); }
       applyHandoff(data.handoff);
       renderAgentTyping(data.agent_typing);
+      var newAgentMessages = 0;
       (data.messages || []).forEach(function (m) {
         var added = addMessage(m);
-        if (added && m.role === 'agent' && (!open || document.hidden)) {
-          unreadCount += 1;
-          updateBadge();
-          playNotificationSound();
-        }
+        if (added && m.role === 'agent') newAgentMessages += 1;
       });
+      notifyAboutAgentMessages(newAgentMessages);
     });
   }
 
@@ -572,6 +574,22 @@
     agentTypingEl.innerHTML =
       '<span class="wb-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>' +
       '<span>' + esc(label) + '</span>';
+  }
+
+  function notifyAboutAgentMessages(count) {
+    if (!count) return;
+
+    // The launcher badge is for chats the visitor is not currently viewing.
+    // A short sound also helps while the panel is open, unless the visitor is
+    // actively composing a reply. Browsers may require one prior interaction
+    // before allowing audio; unlockSound handles that transparently.
+    if (!open || document.hidden) {
+      unreadCount += count;
+      updateBadge();
+    }
+
+    var activelyComposing = open && !document.hidden && visitorTyping && !!input.value.trim();
+    if (!activelyComposing) playNotificationSound();
   }
 
   function addBubble(role, text, name, attachmentUrl, type, filename) {
@@ -682,10 +700,21 @@
         });
       }, wait);
     }).catch(function () {
-      handoff = { enabled: true, eligible: true, status: 'bot' };
-      handoffEl.style.display = 'flex';
-      handoffEl.innerHTML = '<span>Could not connect.</span><button class="wb-handoff-btn" type="button">Try again</button>';
-      updateStatus();
+      // The database handoff may have succeeded even if a downstream
+      // notification provider failed. Confirm current state before showing an
+      // error, which also makes retries safe and idempotent.
+      return poll().then(function () {
+        if (handoff.status === 'connected') return;
+        handoff = { enabled: true, eligible: true, status: 'bot' };
+        handoffEl.style.display = 'flex';
+        handoffEl.innerHTML = '<span>Could not connect.</span><button class="wb-handoff-btn" type="button">Try again</button>';
+        updateStatus();
+      }).catch(function () {
+        handoff = { enabled: true, eligible: true, status: 'bot' };
+        handoffEl.style.display = 'flex';
+        handoffEl.innerHTML = '<span>Could not connect.</span><button class="wb-handoff-btn" type="button">Try again</button>';
+        updateStatus();
+      });
     });
   }
 
@@ -872,7 +901,7 @@
       '.wb-panel{position:absolute;bottom:74px;' + (LEFT ? 'left:0' : 'right:0') + ';width:370px;max-width:calc(100vw - 40px);height:560px;max-height:calc(100vh - 120px);background:#fff;border-radius:18px;box-shadow:0 16px 50px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(12px) scale(.98);pointer-events:none;transition:opacity .2s,transform .22s cubic-bezier(.34,1.4,.6,1);transform-origin:bottom ' + (LEFT ? 'left' : 'right') + '}',
       '.wb-open .wb-panel{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}',
       '.wb-header{background:' + COLOR + ';color:#fff;padding:16px;display:flex;align-items:center;gap:11px}',
-      '.wb-head-av-shell,.wb-av-shell{width:40px;height:40px;border-radius:50%;background:' + COLOR + ';border:2px solid rgba(255,255,255,.62);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}.wb-head-av,.wb-av{width:28px;height:28px;object-fit:contain;flex-shrink:0}.wb-av-shell{width:28px;height:28px;border-width:1px}',
+      '.wb-head-av-shell,.wb-av-shell{width:40px;height:40px;border-radius:50%;background:' + COLOR + ';border:2px solid rgba(255,255,255,.62);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}.wb-head-av{width:24px;height:24px;object-fit:contain;flex-shrink:0}.wb-av{width:16px;height:16px;object-fit:contain;flex-shrink:0}.wb-av-shell{width:28px;height:28px;border-width:1px}',
       '.wb-av-ini{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;background:rgba(255,255,255,.25);color:#fff}',
       '.wb-head-info{flex:1;min-width:0}',
       '.wb-title{font-weight:700;font-size:15px;line-height:1.3}',
@@ -885,7 +914,7 @@
       '.wb-body{flex:1;min-height:0;overflow-x:hidden;overflow-y:scroll;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:16px;background:#f7f8fa;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}',
       '.wb-row{display:flex;align-items:flex-end;gap:8px;max-width:85%}',
       '.wb-in{align-self:flex-start}.wb-out{align-self:flex-end;flex-direction:row-reverse}',
-      '.wb-row .wb-av{width:19px;height:19px;font-size:11px}',
+      '.wb-row .wb-av{width:14px;height:14px;font-size:9px}',
       '.wb-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;word-wrap:break-word;white-space:normal}',
       '.wb-in .wb-bubble{background:#fff;color:#1f2430;border:1px solid #eceef2;border-bottom-left-radius:5px}',
       '.wb-out .wb-bubble{background:' + COLOR + ';color:#fff;border-bottom-right-radius:5px}',
