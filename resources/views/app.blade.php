@@ -195,6 +195,28 @@
             src="https://connect.facebook.net/en_US/sdk.js"></script>
         @endif
 
+        {{-- WisperBot support widget. Set identity before loading the async
+             script so authenticated visitors open their own private chat. --}}
+        @php
+            try {
+                $widgetUser = auth()->user();
+                $wisperBotVisitor = $widgetUser ? array_filter([
+                    'name' => $widgetUser->name,
+                    'email' => $widgetUser->email,
+                    'avatar' => method_exists($widgetUser, 'avatarUrl') ? $widgetUser->avatarUrl() : null,
+                    'external_id' => 'USER_'.$widgetUser->getAuthIdentifier(),
+                ], static fn ($value) => filled($value)) : null;
+            } catch (\Throwable) {
+                $wisperBotVisitor = null;
+            }
+        @endphp
+        @if($wisperBotVisitor)
+        <script>
+            window.WisperBotSettings = @json($wisperBotVisitor);
+        </script>
+        @endif
+        <script src="https://wisperbot.com/widgets/chat/YuPwdXYo153pZso1LrOmSzlW4Y42OVkq.js" async></script>
+
         <!-- Scripts -->
         @routes
         @viteReactRefresh

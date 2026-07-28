@@ -74,10 +74,12 @@ class SecureHeaders
         return ' http://localhost:5173 http://127.0.0.1:5173';
     }
 
-    /** OneSignal (when configured), Meta JS SDK, and Cloudflare Web Analytics / beacon scripts. */
+    /** WisperBot widget, OneSignal, Meta JS SDK, and Cloudflare Web Analytics / beacon scripts. */
     private function thirdPartyScriptSources(): string
     {
-        $extra = ' https://static.cloudflareinsights.com';
+        // The support widget is served from production even while this app is
+        // being previewed on localhost or another WisperBot-owned deployment.
+        $extra = ' https://wisperbot.com https://static.cloudflareinsights.com';
         if (filled(config('services.onesignal.app_id'))) {
             // SDK loads from cdn; runtime sync/scripts also come from api.* (see OneSignal v16 CSP docs).
             $extra .= ' https://cdn.onesignal.com https://*.onesignal.com';
@@ -101,7 +103,8 @@ class SecureHeaders
 
     private function connectSources(): string
     {
-        $sources = [];
+        // The embedded support widget sends its API requests to this origin.
+        $sources = ['https://wisperbot.com'];
         if (config('app.env') !== 'production') {
             $sources[] = 'ws:';
             $sources[] = 'wss:';
