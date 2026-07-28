@@ -69,7 +69,9 @@ class WebchatIdentityWidgetTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('config.footer_company_name', 'Netro')
-            ->assertJsonPath('config.require_prechat', false);
+            ->assertJsonPath('config.require_prechat', false)
+            ->assertJsonPath('config.team_member_count', 1)
+            ->assertJsonPath('config.team_members.0.name', $workspace->owner->name);
 
         $this->assertStringContainsString('/storage/', $response->json('config.launcher_logo_url'));
 

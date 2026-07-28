@@ -75,6 +75,9 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
     const { t } = useTranslation();
     const channel = conv.channel_account?.channel ?? 'whatsapp';
     const lastMsg = conv.last_message ?? {};
+    const lastResponder = lastMsg.direction === 'out'
+        ? (lastMsg.sender?.name ?? (lastMsg.sent_by === 'bot' ? 'AI assistant' : null))
+        : null;
     const name = conv.contact?.first_name || conv.contact?.last_name
         ? `${conv.contact.first_name ?? ''} ${conv.contact.last_name ?? ''}`.trim()
         : conv.contact?.phone_e164 ?? 'Unknown';
@@ -140,6 +143,11 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
                             </span>
                         )}
                     </div>
+                    {lastResponder && (
+                        <p className="mt-1 truncate text-[10px] font-medium text-neutral-400 dark:text-neutral-500">
+                            Replied by {lastResponder}
+                        </p>
+                    )}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
                         <StatusBadge status={conv.status} />
                         <AnonymousVisitorBadge conversation={conv} />
@@ -296,7 +304,17 @@ export default function InboxIndex({ conversations: initialConversations, filter
                     return {
                         ...prev,
                         data: [
-                            { ...exists, unread_count: (exists.unread_count ?? 0) + 1, last_message_at: e.created_at, last_message: { body: e.body } },
+                            {
+                                ...exists,
+                                unread_count: (exists.unread_count ?? 0) + 1,
+                                last_message_at: e.created_at,
+                                last_message: {
+                                    body: e.body,
+                                    direction: e.direction,
+                                    sent_by: e.sent_by,
+                                    sender: e.sender,
+                                },
+                            },
                             ...prev.data.filter(c => c.id !== convId),
                         ],
                     };

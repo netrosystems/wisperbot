@@ -296,6 +296,7 @@ class ChatWidgetPublicController extends Controller
     private function mapMessages(int $conversationId, ChatWidget $widget, int $afterId): array
     {
         return Message::where('conversation_id', $conversationId)
+            ->with('sender')
             ->where('id', '>', $afterId)
             ->whereIn('direction', ['in', 'out'])
             ->where('status', '!=', 'failed')
@@ -323,7 +324,9 @@ class ChatWidgetPublicController extends Controller
             'attachment_url' => $m->payload['preview_url'] ?? null,
             'filename' => $m->payload['filename'] ?? null,
             'sent_by' => $m->sent_by,
-            'agent_name' => $isAgent ? ($widget->agent_name ?: 'Support') : null,
+            'agent_name' => $isAgent
+                ? ($m->sender?->name ?: ($widget->agent_name ?: 'Support'))
+                : null,
             'created_at' => optional($m->sent_at ?? $m->created_at)->toIso8601String(),
         ];
     }
