@@ -56,6 +56,21 @@ function AnonymousVisitorBadge({ conversation }) {
     );
 }
 
+function HumanAgentDot({ conversation }) {
+    if (conversation.assigned_to !== 'human') return null;
+
+    return (
+        <span
+            className="relative inline-flex h-2.5 w-2.5 shrink-0"
+            title="Waiting for a human agent"
+            aria-label="Waiting for a human agent"
+        >
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500 ring-2 ring-white dark:ring-neutral-900" />
+        </span>
+    );
+}
+
 function ConversationCard({ conv, isFlashing, isActive, userTz }) {
     const { t } = useTranslation();
     const channel = conv.channel_account?.channel ?? 'whatsapp';
@@ -101,13 +116,16 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                        <button
-                            onClick={handleContactClick}
-                            className={`text-sm truncate text-left hover:underline ${conv.unread_count > 0 ? 'font-semibold text-neutral-900 dark:text-neutral-100' : 'font-medium text-neutral-700 dark:text-neutral-300'}`}
-                            title={t('inbox.view_contact_profile')}
-                        >
-                            {name}
-                        </button>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                            <button
+                                onClick={handleContactClick}
+                                className={`text-sm truncate text-left hover:underline ${conv.unread_count > 0 ? 'font-semibold text-neutral-900 dark:text-neutral-100' : 'font-medium text-neutral-700 dark:text-neutral-300'}`}
+                                title={t('inbox.view_contact_profile')}
+                            >
+                                {name}
+                            </button>
+                            <HumanAgentDot conversation={conv} />
+                        </div>
                         <span className="text-[11px] text-neutral-400 shrink-0">
                             {conv.last_message_at ? formatTimeTz(conv.last_message_at, userTz) : ''}
                         </span>
@@ -283,6 +301,15 @@ export default function InboxIndex({ conversations: initialConversations, filter
                         ],
                     };
                 });
+            })
+            .listen('.ConversationAssigned', (e) => {
+                setConversations(prev => ({
+                    ...prev,
+                    data: prev.data.map(conv => conv.id === e.conversation_id
+                        ? { ...conv, assigned_to: e.mode ?? conv.assigned_to, handover_at: e.handover_at ?? conv.handover_at }
+                        : conv
+                    ),
+                }));
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);

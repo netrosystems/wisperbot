@@ -538,6 +538,7 @@ class InboxController extends Controller
             $updates['handover_at'] = now();
         }
         $conversation->update($updates);
+        ConversationAssigned::dispatch($conversation->fresh(), null);
 
         if ($mode === 'human') {
             $members = User::where('workspace_id', $conversation->workspace_id)->get();

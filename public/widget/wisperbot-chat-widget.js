@@ -44,10 +44,12 @@
   var pendingAudio = null;
   var pendingImage = null;
   var prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
+  var handoff = { enabled: !!CFG.ai_enabled, eligible: false, status: 'bot' };
 
   function safeGet(k) { try { return window.localStorage.getItem(k) || ''; } catch (e) { return ''; } }
   function safeSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function escAttr(s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
   function initial(s) { return (s || 'S').trim().charAt(0).toUpperCase(); }
   function getSettings() { return window.WisperBotSettings || window.wisperBotSettings || {}; }
   function identityStorageScope() {
@@ -121,6 +123,7 @@
   var prechatForm = root.querySelector('.wb-prechat-form');
   var statusEl = root.querySelector('.wb-status');
   var invite = root.querySelector('.wb-launcher-invite');
+  var handoffEl = root.querySelector('.wb-handoff');
 
   // Greeting bubble, then the cached history from this device.
   if (CFG.welcome_message) addBubble('agent', CFG.welcome_message, CFG.agent_name);
@@ -159,6 +162,9 @@
   imageInput.addEventListener('change', handleImageSelected);
   imageSendBtn.addEventListener('click', sendPendingImage);
   imageDiscardBtn.addEventListener('click', discardPendingImage);
+  handoffEl.addEventListener('click', function (event) {
+    if (event.target.closest('.wb-handoff-btn')) requestHumanAgent();
+  });
 
   if (prechatForm) {
     prechatForm.addEventListener('submit', function (e) {
@@ -268,6 +274,8 @@
     });
     prechat.style.display = prechatNeeded ? 'block' : 'none';
     form.style.display = prechatNeeded ? 'none' : 'flex';
+    handoff = { enabled: !!CFG.ai_enabled, eligible: false, status: 'bot' };
+    renderHandoff();
     updateBadge();
   }
 
@@ -284,6 +292,7 @@
       safeSet(LS_VISITOR, visitorId); safeSet(LS_TOKEN, token);
       online = data.online !== false;
       (data.messages || []).forEach(function (m) { addMessage(m); });
+      applyHandoff(data.handoff);
       updateStatus(); scrollDown();
     }).catch(function () {}).then(function () { starting = false; });
     return starting;
@@ -297,6 +306,7 @@
       // Render from the server echo (carries the real id) so it dedupes cleanly
       // against the next poll — no optimistic double-render.
       if (data && data.message) addMessage(data.message);
+      if (data) applyHandoff(data.handoff);
     }).catch(function () {});
   }
 
@@ -381,6 +391,7 @@
       return postForm('/widget/v1/messages', fd);
     }).then(function (data) {
       if (data && data.message) addMessage(data.message);
+      if (data) applyHandoff(data.handoff);
       input.value = '';
       discardPendingAudio();
     }).catch(function () {
@@ -422,6 +433,7 @@
       return postForm('/widget/v1/messages', fd);
     }).then(function (data) {
       if (data && data.message) addMessage(data.message);
+      if (data) applyHandoff(data.handoff);
       input.value = '';
       discardPendingImage();
     }).catch(function () {
@@ -473,6 +485,7 @@
     return get('/widget/v1/messages?key=' + encodeURIComponent(KEY) + '&after=' + lastId).then(function (data) {
       if (!data) return;
       if (typeof data.online === 'boolean') { online = data.online; updateStatus(); }
+      applyHandoff(data.handoff);
       (data.messages || []).forEach(function (m) {
         var added = addMessage(m);
         if (added && m.role === 'agent' && (!open || document.hidden)) {
@@ -518,7 +531,7 @@
       text === 'Voice message' ||
       /\.(wav|mp3|m4a|aac|ogg|oga|webm|amr)$/i.test(text)
     );
-    var caption = text && !genericAudioLabel ? '<div class="wb-caption">' + esc(text).replace(/\n/g, '<br>') + '</div>' : '';
+    var caption = text && !genericAudioLabel ? '<div class="wb-caption">' + formatMessageText(text) + '</div>' : '';
     row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + '</div>';
     body.appendChild(row);
     scrollDown();
@@ -526,9 +539,88 @@
 
   function updateStatus() {
     if (!statusEl) return;
+    if (handoff.status === 'connected') {
+      statusEl.innerHTML = '<span class="wb-dot"></span>Connected to a human agent';
+      return;
+    }
     statusEl.innerHTML = online
       ? '<span class="wb-dot"></span>' + esc(CFG.subtitle || 'Online')
       : '<span class="wb-dot wb-dot-off"></span>' + esc(CFG.offline_message || 'Away — leave a message');
+  }
+
+  function applyHandoff(next) {
+    if (!next) return;
+    if (handoff.status === 'connecting' && next.status !== 'connected') return;
+    handoff = {
+      enabled: next.enabled === true,
+      eligible: next.eligible === true,
+      status: next.status || 'bot'
+    };
+    renderHandoff();
+    updateStatus();
+  }
+
+  function renderHandoff() {
+    if (!handoffEl) return;
+    if (!handoff.enabled || (!handoff.eligible && handoff.status === 'bot')) {
+      handoffEl.innerHTML = '';
+      handoffEl.style.display = 'none';
+      return;
+    }
+
+    handoffEl.style.display = 'flex';
+    if (handoff.status === 'connecting') {
+      handoffEl.innerHTML = '<span class="wb-handoff-dot wb-handoff-pulse"></span><span>Connecting to a human agent…</span>';
+    } else if (handoff.status === 'connected') {
+      handoffEl.innerHTML = '<span class="wb-handoff-dot"></span><strong>Connected</strong><span>to a human agent</span>';
+    } else {
+      handoffEl.innerHTML = '<span>Prefer a person?</span><button class="wb-handoff-btn" type="button">Human Agent</button>';
+    }
+  }
+
+  function requestHumanAgent() {
+    if (!handoff.eligible || handoff.status === 'connecting') return;
+    var startedAt = Date.now();
+    handoff.status = 'connecting';
+    handoff.eligible = false;
+    renderHandoff();
+    updateStatus();
+
+    ensureSession().then(function () {
+      return post('/widget/v1/handoff', { key: KEY });
+    }).then(function (data) {
+      var wait = Math.max(0, 500 - (Date.now() - startedAt));
+      setTimeout(function () {
+        applyHandoff(data && data.handoff ? data.handoff : {
+          enabled: true,
+          eligible: false,
+          status: 'connected'
+        });
+      }, wait);
+    }).catch(function () {
+      handoff = { enabled: true, eligible: true, status: 'bot' };
+      handoffEl.style.display = 'flex';
+      handoffEl.innerHTML = '<span>Could not connect.</span><button class="wb-handoff-btn" type="button">Try again</button>';
+      updateStatus();
+    });
+  }
+
+  function formatMessageText(value) {
+    var source = value == null ? '' : String(value);
+    var pattern = /\[([^\]\n]+)\]\((https?:\/\/[^\s<>"')]+)\)|(https?:\/\/[^\s<>"')]+)/g;
+    var html = '';
+    var cursor = 0;
+    var match;
+
+    while ((match = pattern.exec(source)) !== null) {
+      html += esc(source.slice(cursor, match.index)).replace(/\n/g, '<br>');
+      var label = match[1] || match[3];
+      var url = match[2] || match[3];
+      html += '<a href="' + escAttr(url) + '" target="_blank" rel="noopener noreferrer">' + esc(label) + '</a>';
+      cursor = match.index + match[0].length;
+    }
+
+    return html + esc(source.slice(cursor)).replace(/\n/g, '<br>');
   }
 
   function updateBadge() {
@@ -632,6 +724,7 @@
           '<button class="wb-close" aria-label="Close">&#x2715;</button>' +
         '</div>' +
         '<div class="wb-body"></div>' +
+        '<div class="wb-handoff" aria-live="polite"></div>' +
         '<div class="wb-prechat">' +
           '<p class="wb-pc-intro">Tell us who you are and we\'ll get right back to you.</p>' +
           '<form class="wb-prechat-form">' + pcName + pcEmail +
@@ -709,6 +802,8 @@
       '.wb-in .wb-bubble{background:#fff;color:#1f2430;border:1px solid #eceef2;border-bottom-left-radius:5px}',
       '.wb-out .wb-bubble{background:' + COLOR + ';color:#fff;border-bottom-right-radius:5px}',
       '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-media-audio{display:block;width:220px;max-width:100%;height:38px;margin-bottom:6px}.wb-caption:empty{display:none}.wb-media-file{display:block;color:inherit;font-weight:600;text-decoration:underline;word-break:break-word}',
+      '.wb-caption a{color:inherit;font-weight:650;text-decoration:underline;text-underline-offset:2px;word-break:break-word}',
+      '.wb-handoff{display:none;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:8px 12px;border-top:1px solid #eceef2;background:#fff;color:#667085;font-size:12px}.wb-handoff strong{color:#1f2937}.wb-handoff-btn{border:1px solid ' + COLOR + ';border-radius:999px;background:#fff;color:' + COLOR + ';padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s,color .15s}.wb-handoff-btn:hover{background:' + COLOR + ';color:#fff}.wb-handoff-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0}.wb-handoff-pulse{background:#f59e0b;animation:wb-handoff-pulse 1s ease-in-out infinite}',
       '.wb-prechat{display:none;padding:18px;background:#fff}',
       '.wb-pc-intro{font-size:13px;color:#6b7280;margin-bottom:12px}',
       '.wb-prechat-form{display:flex;flex-direction:column;gap:10px}',
@@ -726,6 +821,7 @@
       '.wb-brand b{color:#6b7280}',
       '@keyframes wb-pulse{0%{opacity:.48;transform:scale(.86)}70%{opacity:0;transform:scale(1.28)}100%{opacity:0;transform:scale(1.28)}}',
       '@keyframes wb-record{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}',
+      '@keyframes wb-handoff-pulse{0%,100%{opacity:.45;transform:scale(.86)}50%{opacity:1;transform:scale(1.08)}}',
       '@media(max-width:600px){.wb-wrap{bottom:max(12px,env(safe-area-inset-bottom))}.wb-right{right:12px}.wb-left{left:12px}.wb-open .wb-launcher{display:none}.wb-panel{position:fixed;left:8px;right:8px;top:max(8px,env(safe-area-inset-top));bottom:84px;width:auto;max-width:none;height:auto;max-height:none;border-radius:16px}.wb-header{padding:13px 14px}.wb-body{padding:12px}.wb-inputbar{padding:9px;gap:6px}.wb-brand{padding-bottom:max(7px,env(safe-area-inset-bottom))}}'
     ].join('');
   }

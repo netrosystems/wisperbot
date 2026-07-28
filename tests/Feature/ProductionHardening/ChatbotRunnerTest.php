@@ -80,15 +80,17 @@ class ChatbotRunnerTest extends TestCase
         $message->setRelation('conversation', $conv);
 
         $capturedSystemPrompt = null;
+        $capturedMaxTokens = null;
 
         // Fake both embedding and chat OpenAI calls using URL-keyed closures
         Http::fake([
             'api.openai.com/v1/embeddings' => Http::response([
                 'data' => [['embedding' => [0.1, 0.2, 0.3]]],
             ], 200),
-            'api.openai.com/v1/chat/completions' => function ($request) use (&$capturedSystemPrompt) {
+            'api.openai.com/v1/chat/completions' => function ($request) use (&$capturedSystemPrompt, &$capturedMaxTokens) {
                 $body = json_decode($request->body(), true);
                 $capturedSystemPrompt = collect($body['messages'] ?? [])->firstWhere('role', 'system')['content'] ?? '';
+                $capturedMaxTokens = $body['max_tokens'] ?? null;
 
                 return Http::response([
                     'choices' => [['message' => ['content' => 'Our refund policy is 30 days.']]],
@@ -116,5 +118,10 @@ class ChatbotRunnerTest extends TestCase
         // Assert that context chunks were included in the system prompt sent to OpenAI
         $this->assertNotNull($capturedSystemPrompt, 'System prompt should have been captured');
         $this->assertStringContainsString('refund policy is 30 days', $capturedSystemPrompt);
+        $this->assertStringContainsString('at most 60 words', $capturedSystemPrompt);
+        $this->assertStringContainsString('Reply in the customer\'s language', $capturedSystemPrompt);
+        $this->assertStringContainsString('safe general knowledge', $capturedSystemPrompt);
+        $this->assertStringContainsString('Markdown link', $capturedSystemPrompt);
+        $this->assertSame(160, $capturedMaxTokens);
     }
 }

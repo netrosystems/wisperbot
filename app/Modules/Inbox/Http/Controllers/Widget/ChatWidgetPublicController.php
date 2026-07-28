@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Http\Controllers\Widget;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Inbox\Models\ChatWidget;
+use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
@@ -24,6 +25,7 @@ class ChatWidgetPublicController extends Controller
     public function __construct(
         private readonly WebchatDriver $driver,
         private readonly StorageManager $storageManager,
+        private readonly HumanHandoffService $humanHandoff,
     ) {}
 
     /** POST /widget/v1/session — start or restore a visitor's chat session. */
@@ -68,6 +70,7 @@ class ChatWidgetPublicController extends Controller
             'config' => $widget->publicConfig(),
             'online' => $this->isOnline($widget),
             'messages' => $this->mapMessages($conversation->id, $widget, 0),
+            'handoff' => $this->handoffState($widget, $conversation),
         ]);
     }
 
@@ -126,7 +129,10 @@ class ChatWidgetPublicController extends Controller
 
         $message = $this->driver->recordInboundMessage($conversation, $payload['v'], $body, $type, $messagePayload);
 
-        return response()->json(['message' => $this->mapMessage($message, $widget)]);
+        return response()->json([
+            'message' => $this->mapMessage($message, $widget),
+            'handoff' => $this->handoffState($widget, $conversation->refresh()),
+        ]);
     }
 
     /** GET /widget/v1/messages?after=ID — poll for new messages. */
@@ -144,6 +150,36 @@ class ChatWidgetPublicController extends Controller
         return response()->json([
             'messages' => $this->mapMessages((int) $payload['c'], $widget, (int) ($data['after'] ?? 0)),
             'online' => $this->isOnline($widget),
+            'handoff' => $this->handoffState(
+                $widget,
+                Conversation::where('id', (int) $payload['c'])
+                    ->where('workspace_id', $widget->workspace_id)
+                    ->where('channel_account_id', $widget->channel_account_id)
+                    ->firstOrFail(),
+            ),
+        ]);
+    }
+
+    /** POST /widget/v1/handoff — visitor asks to continue with a person. */
+    public function handoff(Request $request): JsonResponse
+    {
+        $data = $request->validate(['key' => ['required', 'string']]);
+        $widget = $this->resolveWidget($data['key']);
+        $this->assertDomainAllowed($widget, $request);
+        $payload = $this->authVisitor($request, $widget);
+
+        $conversation = Conversation::where('id', (int) $payload['c'])
+            ->where('workspace_id', $widget->workspace_id)
+            ->where('channel_account_id', $widget->channel_account_id)
+            ->firstOrFail();
+
+        abort_unless($widget->hasActiveAiChatbot(), 422, 'AI chat is not enabled for this widget.');
+        abort_unless($this->hasTwoCustomerMessages($conversation), 422, 'Human Agent becomes available after two messages.');
+
+        $conversation = $this->humanHandoff->request($conversation, 'widget_button');
+
+        return response()->json([
+            'handoff' => $this->handoffState($widget, $conversation),
         ]);
     }
 
@@ -290,6 +326,34 @@ class ChatWidgetPublicController extends Controller
             'agent_name' => $isAgent ? ($widget->agent_name ?: 'Support') : null,
             'created_at' => optional($m->sent_at ?? $m->created_at)->toIso8601String(),
         ];
+    }
+
+    /**
+     * The visitor sees the handoff action only after their second message and
+     * only while this specific widget has an active AI chatbot.
+     *
+     * @return array{enabled:bool,eligible:bool,status:string}
+     */
+    private function handoffState(ChatWidget $widget, Conversation $conversation): array
+    {
+        $enabled = $widget->hasActiveAiChatbot();
+        $connected = ($conversation->assigned_to ?? 'bot') === 'human';
+
+        return [
+            'enabled' => $enabled,
+            'eligible' => $enabled && ! $connected && $this->hasTwoCustomerMessages($conversation),
+            'status' => $enabled && $connected ? 'connected' : 'bot',
+        ];
+    }
+
+    private function hasTwoCustomerMessages(Conversation $conversation): bool
+    {
+        return $conversation->messages()
+            ->where('direction', 'in')
+            ->orderBy('id')
+            ->limit(2)
+            ->get(['id'])
+            ->count() >= 2;
     }
 
     /** Whether the widget is inside its configured working hours (default: always). */
