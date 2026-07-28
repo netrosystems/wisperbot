@@ -1487,6 +1487,7 @@ export default function InboxShow({
     const [messages, setMessages]           = useState(initialMessages ?? []);
     const [viewers, setViewers]             = useState([]);
     const [typingUsers, setTypingUsers]     = useState([]);
+    const [visitorTyping, setVisitorTyping] = useState(false);
     const [activeTab, setActiveTab]         = useState('messages');
     const [notes, setNotes]                 = useState([]);
     const [noteBody, setNoteBody]           = useState('');
@@ -1513,6 +1514,7 @@ export default function InboxShow({
         setAssignedTo(conversation.assigned_to ?? 'bot');
         setAssignedUserId(conversation.assigned_user_id ?? null);
         setSendError(null);
+        setVisitorTyping(false);
         stopAudioTracks();
         setRecordingAudio(false);
         setAttachPreview(null);
@@ -1657,9 +1659,11 @@ export default function InboxShow({
                 if (cancelled) return;
 
                 const incoming = res?.messages ?? [];
+                setVisitorTyping(res?.visitor_typing === true);
                 mergeIncomingMessages(incoming, { playSound: true });
 
                 if (incoming.length > 0) {
+                    setVisitorTyping(false);
                     const latest = incoming[incoming.length - 1];
                     setConversations(prev => {
                         if (!prev?.data) return prev;
@@ -1779,15 +1783,35 @@ export default function InboxShow({
     }, []);
 
     const typingTimer = useRef(null);
-    const handleTyping = () => {
+    const typingActive = useRef(false);
+    const typingLastSentAt = useRef(0);
+    const sendTypingState = useCallback((isTyping) => {
+        typingActive.current = isTyping;
+        typingLastSentAt.current = Date.now();
+        axios.post(route('client.inbox.typing', conversation.uuid), { is_typing: isTyping }).catch(() => {});
+    }, [conversation.uuid]);
+    const handleTyping = (value) => {
         // Use server-side broadcast instead of Pusher client events (whispers),
         // which require "Client Events" to be enabled in the Pusher dashboard.
         clearTimeout(typingTimer.current);
-        axios.post(route('client.inbox.typing', conversation.uuid), { is_typing: true }).catch(() => {});
+        if (!value.trim()) {
+            if (typingActive.current) sendTypingState(false);
+            return;
+        }
+
+        const now = Date.now();
+        if (!typingActive.current || now - typingLastSentAt.current >= 2500) {
+            sendTypingState(true);
+        }
         typingTimer.current = setTimeout(() => {
-            axios.post(route('client.inbox.typing', conversation.uuid), { is_typing: false }).catch(() => {});
-        }, 3000);
+            if (typingActive.current) sendTypingState(false);
+        }, 1600);
     };
+
+    useEffect(() => () => {
+        clearTimeout(typingTimer.current);
+        if (typingActive.current) sendTypingState(false);
+    }, [conversation.id, sendTypingState]);
 
     const loadNotes = useCallback(() => {
         axios.get(route('client.inbox.notes.index', conversation.uuid))
@@ -1820,7 +1844,7 @@ export default function InboxShow({
 
     const handleReplyChange = (value) => {
         setData('body', value);
-        handleTyping();
+        handleTyping(value);
         const match = value.match(/^\/(\w*)$/);
         if (match) {
             const q = match[1].toLowerCase();
@@ -1855,7 +1879,8 @@ export default function InboxShow({
 
         setSending(true);
         setSendError(null);
-        axios.post(route('client.inbox.typing', conversation.uuid), { is_typing: false }).catch(() => {});
+        clearTimeout(typingTimer.current);
+        if (typingActive.current) sendTypingState(false);
 
         const onDone = (res) => {
             const msg = res?.data?.message;
@@ -2243,11 +2268,20 @@ export default function InboxShow({
 
                     {/* Contact tab */}
                     {/* Typing indicator */}
-                    {typingUsers.length > 0 && activeTab === 'messages' && (
-                        <div className="px-4 py-1.5 text-xs text-neutral-400 italic bg-neutral-50 dark:bg-neutral-950 shrink-0">
-                            {typingUsers.length === 1
-                                ? t('inbox.typing_one', { names: typingUsers.map(u => u.user_name).join(', ') })
-                                : t('inbox.typing_many', { names: typingUsers.map(u => u.user_name).join(', ') })}
+                    {(visitorTyping || typingUsers.length > 0) && activeTab === 'messages' && (
+                        <div className="px-4 py-1.5 text-xs text-neutral-500 bg-neutral-50 dark:bg-neutral-950 shrink-0 flex items-center gap-2" role="status" aria-live="polite">
+                            <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+                                {[0, 1, 2].map(dot => (
+                                    <span key={dot} className="h-1 w-1 rounded-full bg-brand-500 animate-pulse" style={{ animationDelay: `${dot * 120}ms` }} />
+                                ))}
+                            </span>
+                            <span className="italic">
+                                {visitorTyping
+                                    ? `${conversation.contact?.first_name || 'Customer'} is typing…`
+                                    : typingUsers.length === 1
+                                        ? t('inbox.typing_one', { names: typingUsers.map(u => u.user_name).join(', ') })
+                                        : t('inbox.typing_many', { names: typingUsers.map(u => u.user_name).join(', ') })}
+                            </span>
                         </div>
                     )}
 
@@ -2396,6 +2430,10 @@ export default function InboxShow({
                                     <textarea
                                         value={data.body}
                                         onChange={e => handleReplyChange(e.target.value)}
+                                        onBlur={() => {
+                                            clearTimeout(typingTimer.current);
+                                            if (typingActive.current) sendTypingState(false);
+                                        }}
                                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
                                         placeholder={
                                             isWhatsApp && !isWindowOpen

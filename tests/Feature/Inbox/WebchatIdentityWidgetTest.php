@@ -14,6 +14,7 @@ use App\Modules\Shared\Models\Message;
 use App\Notifications\ConversationHandoverNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +23,82 @@ use Tests\TestCase;
 class WebchatIdentityWidgetTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_widget_and_agent_share_expiring_typing_presence_without_creating_messages(): void
+    {
+        Cache::flush();
+        ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+
+        $session = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+        $conversation = Conversation::where('workspace_id', $workspace->id)->sole();
+        $visitorHeaders = ['X-Widget-Token' => $session->json('token')];
+
+        $this->withHeaders($visitorHeaders)
+            ->postJson(route('widget.typing'), [
+                'key' => $widget->widget_key,
+                'is_typing' => true,
+            ])
+            ->assertOk();
+
+        $this->actingAs($agent)
+            ->getJson(route('client.inbox.messages', $conversation->uuid))
+            ->assertOk()
+            ->assertJsonPath('visitor_typing', true);
+
+        $this->actingAs($agent)
+            ->postJson(route('client.inbox.typing', $conversation->uuid), [
+                'is_typing' => true,
+            ])
+            ->assertOk();
+
+        $this->withHeaders($visitorHeaders)
+            ->getJson(route('widget.poll', [
+                'key' => $widget->widget_key,
+                'after' => 0,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('agent_typing.is_typing', true)
+            ->assertJsonPath('agent_typing.name', $agent->name);
+
+        $this->withHeaders($visitorHeaders)
+            ->postJson(route('widget.typing'), [
+                'key' => $widget->widget_key,
+                'is_typing' => false,
+            ])
+            ->assertOk();
+        $this->actingAs($agent)
+            ->postJson(route('client.inbox.typing', $conversation->uuid), [
+                'is_typing' => false,
+            ])
+            ->assertOk();
+
+        $this->actingAs($agent)
+            ->getJson(route('client.inbox.messages', $conversation->uuid))
+            ->assertJsonPath('visitor_typing', false);
+        $this->withHeaders($visitorHeaders)
+            ->getJson(route('widget.poll', [
+                'key' => $widget->widget_key,
+                'after' => 0,
+            ]))
+            ->assertJsonPath('agent_typing.is_typing', false);
+
+        $this->assertDatabaseCount('messages', 0);
+    }
 
     public function test_logged_in_visitor_identity_is_attached_and_public_config_matches_widget_features(): void
     {
