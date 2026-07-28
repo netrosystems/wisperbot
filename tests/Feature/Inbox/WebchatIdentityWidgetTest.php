@@ -2,13 +2,20 @@
 
 namespace Tests\Feature\Inbox;
 
+use App\Events\ConversationAssigned;
+use App\Events\MessageReceived;
 use App\Models\Plan;
+use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
+use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
+use App\Notifications\ConversationHandoverNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -256,5 +263,94 @@ class WebchatIdentityWidgetTest extends TestCase
         $this->assertSame($session->json('visitor_id'), $restored->json('visitor_id'));
         $this->assertSame('My private history', $restored->json('messages.0.body'));
         $this->assertCount(1, Contact::where('workspace_id', $workspace->id)->get());
+    }
+
+    public function test_human_agent_button_becomes_available_after_two_customer_messages(): void
+    {
+        Event::fake([MessageReceived::class, ConversationAssigned::class]);
+        Notification::fake();
+        ['workspace' => $workspace, 'user' => $user] = $this->createWorkspaceContext();
+
+        $chatbot = AiChatbot::create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Website AI',
+            'enabled' => true,
+        ]);
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+            'meta_json' => ['ai_chatbot_id' => $chatbot->id],
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+            'ai_enabled' => true,
+            'ai_chatbot_id' => $chatbot->id,
+        ]);
+
+        $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key])
+            ->assertOk()
+            ->assertJsonPath('config.ai_enabled', true)
+            ->assertJsonPath('handoff.eligible', false);
+
+        $headers = ['X-Widget-Token' => $session->json('token')];
+        $this->withHeaders($headers)->postJson(route('widget.send'), [
+            'key' => $widget->widget_key,
+            'message' => 'First customer message',
+        ])->assertOk()->assertJsonPath('handoff.eligible', false);
+
+        $this->withHeaders($headers)->postJson(route('widget.send'), [
+            'key' => $widget->widget_key,
+            'message' => 'Second customer message',
+        ])->assertOk()->assertJsonPath('handoff.eligible', true);
+
+        $this->withHeaders($headers)->postJson(route('widget.handoff'), [
+            'key' => $widget->widget_key,
+        ])->assertOk()
+            ->assertJsonPath('handoff.status', 'connected')
+            ->assertJsonPath('handoff.eligible', false);
+
+        $conversation = Conversation::where('workspace_id', $workspace->id)->sole();
+        $this->assertSame('human', $conversation->assigned_to);
+        $this->assertNotNull($conversation->handover_at);
+        Notification::assertSentTo($user, ConversationHandoverNotification::class);
+        Event::assertDispatched(ConversationAssigned::class);
+    }
+
+    public function test_human_agent_endpoint_is_unavailable_when_widget_ai_is_disabled(): void
+    {
+        Event::fake([MessageReceived::class]);
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+            'ai_enabled' => false,
+        ]);
+        $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key])->assertOk();
+        $headers = ['X-Widget-Token' => $session->json('token')];
+
+        foreach (['First message', 'Second message'] as $body) {
+            $this->withHeaders($headers)->postJson(route('widget.send'), [
+                'key' => $widget->widget_key,
+                'message' => $body,
+            ])->assertOk()->assertJsonPath('handoff.enabled', false);
+        }
+
+        $this->withHeaders($headers)->postJson(route('widget.handoff'), [
+            'key' => $widget->widget_key,
+        ])->assertStatus(422);
     }
 }

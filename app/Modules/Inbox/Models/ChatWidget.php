@@ -3,6 +3,7 @@
 namespace App\Modules\Inbox\Models;
 
 use App\Models\Workspace;
+use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\StorageManager;
 use Illuminate\Database\Eloquent\Model;
@@ -67,6 +68,26 @@ class ChatWidget extends Model
         return $this->belongsTo(Workspace::class);
     }
 
+    public function aiChatbot(): BelongsTo
+    {
+        return $this->belongsTo(AiChatbot::class, 'ai_chatbot_id');
+    }
+
+    public function hasActiveAiChatbot(): bool
+    {
+        if (! $this->ai_enabled || ! $this->ai_chatbot_id) {
+            return false;
+        }
+
+        $chatbot = $this->relationLoaded('aiChatbot')
+            ? $this->aiChatbot
+            : $this->aiChatbot()->first();
+
+        return (bool) $chatbot
+            && $chatbot->enabled
+            && (int) $chatbot->workspace_id === (int) $this->workspace_id;
+    }
+
     public function getLauncherLogoUrlAttribute(): ?string
     {
         if (! $this->launcher_logo_path || ! $this->canUseCustomLauncherLogo()) {
@@ -109,6 +130,8 @@ class ChatWidget extends Model
             // The product icon remains the default for every free widget.
             // A custom launcher mark is only exposed for white-label plans.
             'launcher_logo_url' => $launcherLogoUrl,
+            // Only expose whether AI is active; never expose the internal bot id.
+            'ai_enabled' => $this->hasActiveAiChatbot(),
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,

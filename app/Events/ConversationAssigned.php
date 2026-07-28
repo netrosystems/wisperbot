@@ -39,6 +39,8 @@ class ConversationAssigned implements ShouldBroadcastNow
     {
         return [
             'conversation_id' => $this->conversation->id,
+            'mode' => $this->conversation->assigned_to ?? 'bot',
+            'handover_at' => $this->conversation->handover_at?->toIso8601String(),
             'assigned_to' => $this->assignedTo ? [
                 'id' => $this->assignedTo->id,
                 'name' => $this->assignedTo->name,
