@@ -5,6 +5,7 @@ namespace App\Modules\Inbox\Http\Controllers\Widget;
 use App\Http\Controllers\Controller;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\HumanHandoffService;
+use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
@@ -127,6 +128,7 @@ class ChatWidgetPublicController extends Controller
 
         abort_if($type === 'text' && $body === '', 422, 'Message body is required.');
 
+        app(TypingPresence::class)->setVisitor($conversation, false);
         $message = $this->driver->recordInboundMessage($conversation, $payload['v'], $body, $type, $messagePayload);
 
         return response()->json([
@@ -147,17 +149,43 @@ class ChatWidgetPublicController extends Controller
         $this->assertDomainAllowed($widget, $request);
         $payload = $this->authVisitor($request, $widget);
 
+        $conversation = Conversation::where('id', (int) $payload['c'])
+            ->where('workspace_id', $widget->workspace_id)
+            ->where('channel_account_id', $widget->channel_account_id)
+            ->firstOrFail();
+        $agentTyping = app(TypingPresence::class)->agent($conversation);
+
         return response()->json([
             'messages' => $this->mapMessages((int) $payload['c'], $widget, (int) ($data['after'] ?? 0)),
             'online' => $this->isOnline($widget),
-            'handoff' => $this->handoffState(
-                $widget,
-                Conversation::where('id', (int) $payload['c'])
-                    ->where('workspace_id', $widget->workspace_id)
-                    ->where('channel_account_id', $widget->channel_account_id)
-                    ->firstOrFail(),
-            ),
+            'handoff' => $this->handoffState($widget, $conversation),
+            'agent_typing' => [
+                'is_typing' => $agentTyping !== null,
+                'name' => $agentTyping['user_name'] ?? null,
+            ],
         ]);
+    }
+
+    /** POST /widget/v1/typing — short-lived visitor typing presence. */
+    public function typing(Request $request, TypingPresence $typingPresence): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string'],
+            'is_typing' => ['required', 'boolean'],
+        ]);
+
+        $widget = $this->resolveWidget($data['key']);
+        $this->assertDomainAllowed($widget, $request);
+        $payload = $this->authVisitor($request, $widget);
+
+        $conversation = Conversation::where('id', (int) $payload['c'])
+            ->where('workspace_id', $widget->workspace_id)
+            ->where('channel_account_id', $widget->channel_account_id)
+            ->firstOrFail();
+
+        $typingPresence->setVisitor($conversation, (bool) $data['is_typing']);
+
+        return response()->json(['ok' => true]);
     }
 
     /** POST /widget/v1/handoff — visitor asks to continue with a person. */

@@ -8,6 +8,7 @@ use App\Events\TypingChanged;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Inbox\Models\InboxLabel;
+use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -150,8 +151,11 @@ class InboxController extends Controller
         ]);
     }
 
-    public function messages(Request $request, Conversation $conversation): JsonResponse
-    {
+    public function messages(
+        Request $request,
+        Conversation $conversation,
+        TypingPresence $typingPresence,
+    ): JsonResponse {
         $this->authorise($request, $conversation);
 
         $validated = $request->validate([
@@ -200,6 +204,7 @@ class InboxController extends Controller
 
         return response()->json([
             'messages' => $messages,
+            'visitor_typing' => $typingPresence->visitorIsTyping($conversation),
             'conversation' => [
                 'id' => $conversation->id,
                 'status' => $conversation->fresh()?->status ?? $conversation->status,
@@ -224,6 +229,7 @@ class InboxController extends Controller
             ],
         ]);
 
+        app(TypingPresence::class)->setAgent($conversation, $request->user(), false);
         $msgType = $validated['type'] ?? 'text';
         $msgPayload = $validated['payload'] ?? null;
         $channel = $conversation->channelAccount?->channel ?? 'whatsapp';
@@ -513,12 +519,17 @@ class InboxController extends Controller
         return back()->with('success', 'Conversation assigned.');
     }
 
-    public function typing(Request $request, Conversation $conversation): JsonResponse
-    {
+    public function typing(
+        Request $request,
+        Conversation $conversation,
+        TypingPresence $typingPresence,
+    ): JsonResponse {
         $this->authorise($request, $conversation);
         $request->validate(['is_typing' => ['required', 'boolean']]);
 
-        broadcast(new TypingChanged($conversation, $request->user(), (bool) $request->is_typing))->toOthers();
+        $isTyping = (bool) $request->is_typing;
+        $typingPresence->setAgent($conversation, $request->user(), $isTyping);
+        broadcast(new TypingChanged($conversation, $request->user(), $isTyping))->toOthers();
 
         return response()->json(['ok' => true]);
     }

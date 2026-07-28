@@ -43,6 +43,9 @@
   var recordingChunks = [];
   var pendingAudio = null;
   var pendingImage = null;
+  var visitorTyping = false;
+  var visitorTypingLastSentAt = 0;
+  var visitorTypingIdleTimer = null;
   var prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
   var handoff = { enabled: !!CFG.ai_enabled, eligible: false, status: 'bot' };
 
@@ -124,6 +127,7 @@
   var statusEl = root.querySelector('.wb-status');
   var invite = root.querySelector('.wb-launcher-invite');
   var handoffEl = root.querySelector('.wb-handoff');
+  var agentTypingEl = root.querySelector('.wb-agent-typing');
 
   // Greeting bubble, then the cached history from this device.
   if (CFG.welcome_message) addBubble('agent', CFG.welcome_message, CFG.agent_name);
@@ -152,9 +156,12 @@
     e.preventDefault();
     var text = input.value.trim();
     if (!text) return;
+    stopVisitorTyping();
     input.value = '';
     send(text);
   });
+  input.addEventListener('input', noteVisitorTyping);
+  input.addEventListener('blur', stopVisitorTyping);
   micBtn.addEventListener('click', toggleRecording);
   audioSendBtn.addEventListener('click', sendPendingAudio);
   audioDiscardBtn.addEventListener('click', discardPendingAudio);
@@ -229,6 +236,7 @@
     wrap.classList.remove('wb-open');
     launcher.classList.remove('wb-active');
     stopRecording(false);
+    stopVisitorTyping();
   }
 
   function scheduleInvite() {
@@ -263,6 +271,10 @@
     started = false;
     starting = false;
     unreadCount = 0;
+    visitorTyping = false;
+    visitorTypingLastSentAt = 0;
+    if (visitorTypingIdleTimer) clearTimeout(visitorTypingIdleTimer);
+    visitorTypingIdleTimer = null;
     prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
 
     body.innerHTML = '';
@@ -276,6 +288,7 @@
     form.style.display = prechatNeeded ? 'none' : 'flex';
     handoff = { enabled: !!CFG.ai_enabled, eligible: false, status: 'bot' };
     renderHandoff();
+    renderAgentTyping(null);
     updateBadge();
   }
 
@@ -307,6 +320,45 @@
       // against the next poll — no optimistic double-render.
       if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
+    }).catch(function () {});
+  }
+
+  function noteVisitorTyping() {
+    if (!input.value.trim()) {
+      stopVisitorTyping();
+      return;
+    }
+
+    var now = Date.now();
+    if (!visitorTyping || now - visitorTypingLastSentAt >= 2500) {
+      sendVisitorTyping(true);
+    }
+
+    if (visitorTypingIdleTimer) clearTimeout(visitorTypingIdleTimer);
+    visitorTypingIdleTimer = setTimeout(stopVisitorTyping, 1600);
+  }
+
+  function stopVisitorTyping() {
+    if (visitorTypingIdleTimer) clearTimeout(visitorTypingIdleTimer);
+    visitorTypingIdleTimer = null;
+    if (visitorTyping) sendVisitorTyping(false);
+  }
+
+  function sendVisitorTyping(isTyping) {
+    visitorTyping = isTyping;
+    visitorTypingLastSentAt = Date.now();
+    if (!started || !token) {
+      if (isTyping) {
+        ensureSession().then(function () {
+          if (visitorTyping && token) sendVisitorTyping(true);
+        });
+      }
+      return;
+    }
+
+    post('/widget/v1/typing', {
+      key: KEY,
+      is_typing: isTyping
     }).catch(function () {});
   }
 
@@ -486,6 +538,7 @@
       if (!data) return;
       if (typeof data.online === 'boolean') { online = data.online; updateStatus(); }
       applyHandoff(data.handoff);
+      renderAgentTyping(data.agent_typing);
       (data.messages || []).forEach(function (m) {
         var added = addMessage(m);
         if (added && m.role === 'agent' && (!open || document.hidden)) {
@@ -506,6 +559,19 @@
     saveThread();
     addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename);
     return true;
+  }
+
+  function renderAgentTyping(presence) {
+    if (!agentTypingEl) return;
+    var isTyping = !!(presence && presence.is_typing);
+    agentTypingEl.style.display = isTyping ? 'flex' : 'none';
+    if (!isTyping) return;
+
+    var name = presence.name || 'Team';
+    var label = name === 'Team' ? 'Team is typing' : name + ' is typing';
+    agentTypingEl.innerHTML =
+      '<span class="wb-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>' +
+      '<span>' + esc(label) + '</span>';
   }
 
   function addBubble(role, text, name, attachmentUrl, type, filename) {
@@ -742,6 +808,7 @@
           '<button class="wb-close" aria-label="Close">&#x2715;</button>' +
         '</div>' +
         '<div class="wb-body"></div>' +
+        '<div class="wb-agent-typing" role="status" aria-live="polite"></div>' +
         '<div class="wb-handoff" aria-live="polite"></div>' +
         '<div class="wb-prechat">' +
           '<p class="wb-pc-intro">Tell us who you are and we\'ll get right back to you.</p>' +
@@ -824,6 +891,8 @@
       '.wb-out .wb-bubble{background:' + COLOR + ';color:#fff;border-bottom-right-radius:5px}',
       '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-media-audio{display:block;width:220px;max-width:100%;height:38px;margin-bottom:6px}.wb-caption:empty{display:none}.wb-media-file{display:block;color:inherit;font-weight:600;text-decoration:underline;word-break:break-word}',
       '.wb-caption a{color:inherit;font-weight:650;text-decoration:underline;text-underline-offset:2px;word-break:break-word}',
+      '.wb-agent-typing{display:none;align-items:center;gap:7px;min-height:30px;padding:5px 16px;border-top:1px solid #f0f1f4;background:#f7f8fa;color:#737984;font-size:11px;font-weight:600}',
+      '.wb-typing-dots{display:inline-flex;align-items:center;gap:3px}.wb-typing-dots i{display:block;width:5px;height:5px;border-radius:50%;background:' + COLOR + ';animation:wb-typing 1.05s ease-in-out infinite}.wb-typing-dots i:nth-child(2){animation-delay:.14s}.wb-typing-dots i:nth-child(3){animation-delay:.28s}',
       '.wb-handoff{display:none;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:8px 12px;border-top:1px solid #eceef2;background:#fff;color:#667085;font-size:12px}.wb-handoff strong{color:#1f2937}.wb-handoff-btn{border:1px solid ' + COLOR + ';border-radius:999px;background:#fff;color:' + COLOR + ';padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s,color .15s}.wb-handoff-btn:hover{background:' + COLOR + ';color:#fff}.wb-handoff-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0}.wb-handoff-pulse{background:#f59e0b;animation:wb-handoff-pulse 1s ease-in-out infinite}',
       '.wb-prechat{display:none;padding:18px;background:#fff}',
       '.wb-pc-intro{font-size:13px;color:#6b7280;margin-bottom:12px}',
@@ -843,6 +912,7 @@
       '@keyframes wb-pulse{0%{opacity:.48;transform:scale(.86)}70%{opacity:0;transform:scale(1.28)}100%{opacity:0;transform:scale(1.28)}}',
       '@keyframes wb-record{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}',
       '@keyframes wb-handoff-pulse{0%,100%{opacity:.45;transform:scale(.86)}50%{opacity:1;transform:scale(1.08)}}',
+      '@keyframes wb-typing{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-2px)}}',
       '@media(max-width:600px){.wb-wrap{bottom:max(12px,env(safe-area-inset-bottom))}.wb-right{right:12px}.wb-left{left:12px}.wb-open .wb-launcher{display:none}.wb-panel{position:fixed;left:8px;right:8px;top:max(8px,env(safe-area-inset-top));bottom:84px;width:auto;max-width:none;height:auto;max-height:none;border-radius:16px}.wb-header{padding:13px 14px}.wb-body{padding:12px}.wb-inputbar{padding:9px;gap:6px}.wb-brand{padding-bottom:max(7px,env(safe-area-inset-bottom))}}'
     ].join('');
   }
