@@ -9,6 +9,8 @@ use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class MobileAuthController extends Controller
@@ -21,30 +23,63 @@ class MobileAuthController extends Controller
      */
     public function login(Request $request): JsonResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
             'device_name' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $email = Str::lower(trim($validated['email']));
+        $throttleKey = $this->failedLoginThrottleKey($email, $request->ip());
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            return $this->rateLimitedResponse(
+                RateLimiter::availableIn($throttleKey),
+            );
+        }
+
+        $user = User::where('email', $email)->first();
+
+        if (! $user || ! Hash::check($validated['password'], $user->password)) {
+            RateLimiter::hit($throttleKey, 60);
+
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
         }
 
+        RateLimiter::clear($throttleKey);
+
         if ($user->status !== 'active') {
             return response()->json(['message' => 'Account is not active.'], 403);
         }
 
-        $deviceName = $request->device_name ?? 'ChatAgent Mobile';
+        $deviceName = $validated['device_name'] ?? 'ChatAgent Mobile';
         $token = $user->createToken($deviceName, ['*'])->plainTextToken;
 
         return response()->json([
             'token' => $token,
             'user' => $this->userPayload($user),
+        ]);
+    }
+
+    private function failedLoginThrottleKey(string $email, string $ip): string
+    {
+        return 'mobile-login:failed:'.hash('sha256', $email.'|'.$ip);
+    }
+
+    private function rateLimitedResponse(int $retryAfter): JsonResponse
+    {
+        $retryAfter = max(1, $retryAfter);
+
+        return response()->json([
+            'code' => 'login_rate_limited',
+            'message' => "Too many login attempts. Please try again in {$retryAfter} seconds.",
+            'retry_after' => $retryAfter,
+        ], 429, [
+            'Retry-After' => (string) $retryAfter,
+            'X-RateLimit-Limit' => '5',
+            'X-RateLimit-Remaining' => '0',
         ]);
     }
 
