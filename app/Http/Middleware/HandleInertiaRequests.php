@@ -77,7 +77,7 @@ class HandleInertiaRequests extends Middleware
                 'displayCurrency' => 'USD',
                 'theme' => 'light',
                 'demo_mode' => false,
-                'app_version' => env('APP_VERSION', '1.0.0'),
+                'app_version' => config('app.version', '1.0.0'),
                 'onboardingSummary' => null,
                 'entitlements' => ['developer_tools' => false],
             ];
@@ -355,7 +355,7 @@ class HandleInertiaRequests extends Middleware
             'displayCurrency' => $displayCurrency,
             'demo_mode' => config('app.demo_mode', false),
             'current_workspace_usage' => $this->workspaceUsage($workspaceId ?? null, $plan ?? null),
-            'app_version' => env('APP_VERSION', '1.0.0'),
+            'app_version' => config('app.version', '1.0.0'),
             'onboardingSummary' => $onboardingSummary,
             'landingPageEnabled' => SystemSetting::get('landing.page_enabled', '1') === '1',
             'branding' => $this->brandingShare(),

@@ -12,7 +12,19 @@ use Inertia\Response;
 
 class SmsProviderController extends Controller
 {
-    public const PROVIDERS = ['twilio', 'nexmo', 'messagebird', 'smsbd', 'reve', 'alaris', 'bulksmsbd', 'sms_dot_bd', 'mimsms', 'fast2sms', 'amazon_sns'];
+    public const PROVIDERS = [
+        'twilio',
+        // 'nexmo',
+        'messagebird',
+        'smsbd',
+        'reve',
+        'alaris',
+        'bulksmsbd',
+        // 'sms_dot_bd',
+        // 'mimsms',
+        // 'fast2sms',
+        'amazon_sns',
+    ];
 
     public const FIELDS = [
         'twilio' => [
@@ -78,7 +90,7 @@ class SmsProviderController extends Controller
         'messagebird' => 'MessageBird',
         'smsbd'       => 'SMSBD',
         'reve'        => 'REVE SMS',
-        'alaris'      => 'Alaris SMS Platform',
+        'alaris'      => 'ProSMS',
         'bulksmsbd'   => 'BulkSMS BD',
         'sms_dot_bd'  => 'SMS.BD (sms.net.bd)',
         'mimsms'      => 'MimSMS',

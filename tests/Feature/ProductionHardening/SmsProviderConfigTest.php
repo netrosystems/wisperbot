@@ -4,26 +4,61 @@ namespace Tests\Feature\ProductionHardening;
 
 use App\Modules\Broadcasting\Models\SmsProviderConfig;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class SmsProviderConfigTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_only_supported_sms_gateways_are_available_to_clients(): void
+    {
+        ['user' => $user] = $this->createWorkspaceContext();
+
+        $this->actingAs($user)
+            ->get(route('client.sms-gateways.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Broadcasting/SmsProviders/Index')
+                ->has('providers', 7)
+                ->where('providers.0.provider', 'twilio')
+                ->where('providers.1.provider', 'messagebird')
+                ->where('providers.2.provider', 'smsbd')
+                ->where('providers.3.provider', 'reve')
+                ->where('providers.4.provider', 'alaris')
+                ->where('providers.4.label', 'ProSMS')
+                ->where('providers.5.provider', 'bulksmsbd')
+                ->where('providers.6.provider', 'amazon_sns'));
+    }
+
+    public function test_a_hidden_sms_gateway_cannot_be_configured(): void
+    {
+        ['user' => $user] = $this->createWorkspaceContext();
+
+        $this->actingAs($user)
+            ->put(route('client.sms-gateways.update', 'nexmo'), [
+                'credentials' => [
+                    'api_key' => 'key',
+                    'api_secret' => 'secret',
+                ],
+            ])
+            ->assertNotFound();
+    }
+
     public function test_partial_sms_credentials_are_rejected_before_persistence(): void
     {
         ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
 
         $this->actingAs($user)
-            ->put(route('client.sms-gateways.update', 'twilio'), [
+            ->put(route('client.sms-gateways.update', 'reve'), [
                 'default' => true,
-                'credentials' => ['account_sid' => 'AC_test'],
+                'credentials' => ['api_key' => 'reve-key'],
             ])
-            ->assertSessionHasErrors('credentials.auth_token');
+            ->assertSessionHasErrors('credentials.api_secret');
 
         $this->assertDatabaseMissing('sms_provider_configs', [
             'workspace_id' => $workspace->id,
-            'provider' => 'twilio',
+            'provider' => 'reve',
         ]);
     }
 
@@ -33,48 +68,47 @@ class SmsProviderConfigTest extends TestCase
 
         SmsProviderConfig::create([
             'workspace_id' => $workspace->id,
-            'provider' => 'twilio',
-            'credentials' => ['account_sid' => 'AC_test', 'auth_token' => 'secret'],
+            'provider' => 'reve',
+            'credentials' => ['api_key' => 'reve-key', 'api_secret' => 'secret'],
             'default' => true,
         ]);
 
         $this->actingAs($user)
-            ->put(route('client.sms-gateways.update', 'twilio'), [
+            ->put(route('client.sms-gateways.update', 'reve'), [
                 'default' => true,
                 'credentials' => [
-                    'account_sid' => '••••••••••••',
-                    'auth_token' => '••••••••••••',
+                    'api_key' => '••••••••••••',
+                    'api_secret' => '••••••••••••',
                 ],
             ])
             ->assertSessionHasNoErrors();
 
         $config = SmsProviderConfig::where('workspace_id', $workspace->id)
-            ->where('provider', 'twilio')
+            ->where('provider', 'reve')
             ->firstOrFail();
 
-        $this->assertSame('AC_test', $config->credentials['account_sid']);
-        $this->assertSame('secret', $config->credentials['auth_token']);
+        $this->assertSame('reve-key', $config->credentials['api_key']);
+        $this->assertSame('secret', $config->credentials['api_secret']);
     }
 
-    public function test_alaris_requires_an_https_api_endpoint(): void
+    public function test_an_enabled_sms_gateway_can_be_configured(): void
     {
         ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
 
         $this->actingAs($user)
-            ->put(route('client.sms-gateways.update', 'alaris'), [
+            ->put(route('client.sms-gateways.update', 'smsbd'), [
                 'default' => true,
                 'credentials' => [
-                    'base_url' => 'http://sms.example.test:8002/api',
-                    'username' => 'alaris-user',
-                    'password' => 'alaris-password',
-                    'sender_id' => 'WISPERBOT',
+                    'api_key' => 'smsbd-key',
+                    'sender' => 'WISPERBOT',
                 ],
             ])
-            ->assertSessionHasErrors('credentials.base_url');
+            ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseMissing('sms_provider_configs', [
+        $this->assertDatabaseHas('sms_provider_configs', [
             'workspace_id' => $workspace->id,
-            'provider' => 'alaris',
+            'provider' => 'smsbd',
+            'default' => true,
         ]);
     }
 }

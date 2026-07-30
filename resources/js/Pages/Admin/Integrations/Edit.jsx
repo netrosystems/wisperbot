@@ -243,6 +243,34 @@ const SETUP_GUIDES = {
         link: 'https://devtools.bigcommerce.com/my/apps',
         linkLabel: 'Open BigCommerce Dev Portal',
     },
+    oauth_ebay: {
+        title: 'eBay Seller Messaging Setup',
+        subtitle: 'Connects each client’s eBay seller account to the Omni Channel Inbox.',
+        steps: [
+            'Create or sign in to your eBay Developers Program account at developer.ebay.com.',
+            'Create an application keyset in Sandbox first. Copy the App ID and Cert ID into the fields below.',
+            'Create an OAuth RuName and register the exact Callback URL shown above this guide.',
+            'Enter the generated RuName (not the URL) in OAuth Redirect URI Name.',
+            'Set Environment to sandbox until OAuth, conversation sync, and replies are verified.',
+            'Request/enable the Commerce Message API scope for production access, then replace the credentials with your Production keyset and change Environment to production.',
+        ],
+        link: 'https://developer.ebay.com/my/keys',
+        linkLabel: 'Open eBay Application Keys',
+    },
+    oauth_amazon_spapi: {
+        title: 'Amazon Seller Messaging (SP-API) Setup',
+        subtitle: 'Lets clients authorize their Amazon Seller Central account through Login with Amazon.',
+        steps: [
+            'Register in Amazon’s Solution Provider Portal and create a public Seller SP-API application in Draft.',
+            'Request the Buyer and Seller Messaging role. Amazon’s Messaging API supports permitted, order-specific outbound messages; it does not expose the inbound Seller Central message inbox.',
+            'Set the OAuth Login URI to the Amazon Login URL shown above and the OAuth Redirect URI to the Callback URL shown above.',
+            'Copy the LWA Client ID, LWA Client Secret, and SP-API Application ID into the fields below.',
+            'Use sandbox while the application is in Draft. Choose the Seller Central URL, SP-API region, and marketplace used by your test seller.',
+            'After Amazon approves and publishes the application, change Application Stage to production and reconnect seller accounts.',
+        ],
+        link: 'https://solutionproviderportal.amazon.com/',
+        linkLabel: 'Open Amazon Solution Provider Portal',
+    },
     oauth_tiktok: {
         title: 'TikTok OAuth Setup',
         steps: [
@@ -341,7 +369,7 @@ function PermBadge({ p }) {
     );
 }
 
-function CallbackUrlCard({ url }) {
+function CallbackUrlCard({ url, title = null, description = null }) {
     const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
     if (!url) return null;
@@ -357,8 +385,8 @@ function CallbackUrlCard({ url }) {
                     <Link2 className="h-4 w-4" />
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{t('integrations.callback_url_title')}</p>
-                    <p className="text-xs text-neutral-400">{t('integrations.callback_url_desc')}</p>
+                    <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{title || t('integrations.callback_url_title')}</p>
+                    <p className="text-xs text-neutral-400">{description || t('integrations.callback_url_desc')}</p>
                 </div>
             </div>
             <div className="mt-3 flex items-center gap-2 rounded-lg bg-neutral-50 dark:bg-neutral-800 px-3 py-2">
@@ -574,7 +602,7 @@ function StorageBanner({ provider }) {
     );
 }
 
-export default function IntegrationsEdit({ provider, label, category, fields, config, callbackUrl = null }) {
+export default function IntegrationsEdit({ provider, label, category, fields, config, callbackUrl = null, oauthLoginUrl = null }) {
     const { t } = useTranslation();
     const adminTz = usePage().props.timezone || 'Asia/Dhaka';
     const { data, setData, put, processing, errors } = useForm({
@@ -648,6 +676,11 @@ export default function IntegrationsEdit({ provider, label, category, fields, co
                 <StorageBanner provider={provider} />
 
                 <CallbackUrlCard url={callbackUrl} />
+                <CallbackUrlCard
+                    url={oauthLoginUrl}
+                    title="OAuth Login URL"
+                    description="Register this separately as Amazon’s OAuth Login URI."
+                />
 
                 <SetupGuide provider={provider} />
 

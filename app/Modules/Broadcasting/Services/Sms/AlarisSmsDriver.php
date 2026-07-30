@@ -42,7 +42,7 @@ class AlarisSmsDriver implements SmsDriverInterface
 
         return $messageId
             ? new SmsSendResult(true, $messageId)
-            : new SmsSendResult(false, '', 'Alaris SMS error: '.$this->errorMessage($response));
+            : new SmsSendResult(false, '', 'ProSMS error: '.$this->errorMessage($response));
     }
 
     public function status(string $providerId): SmsStatus

@@ -73,8 +73,13 @@ class IntegrationConfigController extends Controller
                 'oauth_tiktok' => route('client.social.oauth.callback', 'tiktok'),
                 'oauth_shopify' => route('client.ecommerce.oauth.shopify.callback'),
                 'oauth_bigcommerce' => route('client.ecommerce.oauth.bigcommerce.callback'),
+                'oauth_ebay' => route('client.inbox.setup.ebay.callback'),
+                'oauth_amazon_spapi' => route('client.inbox.setup.amazon.callback'),
                 default => null,
             },
+            'oauthLoginUrl' => $provider === 'oauth_amazon_spapi'
+                ? route('client.inbox.setup.amazon.login')
+                : null,
             'config' => [
                 'enabled' => $config->enabled ?? false,
                 'mode' => $config->mode ?? 'live',
