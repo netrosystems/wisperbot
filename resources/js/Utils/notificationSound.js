@@ -52,6 +52,8 @@ export const SOUND_CHANNELS = [
     { key: 'whatsapp', label: 'WhatsApp' },
     { key: 'messenger', label: 'Messenger' },
     { key: 'instagram', label: 'Instagram' },
+    { key: 'ebay', label: 'eBay' },
+    { key: 'amazon', label: 'Amazon Seller' },
     { key: 'sms', label: 'SMS' },
     { key: 'email', label: 'Email' },
 ];

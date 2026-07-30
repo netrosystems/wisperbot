@@ -25,7 +25,7 @@ class SearchController extends Controller
         // Search navigation items
         $navItems = [
             ['label' => 'Dashboard', 'href' => route('client.dashboard'), 'icon' => 'LayoutDashboard'],
-            ['label' => 'Subscription', 'href' => route('client.subscription.show'), 'icon' => 'CreditCard'],
+            ['label' => 'Subscriptions', 'href' => route('client.subscription.show'), 'icon' => 'CreditCard'],
             ['label' => 'Billing History', 'href' => route('client.billing.index'), 'icon' => 'CreditCard'],
             ['label' => 'Pricing / Plans', 'href' => route('client.pricing'), 'icon' => 'Package'],
             ['label' => 'Team', 'href' => route('client.team.index'), 'icon' => 'Users'],
@@ -36,8 +36,13 @@ class SearchController extends Controller
             ['label' => 'Sessions', 'href' => route('client.profile.sessions'), 'icon' => 'Monitor'],
             ['label' => 'Notifications', 'href' => route('client.notifications.index'), 'icon' => 'Bell'],
             ['label' => 'Media Library', 'href' => route('client.media.index'), 'icon' => 'Image'],
-            ['label' => 'Add-ons', 'href' => route('client.addons.index'), 'icon' => 'Package'],
+            ['label' => 'Addons', 'href' => route('client.addons.index'), 'icon' => 'Package'],
             ['label' => 'Audit Log', 'href' => route('client.audit-log.index'), 'icon' => 'FileText'],
+            ['label' => 'Omni Channel Inbox', 'href' => route('client.inbox.index'), 'icon' => 'Inbox'],
+            ['label' => 'Inbox Channel Setup', 'href' => route('client.inbox.setup'), 'icon' => 'Inbox'],
+            ['label' => 'Website Chatbot', 'href' => route('client.inbox.chat-widgets.index'), 'icon' => 'MessageCircle'],
+            ['label' => 'WA Chatbot', 'href' => route('client.whatsapp.widget.index'), 'icon' => 'MessageCircle'],
+            ['label' => 'Smart Bots', 'href' => route('client.ai.chatbots.index'), 'icon' => 'Bot'],
         ];
 
         if ($this->entitlements->enabledFor($user, AddonEntitlementService::DEVELOPER_TOOLS)) {

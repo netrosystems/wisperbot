@@ -9,6 +9,8 @@ export const CHANNEL_LABELS = {
     whatsapp: 'WhatsApp',
     instagram: 'Instagram',
     messenger: 'Messenger',
+    ebay: 'eBay',
+    amazon: 'Amazon Seller',
     sms: 'SMS',
     email: 'Email',
     webchat: 'Website',
@@ -39,6 +41,29 @@ function SvgBrand({ name, className }) {
 
 /** WhatsApp, Instagram, Messenger, SMS (Twilio mark), Email (envelope icon), Website (chat bubble) */
 export function ChannelBrandIcon({ channel, className }) {
+    if (channel === 'amazon') {
+        return (
+            <svg viewBox="0 0 48 20" className={className ?? 'h-4 w-9'} role="img" aria-label="Amazon">
+                <text x="2" y="13" fontFamily="Arial, sans-serif" fontSize="12" fontWeight="700" fill="currentColor">amazon</text>
+                <path d="M12 16c7 3 17 3 24-1" fill="none" stroke="#ff9900" strokeWidth="1.8" strokeLinecap="round"/>
+                <path d="m33.5 13.8 3 1.2-2.4 2" fill="none" stroke="#ff9900" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+        );
+    }
+
+    if (channel === 'ebay') {
+        return (
+            <svg viewBox="0 0 48 20" className={className ?? 'h-4 w-8'} role="img" aria-label="eBay">
+                <text x="1" y="16" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700">
+                    <tspan fill="#e53238">e</tspan>
+                    <tspan fill="#0064d2">B</tspan>
+                    <tspan fill="#f5af02">a</tspan>
+                    <tspan fill="#86b817">y</tspan>
+                </text>
+            </svg>
+        );
+    }
+
     // The website live-chat channel has no vendor logo — render a brand-tinted
     // chat bubble so it reads as "Website" in the inbox filters and headers.
     if (channel === 'webchat') {

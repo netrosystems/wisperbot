@@ -82,7 +82,10 @@ function UsageBanner({ usage }) {
 
 function ClientLayoutFooter() {
     const { app_version: appVersion } = usePage().props;
-    const v = typeof appVersion === 'string' && appVersion.trim() !== '' ? appVersion.trim() : '1.0.0';
+    const v = typeof appVersion === 'string' && appVersion.trim() !== ''
+        ? appVersion.trim().replace(/^v/i, '')
+        : '1.0.0';
+
     return (
         <div className="rounded-soft px-3 py-2 text-xs text-neutral-400 dark:text-neutral-500 tabular-nums">
             v{v}

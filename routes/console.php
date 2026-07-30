@@ -5,6 +5,8 @@ use App\Modules\Broadcasting\Jobs\LaunchScheduledCampaignsJob;
 use App\Modules\Broadcasting\Models\UsageMeter;
 use App\Modules\Social\Jobs\DispatchScheduledPostsJob;
 use App\Modules\Social\Jobs\RefreshSocialTokensJob;
+use App\Modules\Inbox\Jobs\SyncEbayAccountJob;
+use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Whatsapp\Jobs\TemplateSyncJob;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
 use App\Services\WebhookIdempotencyService;
@@ -48,6 +50,15 @@ Schedule::job(new DispatchScheduledPostsJob, 'social')
 Schedule::job(new RefreshSocialTokensJob, 'social')
     ->dailyAt('02:00')
     ->name('refresh-social-tokens');
+
+// Poll eBay seller conversations until production notification subscriptions
+// are enabled. Each seller account is isolated in its own queued sync job.
+Schedule::call(function () {
+    ChannelAccount::where('channel', 'ebay')
+        ->where('status', 'active')
+        ->pluck('id')
+        ->each(fn (int $id) => SyncEbayAccountJob::dispatch($id));
+})->everyFiveMinutes()->name('sync-ebay-messages')->withoutOverlapping();
 
 // Reset monthly usage meters on the 1st of each month
 Schedule::call(function () {

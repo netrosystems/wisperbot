@@ -54,6 +54,29 @@ function MessengerLogo({ className = 'h-5 w-5' }) {
     );
 }
 
+function EbayLogo({ className = 'h-5 w-5' }) {
+    return (
+        <svg className={className} viewBox="0 0 48 20" role="img" aria-label="eBay">
+            <text x="1" y="16" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700">
+                <tspan fill="#e53238">e</tspan>
+                <tspan fill="#0064d2">B</tspan>
+                <tspan fill="#f5af02">a</tspan>
+                <tspan fill="#86b817">y</tspan>
+            </text>
+        </svg>
+    );
+}
+
+function AmazonLogo({ className = 'h-5 w-10' }) {
+    return (
+        <svg className={className} viewBox="0 0 48 20" role="img" aria-label="Amazon">
+            <text x="2" y="13" fontFamily="Arial, sans-serif" fontSize="12" fontWeight="700" fill="currentColor">amazon</text>
+            <path d="M12 16c7 3 17 3 24-1" fill="none" stroke="#ff9900" strokeWidth="1.8" strokeLinecap="round"/>
+            <path d="m33.5 13.8 3 1.2-2.4 2" fill="none" stroke="#ff9900" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+    );
+}
+
 /* â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ shared helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */
 
 function CopyButton({ text }) {
@@ -711,6 +734,135 @@ function AccountRow({ account, channel, chatbots }) {
     );
 }
 
+function EbayAccountRow({ account, chatbots }) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [working, setWorking] = useState(false);
+    const sellerId = account.meta_json?.seller_user_id;
+
+    const remove = () => {
+        setWorking(true);
+        router.delete(route('client.inbox.setup.destroy', { channelAccount: account.id }), {
+            preserveScroll: true,
+            onFinish: () => setWorking(false),
+        });
+    };
+
+    const sync = () => {
+        setWorking(true);
+        router.post(route('client.inbox.setup.ebay.sync', { channelAccount: account.id }), {}, {
+            preserveScroll: true,
+            onFinish: () => setWorking(false),
+        });
+    };
+
+    return (
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60 p-3.5">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">{account.display_name}</span>
+                        <StatusBadge status={account.status} />
+                    </div>
+                    {sellerId && <p className="font-mono text-xs text-neutral-400 mt-0.5">Seller: {sellerId}</p>}
+                    {account.meta_json?.last_sync_at && (
+                        <p className="text-[11px] text-neutral-400 mt-1">Last synced {new Date(account.meta_json.last_sync_at).toLocaleString()}</p>
+                    )}
+                    {chatbots.length > 0 && (
+                        <ChatbotSelector channelAccountId={account.id} currentChatbotId={account.ai_chatbot_id} chatbots={chatbots} />
+                    )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <button type="button" onClick={sync} disabled={working} title="Sync eBay messages"
+                        className="rounded-lg border border-neutral-200 dark:border-neutral-600 p-1.5 text-neutral-500 hover:text-blue-600 disabled:opacity-50">
+                        <RefreshCw className={`h-3.5 w-3.5 ${working ? 'animate-spin' : ''}`} />
+                    </button>
+                    {confirmDelete ? (
+                        <button type="button" onClick={remove} disabled={working}
+                            className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs text-white disabled:opacity-50">
+                            Disconnect
+                        </button>
+                    ) : (
+                        <button type="button" onClick={() => setConfirmDelete(true)}
+                            className="rounded-lg border border-red-200 dark:border-red-800 p-1.5 text-red-400 hover:bg-red-50">
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                    )}
+                </div>
+            </div>
+            {confirmDelete && (
+                <p className="mt-2 text-xs text-red-600">Disconnecting removes this seller account from this workspace. Existing inbox history is retained.</p>
+            )}
+        </div>
+    );
+}
+
+function AmazonAccountRow({ account }) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [working, setWorking] = useState(false);
+    const [orderId, setOrderId] = useState('');
+    const sellerId = account.meta_json?.selling_partner_id;
+
+    const remove = () => {
+        setWorking(true);
+        router.delete(route('client.inbox.setup.destroy', { channelAccount: account.id }), {
+            preserveScroll: true,
+            onFinish: () => setWorking(false),
+        });
+    };
+
+    const checkActions = (event) => {
+        event.preventDefault();
+        if (!orderId.trim()) return;
+        setWorking(true);
+        router.post(route('client.inbox.setup.amazon.actions', { channelAccount: account.id }), {
+            amazon_order_id: orderId.trim(),
+        }, {
+            preserveScroll: true,
+            onFinish: () => setWorking(false),
+        });
+    };
+
+    return (
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60 p-3.5">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">{account.display_name}</span>
+                        <StatusBadge status={account.status} />
+                    </div>
+                    {sellerId && <p className="font-mono text-[11px] text-neutral-400 mt-0.5 truncate">Seller: {sellerId}</p>}
+                    <p className="mt-2 text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                        Amazon supports approved, order-specific outbound buyer messages. Its SP-API does not expose the inbound Seller Central message inbox.
+                    </p>
+                    <form onSubmit={checkActions} className="mt-3 flex gap-1.5">
+                        <input
+                            value={orderId}
+                            onChange={(event) => setOrderId(event.target.value)}
+                            placeholder="Amazon order ID"
+                            className="min-w-0 flex-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-[11px]"
+                        />
+                        <button type="submit" disabled={working || !orderId.trim()}
+                            className="rounded-lg bg-[#ff9900] px-2.5 py-1.5 text-[11px] font-medium text-neutral-950 disabled:opacity-50">
+                            Check actions
+                        </button>
+                    </form>
+                </div>
+                {confirmDelete ? (
+                    <button type="button" onClick={remove} disabled={working}
+                        className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs text-white disabled:opacity-50">
+                        Disconnect
+                    </button>
+                ) : (
+                    <button type="button" onClick={() => setConfirmDelete(true)}
+                        className="rounded-lg border border-red-200 dark:border-red-800 p-1.5 text-red-400 hover:bg-red-50">
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 /* ─────────────────── Meta Embedded Signup helpers ─────────────────── */
 
 /**
@@ -1212,6 +1364,8 @@ function ConnectDrawer({ open, onClose, title, icon: Icon, iconBg, children }) {
 export default function ChannelSetup({
     wabas, whatsappWebhookGlobalUrl,
     channelAccountsByWaba, instagramAccounts, messengerAccounts, metaWebhookUrl,
+    ebayAccounts = [],
+    amazonAccounts = [],
     metaAppId = null, metaConfigIdWhatsapp = null, metaConfigIdSocial = null,
     chatbots = [],
 }) {
@@ -1257,6 +1411,14 @@ export default function ChannelSetup({
                             className="flex items-center gap-1.5 rounded-lg border border-pink-200 dark:border-pink-800 bg-pink-50 dark:bg-pink-950/30 px-3 py-1.5 text-xs font-medium text-pink-700 dark:text-pink-400 hover:bg-pink-100 dark:hover:bg-pink-950/50 transition shadow-sm whitespace-nowrap">
                             <InstagramLogo className="h-3.5 w-3.5" /> {t('inbox.connect_instagram')}
                         </button>
+                        <a href={route('client.inbox.setup.ebay.connect')}
+                            className="flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 transition shadow-sm whitespace-nowrap">
+                            <EbayLogo className="h-3.5 w-8" /> Connect eBay
+                        </a>
+                        <a href={route('client.inbox.setup.amazon.connect')}
+                            className="flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 hover:bg-amber-50 transition shadow-sm whitespace-nowrap">
+                            <AmazonLogo className="h-3.5 w-8" /> Connect Amazon
+                        </a>
                     </div>
                 </div>
             </div>
@@ -1266,6 +1428,12 @@ export default function ChannelSetup({
                 <div className="mb-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 px-4 py-3 text-sm flex items-center gap-2">
                     <Check className="h-4 w-4 shrink-0" />
                     {flash.success}
+                </div>
+            )}
+            {(flash.error || flash.warning) && (
+                <div className={`mb-4 rounded-xl px-4 py-3 text-sm flex items-start gap-2 border ${flash.error ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200' : 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200'}`}>
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    {flash.error || flash.warning}
                 </div>
             )}
 
@@ -1278,7 +1446,7 @@ export default function ChannelSetup({
             )}
 
             {/* Row 1 — 3-column channel cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
 
                 {/* WhatsApp */}
                 <WhatsAppSection
@@ -1341,10 +1509,58 @@ export default function ChannelSetup({
                         </div>
                     )}
                 </ChannelCard>
+
+                {/* eBay seller inbox */}
+                <ChannelCard
+                    icon={EbayLogo}
+                    iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
+                    title="eBay Seller Messages"
+                    count={ebayAccounts.length}
+                >
+                    {ebayAccounts.length > 0 ? (
+                        <div className="space-y-2">
+                            {ebayAccounts.map(account => <EbayAccountRow key={account.id} account={account} chatbots={chatbots} />)}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8">
+                            <div className="mx-auto mb-3 rounded-2xl w-14 h-12 flex items-center justify-center bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700">
+                                <EbayLogo className="h-6 w-12" />
+                            </div>
+                            <p className="text-sm text-neutral-400 dark:text-neutral-500 mb-3">No eBay seller account connected.</p>
+                            <a href={route('client.inbox.setup.ebay.connect')} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                                + Connect eBay seller
+                            </a>
+                        </div>
+                    )}
+                </ChannelCard>
+
+                {/* Amazon Seller Central */}
+                <ChannelCard
+                    icon={AmazonLogo}
+                    iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
+                    title="Amazon Seller Messaging"
+                    count={amazonAccounts.length}
+                >
+                    {amazonAccounts.length > 0 ? (
+                        <div className="space-y-2">
+                            {amazonAccounts.map(account => <AmazonAccountRow key={account.id} account={account} />)}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8">
+                            <div className="mx-auto mb-3 rounded-2xl w-14 h-12 flex items-center justify-center bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700">
+                                <AmazonLogo className="h-6 w-12 text-neutral-900 dark:text-white" />
+                            </div>
+                            <p className="text-sm text-neutral-400 dark:text-neutral-500 mb-3">No Amazon seller connected.</p>
+                            <a href={route('client.inbox.setup.amazon.connect')} className="text-xs font-medium text-amber-700 dark:text-amber-400 hover:underline">
+                                + Connect Amazon seller
+                            </a>
+                        </div>
+                    )}
+                </ChannelCard>
             </div>
 
             {/* Row 2 — guide + resources (only shown when no channels connected) */}
-            {(wabas.length === 0 && instagramAccounts.length === 0 && messengerAccounts.length === 0) && (
+            {(wabas.length === 0 && instagramAccounts.length === 0 && messengerAccounts.length === 0 && ebayAccounts.length === 0 && amazonAccounts.length === 0) && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Setup guide */}
                 <div className="md:col-span-2 rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">

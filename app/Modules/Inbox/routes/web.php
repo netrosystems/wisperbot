@@ -4,6 +4,8 @@ use App\Modules\Inbox\Http\Controllers\CannedReplyController;
 use App\Modules\Inbox\Http\Controllers\ChatWidgetController;
 use App\Modules\Inbox\Http\Controllers\InboxController;
 use App\Modules\Inbox\Http\Controllers\InboxSetupController;
+use App\Modules\Inbox\Http\Controllers\EbaySetupController;
+use App\Modules\Inbox\Http\Controllers\AmazonSetupController;
 use App\Modules\Inbox\Http\Controllers\InternalNoteController;
 use App\Modules\Inbox\Http\Controllers\LabelController;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +54,17 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
 
     // Channel account setup (Instagram / Messenger)
     Route::get('/setup', [InboxSetupController::class, 'index'])->name('setup');
+    Route::get('/setup/ebay/connect', [EbaySetupController::class, 'connect'])->name('setup.ebay.connect');
+    Route::get('/setup/ebay/callback', [EbaySetupController::class, 'callback'])->name('setup.ebay.callback');
+    Route::post('/setup/ebay/{channelAccount}/sync', [EbaySetupController::class, 'sync'])
+        ->middleware('throttle:20,1')
+        ->name('setup.ebay.sync');
+    Route::get('/setup/amazon/connect', [AmazonSetupController::class, 'connect'])->name('setup.amazon.connect');
+    Route::get('/setup/amazon/login', [AmazonSetupController::class, 'login'])->name('setup.amazon.login');
+    Route::get('/setup/amazon/callback', [AmazonSetupController::class, 'callback'])->name('setup.amazon.callback');
+    Route::post('/setup/amazon/{channelAccount}/actions', [AmazonSetupController::class, 'actions'])
+        ->middleware('throttle:20,1')
+        ->name('setup.amazon.actions');
     Route::post('/setup/embedded-signup/instagram', [InboxSetupController::class, 'embeddedSignupInstagram'])->name('setup.embedded-signup.instagram');
     Route::post('/setup/embedded-signup/messenger', [InboxSetupController::class, 'embeddedSignupMessenger'])->name('setup.embedded-signup.messenger');
     Route::patch('/setup/{channelAccount}/chatbot', [InboxSetupController::class, 'assignChatbot'])->name('setup.assign-chatbot');

@@ -17,6 +17,8 @@ class ConnectionTester
         try {
             $result = match (true) {
                 $config->provider === 'meta_app' => $this->testMeta($config),
+                $config->provider === 'oauth_ebay' => $this->testEbay($config),
+                $config->provider === 'oauth_amazon_spapi' => $this->testAmazonSpApi($config),
                 str_starts_with($config->provider, 'oauth_') => $this->testOAuth($config),
                 str_starts_with($config->provider, 'llm_') => $this->testLlm($config),
                 str_starts_with($config->provider, 'sms_') => $this->testSms($config),
@@ -90,6 +92,76 @@ class ConnectionTester
         return [
             'ok' => false,
             'message' => 'Credential presence confirmed, but this provider cannot validate an OAuth client secret without a real user authorization. Complete one sandbox connect flow before enabling it for customers.',
+        ];
+    }
+
+    private function testEbay(IntegrationConfig $config): array
+    {
+        $credentials = $config->credentials ?? [];
+        $clientId = trim((string) ($credentials['client_id'] ?? ''));
+        $clientSecret = trim((string) ($credentials['client_secret'] ?? ''));
+        $ruName = trim((string) ($credentials['ru_name'] ?? ''));
+        $environment = strtolower(trim((string) ($credentials['environment'] ?? 'sandbox')));
+
+        if ($clientId === '' || $clientSecret === '' || $ruName === '') {
+            return ['ok' => false, 'message' => 'Client ID, Client Secret, and OAuth Redirect URI Name are required.'];
+        }
+
+        if (! in_array($environment, ['sandbox', 'production'], true)) {
+            return ['ok' => false, 'message' => 'Environment must be sandbox or production.'];
+        }
+
+        $host = $environment === 'production' ? 'api.ebay.com' : 'api.sandbox.ebay.com';
+        $response = HttpFacade::timeout(15)
+            ->withBasicAuth($clientId, $clientSecret)
+            ->asForm()
+            ->post("https://{$host}/identity/v1/oauth2/token", [
+                'grant_type' => 'client_credentials',
+                'scope' => 'https://api.ebay.com/oauth/api_scope',
+            ]);
+
+        if (! $response->successful() || ! $response->json('access_token')) {
+            return [
+                'ok' => false,
+                'message' => $response->json('error_description')
+                    ?? $response->json('error')
+                    ?? 'eBay rejected these application credentials.',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'message' => 'eBay '.$environment.' application credentials are valid. Complete a seller OAuth connection from Client → Inbox Channel Setup to test messaging access.',
+        ];
+    }
+
+    private function testAmazonSpApi(IntegrationConfig $config): array
+    {
+        $credentials = $config->credentials ?? [];
+        $required = ['lwa_client_id', 'lwa_client_secret', 'application_id', 'environment', 'selling_region', 'seller_central_url', 'marketplace_id'];
+
+        foreach ($required as $field) {
+            if (trim((string) ($credentials[$field] ?? '')) === '') {
+                return ['ok' => false, 'message' => 'Complete all required Amazon SP-API application fields.'];
+            }
+        }
+
+        if (! in_array(strtolower((string) $credentials['environment']), ['sandbox', 'production'], true)) {
+            return ['ok' => false, 'message' => 'Application Stage must be sandbox or production.'];
+        }
+
+        if (! in_array(strtolower((string) $credentials['selling_region']), ['na', 'eu', 'fe'], true)) {
+            return ['ok' => false, 'message' => 'Selling Region must be na, eu, or fe.'];
+        }
+
+        if (! filter_var($credentials['seller_central_url'], FILTER_VALIDATE_URL)
+            || parse_url($credentials['seller_central_url'], PHP_URL_SCHEME) !== 'https') {
+            return ['ok' => false, 'message' => 'Seller Central Base URL must be a valid HTTPS URL.'];
+        }
+
+        return [
+            'ok' => true,
+            'message' => 'Amazon SP-API application settings are complete. Connect a seller from Client → Inbox Channel Setup to validate LWA credentials and approved roles.',
         ];
     }
 

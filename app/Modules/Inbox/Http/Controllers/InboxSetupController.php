@@ -62,6 +62,15 @@ class InboxSetupController extends Controller
             ->get(['id', 'display_name', 'status', 'meta_json', 'created_at'])
             ->map(fn ($a) => array_merge($a->toArray(), ['ai_chatbot_id' => $a->meta_json['ai_chatbot_id'] ?? null]));
 
+        $ebayAccounts = ChannelAccount::where('workspace_id', $workspaceId)
+            ->where('channel', 'ebay')
+            ->get(['id', 'display_name', 'status', 'meta_json', 'created_at'])
+            ->map(fn ($a) => array_merge($a->toArray(), ['ai_chatbot_id' => $a->meta_json['ai_chatbot_id'] ?? null]));
+
+        $amazonAccounts = ChannelAccount::where('workspace_id', $workspaceId)
+            ->where('channel', 'amazon')
+            ->get(['id', 'display_name', 'status', 'meta_json', 'created_at']);
+
         $chatbots = AiChatbot::where('workspace_id', $workspaceId)
             ->where('enabled', true)
             ->get(['id', 'name']);
@@ -80,6 +89,8 @@ class InboxSetupController extends Controller
             'channelAccountsByWaba'        => $channelAccountsByWaba,
             'instagramAccounts'            => $instagramAccounts,
             'messengerAccounts'            => $messengerAccounts,
+            'ebayAccounts'                 => $ebayAccounts,
+            'amazonAccounts'               => $amazonAccounts,
             'chatbots'                     => $chatbots,
             'metaWebhookUrl'               => $metaWebhookUrl,
             'metaAppId'                    => $metaCreds?->appId() ?: null,
@@ -978,9 +989,11 @@ class InboxSetupController extends Controller
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
 
         abort_unless((int) $channelAccount->workspace_id === (int) $workspaceId, 403);
-        abort_unless(in_array($channelAccount->channel, ['instagram', 'messenger'], true), 403);
+        abort_unless(in_array($channelAccount->channel, ['instagram', 'messenger', 'ebay', 'amazon'], true), 403);
 
-        $this->unsubscribeMetaPageBestEffort($channelAccount);
+        if (in_array($channelAccount->channel, ['instagram', 'messenger'], true)) {
+            $this->unsubscribeMetaPageBestEffort($channelAccount);
+        }
         $channelAccount->delete();
 
         return back()->with('success', 'Account disconnected.');
