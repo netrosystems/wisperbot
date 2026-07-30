@@ -119,10 +119,10 @@ function StatusBadge({ status }) {
     );
 }
 
-function ChannelCard({ icon: Icon, iconBg, title, count, children }) {
+function ChannelCard({ icon: Icon, iconBg, title, count, children, className = '' }) {
     const { t } = useTranslation();
     return (
-        <div className="rounded-2xl border bg-white dark:bg-neutral-900 shadow-sm overflow-hidden border-neutral-200 dark:border-neutral-700">
+        <div className={`rounded-2xl border bg-white dark:bg-neutral-900 shadow-sm overflow-hidden border-neutral-200 dark:border-neutral-700 ${className}`}>
             <div className="flex items-center gap-3 px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
                 <div className={`rounded-xl p-2 ${iconBg}`}>
                     <Icon className="h-4 w-4" />
@@ -567,7 +567,7 @@ function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots }) {
     );
 }
 
-function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatbots, showForm, setShowForm, metaConfigIdWhatsapp, metaAppId }) {
+function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatbots, showForm, setShowForm, metaConfigIdWhatsapp, metaAppId, className = '' }) {
     const { t } = useTranslation();
     const [waApiError, setWaApiError] = useState(null);
     const [waSubmitting, setWaSubmitting] = useState(false);
@@ -607,6 +607,7 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
             iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
             title={t('inbox.whatsapp_business')}
             count={wabas.length}
+            className={className}
         >
             {wabas.length > 0 && (
                 <div className="space-y-3">
@@ -1390,34 +1391,38 @@ export default function ChannelSetup({
             <Head title={t('inbox.channel_setup')} />
 
             {/* Page header */}
-            <div className="mb-6">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div>
-                        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">{t('inbox.channel_setup')}</h2>
-                        <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
-                            {t('inbox.channel_setup_subtitle')}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
+            <div className="mb-6 space-y-4">
+                <div>
+                    <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">{t('inbox.channel_setup')}</h2>
+                    <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
+                        {t('inbox.channel_setup_subtitle')}
+                    </p>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <p className="mb-3 px-1 text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                        Connect a channel
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-6">
                         <button type="button" onClick={() => openDrawer('whatsapp')}
-                            className="flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-950/50 transition shadow-sm whitespace-nowrap">
-                            <WhatsAppLogo className="h-3.5 w-3.5" /> {t('inbox.connect_whatsapp')}
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-700 shadow-sm transition hover:border-green-300 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-950/50 xl:col-span-2">
+                            <WhatsAppLogo className="h-4 w-4" /> {t('inbox.connect_whatsapp')}
                         </button>
                         <button type="button" onClick={() => openDrawer('messenger')}
-                            className="flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-950/50 transition shadow-sm whitespace-nowrap">
-                            <MessengerLogo className="h-3.5 w-3.5" /> {t('inbox.connect_messenger')}
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 xl:col-span-2">
+                            <MessengerLogo className="h-4 w-4" /> {t('inbox.connect_messenger')}
                         </button>
                         <button type="button" onClick={() => openDrawer('instagram')}
-                            className="flex items-center gap-1.5 rounded-lg border border-pink-200 dark:border-pink-800 bg-pink-50 dark:bg-pink-950/30 px-3 py-1.5 text-xs font-medium text-pink-700 dark:text-pink-400 hover:bg-pink-100 dark:hover:bg-pink-950/50 transition shadow-sm whitespace-nowrap">
-                            <InstagramLogo className="h-3.5 w-3.5" /> {t('inbox.connect_instagram')}
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm font-semibold text-pink-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-100 dark:border-pink-800 dark:bg-pink-950/30 dark:text-pink-400 dark:hover:bg-pink-950/50 xl:col-span-2">
+                            <InstagramLogo className="h-4 w-4" /> {t('inbox.connect_instagram')}
                         </button>
                         <a href={route('client.inbox.setup.ebay.connect')}
-                            className="flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 transition shadow-sm whitespace-nowrap">
-                            <EbayLogo className="h-3.5 w-8" /> Connect eBay
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50/50 px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300 xl:col-span-3">
+                            <EbayLogo className="h-4 w-9" /> Connect eBay
                         </a>
                         <a href={route('client.inbox.setup.amazon.connect')}
-                            className="flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-800 dark:text-neutral-200 hover:bg-amber-50 transition shadow-sm whitespace-nowrap">
-                            <AmazonLogo className="h-3.5 w-8" /> Connect Amazon
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 dark:text-neutral-200 xl:col-span-3">
+                            <AmazonLogo className="h-4 w-9" /> Connect Amazon
                         </a>
                     </div>
                 </div>
@@ -1445,8 +1450,8 @@ export default function ChannelSetup({
                 </div>
             )}
 
-            {/* Row 1 — 3-column channel cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+            {/* Balanced desktop layout: three Meta channels, then two seller channels. */}
+            <div className="grid grid-cols-1 gap-4 mb-6 md:grid-cols-2 xl:grid-cols-6">
 
                 {/* WhatsApp */}
                 <WhatsAppSection
@@ -1458,6 +1463,7 @@ export default function ChannelSetup({
                     setShowForm={() => {}}
                     metaConfigIdWhatsapp={metaConfigIdWhatsapp}
                     metaAppId={metaAppId}
+                    className="xl:col-span-2"
                 />
 
                 {/* Instagram */}
@@ -1466,6 +1472,7 @@ export default function ChannelSetup({
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
                     title={t('inbox.instagram_business')}
                     count={instagramAccounts.length}
+                    className="xl:col-span-2"
                 >
                     {instagramAccounts.length > 0 ? (
                         <div className="space-y-2">
@@ -1491,6 +1498,7 @@ export default function ChannelSetup({
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
                     title={t('inbox.facebook_messenger')}
                     count={messengerAccounts.length}
+                    className="xl:col-span-2"
                 >
                     {messengerAccounts.length > 0 ? (
                         <div className="space-y-2">
@@ -1516,6 +1524,7 @@ export default function ChannelSetup({
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
                     title="eBay Seller Messages"
                     count={ebayAccounts.length}
+                    className="xl:col-span-3"
                 >
                     {ebayAccounts.length > 0 ? (
                         <div className="space-y-2">
@@ -1540,6 +1549,7 @@ export default function ChannelSetup({
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
                     title="Amazon Seller Messaging"
                     count={amazonAccounts.length}
+                    className="xl:col-span-3"
                 >
                     {amazonAccounts.length > 0 ? (
                         <div className="space-y-2">
