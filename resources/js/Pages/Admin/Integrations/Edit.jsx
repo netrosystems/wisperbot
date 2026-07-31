@@ -7,6 +7,18 @@ import { formatInTz } from '@/Utils/datetime';
 import { useTranslation, Trans } from 'react-i18next';
 
 const SETUP_GUIDES = {
+    onesignal: {
+        title: 'OneSignal Push Setup',
+        steps: [
+            'Create or open the Wisperbot app in the OneSignal dashboard.',
+            'Under Settings → Keys & IDs, copy the OneSignal App ID and REST API Key here.',
+            'Add your Wisperbot domain as the Web Push site URL in OneSignal and verify its HTTPS configuration.',
+            'Enable this integration. It delivers to signed-in client-team users only; Super Admins only configure it.',
+            'Test configuration validates the credentials and never sends a notification.',
+        ],
+        link: 'https://dashboard.onesignal.com',
+        linkLabel: 'Open OneSignal Dashboard',
+    },
     storage_s3: {
         title: 'Amazon S3 Setup',
         steps: [
@@ -517,6 +529,7 @@ const BRAND = {
     oauth_tiktok:            { bg: 'bg-neutral-200 dark:bg-neutral-700/60', color: '#000000', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M13.5 2h-2.25v9.5A2.25 2.25 0 119 9.2V7a4.5 4.5 0 104.5 4.5V6.25A6.24 6.24 0 0017 7V4.75A4.25 4.25 0 0113.5 2z" /></svg> },
     llm_openai_default:      { bg: 'bg-emerald-100 dark:bg-emerald-900/30', color: '#10a37f', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2a3.9 3.9 0 00-3.68 2.6A3.9 3.9 0 003.6 8.32a3.9 3.9 0 000 3.36 3.9 3.9 0 002.72 3.72A3.9 3.9 0 0010 18a3.9 3.9 0 003.68-2.6 3.9 3.9 0 002.72-3.72 3.9 3.9 0 000-3.36A3.9 3.9 0 0013.68 4.6 3.9 3.9 0 0010 2zm0 4a2 2 0 110 4 2 2 0 010-4z" /></svg> },
     llm_anthropic_default:   { bg: 'bg-orange-100 dark:bg-orange-900/30', color: '#d4793b', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2.5L3.5 17h3.2l1.1-2.8h4.4l1.1 2.8h3.2L10 2.5zm0 4.3l1.6 4.2H8.4L10 6.8z" /></svg> },
+    onesignal:               { bg: 'bg-red-100 dark:bg-red-900/30', color: '#e54b4d', icon: <span className="text-sm font-bold">1</span> },
     llm_gemini_default:      { bg: 'bg-blue-100 dark:bg-blue-900/30', color: '#4285F4', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2l2 6h6l-5 3.6 1.9 5.9L10 14l-4.9 3.5L7 11.6 2 8h6l2-6z" /></svg> },
     sms_twilio_default:      { bg: 'bg-red-100 dark:bg-red-900/30', color: '#F22F46', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm-2.5 4.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm5 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-5 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm5 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" /></svg> },
     sms_nexmo_default:       { bg: 'bg-purple-100 dark:bg-purple-900/30', color: '#6E3697', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M3.5 3h3.3L10 9.5 13.2 3h3.3L10 17 3.5 3z" /></svg> },
@@ -795,7 +808,7 @@ export default function IntegrationsEdit({ provider, label, category, fields, co
                             className="flex items-center gap-1.5 rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-60 transition"
                         >
                             <FlaskConical className="h-4 w-4" />
-                            {testing ? t('integrations.testing') : t('integrations.test_connection')}
+                            {testing ? t('integrations.testing') : provider === 'onesignal' ? 'Test configuration' : t('integrations.test_connection')}
                         </button>
                         {!STORAGE_PROVIDERS.includes(provider) && (
                             <button

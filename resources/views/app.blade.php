@@ -65,7 +65,9 @@
              locale switch picks it up without a full page reload. --}}
         <link href="https://fonts.bunny.net/css?family=anek-bangla:400,500,600,700&display=swap" rel="stylesheet" />
 
-        @if(config('services.onesignal.app_id'))
+        @php($oneSignalAppId = app(\App\Services\OneSignalService::class)->publicAppId())
+        @php($oneSignalExternalId = auth('web')->check() ? 'user:'.auth('web')->id() : null)
+        @if($oneSignalAppId)
         <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
         <script>
             window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -73,7 +75,7 @@
             OneSignalDeferred.push(async function (OneSignal) {
                 try {
                     await OneSignal.init({
-                        appId: "{{ config('services.onesignal.app_id') }}",
+                        appId: "{{ $oneSignalAppId }}",
                         notifyButton: { enable: false },
                         allowLocalhostAsSecureOrigin: {{ app()->environment('local') ? 'true' : 'false' }},
                     });
@@ -108,10 +110,10 @@
                     });
                 } catch(_) {}
 
-                @auth
+                @if($oneSignalExternalId)
                 // Only login once we have a real push subscription (non-empty token).
                 // Calling login() with an empty token causes a 400 from OneSignal.
-                var _osUserId = "{{ auth()->id() }}";
+                var _osUserId = "{{ $oneSignalExternalId }}";
 
                 async function osLogin() {
                     try {
@@ -158,7 +160,10 @@
                         }
                     });
                 } catch (_) {}
-                @endauth
+                @else
+                // Do not keep the former user's identifier in a shared browser.
+                try { await OneSignal.logout(); } catch (_) {}
+                @endif
             });
 
             // Suppress any unhandled SDK rejections so they don't pollute the console.
