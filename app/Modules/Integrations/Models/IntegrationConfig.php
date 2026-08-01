@@ -255,6 +255,15 @@ class IntegrationConfig extends Model
         return ! empty($creds) && collect($creds)->filter()->isNotEmpty();
     }
 
+    /**
+     * Read one encrypted integration credential without exposing the complete
+     * credential payload to controllers or views.
+     */
+    public function credential(string $key, mixed $default = null): mixed
+    {
+        return data_get($this->credentials ?? [], $key, $default);
+    }
+
     /** @return list<string> */
     public static function requiredCredentialKeys(string $provider): array
     {

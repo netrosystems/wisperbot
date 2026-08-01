@@ -203,7 +203,10 @@
             window.WisperBotSettings = @json($wisperBotVisitor);
         </script>
         @endif
-        <script src="https://wisperbot.com/widgets/chat/YuPwdXYo153pZso1LrOmSzlW4Y42OVkq.js" async></script>
+        @php($landingWidgetKey = app()->environment('local') ? rescue(static fn () => \App\Modules\Inbox\Models\ChatWidget::where('enabled', true)->value('widget_key'), null, false) : 'YuPwdXYo153pZso1LrOmSzlW4Y42OVkq')
+        @if($landingWidgetKey)
+        <script src="{{ url('/widgets/chat/'.$landingWidgetKey.'.js') }}" async></script>
+        @endif
 
         <!-- Scripts -->
         @routes
