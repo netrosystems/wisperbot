@@ -10,6 +10,7 @@ use RuntimeException;
 class EmailDriver implements ChannelDriverInterface
 {
     public function __construct(
+        private readonly GmailApiClient $google,
         private readonly MicrosoftGraphMailClient $microsoft,
         private readonly GenericMailboxClient $generic,
     ) {}
@@ -28,15 +29,24 @@ class EmailDriver implements ChannelDriverInterface
             $subject = 'Re: '.$subject;
         }
 
-        return $account->provider === 'microsoft_365'
-            ? $this->microsoft->sendReply($account, (string) $inbound?->provider_message_id, (string) $message->body)
-            : $this->generic->send(
+        return match ($account->provider) {
+            'gmail' => $this->google->sendReply(
                 $account,
                 $conversation->contact->email,
                 $subject,
                 (string) $message->body,
                 $inbound?->payload['internet_message_id'] ?? null,
-            );
+                $inbound?->payload['thread_id'] ?? null,
+            ),
+            'microsoft_365' => $this->microsoft->sendReply($account, (string) $inbound?->provider_message_id, (string) $message->body),
+            default => $this->generic->send(
+                $account,
+                $conversation->contact->email,
+                $subject,
+                (string) $message->body,
+                $inbound?->payload['internet_message_id'] ?? null,
+            ),
+        };
     }
 
     public function receiveWebhook(Request $request): array
