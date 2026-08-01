@@ -73,6 +73,13 @@ class InboxController extends Controller
         ]);
     }
 
+    public function emailIndex(Request $request): Response
+    {
+        $request->merge(['channel' => 'email']);
+
+        return $this->index($request);
+    }
+
     public function show(Request $request, Conversation $conversation): Response
     {
         $this->authorise($request, $conversation);

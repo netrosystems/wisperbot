@@ -141,10 +141,10 @@ class SystemSettingsController extends Controller
     {
         $validated = $request->validate([
             'firebase_enabled'     => ['required', 'in:true,false'],
-            'firebase_api_key'     => ['nullable', 'string', 'max:255'],
-            'firebase_auth_domain' => ['nullable', 'string', 'max:255'],
-            'firebase_project_id'  => ['nullable', 'string', 'max:128'],
-            'firebase_app_id'      => ['nullable', 'string', 'max:255'],
+            'firebase_api_key'     => ['nullable', 'required_if:firebase_enabled,true', 'string', 'max:255'],
+            'firebase_auth_domain' => ['nullable', 'required_if:firebase_enabled,true', 'string', 'max:255', 'regex:/^(?!https?:\/\/)[A-Za-z0-9.-]+$/'],
+            'firebase_project_id'  => ['nullable', 'required_if:firebase_enabled,true', 'string', 'max:128', 'regex:/^[a-z0-9][a-z0-9-]*[a-z0-9]$/'],
+            'firebase_app_id'      => ['nullable', 'required_if:firebase_enabled,true', 'string', 'max:255'],
         ]);
 
         foreach ($validated as $key => $value) {

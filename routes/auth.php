@@ -75,7 +75,7 @@ Route::get('auth/{provider}/redirect', [SocialLoginController::class, 'redirect'
 Route::get('auth/{provider}/callback', [SocialLoginController::class, 'callback'])->name('auth.social.callback');
 
 // Firebase authentication
-Route::middleware('guest')->post('auth/firebase', [FirebaseLoginController::class, 'login'])->name('auth.firebase');
+Route::middleware(['guest', 'throttle:10,1'])->post('auth/firebase', [FirebaseLoginController::class, 'login'])->name('auth.firebase');
 
 /*
 |--------------------------------------------------------------------------
