@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\SystemSetting;
 use App\Modules\Integrations\Services\CredentialResolver;
 use App\Services\OneSignalService;
 use Closure;
@@ -123,6 +124,11 @@ class SecureHeaders
             $sources[] = 'https://www.facebook.com';
             $sources[] = 'https://web.facebook.com';
         }
+        if ($this->firebaseEnabled()) {
+            foreach ($this->firebaseConnectSources() as $source) {
+                $sources[] = $source;
+            }
+        }
 
         return implode(' ', array_unique($sources));
     }
@@ -130,11 +136,21 @@ class SecureHeaders
     /** Allow Meta Login / Embedded Signup dialogs in iframes when the Meta App is configured. */
     private function metaFrameSources(): string
     {
-        if (! $this->metaSdkEnabled()) {
-            return '';
+        $sources = [];
+
+        if ($this->metaSdkEnabled()) {
+            $sources[] = 'https://www.facebook.com';
+            $sources[] = 'https://web.facebook.com';
+            $sources[] = 'https://connect.facebook.net';
         }
 
-        return ' https://www.facebook.com https://web.facebook.com https://connect.facebook.net';
+        if ($this->firebaseEnabled()) {
+            foreach ($this->firebaseFrameSources() as $source) {
+                $sources[] = $source;
+            }
+        }
+
+        return $sources === [] ? '' : ' '.implode(' ', array_unique($sources));
     }
 
     private function oneSignalEnabled(): bool
@@ -144,6 +160,38 @@ class SecureHeaders
         } catch (\Throwable) {
             return filled(config('services.onesignal.app_id'));
         }
+    }
+
+    /** Firebase Authentication endpoints used for popup and token exchange. */
+    private function firebaseConnectSources(): array
+    {
+        return [
+            'https://identitytoolkit.googleapis.com',
+            'https://securetoken.googleapis.com',
+            'https://www.googleapis.com',
+            'https://firebaseinstallations.googleapis.com',
+        ];
+    }
+
+    private function firebaseEnabled(): bool
+    {
+        try {
+            return SystemSetting::get('firebase_enabled', 'false') === 'true'
+                && filled(SystemSetting::get('firebase_api_key'))
+                && filled(SystemSetting::get('firebase_project_id'));
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /** Firebase may use its auth-domain iframe during popup/redirect flows. */
+    private function firebaseFrameSources(): array
+    {
+        return [
+            'https://*.firebaseapp.com',
+            'https://*.web.app',
+            'https://accounts.google.com',
+        ];
     }
 
     private function metaSdkEnabled(): bool

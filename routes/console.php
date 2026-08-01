@@ -3,10 +3,11 @@
 use App\Http\Controllers\Admin\CronSetupController;
 use App\Modules\Broadcasting\Jobs\LaunchScheduledCampaignsJob;
 use App\Modules\Broadcasting\Models\UsageMeter;
+use App\Modules\Inbox\Jobs\SyncEbayAccountJob;
+use App\Modules\Inbox\Jobs\SyncEmailAccountJob;
+use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Social\Jobs\DispatchScheduledPostsJob;
 use App\Modules\Social\Jobs\RefreshSocialTokensJob;
-use App\Modules\Inbox\Jobs\SyncEbayAccountJob;
-use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Whatsapp\Jobs\TemplateSyncJob;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
 use App\Services\WebhookIdempotencyService;
@@ -59,6 +60,13 @@ Schedule::call(function () {
         ->pluck('id')
         ->each(fn (int $id) => SyncEbayAccountJob::dispatch($id));
 })->everyFiveMinutes()->name('sync-ebay-messages')->withoutOverlapping();
+
+Schedule::call(function () {
+    ChannelAccount::where('channel', 'email')
+        ->where('status', 'active')
+        ->pluck('id')
+        ->each(fn (int $id) => SyncEmailAccountJob::dispatch($id)->onQueue('default'));
+})->everyMinute()->name('sync-email-inboxes')->withoutOverlapping();
 
 // Reset monthly usage meters on the 1st of each month
 Schedule::call(function () {

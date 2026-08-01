@@ -17,5 +17,9 @@ export async function signInWithGoogle() {
     if (!_auth) throw new Error('Firebase not initialized');
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(_auth, provider);
+
+    // The backend verifies a Firebase ID token for this exact project. Do not
+    // return GoogleAuthProvider.credentialFromResult(...).idToken here: that is
+    // a Google OAuth token with a different audience and issuer.
     return result.user.getIdToken();
 }

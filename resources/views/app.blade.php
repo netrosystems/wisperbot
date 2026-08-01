@@ -176,14 +176,8 @@
 
         <!-- Facebook JS SDK — loaded eagerly when Meta App is configured -->
         <div id="fb-root"></div>
-        @php
-            // Guarded: integration_configs may be unreadable during first-run install.
-            try {
-                $metaAppId = \App\Modules\Integrations\Services\CredentialResolver::system()->meta()?->appId();
-            } catch (\Throwable) {
-                $metaAppId = null;
-            }
-        @endphp
+        {{-- Guarded: integration_configs may be unreadable during first-run install. --}}
+        @php($metaAppId = rescue(static fn () => \App\Modules\Integrations\Services\CredentialResolver::system()->meta()?->appId(), null, false))
         @if($metaAppId)
         <script>
             window.fbAsyncInit = function() {
@@ -202,19 +196,8 @@
 
         {{-- WisperBot support widget. Set identity before loading the async
              script so authenticated visitors open their own private chat. --}}
-        @php
-            try {
-                $widgetUser = auth()->user();
-                $wisperBotVisitor = $widgetUser ? array_filter([
-                    'name' => $widgetUser->name,
-                    'email' => $widgetUser->email,
-                    'avatar' => method_exists($widgetUser, 'avatarUrl') ? $widgetUser->avatarUrl() : null,
-                    'external_id' => 'USER_'.$widgetUser->getAuthIdentifier(),
-                ], static fn ($value) => filled($value)) : null;
-            } catch (\Throwable) {
-                $wisperBotVisitor = null;
-            }
-        @endphp
+        @php($widgetUser = rescue(static fn () => auth()->user(), null, false))
+        @php($wisperBotVisitor = $widgetUser ? array_filter(['name' => $widgetUser->name, 'email' => $widgetUser->email, 'avatar' => method_exists($widgetUser, 'avatarUrl') ? $widgetUser->avatarUrl() : null, 'external_id' => 'USER_'.$widgetUser->getAuthIdentifier()], static fn ($value) => filled($value)) : null)
         @if($wisperBotVisitor)
         <script>
             window.WisperBotSettings = @json($wisperBotVisitor);
