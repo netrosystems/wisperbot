@@ -139,6 +139,33 @@ class EmailInboxIntegrationTest extends TestCase
         $this->get('/app/inbox/email')->assertRedirect();
     }
 
+    public function test_email_setup_renders_when_oauth_providers_are_configured(): void
+    {
+        IntegrationConfig::create([
+            'provider' => 'oauth_google_mail',
+            'label' => 'Google Mail OAuth',
+            'mode' => 'live',
+            'credentials' => ['client_id' => 'google-client', 'client_secret' => 'google-secret'],
+            'enabled' => true,
+        ]);
+        IntegrationConfig::create([
+            'provider' => 'oauth_microsoft_365',
+            'label' => 'Microsoft 365 Mail OAuth',
+            'mode' => 'live',
+            'credentials' => ['client_id' => 'microsoft-client', 'client_secret' => 'microsoft-secret'],
+            'enabled' => true,
+        ]);
+        $context = $this->createWorkspaceContext();
+
+        $this->actingAs($context['user'])
+            ->get(route('client.inbox.email.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Inbox/EmailSetup')
+                ->where('googleEnabled', true)
+                ->where('microsoftEnabled', true));
+    }
+
     public function test_mailbox_sync_creates_one_workspace_scoped_email_conversation_and_deduplicates(): void
     {
         $context = $this->createWorkspaceContext();
