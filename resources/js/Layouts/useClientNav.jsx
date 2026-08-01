@@ -91,7 +91,7 @@ export default function useClientNav() {
 
     const inboxItems = [
         { label: t('nav.omni_channel_inbox'), href: safeRoute('client.inbox.index'), icon: <Inbox className={iconClass} />, activePattern: 'client.inbox.index' },
-        { label: t('nav.master_email_inbox', { defaultValue: 'Email MasteBox' }), href: safeRoute('client.inbox.email-inbox'), icon: <Mail className={iconClass} />, activePattern: 'client.inbox.email-inbox' },
+        { label: t('nav.master_email_inbox', { defaultValue: 'Email MasterBox' }), href: safeRoute('client.inbox.email-inbox'), icon: <Mail className={iconClass} />, activePattern: 'client.inbox.email-inbox' },
         { label: t('nav.inbox_channel_setup'), href: safeRoute('client.inbox.setup'), icon: <Inbox className={iconClass} />, activePattern: 'client.inbox.setup' },
         { label: t('nav.email_setup', { defaultValue: 'Email Setup' }), href: safeRoute('client.inbox.email.index'), icon: <Mail className={iconClass} />, activePattern: 'client.inbox.email.*' },
     ];

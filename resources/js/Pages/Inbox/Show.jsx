@@ -2054,7 +2054,7 @@ export default function InboxShow({
                 <aside className="w-48 shrink-0 border-r border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col overflow-hidden">
                     <div className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-1">
                         <Link href={emailOnly ? route('client.inbox.email-inbox') : route('client.inbox.index')} className="text-sm font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-2 hover:text-brand-600 transition">
-                            <Inbox className="h-4 w-4 text-brand-600" />{emailOnly ? 'Email MasteBox' : t('inbox.title')}
+                            <Inbox className="h-4 w-4 text-brand-600" />{emailOnly ? 'Email MasterBox' : t('inbox.title')}
                         </Link>
                         {!emailOnly && <button
                             onClick={() => setShowNewModal(true)}
