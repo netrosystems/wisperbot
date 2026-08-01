@@ -74,6 +74,8 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
     Route::delete('/setup/{channelAccount}', [InboxSetupController::class, 'destroy'])->name('setup.destroy');
 
     Route::get('/email-setup', [EmailAccountController::class, 'index'])->name('email.index');
+    Route::get('/email-setup/google/connect', [EmailAccountController::class, 'connectGoogle'])->name('email.google.connect');
+    Route::get('/email-setup/google/callback', [EmailAccountController::class, 'googleCallback'])->name('email.google.callback');
     Route::get('/email-setup/microsoft/connect', [EmailAccountController::class, 'connectMicrosoft'])->name('email.microsoft.connect');
     Route::get('/email-setup/microsoft/callback', [EmailAccountController::class, 'microsoftCallback'])->name('email.microsoft.callback');
     Route::post('/email-setup/imap-smtp', [EmailAccountController::class, 'storeGeneric'])->name('email.generic.store');

@@ -6,6 +6,7 @@ use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Modules\Inbox\Jobs\SyncEmailAccountJob;
 use App\Modules\Inbox\Services\GenericMailboxClient;
+use App\Modules\Inbox\Services\GmailApiClient;
 use App\Modules\Inbox\Services\MicrosoftGraphMailClient;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -27,6 +28,7 @@ class EmailAccountController extends Controller
     public function index(Request $request): Response
     {
         $workspaceId = $this->workspaceId($request);
+        $google = IntegrationConfig::forProvider('oauth_google_mail');
         $microsoft = IntegrationConfig::forProvider('oauth_microsoft_365');
 
         return Inertia::render('Inbox/EmailSetup', [
@@ -43,8 +45,85 @@ class EmailAccountController extends Controller
                 ]),
             'microsoftEnabled' => (bool) ($microsoft?->enabled && $microsoft?->credential('client_id') && $microsoft?->credential('client_secret')),
             'microsoftCallbackUrl' => route('client.inbox.email.microsoft.callback'),
+            'googleEnabled' => (bool) ($google?->enabled && $google?->credential('client_id') && $google?->credential('client_secret')),
+            'googleCallbackUrl' => route('client.inbox.email.google.callback'),
             'imapExtensionAvailable' => function_exists('imap_open'),
         ]);
+    }
+
+    public function connectGoogle(Request $request, GmailApiClient $client): RedirectResponse
+    {
+        $state = Str::random(64);
+        $request->session()->put('google_mail_oauth', [
+            'state' => hash('sha256', $state),
+            'workspace_id' => $this->workspaceId($request),
+            'user_id' => $request->user()->id,
+            'created_at' => now()->timestamp,
+        ]);
+
+        try {
+            return redirect()->away($client->authorizationUrl($state, route('client.inbox.email.google.callback')));
+        } catch (Throwable $e) {
+            return to_route('client.inbox.email.index')->with('error', $e->getMessage());
+        }
+    }
+
+    public function googleCallback(Request $request, GmailApiClient $client): RedirectResponse
+    {
+        $pending = $request->session()->pull('google_mail_oauth');
+        if (! is_array($pending)
+            || ! hash_equals((string) ($pending['state'] ?? ''), hash('sha256', (string) $request->query('state')))
+            || (int) ($pending['user_id'] ?? 0) !== (int) $request->user()->id
+            || (int) ($pending['created_at'] ?? 0) < now()->subMinutes(10)->timestamp) {
+            return to_route('client.inbox.email.index')->with('error', 'Google authorization expired or had an invalid state. Please try again.');
+        }
+        if ($request->filled('error')) {
+            return to_route('client.inbox.email.index')->with('error', (string) $request->query('error_description', 'Google authorization was cancelled.'));
+        }
+
+        try {
+            $tokens = $client->exchangeCode((string) $request->query('code'), route('client.inbox.email.google.callback'));
+            $profile = $client->profile($tokens['access_token']);
+            $email = strtolower((string) ($profile['email'] ?? ''));
+            if (! filter_var($email, FILTER_VALIDATE_EMAIL) || empty($profile['sub'])) {
+                throw new \RuntimeException('Google did not return a usable mailbox identity.');
+            }
+
+            // Upgrade a matching legacy Gmail/app-password connection in place,
+            // preventing duplicate mailboxes and preserving its conversations.
+            $account = ChannelAccount::where('workspace_id', (int) $pending['workspace_id'])
+                ->where('channel', 'email')
+                ->where('provider', 'gmail')
+                ->get()
+                ->first(fn (ChannelAccount $candidate) => $candidate->business_account_id === (string) $profile['sub']
+                    || strtolower((string) ($candidate->meta_json['email'] ?? '')) === $email)
+                ?? new ChannelAccount([
+                    'workspace_id' => (int) $pending['workspace_id'],
+                    'channel' => 'email',
+                    'provider' => 'gmail',
+                ]);
+            $existingCredentials = $account->exists ? ($account->credentials ?? []) : [];
+            $refreshToken = $tokens['refresh_token'] ?? $existingCredentials['refresh_token'] ?? null;
+            if (! $refreshToken) {
+                throw new \RuntimeException('Google did not return offline access. Reconnect and approve access when Google asks.');
+            }
+            $account->fill([
+                'business_account_id' => (string) $profile['sub'],
+                'display_name' => (string) ($profile['name'] ?? $email),
+                'status' => 'active',
+                'credentials' => [
+                    'access_token' => $tokens['access_token'],
+                    'refresh_token' => $refreshToken,
+                    'expires_at' => now()->addSeconds(max(60, ((int) ($tokens['expires_in'] ?? 3600)) - 60))->toIso8601String(),
+                ],
+                'meta_json' => array_merge($account->meta_json ?? [], ['email' => $email, 'last_sync_error' => null]),
+            ])->save();
+            SyncEmailAccountJob::dispatch($account->id)->onQueue('default');
+
+            return to_route('client.inbox.email.index')->with('success', 'Gmail mailbox connected securely. Initial sync has started.');
+        } catch (Throwable $e) {
+            return to_route('client.inbox.email.index')->with('error', $e->getMessage());
+        }
     }
 
     public function connectMicrosoft(Request $request, MicrosoftGraphMailClient $client): RedirectResponse
@@ -120,7 +199,7 @@ class EmailAccountController extends Controller
             'username' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string', 'max:1024'],
             'verify_tls' => ['sometimes', 'boolean'],
-            'provider' => ['nullable', Rule::in(['gmail', 'imap_smtp'])],
+            'provider' => ['nullable', Rule::in(['imap_smtp'])],
         ]);
         $workspaceId = $this->workspaceId($request);
         $email = strtolower($validated['email']);
@@ -150,7 +229,7 @@ class EmailAccountController extends Controller
         }
     }
 
-    public function compose(Request $request, MicrosoftGraphMailClient $microsoft, GenericMailboxClient $generic): RedirectResponse
+    public function compose(Request $request, GmailApiClient $google, MicrosoftGraphMailClient $microsoft, GenericMailboxClient $generic): RedirectResponse
     {
         $validated = $request->validate([
             'channel_account_id' => ['required', 'integer'],
@@ -197,9 +276,11 @@ class EmailAccountController extends Controller
         ]);
 
         try {
-            $providerId = $account->provider === 'microsoft_365'
-                ? $microsoft->sendMessage($account, $recipient, $validated['subject'], $validated['body'], $cc, $bcc)
-                : $generic->send($account, $recipient, $validated['subject'], $validated['body'], null, $cc, $bcc);
+            $providerId = match ($account->provider) {
+                'gmail' => $google->sendMessage($account, $recipient, $validated['subject'], $validated['body'], $cc, $bcc),
+                'microsoft_365' => $microsoft->sendMessage($account, $recipient, $validated['subject'], $validated['body'], $cc, $bcc),
+                default => $generic->send($account, $recipient, $validated['subject'], $validated['body'], null, $cc, $bcc),
+            };
             $message->update(['status' => 'sent', 'provider_message_id' => $providerId]);
             MessageSent::dispatch($message->load('conversation'));
 

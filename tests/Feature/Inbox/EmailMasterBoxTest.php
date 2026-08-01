@@ -54,7 +54,7 @@ class EmailMasterBoxTest extends TestCase
         $account = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'email',
-            'provider' => 'gmail',
+            'provider' => 'imap_smtp',
             'business_account_id' => 'team@example.com',
             'display_name' => 'Team Gmail',
             'status' => 'active',

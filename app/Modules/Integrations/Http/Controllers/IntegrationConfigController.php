@@ -70,6 +70,7 @@ class IntegrationConfigController extends Controller
             'callbackUrl' => match ($provider) {
                 'oauth_linkedin' => route('client.social.oauth.callback', 'linkedin'),
                 'oauth_youtube' => route('client.social.oauth.callback', 'youtube'),
+                'oauth_google_mail' => route('client.inbox.email.google.callback'),
                 'oauth_tiktok' => route('client.social.oauth.callback', 'tiktok'),
                 'oauth_shopify' => route('client.ecommerce.oauth.shopify.callback'),
                 'oauth_bigcommerce' => route('client.ecommerce.oauth.bigcommerce.callback'),
