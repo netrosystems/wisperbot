@@ -24,6 +24,14 @@ class LicenseManager
     /** Licensing is active only when fully configured and not switched off. */
     public function enabled(): bool
     {
+        // Local development must remain usable without consuming or moving a
+        // production license activation. This is deliberately tied to
+        // Laravel's environment instead of an optional feature flag so the
+        // bypass cannot be enabled on a production installation accidentally.
+        if (app()->environment('local')) {
+            return false;
+        }
+
         return (bool) config('license.verify')
             && filled(config('license.product_id'))
             && filled(config('license.api_key'))

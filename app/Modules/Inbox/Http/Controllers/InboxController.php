@@ -61,6 +61,7 @@ class InboxController extends Controller
         $labels = InboxLabel::where('workspace_id', $workspaceId)->orderBy('name')->get(['id', 'name', 'color']);
         $channelAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('status', 'active')
+            ->when(($filters['channel'] ?? null) === 'email', fn ($query) => $query->where('channel', 'email'))
             ->orderBy('channel')
             ->orderBy('display_name')
             ->get(['id', 'channel', 'display_name', 'phone_number_id']);
@@ -75,9 +76,44 @@ class InboxController extends Controller
 
     public function emailIndex(Request $request): Response
     {
-        $request->merge(['channel' => 'email']);
+        $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
+        $folder = (string) $request->query('folder', 'inbox');
 
-        return $this->index($request);
+        $conversations = Conversation::where('workspace_id', $workspaceId)
+            ->whereHas('channelAccount', fn ($query) => $query->where('channel', 'email'))
+            ->with(['contact', 'channelAccount', 'lastMessage.sender'])
+            ->when($folder === 'unread', fn ($query) => $query->where('unread_count', '>', 0))
+            ->when($folder === 'sent', fn ($query) => $query->whereHas('messages', fn ($messages) => $messages->where('direction', 'out')))
+            ->when($folder === 'resolved', fn ($query) => $query->where('status', 'resolved'))
+            ->when($request->account_id, fn ($query, $accountId) => $query->where('channel_account_id', $accountId))
+            ->orderByDesc('last_message_at')
+            ->paginate(30)
+            ->withQueryString();
+
+        $accounts = ChannelAccount::where('workspace_id', $workspaceId)
+            ->where('channel', 'email')
+            ->where('status', 'active')
+            ->orderBy('display_name')
+            ->get()
+            ->map(fn (ChannelAccount $account) => [
+                'id' => $account->id,
+                'provider' => $account->provider,
+                'display_name' => $account->display_name,
+                'email' => $account->meta_json['email'] ?? $account->business_account_id,
+                'last_synced_at' => $account->meta_json['last_synced_at'] ?? null,
+            ]);
+
+        return Inertia::render('Inbox/EmailMasterBox', [
+            'conversations' => $conversations,
+            'accounts' => $accounts,
+            'filters' => ['folder' => $folder, 'account_id' => $request->query('account_id')],
+            'counts' => [
+                'unread' => Conversation::where('workspace_id', $workspaceId)
+                    ->whereHas('channelAccount', fn ($query) => $query->where('channel', 'email'))
+                    ->where('unread_count', '>', 0)->count(),
+                'mailboxes' => $accounts->count(),
+            ],
+        ]);
     }
 
     public function show(Request $request, Conversation $conversation): Response
@@ -116,6 +152,9 @@ class InboxController extends Controller
 
         // Pass conversation list so the left panel stays populated on the show page
         $filters = $request->only('folder', 'channel', 'label', 'account_id');
+        if ($conversation->channelAccount?->channel === 'email') {
+            $filters['channel'] = 'email';
+        }
         $conversations = Conversation::where('workspace_id', $workspaceId)
             ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
             ->when(($filters['folder'] ?? null) === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))

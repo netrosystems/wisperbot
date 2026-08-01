@@ -56,12 +56,18 @@ class GenericMailboxClient
         return $messages;
     }
 
-    public function send(ChannelAccount $account, string $to, string $subject, string $body, ?string $inReplyTo = null): string
+    public function send(ChannelAccount $account, string $to, string $subject, string $body, ?string $inReplyTo = null, array $cc = [], array $bcc = []): string
     {
         $credentials = $account->credentials ?? [];
         $mailer = $this->mailer($account);
-        $sent = $mailer->html(nl2br(e($body)), function ($message) use ($credentials, $to, $subject, $inReplyTo): void {
+        $sent = $mailer->html(nl2br(e($body)), function ($message) use ($credentials, $to, $subject, $inReplyTo, $cc, $bcc): void {
             $message->to($to)->subject($subject)->from($credentials['username'], $credentials['from_name'] ?? null);
+            if ($cc !== []) {
+                $message->cc($cc);
+            }
+            if ($bcc !== []) {
+                $message->bcc($bcc);
+            }
             if ($inReplyTo) {
                 $message->getHeaders()->addTextHeader('In-Reply-To', '<'.trim($inReplyTo, '<>').'>');
                 $message->getHeaders()->addTextHeader('References', '<'.trim($inReplyTo, '<>').'>');

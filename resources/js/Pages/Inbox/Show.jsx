@@ -859,7 +859,7 @@ function MessageBubble({ msg, conversationId }) {
     );
 }
 
-function ConversationCard({ conv, isActive, userTz }) {
+function ConversationCard({ conv, isActive, userTz, filters = {} }) {
     const { t } = useTranslation();
     const channel = conv.channel_account?.channel ?? 'whatsapp';
     const lastResponder = conv.last_message?.direction === 'out'
@@ -879,7 +879,7 @@ function ConversationCard({ conv, isActive, userTz }) {
 
     return (
         <Link
-            href={route('client.inbox.show', conv.uuid)}
+            href={route('client.inbox.show', { conversation: conv.uuid, ...filters })}
             className={`block px-3 py-3 border-b border-neutral-100 dark:border-neutral-800 transition-colors ${
                 isActive
                     ? 'bg-brand-50 dark:bg-brand-900/20 border-l-2 border-l-brand-600'
@@ -941,11 +941,11 @@ function ConversationCard({ conv, isActive, userTz }) {
     );
 }
 
-function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChannel, onAccount, onLabel }) {
+function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChannel, onAccount, onLabel, emailOnly = false }) {
     const { t } = useTranslation();
     return (
         <div className="flex flex-col h-full overflow-y-auto">
-            <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
+            {!emailOnly && <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1.5">{t('inbox.views')}</p>
                 {FOLDERS.map(({ key, labelKey, icon: Icon }) => (
                     <button key={key ?? 'all'} onClick={() => onFolder(key)}
@@ -957,7 +957,7 @@ function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChan
                         <Icon className="h-4 w-4 shrink-0" />{t(labelKey)}
                     </button>
                 ))}
-            </div>
+            </div>}
             <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1.5">{t('inbox.channels')}</p>
                 {ALL_CHANNELS.map(ch => (
@@ -974,7 +974,7 @@ function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChan
             </div>
             {channelAccounts.length > 0 && (
                 <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1.5">{t('inbox.numbers')}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1.5">{emailOnly ? 'Mailboxes' : t('inbox.numbers')}</p>
                     {channelAccounts.map(account => (
                         <button key={account.id} onClick={() => onAccount(account.id)}
                             className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition ${
@@ -1481,6 +1481,7 @@ export default function InboxShow({
     // fall back to the user's primary workspace if not present.
     const workspaceId = props.currentWorkspace?.id ?? authUser?.workspace_id;
     const channel = conversation.channel_account?.channel ?? 'whatsapp';
+    const emailOnly = filters.channel === 'email' || channel === 'email';
     const isWindowOpen = conversation.is_whatsapp_window_open ?? (channel !== 'whatsapp');
     const isWhatsApp = channel === 'whatsapp';
 
@@ -2052,25 +2053,26 @@ export default function InboxShow({
                 {/* ── Filter sidebar ── */}
                 <aside className="w-48 shrink-0 border-r border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col overflow-hidden">
                     <div className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-1">
-                        <Link href={route('client.inbox.index')} className="text-sm font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-2 hover:text-brand-600 transition">
-                            <Inbox className="h-4 w-4 text-brand-600" />{t('inbox.title')}
+                        <Link href={emailOnly ? route('client.inbox.email-inbox') : route('client.inbox.index')} className="text-sm font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-2 hover:text-brand-600 transition">
+                            <Inbox className="h-4 w-4 text-brand-600" />{emailOnly ? 'Email MasteBox' : t('inbox.title')}
                         </Link>
-                        <button
+                        {!emailOnly && <button
                             onClick={() => setShowNewModal(true)}
                             title={t('inbox.new_conversation')}
                             className="h-7 w-7 rounded-lg bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center transition shrink-0"
                         >
                             <Plus className="h-4 w-4" />
-                        </button>
+                        </button>}
                     </div>
                     <FilterSidebar
                         filters={filters}
                         labels={allLabels}
                         channelAccounts={channelAccounts}
-                        onFolder={(k) => navigateList({ folder: k, channel: undefined, label: undefined, account_id: undefined })}
+                        onFolder={(k) => navigateList({ folder: k, channel: emailOnly ? 'email' : undefined, label: undefined, account_id: undefined })}
                         onChannel={(ch) => navigateList({ channel: filters.channel === ch ? undefined : ch, account_id: undefined })}
-                        onAccount={(id) => navigateList({ account_id: String(filters.account_id) === String(id) ? undefined : id, channel: undefined })}
+                        onAccount={(id) => navigateList({ account_id: String(filters.account_id) === String(id) ? undefined : id, channel: emailOnly ? 'email' : undefined })}
                         onLabel={(id) => navigateList({ label: String(filters.label) === String(id) ? undefined : id })}
+                        emailOnly={emailOnly}
                     />
                 </aside>
 
@@ -2108,7 +2110,7 @@ export default function InboxShow({
                                 <EmptyState icon={<Inbox className="h-7 w-7" />} title={t('inbox.no_conversations')} description={t('inbox.no_conversations_match')} />
                             </div>
                         ) : filteredList.map(conv => (
-                            <ConversationCard key={conv.id} conv={conv} isActive={conv.uuid === conversation.uuid} userTz={userTz} />
+                            <ConversationCard key={conv.id} conv={conv} isActive={conv.uuid === conversation.uuid} userTz={userTz} filters={filters} />
                         ))}
                     </div>
                 </div>
