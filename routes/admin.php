@@ -1,11 +1,11 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminSearchController;
-use App\Http\Controllers\Admin\AiDashboardController;
-use App\Http\Controllers\Admin\LandingPageController;
-use App\Http\Controllers\Admin\LicenseController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AiDashboardController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\BlogPostController;
+use App\Http\Controllers\Admin\BlogTaxonomyController;
 use App\Http\Controllers\Admin\ClientBrandingController;
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\CmsPageController;
@@ -14,11 +14,14 @@ use App\Http\Controllers\Admin\CronSetupController;
 use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailSystemController;
+use App\Http\Controllers\Admin\LandingPageController;
+use App\Http\Controllers\Admin\LicenseController;
 use App\Http\Controllers\Admin\LocaleController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PaymentGatewayConfigController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\PlanController;
+use App\Http\Controllers\Admin\PusherSettingsController;
 use App\Http\Controllers\Admin\QueueController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\RolesPermissionsController;
@@ -28,7 +31,6 @@ use App\Http\Controllers\Admin\SystemSettingsController;
 use App\Http\Controllers\Admin\TaxRateController;
 use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\TranslationController;
-use App\Http\Controllers\Admin\PusherSettingsController;
 use App\Modules\Integrations\Http\Controllers\IntegrationConfigController;
 use Illuminate\Support\Facades\Route;
 
@@ -150,6 +152,23 @@ Route::get('/cms-pages', [CmsPageController::class, 'index'])->name('cms-pages.i
 Route::post('/cms-pages', [CmsPageController::class, 'store'])->name('cms-pages.store')->middleware('permission:manage_settings');
 Route::put('/cms-pages/{cmsPage}', [CmsPageController::class, 'update'])->name('cms-pages.update')->middleware('permission:manage_settings');
 Route::delete('/cms-pages/{cmsPage}', [CmsPageController::class, 'destroy'])->name('cms-pages.destroy')->middleware('permission:manage_settings');
+
+// Blog CMS
+Route::get('/blog', [BlogPostController::class, 'index'])->name('blog.index')->middleware('permission:view_settings');
+Route::get('/blog/create', [BlogPostController::class, 'create'])->name('blog.create')->middleware('permission:manage_settings');
+Route::post('/blog', [BlogPostController::class, 'store'])->name('blog.store')->middleware('permission:manage_settings');
+Route::get('/blog/{blogPost}/edit', [BlogPostController::class, 'edit'])->name('blog.edit')->middleware('permission:manage_settings');
+Route::put('/blog/{blogPost}', [BlogPostController::class, 'update'])->name('blog.update')->middleware('permission:manage_settings');
+Route::delete('/blog/{blogPost}', [BlogPostController::class, 'destroy'])->name('blog.destroy')->middleware('permission:manage_settings');
+Route::post('/blog/bulk', [BlogPostController::class, 'bulk'])->name('blog.bulk')->middleware('permission:manage_settings');
+Route::post('/blog/upload', [BlogPostController::class, 'upload'])->name('blog.upload')->middleware('permission:manage_settings');
+Route::get('/blog/{blogPost}/preview-url', [BlogPostController::class, 'previewUrl'])->name('blog.preview-url')->middleware('permission:manage_settings');
+Route::post('/blog/{blogPost}/revisions/{revision}/restore', [BlogPostController::class, 'restoreRevision'])->name('blog.revisions.restore')->middleware('permission:manage_settings');
+Route::post('/blog/categories', [BlogTaxonomyController::class, 'storeCategory'])->name('blog.categories.store')->middleware('permission:manage_settings');
+Route::put('/blog/categories/{category}', [BlogTaxonomyController::class, 'updateCategory'])->name('blog.categories.update')->middleware('permission:manage_settings');
+Route::delete('/blog/categories/{category}', [BlogTaxonomyController::class, 'destroyCategory'])->name('blog.categories.destroy')->middleware('permission:manage_settings');
+Route::post('/blog/tags', [BlogTaxonomyController::class, 'storeTag'])->name('blog.tags.store')->middleware('permission:manage_settings');
+Route::delete('/blog/tags/{tag}', [BlogTaxonomyController::class, 'destroyTag'])->name('blog.tags.destroy')->middleware('permission:manage_settings');
 
 // Support Tickets (admin inbox)
 Route::get('/support', [SupportTicketController::class, 'index'])->name('support.index')->middleware('permission:view_settings');

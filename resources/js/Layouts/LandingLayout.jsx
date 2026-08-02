@@ -45,6 +45,7 @@ export default function LandingLayout({ children }) {
         { label: t('nav.features'),     href: '/#features' },
         { label: t('nav.use_cases'),    href: '/use-cases' },
         { label: t('nav.integrations', { defaultValue: 'Integrations' }), href: '/integrations' },
+        { label: 'Blog', href: '/blog' },
         { label: t('nav.pricing'),      href: '/pricing' },
         { label: t('nav.faq'),          href: '/faq' },
         { label: t('nav.contact'),      href: '/contact' },
@@ -305,6 +306,7 @@ export default function LandingLayout({ children }) {
                                     { label: t('landing_page_admin.footer_about', { defaultValue: 'About' }), href: '/about' },
                                     { label: t('nav.integrations', { defaultValue: 'Integrations' }), href: '/integrations' },
                                     { label: t('nav.use_cases', { defaultValue: 'Use Cases' }), href: '/use-cases' },
+                                    { label: 'Blog', href: '/blog' },
                                     { label: t('nav.contact'), href: '/contact' },
                                 ].map((l) => (
                                     <li key={l.href}>

@@ -14,7 +14,7 @@ return new class extends Migration
             // Keep fresh installs and SQLite test databases aligned with the
             // later webchat migration. Existing MySQL installs are upgraded by
             // 2026_07_11_000001_add_webchat_to_channel_accounts_enum.php.
-            $table->enum('channel', ['whatsapp', 'instagram', 'messenger', 'sms', 'email', 'webchat', 'ebay', 'amazon']);
+            $table->enum('channel', ['whatsapp', 'instagram', 'messenger', 'sms', 'email', 'webchat', 'ebay', 'amazon', 'telegram']);
             $table->string('provider', 64)->nullable();
             $table->text('credentials')->nullable(); // encrypted:array
             $table->string('display_name', 128);

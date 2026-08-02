@@ -18,6 +18,11 @@ export function FeatureIcon({ name, className = 'h-6 w-6', style }) {
         'trending-up': 'M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941',
         'check-circle': 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
         'server': 'M21.75 17.25v.75a2.25 2.25 0 01-2.25 2.25H4.5a2.25 2.25 0 01-2.25-2.25v-.75m16.5 0A2.25 2.25 0 0021.75 15V9.75A2.25 2.25 0 0019.5 7.5H4.5A2.25 2.25 0 002.25 9.75V15a2.25 2.25 0 002.25 2.25h15zM12 12.75h.008v.008H12v-.008z',
+        'mail': 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75',
+        'send': 'M6 12 3.27 3.125A59.77 59.77 0 0121.485 12 59.768 59.768 0 013.27 20.875L6 12zm0 0h7.5',
+        'shopping-cart': 'M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138A60.114 60.114 0 005.106 5.272M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z',
+        'smartphone': 'M10.5 1.5h3m-6.75 0h10.5A2.25 2.25 0 0119.5 3.75v16.5a2.25 2.25 0 01-2.25 2.25H6.75a2.25 2.25 0 01-2.25-2.25V3.75A2.25 2.25 0 016.75 1.5zM11.25 19.5h1.5',
+        'store': 'M13.5 21v-7.5a.75.75 0 00-.75-.75h-1.5a.75.75 0 00-.75.75V21m-6-11.25h15m-14.25 0V21h13.5V9.75M3.75 5.25l1.5-3h13.5l1.5 3v1.5a2.25 2.25 0 01-4.5 0 2.25 2.25 0 01-4.5 0 2.25 2.25 0 01-4.5 0 2.25 2.25 0 01-4.5 0v-1.5z',
     };
     const d = icons[name] || icons['zap'];
     return (
@@ -27,4 +32,4 @@ export function FeatureIcon({ name, className = 'h-6 w-6', style }) {
     );
 }
 
-export const ICON_OPTIONS = ['cpu', 'message-square', 'bar-chart-2', 'users', 'share-2', 'shield-check', 'zap', 'star', 'layout', 'arrow-right', 'globe', 'trending-up', 'check-circle', 'server'];
+export const ICON_OPTIONS = ['cpu', 'message-square', 'bar-chart-2', 'users', 'share-2', 'shield-check', 'zap', 'star', 'layout', 'arrow-right', 'globe', 'trending-up', 'check-circle', 'server', 'mail', 'send', 'shopping-cart', 'smartphone', 'store'];

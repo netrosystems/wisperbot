@@ -17,6 +17,7 @@ use App\Modules\Broadcasting\Http\Controllers\SmsStatusWebhookController;
 use App\Modules\Ecommerce\Http\Controllers\EcommerceOAuthController;
 use App\Modules\Ecommerce\Http\Controllers\EcommerceWebhookController;
 use App\Modules\Inbox\Http\Controllers\MetaWebhookController;
+use App\Modules\Inbox\Http\Controllers\TelegramBusinessWebhookController;
 use App\Modules\Whatsapp\Http\Controllers\WhatsappWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +40,10 @@ Route::middleware('throttle:webhooks')->group(function () {
         Route::get('/{token}', [MetaWebhookController::class, 'verify'])->name('verify');
         Route::post('/{token}', [MetaWebhookController::class, 'receive'])->name('receive');
     });
+
+    // ─── Telegram Business connected-bot inbox ───────────────────────────────
+    Route::post('webhooks/telegram', [TelegramBusinessWebhookController::class, 'receive'])
+        ->name('webhooks.telegram.receive');
 
     // ─── SMS delivery status ─────────────────────────────────────────────────────
     Route::post('webhooks/sms/{provider}', [SmsStatusWebhookController::class, 'handle'])

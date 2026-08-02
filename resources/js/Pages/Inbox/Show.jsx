@@ -26,7 +26,7 @@ const FOLDERS = [
     { key: 'resolved',   labelKey: 'inbox.folder_resolved',   icon: CheckCircle },
     { key: 'snoozed',    labelKey: 'inbox.folder_snoozed',    icon: Clock },
 ];
-const ALL_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'ebay', 'amazon', 'sms', 'email'];
+const ALL_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'telegram', 'ebay', 'amazon', 'sms', 'email'];
 
 const STATUS_COLORS = {
     open:     'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',

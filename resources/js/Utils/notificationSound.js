@@ -41,6 +41,10 @@ const CHANNEL_TONES = {
         { f: 1047, t: 0, d: 0.1 },
         { f: 698, t: 0.12, d: 0.18 },
     ],
+    telegram: [
+        { f: 740, t: 0, d: 0.1 },
+        { f: 988, t: 0.11, d: 0.15 },
+    ],
     // SMS / email / fallback — single soft chime.
     default: [{ f: 784, t: 0, d: 0.16 }],
 };
@@ -52,6 +56,7 @@ export const SOUND_CHANNELS = [
     { key: 'whatsapp', label: 'WhatsApp' },
     { key: 'messenger', label: 'Messenger' },
     { key: 'instagram', label: 'Instagram' },
+    { key: 'telegram', label: 'Telegram' },
     { key: 'ebay', label: 'eBay' },
     { key: 'amazon', label: 'Amazon Seller' },
     { key: 'sms', label: 'SMS' },

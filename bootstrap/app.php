@@ -156,6 +156,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/paddle',
             'webhooks/whatsapp/*',
             'webhooks/meta/*',
+            'webhooks/telegram',
             'webhooks/sms/*',
             'webhooks/automation/*',
             'webhooks/ecommerce/*',

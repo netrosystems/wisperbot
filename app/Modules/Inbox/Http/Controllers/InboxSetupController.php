@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\Inbox\Services\TelegramBusinessClient;
 use App\Modules\Integrations\Services\CredentialResolver;
 use App\Modules\Integrations\Services\MetaPageDiscoveryService;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -43,11 +44,11 @@ class InboxSetupController extends Controller
             $accounts = $whatsappChannelAccounts->where('business_account_id', $waba->waba_id)->values();
             $channelAccountPhoneIdsByWaba[$waba->id] = $accounts->pluck('phone_number_id')->all();
             $channelAccountsByWaba[$waba->id] = $accounts->map(fn ($a) => [
-                'id'              => $a->id,
+                'id' => $a->id,
                 'phone_number_id' => $a->phone_number_id,
-                'display_name'    => $a->display_name,
-                'status'          => $a->status,
-                'ai_chatbot_id'   => $a->meta_json['ai_chatbot_id'] ?? null,
+                'display_name' => $a->display_name,
+                'status' => $a->status,
+                'ai_chatbot_id' => $a->meta_json['ai_chatbot_id'] ?? null,
             ])->all();
         }
 
@@ -71,6 +72,20 @@ class InboxSetupController extends Controller
             ->where('channel', 'amazon')
             ->get(['id', 'display_name', 'status', 'meta_json', 'created_at']);
 
+        $telegramAccounts = ChannelAccount::where('workspace_id', $workspaceId)
+            ->where('channel', 'telegram')
+            ->get(['id', 'display_name', 'status', 'phone_number_id', 'business_account_id', 'meta_json', 'created_at'])
+            ->map(fn (ChannelAccount $account) => [
+                'id' => $account->id,
+                'display_name' => $account->display_name,
+                'status' => $account->status,
+                'business_connection_id' => $account->phone_number_id,
+                'telegram_user_id' => $account->business_account_id,
+                'pairing_expires_at' => $account->meta_json['pairing_expires_at'] ?? null,
+                'ai_chatbot_id' => $account->meta_json['ai_chatbot_id'] ?? null,
+                'created_at' => $account->created_at,
+            ]);
+
         $chatbots = AiChatbot::where('workspace_id', $workspaceId)
             ->where('enabled', true)
             ->get(['id', 'name']);
@@ -81,21 +96,24 @@ class InboxSetupController extends Controller
         $metaCreds = CredentialResolver::system()->meta();
 
         return Inertia::render('Inbox/Setup', [
-            'wabas'                        => $wabas,
-            'whatsappWebhookUrl'           => url('/webhooks/whatsapp'),
-            'whatsappWebhookGlobalUrl'     => route('webhooks.whatsapp.global.receive'),
-            'webhookTokensByWaba'          => $webhookTokensByWaba,
+            'wabas' => $wabas,
+            'whatsappWebhookUrl' => url('/webhooks/whatsapp'),
+            'whatsappWebhookGlobalUrl' => route('webhooks.whatsapp.global.receive'),
+            'webhookTokensByWaba' => $webhookTokensByWaba,
             'channelAccountPhoneIdsByWaba' => $channelAccountPhoneIdsByWaba,
-            'channelAccountsByWaba'        => $channelAccountsByWaba,
-            'instagramAccounts'            => $instagramAccounts,
-            'messengerAccounts'            => $messengerAccounts,
-            'ebayAccounts'                 => $ebayAccounts,
-            'amazonAccounts'               => $amazonAccounts,
-            'chatbots'                     => $chatbots,
-            'metaWebhookUrl'               => $metaWebhookUrl,
-            'metaAppId'                    => $metaCreds?->appId() ?: null,
-            'metaConfigIdWhatsapp'         => $metaCreds?->configIdWhatsapp() ?: null,
-            'metaConfigIdSocial'           => $metaCreds?->configIdSocial() ?: null,
+            'channelAccountsByWaba' => $channelAccountsByWaba,
+            'instagramAccounts' => $instagramAccounts,
+            'messengerAccounts' => $messengerAccounts,
+            'ebayAccounts' => $ebayAccounts,
+            'amazonAccounts' => $amazonAccounts,
+            'telegramAccounts' => $telegramAccounts,
+            'telegramConfigured' => TelegramBusinessClient::configured() !== null,
+            'telegramWebhookUrl' => route('webhooks.telegram.receive'),
+            'chatbots' => $chatbots,
+            'metaWebhookUrl' => $metaWebhookUrl,
+            'metaAppId' => $metaCreds?->appId() ?: null,
+            'metaConfigIdWhatsapp' => $metaCreds?->configIdWhatsapp() ?: null,
+            'metaConfigIdSocial' => $metaCreds?->configIdSocial() ?: null,
         ]);
     }
 
@@ -211,9 +229,9 @@ class InboxSetupController extends Controller
 
         Log::info('Instagram embedded signup: pages fetched', [
             'workspace_id' => $workspaceId,
-            'page_count'   => count($pages),
-            'pages'        => collect($pages)->map(fn ($p) => [
-                'id'   => $p['id'] ?? null,
+            'page_count' => count($pages),
+            'pages' => collect($pages)->map(fn ($p) => [
+                'id' => $p['id'] ?? null,
                 'name' => $p['name'] ?? null,
                 'has_instagram' => isset($p['instagram_business_account']['id']),
             ])->all(),
@@ -226,9 +244,9 @@ class InboxSetupController extends Controller
             }
 
             $pageToken = $page['access_token'] ?? null;
-            $pageId    = (string) ($page['id'] ?? '');
-            $igId      = (string) $igAccount['id'];
-            $name      = $igAccount['username'] ?? $igAccount['name'] ?? $page['name'] ?? $igId;
+            $pageId = (string) ($page['id'] ?? '');
+            $igId = (string) $igAccount['id'];
+            $name = $igAccount['username'] ?? $igAccount['name'] ?? $page['name'] ?? $igId;
 
             if (! is_string($pageToken) || $pageToken === '') {
                 Log::warning('Instagram embedded signup: Page access token missing; account skipped', [
@@ -236,6 +254,7 @@ class InboxSetupController extends Controller
                     'facebook_page_id' => $pageId,
                     'instagram_account_id' => $igId,
                 ]);
+
                 continue;
             }
 
@@ -256,6 +275,7 @@ class InboxSetupController extends Controller
                     'existing_workspace_id' => $existingAnyWorkspace->workspace_id,
                     'instagram_account_id' => $igId,
                 ]);
+
                 continue;
             }
 
@@ -270,10 +290,10 @@ class InboxSetupController extends Controller
             // - meta_json.instagram_page_id (= IG account id, matches webhook entry.id)
             // - meta_json.instagram_account_id / facebook_page_id → diagnostics + lookup
             $credentials = ['access_token' => $pageToken, 'instagram_account_id' => $igId];
-            $metaJson    = [
-                'instagram_page_id'    => $igId,
+            $metaJson = [
+                'instagram_page_id' => $igId,
                 'instagram_account_id' => $igId,
-                'facebook_page_id'     => $pageId,
+                'facebook_page_id' => $pageId,
             ];
 
             $existing = $existingAnyWorkspace ?: ChannelAccount::where('workspace_id', $workspaceId)
@@ -289,26 +309,26 @@ class InboxSetupController extends Controller
                     'workspace_id' => $workspaceId,
                     'display_name' => mb_substr((string) $name, 0, 128),
                     'credentials' => $credentials,
-                    'meta_json'   => array_merge($existing->meta_json ?? [], $metaJson),
-                    'status'      => 'active',
+                    'meta_json' => array_merge($existing->meta_json ?? [], $metaJson),
+                    'status' => 'active',
                 ]);
             } else {
                 ChannelAccount::create([
                     'workspace_id' => $workspaceId,
-                    'channel'      => 'instagram',
-                    'provider'     => 'meta',
+                    'channel' => 'instagram',
+                    'provider' => 'meta',
                     'display_name' => mb_substr((string) $name, 0, 128),
-                    'credentials'  => $credentials,
-                    'meta_json'    => $metaJson,
-                    'status'       => 'active',
+                    'credentials' => $credentials,
+                    'meta_json' => $metaJson,
+                    'status' => 'active',
                 ]);
             }
 
             Log::info('Instagram embedded signup: account connected', [
-                'workspace_id'         => $workspaceId,
-                'facebook_page_id'     => $pageId,
+                'workspace_id' => $workspaceId,
+                'facebook_page_id' => $pageId,
                 'instagram_account_id' => $igId,
-                'reconnect'            => $alreadyExists,
+                'reconnect' => $alreadyExists,
             ]);
 
             $connected++;
@@ -324,7 +344,7 @@ class InboxSetupController extends Controller
             $pageCount = count($pages);
             $message = $pageCount === 0
                 ? 'No Facebook Pages were returned. Reconnect and grant pages_show_list and business_management; the latter is required for Pages assigned through a Meta Business Portfolio.'
-                : 'No Instagram Business accounts were found on your ' . $pageCount . ' authorized page(s). To fix this: (1) Go to Meta Business Suite → your Facebook Page → Linked Accounts → link your Instagram account. (2) Make sure your Instagram is a Professional (Business or Creator) account. (3) Ensure your Social Embedded Signup config includes the instagram_basic permission.';
+                : 'No Instagram Business accounts were found on your '.$pageCount.' authorized page(s). To fix this: (1) Go to Meta Business Suite → your Facebook Page → Linked Accounts → link your Instagram account. (2) Make sure your Instagram is a Professional (Business or Creator) account. (3) Ensure your Social Embedded Signup config includes the instagram_basic permission.';
 
             return response()->json(['message' => $message], 422);
         }
@@ -432,16 +452,16 @@ class InboxSetupController extends Controller
 
         Log::info('Messenger embedded signup: pages fetched', [
             'workspace_id' => $workspaceId,
-            'page_count'   => count($pages),
-            'pages'        => collect($pages)->map(fn ($p) => [
-                'id'   => $p['id'] ?? null,
+            'page_count' => count($pages),
+            'pages' => collect($pages)->map(fn ($p) => [
+                'id' => $p['id'] ?? null,
                 'name' => $p['name'] ?? null,
             ])->all(),
         ]);
 
         foreach ($pages as $page) {
-            $pageId    = (string) ($page['id'] ?? '');
-            $pageName  = $page['name'] ?? $pageId;
+            $pageId = (string) ($page['id'] ?? '');
+            $pageName = $page['name'] ?? $pageId;
             $pageToken = $page['access_token'] ?? null;
 
             if (! $pageId) {
@@ -453,7 +473,7 @@ class InboxSetupController extends Controller
             // fetch it explicitly. Never fall back to the user token — a user token
             // cannot resolve page-scoped PSIDs and yields Graph error 100.
             if (! $pageToken) {
-                $tokenRes  = Http::withToken($longToken)
+                $tokenRes = Http::withToken($longToken)
                     ->get("https://graph.facebook.com/v25.0/{$pageId}", ['fields' => 'access_token']);
                 $pageToken = $tokenRes->json('access_token');
             }
@@ -461,8 +481,8 @@ class InboxSetupController extends Controller
             if (! $pageToken) {
                 Log::warning('Messenger embedded signup: no page access token — page skipped', [
                     'workspace_id' => $workspaceId,
-                    'page_id'      => $pageId,
-                    'page_name'    => $pageName,
+                    'page_id' => $pageId,
+                    'page_name' => $pageName,
                 ]);
 
                 continue;
@@ -480,6 +500,7 @@ class InboxSetupController extends Controller
                     'existing_workspace_id' => $existingAnyWorkspace->workspace_id,
                     'page_id' => $pageId,
                 ]);
+
                 continue;
             }
 
@@ -506,25 +527,25 @@ class InboxSetupController extends Controller
                     'workspace_id' => $workspaceId,
                     'display_name' => mb_substr((string) $pageName, 0, 128),
                     'credentials' => ['page_access_token' => $pageToken],
-                    'meta_json'   => array_merge($existing->meta_json ?? [], ['page_id' => $pageId]),
-                    'status'      => 'active',
+                    'meta_json' => array_merge($existing->meta_json ?? [], ['page_id' => $pageId]),
+                    'status' => 'active',
                 ]);
             } else {
                 ChannelAccount::create([
                     'workspace_id' => $workspaceId,
-                    'channel'      => 'messenger',
-                    'provider'     => 'meta',
+                    'channel' => 'messenger',
+                    'provider' => 'meta',
                     'display_name' => mb_substr((string) $pageName, 0, 128),
-                    'credentials'  => ['page_access_token' => $pageToken],
-                    'meta_json'    => ['page_id' => $pageId],
-                    'status'       => 'active',
+                    'credentials' => ['page_access_token' => $pageToken],
+                    'meta_json' => ['page_id' => $pageId],
+                    'status' => 'active',
                 ]);
             }
 
             Log::info('Messenger embedded signup: account connected', [
                 'workspace_id' => $workspaceId,
-                'page_id'      => $pageId,
-                'reconnect'    => $alreadyExists,
+                'page_id' => $pageId,
+                'reconnect' => $alreadyExists,
             ]);
 
             $connected++;
@@ -553,16 +574,17 @@ class InboxSetupController extends Controller
         }
 
         $res = Http::get('https://graph.facebook.com/v25.0/oauth/access_token', [
-            'client_id'     => $meta->appId(),
+            'client_id' => $meta->appId(),
             'client_secret' => $meta->appSecret(),
-            'code'          => $code,
-            'redirect_uri'  => '',
+            'code' => $code,
+            'redirect_uri' => '',
         ]);
 
         if (! $res->successful() || ! $res->json('access_token')) {
             Log::warning('Meta embedded signup: code exchange failed', [
                 'response' => $res->json(),
             ]);
+
             return null;
         }
 
@@ -577,9 +599,9 @@ class InboxSetupController extends Controller
         }
 
         $res = Http::get('https://graph.facebook.com/v25.0/oauth/access_token', [
-            'grant_type'        => 'fb_exchange_token',
-            'client_id'         => $meta->appId(),
-            'client_secret'     => $meta->appSecret(),
+            'grant_type' => 'fb_exchange_token',
+            'client_id' => $meta->appId(),
+            'client_secret' => $meta->appSecret(),
             'fb_exchange_token' => $shortToken,
         ]);
 
@@ -714,15 +736,15 @@ class InboxSetupController extends Controller
      */
     private function registerMessengerAppWebhook(): bool
     {
-        $meta        = CredentialResolver::system()->meta();
-        $appId       = $meta?->appId();
-        $appSecret   = $meta?->appSecret();
+        $meta = CredentialResolver::system()->meta();
+        $appId = $meta?->appId();
+        $appSecret = $meta?->appSecret();
         $verifyToken = $meta?->verifyToken();
 
         if (! $appId || ! $appSecret || ! $verifyToken) {
             Log::warning('Messenger embedded signup: cannot register app webhook — missing app id/secret/verify token', [
-                'has_app_id'       => (bool) $appId,
-                'has_app_secret'   => (bool) $appSecret,
+                'has_app_id' => (bool) $appId,
+                'has_app_secret' => (bool) $appSecret,
                 'has_verify_token' => (bool) $verifyToken,
             ]);
 
@@ -733,18 +755,18 @@ class InboxSetupController extends Controller
 
         try {
             $res = Http::post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
-                'access_token' => $appId . '|' . $appSecret,
-                'object'       => 'page',
+                'access_token' => $appId.'|'.$appSecret,
+                'object' => 'page',
                 'callback_url' => $callbackUrl,
                 'verify_token' => $verifyToken,
-                'fields'       => 'messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads',
+                'fields' => 'messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads',
             ]);
 
             if (! $res->successful()) {
                 Log::warning('Messenger embedded signup: app webhook registration failed', [
                     'callback_url' => $callbackUrl,
-                    'status'       => $res->status(),
-                    'response'     => $res->json(),
+                    'status' => $res->status(),
+                    'response' => $res->json(),
                 ]);
 
                 return false;
@@ -752,16 +774,16 @@ class InboxSetupController extends Controller
 
             Log::info('Messenger embedded signup: app webhook registered', [
                 'callback_url' => $callbackUrl,
-                'response'     => $res->json(),
+                'response' => $res->json(),
             ]);
 
             // Read back what Meta actually stored so we can confirm the page object
             // has our callback URL and is marked active.
             $check = Http::get("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
-                'access_token' => $appId . '|' . $appSecret,
+                'access_token' => $appId.'|'.$appSecret,
             ]);
             Log::info('Messenger embedded signup: app subscriptions snapshot', [
-                'status'   => $check->status(),
+                'status' => $check->status(),
                 'response' => $check->json(),
             ]);
 
@@ -769,7 +791,7 @@ class InboxSetupController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Messenger embedded signup: app webhook registration exception', [
                 'callback_url' => $callbackUrl,
-                'error'        => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return false;
@@ -792,8 +814,8 @@ class InboxSetupController extends Controller
 
             if (! $res->successful()) {
                 Log::warning('Messenger embedded signup: page subscription failed', [
-                    'page_id'  => $pageId,
-                    'status'   => $res->status(),
+                    'page_id' => $pageId,
+                    'status' => $res->status(),
                     'response' => $res->json(),
                 ]);
 
@@ -801,7 +823,7 @@ class InboxSetupController extends Controller
             }
 
             Log::info('Messenger embedded signup: page subscribed for messaging', [
-                'page_id'  => $pageId,
+                'page_id' => $pageId,
                 'response' => $res->json(),
             ]);
 
@@ -810,8 +832,8 @@ class InboxSetupController extends Controller
             $check = Http::withToken($pageToken)
                 ->get("https://graph.facebook.com/v25.0/{$pageId}/subscribed_apps");
             Log::info('Messenger embedded signup: page subscribed_apps snapshot', [
-                'page_id'  => $pageId,
-                'status'   => $check->status(),
+                'page_id' => $pageId,
+                'status' => $check->status(),
                 'response' => $check->json(),
             ]);
 
@@ -819,7 +841,7 @@ class InboxSetupController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Messenger embedded signup: page subscription exception', [
                 'page_id' => $pageId,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return false;
@@ -834,15 +856,15 @@ class InboxSetupController extends Controller
      */
     private function registerInstagramAppWebhook(): bool
     {
-        $meta        = CredentialResolver::system()->meta();
-        $appId       = $meta?->appId();
-        $appSecret   = $meta?->appSecret();
+        $meta = CredentialResolver::system()->meta();
+        $appId = $meta?->appId();
+        $appSecret = $meta?->appSecret();
         $verifyToken = $meta?->verifyToken();
 
         if (! $appId || ! $appSecret || ! $verifyToken) {
             Log::warning('Instagram embedded signup: cannot register app webhook — missing app id/secret/verify token', [
-                'has_app_id'       => (bool) $appId,
-                'has_app_secret'   => (bool) $appSecret,
+                'has_app_id' => (bool) $appId,
+                'has_app_secret' => (bool) $appSecret,
                 'has_verify_token' => (bool) $verifyToken,
             ]);
 
@@ -853,18 +875,18 @@ class InboxSetupController extends Controller
 
         try {
             $res = Http::post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
-                'access_token' => $appId . '|' . $appSecret,
-                'object'       => 'instagram',
+                'access_token' => $appId.'|'.$appSecret,
+                'object' => 'instagram',
                 'callback_url' => $callbackUrl,
                 'verify_token' => $verifyToken,
-                'fields'       => 'messages,messaging_postbacks,message_reactions',
+                'fields' => 'messages,messaging_postbacks,message_reactions',
             ]);
 
             if (! $res->successful()) {
                 Log::warning('Instagram embedded signup: app webhook registration failed', [
                     'callback_url' => $callbackUrl,
-                    'status'       => $res->status(),
-                    'response'     => $res->json(),
+                    'status' => $res->status(),
+                    'response' => $res->json(),
                 ]);
 
                 return false;
@@ -872,16 +894,16 @@ class InboxSetupController extends Controller
 
             Log::info('Instagram embedded signup: app webhook registered', [
                 'callback_url' => $callbackUrl,
-                'response'     => $res->json(),
+                'response' => $res->json(),
             ]);
 
             // Read back what Meta actually stored so we can confirm the instagram
             // object has our callback URL and is marked active.
             $check = Http::get("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
-                'access_token' => $appId . '|' . $appSecret,
+                'access_token' => $appId.'|'.$appSecret,
             ]);
             Log::info('Instagram embedded signup: app subscriptions snapshot', [
-                'status'   => $check->status(),
+                'status' => $check->status(),
                 'response' => $check->json(),
             ]);
 
@@ -889,7 +911,7 @@ class InboxSetupController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Instagram embedded signup: app webhook registration exception', [
                 'callback_url' => $callbackUrl,
-                'error'        => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return false;
@@ -918,8 +940,8 @@ class InboxSetupController extends Controller
 
             if (! $res->successful()) {
                 Log::warning('Instagram embedded signup: page subscription failed', [
-                    'page_id'  => $pageId,
-                    'status'   => $res->status(),
+                    'page_id' => $pageId,
+                    'status' => $res->status(),
                     'response' => $res->json(),
                 ]);
 
@@ -927,7 +949,7 @@ class InboxSetupController extends Controller
             }
 
             Log::info('Instagram embedded signup: page subscribed for messaging', [
-                'page_id'  => $pageId,
+                'page_id' => $pageId,
                 'response' => $res->json(),
             ]);
 
@@ -936,8 +958,8 @@ class InboxSetupController extends Controller
             $check = Http::withToken($pageToken)
                 ->get("https://graph.facebook.com/v25.0/{$pageId}/subscribed_apps");
             Log::info('Instagram embedded signup: page subscribed_apps snapshot', [
-                'page_id'  => $pageId,
-                'status'   => $check->status(),
+                'page_id' => $pageId,
+                'status' => $check->status(),
                 'response' => $check->json(),
             ]);
 
@@ -945,7 +967,7 @@ class InboxSetupController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Instagram embedded signup: page subscription exception', [
                 'page_id' => $pageId,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return false;
@@ -989,14 +1011,17 @@ class InboxSetupController extends Controller
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
 
         abort_unless((int) $channelAccount->workspace_id === (int) $workspaceId, 403);
-        abort_unless(in_array($channelAccount->channel, ['instagram', 'messenger', 'ebay', 'amazon'], true), 403);
+        abort_unless(in_array($channelAccount->channel, ['instagram', 'messenger', 'ebay', 'amazon', 'telegram'], true), 403);
 
         if (in_array($channelAccount->channel, ['instagram', 'messenger'], true)) {
             $this->unsubscribeMetaPageBestEffort($channelAccount);
         }
+        $wasTelegram = $channelAccount->channel === 'telegram';
         $channelAccount->delete();
 
-        return back()->with('success', 'Account disconnected.');
+        return back()->with('success', $wasTelegram
+            ? 'Telegram routing was removed from this workspace. Also remove the bot under Telegram Business → Chatbots to revoke its access.'
+            : 'Account disconnected.');
     }
 
     private function unsubscribeMetaPageBestEffort(ChannelAccount $channelAccount): void

@@ -77,6 +77,15 @@ function AmazonLogo({ className = 'h-5 w-10' }) {
     );
 }
 
+function TelegramLogo({ className = 'h-5 w-5' }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" role="img" aria-label="Telegram">
+            <circle cx="12" cy="12" r="12" fill="#229ED9" />
+            <path fill="white" d="m18.9 5.4-2.5 12c-.2.85-.7 1.05-1.42.65l-3.8-2.8-1.83 1.77c-.2.2-.37.37-.76.37l.27-3.87 7.05-6.37c.31-.27-.07-.43-.47-.16l-8.71 5.49-3.75-1.17c-.82-.26-.83-.82.17-1.21l14.66-5.65c.68-.25 1.28.16 1.09.95Z" />
+        </svg>
+    );
+}
+
 /* â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ shared helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */
 
 function CopyButton({ text }) {
@@ -864,6 +873,59 @@ function AmazonAccountRow({ account }) {
     );
 }
 
+function TelegramAccountRow({ account, chatbots }) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [working, setWorking] = useState(false);
+
+    const remove = () => {
+        setWorking(true);
+        router.delete(route('client.inbox.setup.destroy', { channelAccount: account.id }), {
+            preserveScroll: true,
+            onFinish: () => setWorking(false),
+        });
+    };
+
+    return (
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3.5 dark:border-neutral-700 dark:bg-neutral-800/60">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{account.display_name}</span>
+                        <StatusBadge status={account.status} />
+                    </div>
+                    {account.status === 'inactive' && (
+                        <p className="mt-1.5 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                            Pairing is not complete. Open a new pairing link, then connect the bot in Telegram Settings → Telegram Business → Chatbots.
+                        </p>
+                    )}
+                    {account.status === 'error' && (
+                        <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">Telegram revoked or rejected this business connection. Reconnect it before replying.</p>
+                    )}
+                    {account.business_connection_id && (
+                        <p className="mt-1 font-mono text-[11px] text-neutral-400">Connection: {account.business_connection_id}</p>
+                    )}
+                    {account.status === 'active' && chatbots.length > 0 && (
+                        <ChatbotSelector channelAccountId={account.id} currentChatbotId={account.ai_chatbot_id} chatbots={chatbots} />
+                    )}
+                    {account.status !== 'active' && (
+                        <a href={route('client.inbox.setup.telegram.connect')} className="mt-2 inline-flex text-xs font-semibold text-sky-600 hover:underline dark:text-sky-400">
+                            Create a new pairing link
+                        </a>
+                    )}
+                </div>
+                {confirmDelete ? (
+                    <button type="button" onClick={remove} disabled={working} className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs text-white disabled:opacity-50">Remove</button>
+                ) : (
+                    <button type="button" onClick={() => setConfirmDelete(true)} className="rounded-lg border border-red-200 p-1.5 text-red-400 hover:bg-red-50 dark:border-red-800">
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                )}
+            </div>
+            {confirmDelete && <p className="mt-2 text-xs text-red-600">Inbox history stays available, but new Telegram messages stop routing here. Revoke the bot in Telegram Business settings too.</p>}
+        </div>
+    );
+}
+
 /* ─────────────────── Meta Embedded Signup helpers ─────────────────── */
 
 /**
@@ -1367,6 +1429,9 @@ export default function ChannelSetup({
     channelAccountsByWaba, instagramAccounts, messengerAccounts, metaWebhookUrl,
     ebayAccounts = [],
     amazonAccounts = [],
+    telegramAccounts = [],
+    telegramConfigured = false,
+    telegramWebhookUrl = null,
     metaAppId = null, metaConfigIdWhatsapp = null, metaConfigIdSocial = null,
     chatbots = [],
 }) {
@@ -1416,12 +1481,17 @@ export default function ChannelSetup({
                             className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm font-semibold text-pink-700 shadow-sm transition hover:border-pink-300 hover:bg-pink-100 dark:border-pink-800 dark:bg-pink-950/30 dark:text-pink-400 dark:hover:bg-pink-950/50 xl:col-span-2">
                             <InstagramLogo className="h-4 w-4" /> {t('inbox.connect_instagram')}
                         </button>
+                        <a href={telegramConfigured ? route('client.inbox.setup.telegram.connect') : '#'}
+                            onClick={(event) => { if (!telegramConfigured) { event.preventDefault(); toast.error('Telegram Business is not configured by the Super Admin.'); } }}
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-semibold text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-300 xl:col-span-2">
+                            <TelegramLogo className="h-4 w-4" /> Connect Telegram
+                        </a>
                         <a href={route('client.inbox.setup.ebay.connect')}
-                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50/50 px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300 xl:col-span-3">
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50/50 px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300 xl:col-span-2">
                             <EbayLogo className="h-4 w-9" /> Connect eBay
                         </a>
                         <a href={route('client.inbox.setup.amazon.connect')}
-                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 dark:text-neutral-200 xl:col-span-3">
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 dark:text-neutral-200 xl:col-span-2">
                             <AmazonLogo className="h-4 w-9" /> Connect Amazon
                         </a>
                     </div>
@@ -1518,13 +1588,37 @@ export default function ChannelSetup({
                     )}
                 </ChannelCard>
 
+                {/* Telegram Business connected-bot inbox */}
+                <ChannelCard
+                    icon={TelegramLogo}
+                    iconBg="bg-white shadow-sm ring-1 ring-neutral-100 dark:bg-neutral-800 dark:ring-neutral-700"
+                    title="Telegram Business"
+                    count={telegramAccounts.filter(account => account.status === 'active').length}
+                    className="xl:col-span-2"
+                >
+                    {telegramAccounts.length > 0 ? (
+                        <div className="space-y-2">
+                            {telegramAccounts.map(account => <TelegramAccountRow key={account.id} account={account} chatbots={chatbots} />)}
+                        </div>
+                    ) : (
+                        <div className="py-8 text-center">
+                            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 dark:bg-sky-950/30"><TelegramLogo className="h-7 w-7" /></div>
+                            <p className="mb-3 text-sm text-neutral-400">No Telegram Business account connected.</p>
+                            <a href={telegramConfigured ? route('client.inbox.setup.telegram.connect') : '#'}
+                                onClick={(event) => { if (!telegramConfigured) { event.preventDefault(); toast.error('Telegram Business is not configured by the Super Admin.'); } }}
+                                className="text-xs font-semibold text-sky-600 hover:underline dark:text-sky-400">+ Connect Telegram Business</a>
+                            {telegramWebhookUrl && <p className="mt-3 break-all text-[10px] text-neutral-400">Webhook: {telegramWebhookUrl}</p>}
+                        </div>
+                    )}
+                </ChannelCard>
+
                 {/* eBay seller inbox */}
                 <ChannelCard
                     icon={EbayLogo}
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
                     title="eBay Seller Messages"
                     count={ebayAccounts.length}
-                    className="xl:col-span-3"
+                    className="xl:col-span-2"
                 >
                     {ebayAccounts.length > 0 ? (
                         <div className="space-y-2">
@@ -1549,7 +1643,7 @@ export default function ChannelSetup({
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
                     title="Amazon Seller Messaging"
                     count={amazonAccounts.length}
-                    className="xl:col-span-3"
+                    className="xl:col-span-2"
                 >
                     {amazonAccounts.length > 0 ? (
                         <div className="space-y-2">
@@ -1570,7 +1664,7 @@ export default function ChannelSetup({
             </div>
 
             {/* Row 2 — guide + resources (only shown when no channels connected) */}
-            {(wabas.length === 0 && instagramAccounts.length === 0 && messengerAccounts.length === 0 && ebayAccounts.length === 0 && amazonAccounts.length === 0) && (
+            {(wabas.length === 0 && instagramAccounts.length === 0 && messengerAccounts.length === 0 && telegramAccounts.length === 0 && ebayAccounts.length === 0 && amazonAccounts.length === 0) && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Setup guide */}
                 <div className="md:col-span-2 rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">

@@ -9,6 +9,7 @@ use App\Modules\Inbox\Http\Controllers\InboxController;
 use App\Modules\Inbox\Http\Controllers\InboxSetupController;
 use App\Modules\Inbox\Http\Controllers\InternalNoteController;
 use App\Modules\Inbox\Http\Controllers\LabelController;
+use App\Modules\Inbox\Http\Controllers\TelegramBusinessSetupController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbox.')->group(function () {
@@ -65,6 +66,9 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
     Route::get('/setup/amazon/connect', [AmazonSetupController::class, 'connect'])->name('setup.amazon.connect');
     Route::get('/setup/amazon/login', [AmazonSetupController::class, 'login'])->name('setup.amazon.login');
     Route::get('/setup/amazon/callback', [AmazonSetupController::class, 'callback'])->name('setup.amazon.callback');
+    Route::get('/setup/telegram/connect', [TelegramBusinessSetupController::class, 'connect'])
+        ->middleware('throttle:10,1')
+        ->name('setup.telegram.connect');
     Route::post('/setup/amazon/{channelAccount}/actions', [AmazonSetupController::class, 'actions'])
         ->middleware('throttle:20,1')
         ->name('setup.amazon.actions');

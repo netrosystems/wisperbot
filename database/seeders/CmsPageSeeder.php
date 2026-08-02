@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\CmsPage;
+use App\Support\LegalFeatureDisclosure;
 use Illuminate\Database\Seeder;
 
 class CmsPageSeeder extends Seeder
@@ -30,7 +31,7 @@ class CmsPageSeeder extends Seeder
                 'slug'             => 'privacy',
                 'title'            => 'Privacy Policy',
                 'meta_title'       => "Privacy Policy — {$app}",
-                'meta_description' => "How {$app} collects, uses, and protects your personal data.",
+                'meta_description' => "How {$app} processes account, messaging, email, commerce, AI, mobile-app, and connected-service data.",
                 'content'          => $notice."<p>{$updated}</p>"
                     ."<p>This Privacy Policy explains how {$app} (\"we\", \"us\") collects, uses, discloses, and safeguards your information when you use our platform and services.</p>"
                     .'<h2>1. Information We Collect</h2><p>We collect information you provide directly (such as your name, email, and billing details), information collected automatically (such as usage data, device information, and cookies), and information from third parties (such as messaging platforms you connect).</p>'
@@ -39,13 +40,14 @@ class CmsPageSeeder extends Seeder
                     .'<h2>4. Data Retention</h2><p>We retain personal data only as long as necessary to provide our services and fulfill the purposes described in this policy.</p>'
                     .'<h2>5. Your Rights</h2><p>Depending on your location, you may have rights to access, correct, delete, or port your data, and to object to or restrict certain processing.</p>'
                     .'<h2>6. Security</h2><p>We use industry-standard technical and organizational measures, including encryption in transit and at rest, to protect your data.</p>'
-                    ."<h2>7. Contact</h2><p>For privacy questions, contact us at <a href=\"/contact\">our contact page</a>.</p>",
+                    ."<h2>7. Contact</h2><p>For privacy questions, contact us at <a href=\"/contact\">our contact page</a>.</p>"
+                    .LegalFeatureDisclosure::privacy(),
             ],
             [
                 'slug'             => 'terms',
                 'title'            => 'Terms of Service',
                 'meta_title'       => "Terms of Service — {$app}",
-                'meta_description' => "The terms and conditions for using {$app}.",
+                'meta_description' => "Terms for {$app} messaging, email, Telegram, ecommerce, AI automation, integrations, and mobile-app services.",
                 'content'          => $notice."<p>{$updated}</p>"
                     ."<p>These Terms of Service govern your access to and use of {$app}. By using our services, you agree to these terms.</p>"
                     .'<h2>1. Accounts</h2><p>You are responsible for maintaining the confidentiality of your account credentials and for all activity under your account.</p>'
@@ -55,7 +57,8 @@ class CmsPageSeeder extends Seeder
                     .'<h2>5. Intellectual Property</h2><p>The platform, including its software and content, is owned by us and protected by intellectual-property laws.</p>'
                     .'<h2>6. Termination</h2><p>We may suspend or terminate access for violations of these terms. You may stop using the services at any time.</p>'
                     .'<h2>7. Disclaimers &amp; Limitation of Liability</h2><p>The services are provided "as is" without warranties. To the maximum extent permitted by law, our liability is limited.</p>'
-                    ."<h2>8. Contact</h2><p>Questions about these terms? Reach us via <a href=\"/contact\">our contact page</a>.</p>",
+                    ."<h2>8. Contact</h2><p>Questions about these terms? Reach us via <a href=\"/contact\">our contact page</a>.</p>"
+                    .LegalFeatureDisclosure::terms(),
             ],
             [
                 'slug'             => 'cookies',

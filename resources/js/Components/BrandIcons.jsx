@@ -11,6 +11,7 @@ export const CHANNEL_LABELS = {
     messenger: 'Messenger',
     ebay: 'eBay',
     amazon: 'Amazon Seller',
+    telegram: 'Telegram',
     sms: 'SMS',
     email: 'Email',
     webchat: 'Website',
@@ -41,6 +42,15 @@ function SvgBrand({ name, className }) {
 
 /** WhatsApp, Instagram, Messenger, SMS (Twilio mark), Email (envelope icon), Website (chat bubble) */
 export function ChannelBrandIcon({ channel, className }) {
+    if (channel === 'telegram') {
+        return (
+            <svg viewBox="0 0 24 24" className={className ?? 'h-4 w-4'} role="img" aria-label="Telegram">
+                <circle cx="12" cy="12" r="12" fill="#229ED9" />
+                <path fill="white" d="m18.9 5.4-2.5 12c-.2.85-.7 1.05-1.42.65l-3.8-2.8-1.83 1.77c-.2.2-.37.37-.76.37l.27-3.87 7.05-6.37c.31-.27-.07-.43-.47-.16l-8.71 5.49-3.75-1.17c-.82-.26-.83-.82.17-1.21l14.66-5.65c.68-.25 1.28.16 1.09.95Z" />
+            </svg>
+        );
+    }
+
     if (channel === 'amazon') {
         return (
             <svg viewBox="0 0 48 20" className={className ?? 'h-4 w-9'} role="img" aria-label="Amazon">

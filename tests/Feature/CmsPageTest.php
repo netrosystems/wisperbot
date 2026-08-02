@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AdminUser;
 use App\Models\CmsPage;
+use Database\Seeders\CmsPageSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -64,5 +65,20 @@ class CmsPageTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseMissing('cms_pages', ['id' => $page->id]);
+    }
+
+    public function test_seeded_legal_pages_cover_connected_platform_features(): void
+    {
+        $this->seed(CmsPageSeeder::class);
+
+        $privacy = CmsPage::where('slug', 'privacy')->firstOrFail();
+        $terms = CmsPage::where('slug', 'terms')->firstOrFail();
+
+        $this->assertStringContainsString('Connected Services and Channel Data', $privacy->content);
+        $this->assertStringContainsString('AI Automation and Knowledge Bases', $privacy->content);
+        $this->assertStringContainsString('Gmail or Google Workspace', $privacy->content);
+        $this->assertStringContainsString('Telegram Business', $terms->content);
+        $this->assertStringContainsString('Mobile App and Notifications', $terms->content);
+        $this->assertSame(1, substr_count($privacy->content, 'data-wisperbot-feature-disclosure="2026-08"'));
     }
 }

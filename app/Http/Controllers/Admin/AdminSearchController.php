@@ -31,7 +31,8 @@ class AdminSearchController extends Controller
             ['label' => 'Subscriptions',         'href' => route('admin.subscriptions.index'), 'icon' => 'CreditCard'],
             ['label' => 'Plans',                 'href' => route('admin.plans.index'),          'icon' => 'Package'],
             ['label' => 'Admin Settings',        'href' => route('admin.settings.index'),       'icon' => 'Settings'],
-            ['label' => 'CMS Pages',             'href' => route('admin.cms.index'),            'icon' => 'FileText'],
+            ['label' => 'CMS Pages',             'href' => route('admin.cms-pages.index'),      'icon' => 'FileText'],
+            ['label' => 'Blog',                  'href' => route('admin.blog.index'),           'icon' => 'FileText'],
         ];
 
         foreach ($navItems as $item) {
