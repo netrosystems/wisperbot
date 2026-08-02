@@ -7,6 +7,20 @@ import { formatInTz } from '@/Utils/datetime';
 import { useTranslation, Trans } from 'react-i18next';
 
 const SETUP_GUIDES = {
+    telegram_business: {
+        title: 'Telegram Business Inbox Setup',
+        subtitle: 'One WisperBot platform bot securely serves every client workspace.',
+        steps: [
+            'Open BotFather in Telegram and create a dedicated WisperBot platform bot.',
+            'In BotFather, enable Business Mode / Business connections for the bot.',
+            'Copy the bot token and username here. Enter the username without the @ sign.',
+            'Generate a private webhook secret using only letters, numbers, underscores, or hyphens (16–256 characters).',
+            'Save, enable, and test the integration. WisperBot validates that the bot can connect to Business accounts.',
+            'Clients then pair their own account from Client → Inbox Channel Setup → Connect Telegram. Never share this bot token with clients.',
+        ],
+        link: 'https://t.me/BotFather',
+        linkLabel: 'Open BotFather',
+    },
     onesignal: {
         title: 'OneSignal Push Setup',
         steps: [

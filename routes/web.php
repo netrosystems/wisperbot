@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogFeedController;
 use App\Http\Controllers\CmsPageController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CurrencyController;
@@ -8,12 +10,15 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\WebhookController;
+use App\Models\BlogCategory;
+use App\Models\BlogPost;
 use App\Models\CmsPage;
+use App\Models\SystemSetting;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 // Home / Landing
 Route::get('/', [LandingController::class, 'index'])->name('home');
@@ -38,6 +43,12 @@ Route::get('/use-cases', [LandingController::class, 'useCases'])->name('use-case
 Route::get('/about', [LandingController::class, 'about'])->name('about');
 Route::get('/integrations', [LandingController::class, 'integrations'])->name('integrations');
 
+// SEO blog
+Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
+Route::get('/blog/feed.xml', BlogFeedController::class)->name('blog.feed');
+Route::get('/blog/preview/{blogPost}', [BlogController::class, 'preview'])->name('blog.preview');
+Route::get('/blog/{slug}', [BlogController::class, 'show'])->name('blog.show');
+
 // CMS pages (e.g. /p/privacy, /p/terms)
 Route::get('/p/{slug}', [CmsPageController::class, 'show'])->name('cms-page.show');
 
@@ -45,13 +56,24 @@ Route::get('/p/{slug}', [CmsPageController::class, 'show'])->name('cms-page.show
 Route::get('/sitemap.xml', function () {
     $landingEnabled = true;
     try {
-        $landingEnabled = \App\Models\SystemSetting::get('landing.page_enabled', '1') === '1';
+        $landingEnabled = SystemSetting::get('landing.page_enabled', '1') === '1';
     } catch (Throwable $e) {
         // table may not exist yet
     }
     $urls = $landingEnabled
         ? [url('/'), url('/pricing'), url('/faq'), url('/use-cases'), url('/about'), url('/integrations'), url('/contact'), route('login'), route('register')]
         : [route('login'), route('register')];
+    try {
+        $urls[] = route('blog.index');
+        foreach (BlogPost::publiclyVisible()->where('allow_indexing', true)->get(['slug']) as $post) {
+            $urls[] = route('blog.show', $post->slug);
+        }
+        foreach (BlogCategory::where('is_active', true)->whereHas('posts', fn ($query) => $query->publiclyVisible())->get(['slug']) as $category) {
+            $urls[] = route('blog.index', ['category' => $category->slug]);
+        }
+    } catch (Throwable $e) {
+        // blog tables may not exist yet
+    }
     try {
         $cmsPages = CmsPage::where('published', true)->get();
         foreach ($cmsPages as $page) {
@@ -91,7 +113,7 @@ Route::middleware('throttle:webhooks')->group(function () {
 // Protected by a shared secret token (HEALTHZ_TOKEN env var). Set to a random
 // string in production and pass via Authorization: Bearer <token> header.
 Route::middleware('throttle:30,1')->group(function () {
-    $guardHealthz = function (Illuminate\Http\Request $request): bool {
+    $guardHealthz = function (Request $request): bool {
         $token = config('app.healthz_token');
 
         return ! filled($token) || hash_equals($token, $request->bearerToken() ?? '');

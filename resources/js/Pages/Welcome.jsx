@@ -346,6 +346,45 @@ function Channels({ landing }) {
     );
 }
 
+function ConnectedOperations({ landing }) {
+    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
+    if (s('platforms_enabled', '1') !== '1') return null;
+    const items = [1, 2, 3, 4, 5, 6].map((i) => ({
+        icon: s(`platform_${i}_icon`, 'zap'),
+        title: s(`platform_${i}_title`),
+        desc: s(`platform_${i}_desc`),
+    })).filter((item) => item.title);
+    if (!items.length) return null;
+
+    return (
+        <section className="bg-[#faf5ec] py-20 sm:py-28" aria-labelledby="connected-operations-title">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+                <Reveal className="mx-auto max-w-3xl text-center">
+                    <Eyebrow>{s('platforms_badge', 'Connected customer operations')}</Eyebrow>
+                    <h2 id="connected-operations-title" className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
+                        <AccentHeading text={s('platforms_title', 'Messages, orders and AI replies in one workspace')} />
+                    </h2>
+                    <p className="mt-4 text-base leading-relaxed text-[#6f6660]">{s('platforms_subtitle')}</p>
+                </Reveal>
+                <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                    {items.map((item, index) => (
+                        <Reveal key={item.title} delay={(index % 3) * 80} className="group rounded-3xl border border-black/[0.06] bg-[#fffdf9] p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/[0.04]">
+                            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 transition-colors duration-300 group-hover:bg-brand-500 group-hover:text-white">
+                                <FeatureIcon name={item.icon} className="h-6 w-6" />
+                            </div>
+                            <h3 className="font-display text-lg font-medium text-[#241f1a]">{item.title}</h3>
+                            <p className="mt-2 text-sm leading-relaxed text-[#6f6660]">{item.desc}</p>
+                        </Reveal>
+                    ))}
+                </div>
+                <Reveal className="mt-10 flex justify-center">
+                    <GhostButton href="/integrations">Explore all integrations</GhostButton>
+                </Reveal>
+            </div>
+        </section>
+    );
+}
+
 function UseCases({ landing }) {
     const { t } = useTranslation();
     const s = (k, d = '') => landing[`landing.${k}`] ?? d;
@@ -643,6 +682,7 @@ export default function Welcome({ auth, canLogin, canRegister, landing = {}, pla
                 <LogoCloud landing={landing} />
                 <Editorial landing={landing} />
                 <Channels landing={landing} />
+                <ConnectedOperations landing={landing} />
                 <UseCases landing={landing} />
                 <Process landing={landing} />
                 <Features landing={landing} />

@@ -14,7 +14,7 @@ import { Head } from '@inertiajs/react';
  *  - canonical    string  canonical URL (optional; falls back to current URL)
  *  - jsonLd       object|array  one or more JSON-LD graphs (optional)
  */
-export default function SeoHead({ title, description, keywords, image, canonical, jsonLd }) {
+export default function SeoHead({ title, description, keywords, image, canonical, jsonLd, type = 'website', noindex = false, article = null }) {
     const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const fullTitle = title || appName;
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -36,14 +36,20 @@ export default function SeoHead({ title, description, keywords, image, canonical
             {description && <meta name="description" content={description} head-key="description" />}
             {keywords && <meta name="keywords" content={keywords} head-key="keywords" />}
             {url && <link rel="canonical" href={url} head-key="canonical" />}
+            {origin && <link rel="alternate" type="application/rss+xml" title={`${appName} Blog`} href={`${origin}/blog/feed.xml`} head-key="blog-rss" />}
+            {noindex && <meta name="robots" content="noindex,nofollow" head-key="robots" />}
 
             {/* Open Graph */}
             <meta property="og:site_name" content={appName} head-key="og:site_name" />
-            <meta property="og:type" content="website" head-key="og:type" />
+            <meta property="og:type" content={type} head-key="og:type" />
             <meta property="og:title" content={fullTitle} head-key="og:title" />
             {description && <meta property="og:description" content={description} head-key="og:description" />}
             {url && <meta property="og:url" content={url} head-key="og:url" />}
             <meta property="og:image" content={ogImage} head-key="og:image" />
+            {article?.publishedTime && <meta property="article:published_time" content={article.publishedTime} head-key="article:published_time" />}
+            {article?.modifiedTime && <meta property="article:modified_time" content={article.modifiedTime} head-key="article:modified_time" />}
+            {article?.author && <meta property="article:author" content={article.author} head-key="article:author" />}
+            {article?.section && <meta property="article:section" content={article.section} head-key="article:section" />}
 
             {/* Twitter */}
             <meta name="twitter:card" content={twitterCard} head-key="twitter:card" />

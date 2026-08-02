@@ -21,6 +21,7 @@ class ConnectionTester
                 $config->provider === 'oauth_amazon_spapi' => $this->testAmazonSpApi($config),
                 $config->provider === 'oauth_microsoft_365' => $this->testMicrosoftOAuth($config),
                 $config->provider === 'oauth_google_mail' => $this->testGoogleMailOAuth($config),
+                $config->provider === 'telegram_business' => $this->testTelegramBusiness($config),
                 str_starts_with($config->provider, 'oauth_') => $this->testOAuth($config),
                 str_starts_with($config->provider, 'llm_') => $this->testLlm($config),
                 str_starts_with($config->provider, 'sms_') => $this->testSms($config),
@@ -123,6 +124,39 @@ class ConnectionTester
         return $response->successful() && $response->json('token_endpoint')
             ? ['ok' => true, 'message' => 'Google OAuth app fields are configured. Connect a Gmail mailbox to validate the client secret, consent screen, and Gmail API scopes.']
             : ['ok' => false, 'message' => 'Google identity service is unavailable.'];
+    }
+
+    private function testTelegramBusiness(IntegrationConfig $config): array
+    {
+        $credentials = $config->credentials ?? [];
+        $token = trim((string) ($credentials['bot_token'] ?? ''));
+        $username = ltrim(trim((string) ($credentials['bot_username'] ?? '')), '@');
+        $secret = trim((string) ($credentials['webhook_secret'] ?? ''));
+
+        if ($token === '' || $username === '' || $secret === '') {
+            return ['ok' => false, 'message' => 'Bot token, bot username, and webhook secret are required.'];
+        }
+
+        if (! preg_match('/^[A-Za-z0-9_-]{16,256}$/', $secret)) {
+            return ['ok' => false, 'message' => 'Webhook secret must be 16–256 letters, numbers, underscores, or hyphens.'];
+        }
+
+        $response = HttpFacade::timeout(15)->get("https://api.telegram.org/bot{$token}/getMe");
+        $bot = $response->json('result', []);
+
+        if (! $response->successful() || ! $response->json('ok') || empty($bot['id'])) {
+            return ['ok' => false, 'message' => $response->json('description') ?? 'Telegram rejected this bot token.'];
+        }
+
+        if (! hash_equals(strtolower($username), strtolower((string) ($bot['username'] ?? '')))) {
+            return ['ok' => false, 'message' => 'The configured bot username does not match the supplied token.'];
+        }
+
+        if (($bot['can_connect_to_business'] ?? false) !== true) {
+            return ['ok' => false, 'message' => 'This bot cannot connect to Telegram Business accounts. Enable Business Mode in BotFather, then test again.'];
+        }
+
+        return ['ok' => true, 'message' => 'Telegram bot credentials are valid and Business connections are enabled.'];
     }
 
     private function testEbay(IntegrationConfig $config): array

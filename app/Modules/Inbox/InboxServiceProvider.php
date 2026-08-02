@@ -6,6 +6,7 @@ use App\Modules\Inbox\Services\EbayDriver;
 use App\Modules\Inbox\Services\EmailDriver;
 use App\Modules\Inbox\Services\InstagramDriver;
 use App\Modules\Inbox\Services\MessengerDriver;
+use App\Modules\Inbox\Services\TelegramBusinessDriver;
 use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Shared\Services\ChannelManager;
 use Illuminate\Support\ServiceProvider;
@@ -28,5 +29,6 @@ class InboxServiceProvider extends ServiceProvider
         $manager->register('webchat', WebchatDriver::class);
         $manager->register('email', EmailDriver::class);
         $manager->register('ebay', EbayDriver::class);
+        $manager->register('telegram', TelegramBusinessDriver::class);
     }
 }

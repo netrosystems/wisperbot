@@ -302,7 +302,7 @@ function ProblemSolutionTab({ data, setData, t }) {
 
 // ─── Features Tab ─────────────────────────────────────────────────────────────
 
-const ICON_OPTIONS = ['cpu', 'message-square', 'bar-chart-2', 'users', 'share-2', 'shield-check', 'zap', 'star', 'layout', 'arrow-right', 'globe', 'trending-up', 'check-circle', 'server'];
+const ICON_OPTIONS = ['cpu', 'message-square', 'bar-chart-2', 'users', 'share-2', 'shield-check', 'zap', 'star', 'layout', 'arrow-right', 'globe', 'trending-up', 'check-circle', 'server', 'mail', 'send', 'shopping-cart', 'smartphone', 'store'];
 
 function FeaturesTab({ data, setData, t }) {
     const s = (key) => data[`landing.${key}`] ?? '';
@@ -710,6 +710,41 @@ function ChannelsTab({ data, setData, t }) {
     );
 }
 
+// ─── Connected Operations Tab ──────────────────────────────────────
+
+function PlatformsTab({ data, setData, t }) {
+    const s = (key) => data[`landing.${key}`] ?? '';
+    const set = (key, val) => setData(`landing.${key}`, val);
+    const enabled = s('platforms_enabled') === '1';
+
+    return (
+        <Card>
+            <Card.Body className="space-y-5">
+                <SectionToggle label="Connected Operations" enabled={enabled} onChange={(value) => set('platforms_enabled', value ? '1' : '0')} t={t} />
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">Highlights newer platform capabilities on the homepage, including email, Telegram, ecommerce, AI automation and the agent app.</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <Field label={t('landing_page_admin.section_badge')}><Input value={s('platforms_badge')} onChange={(event) => set('platforms_badge', event.target.value)} /></Field>
+                    <Field label={t('landing_page_admin.section_title')}><Input value={s('platforms_title')} onChange={(event) => set('platforms_title', event.target.value)} /></Field>
+                    <Field label={t('landing_page_admin.section_subtitle')}><Input value={s('platforms_subtitle')} onChange={(event) => set('platforms_subtitle', event.target.value)} multiline rows={2} /></Field>
+                </div>
+                <div className="grid grid-cols-1 gap-4 pt-2">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                        <div key={i} className="grid grid-cols-1 gap-3 rounded-soft border border-neutral-200 p-4 dark:border-neutral-700 sm:grid-cols-3">
+                            <Field label={t('landing_page_admin.icon')}>
+                                <select value={s(`platform_${i}_icon`)} onChange={(event) => set(`platform_${i}_icon`, event.target.value)} className="w-full rounded-soft border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+                                    {ICON_OPTIONS.map((icon) => <option key={icon} value={icon}>{icon}</option>)}
+                                </select>
+                            </Field>
+                            <Field label={t('landing_page_admin.title')}><Input value={s(`platform_${i}_title`)} onChange={(event) => set(`platform_${i}_title`, event.target.value)} /></Field>
+                            <Field label={t('landing_page_admin.description')}><Input value={s(`platform_${i}_desc`)} onChange={(event) => set(`platform_${i}_desc`, event.target.value)} multiline rows={2} /></Field>
+                        </div>
+                    ))}
+                </div>
+            </Card.Body>
+        </Card>
+    );
+}
+
 // ─── Integrations Strip Tab ───────────────────────────────────────────────────
 
 function IntegrationsStripTab({ data, setData, t }) {
@@ -952,6 +987,7 @@ export default function LandingPageIndex({ settings: initialSettings }) {
         { key: 'metrics',            group: 'home',    label: t('landing_page_admin.tab_metrics', { defaultValue: 'Metrics' }),            C: MetricsTab },
         { key: 'trustedby',          group: 'home',    label: t('landing_page_admin.tab_trustedby'),                                       C: TrustedByTab },
         { key: 'channels',           group: 'home',    label: t('landing_page_admin.tab_channels', { defaultValue: 'Channels' }),          C: ChannelsTab },
+        { key: 'platforms',          group: 'home',    label: 'Connected Operations',                                                       C: PlatformsTab },
         { key: 'problems',           group: 'home',    label: t('landing_page_admin.tab_problems'),                                        C: ProblemSolutionTab },
         { key: 'features',           group: 'home',    label: t('landing_page_admin.tab_features'),                                        C: FeaturesTab },
         { key: 'howitworks',         group: 'home',    label: t('landing_page_admin.tab_howitworks'),                                      C: HowItWorksTab },
