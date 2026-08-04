@@ -137,6 +137,22 @@ function ChannelGlyph({ name, className = 'h-6 w-6' }) {
     );
 }
 
+function HeroPlatformMark({ platform }) {
+    const marks = {
+        facebook: <span className="font-sans text-[25px] font-black leading-none text-[#1877f2]">f</span>,
+        telegram: <svg className="h-5 w-5 text-[#229ed9]" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 3.6 18.6 20c-.25 1.16-.91 1.45-1.84.9l-5.08-3.75-2.45 2.36c-.27.27-.5.5-1.02.5l.36-5.17 9.41-8.5c.41-.36-.09-.56-.63-.2L5.73 13.46.72 11.9c-1.09-.34-1.11-1.09.23-1.61L20.5 2.76c.9-.34 1.69.2 1.4.84Z" /></svg>,
+        ebay: <span className="font-sans text-[13px] font-black tracking-[-0.18em]"><b className="text-[#e53238]">e</b><b className="text-[#0064d2]">b</b><b className="text-[#f5af02]">a</b><b className="text-[#86b817]">y</b></span>,
+        shopify: <span className="flex h-6 w-5 items-center justify-center rounded-md bg-[#95bf47] text-[9px] font-black text-white">S</span>,
+        amazon: <span className="relative font-sans text-[10px] font-bold tracking-[-0.08em] text-[#1d1d1d]">amazon<span className="absolute -bottom-1 left-1.5 h-0.5 w-6 rotate-[6deg] rounded-full bg-[#ff9900]" /></span>,
+        youtube: <span className="flex h-4 w-6 items-center justify-center rounded-[5px] bg-[#ff0000] text-[9px] text-white">▶</span>,
+        tiktok: <span className="font-sans text-xl font-black leading-none text-[#111] [text-shadow:-1px_1px_0_#25f4ee,1px_-1px_0_#fe2c55]">♪</span>,
+        whatsapp: <ChannelGlyph name="whatsapp" className="h-5 w-5 text-[#25d366]" />,
+        instagram: <ChannelGlyph name="instagram" className="h-5 w-5 text-[#e4405f]" />,
+        email: <ChannelGlyph name="email" className="h-5 w-5 text-[#6f6660]" />,
+    };
+    return marks[platform] || null;
+}
+
 // ─── Header ─────────────────────────────────────────────────────────────────
 
 function Header({ auth, landing }) {
@@ -148,6 +164,7 @@ function Header({ auth, landing }) {
         { label: t('nav.use_cases', { defaultValue: 'Use Cases' }), href: '/use-cases' },
         { label: t('nav.integrations', { defaultValue: 'Integrations' }), href: '/integrations' },
         { label: t('nav.pricing', { defaultValue: 'Pricing' }), href: '/pricing' },
+        { label: t('nav.blog', { defaultValue: 'Blog' }), href: '/blog' },
         { label: t('nav.faq', { defaultValue: 'FAQ' }), href: '/faq' },
     ];
     const getStarted = landing['landing.getstarted_label'] || t('welcome.get_started_free', { defaultValue: 'Get started' });
@@ -206,8 +223,13 @@ function Header({ auth, landing }) {
 function Hero({ landing, auth, canRegister }) {
     const { t } = useTranslation();
     const s = (k, d = '') => landing[`landing.${k}`] ?? d;
+    const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
     if (s('hero_enabled') !== '1') return null;
     const stats = [1, 2, 3].map((i) => ({ value: s(`metric_${i}_value`), label: s(`metric_${i}_label`) })).filter((m) => m.value);
+    const appDownloads = [
+        { name: 'Google Play', platform: 'Android', icon: '▶', href: s('android_app_url'), tone: 'bg-[#edf6e7] text-[#377a28]' },
+        { name: 'App Store', platform: 'iPhone & iPad', icon: '●', href: s('ios_app_url'), tone: 'bg-[#edf0f5] text-[#253349]' },
+    ];
     return (
         <section className="relative isolate min-h-[36rem] overflow-hidden bg-[#faf5ec] sm:min-h-[clamp(34rem,45vw,54rem)]">
             <img
@@ -229,11 +251,41 @@ function Hero({ landing, auth, canRegister }) {
                     {auth?.user ? (
                         <DarkButton href={route('client.dashboard')}>{t('welcome.goToDashboard', { defaultValue: 'Go to dashboard' })}</DarkButton>
                     ) : (
-                        <>
-                            {canRegister && s('hero_cta_primary') && <DarkButton href={route('register')}>{s('hero_cta_primary')}</DarkButton>}
-                            {s('hero_cta_secondary') && <GhostButton href="/#channels">{s('hero_cta_secondary')}</GhostButton>}
-                        </>
+                        canRegister && s('hero_cta_primary') && <DarkButton href={route('register')}>{s('hero_cta_primary')}</DarkButton>
                     )}
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setDownloadMenuOpen((open) => !open)}
+                            aria-expanded={downloadMenuOpen}
+                            aria-controls="hero-download-options"
+                            className="group inline-flex items-center gap-2 rounded-full border border-[#241f1a]/15 bg-white/40 px-6 py-3 text-sm font-semibold text-[#241f1a] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#241f1a]/40 hover:bg-white/60"
+                        >
+                            Download App
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#241f1a]/10 text-base leading-none transition-transform duration-200 group-hover:translate-y-0.5">↓</span>
+                        </button>
+                        {downloadMenuOpen && (
+                            <div id="hero-download-options" className="absolute bottom-full left-1/2 z-20 mb-3 w-72 -translate-x-1/2 rounded-2xl border border-[#e6dac8] bg-[#fffdf9] p-2 text-left shadow-[0_20px_45px_rgba(75,52,28,0.18)]">
+                                <div className="px-3 pb-2 pt-1">
+                                    <p className="text-sm font-semibold text-[#241f1a]">Choose your platform</p>
+                                    <p className="mt-0.5 text-xs text-[#877c73]">Take WisperBot with you.</p>
+                                </div>
+                                {appDownloads.map((download) => download.href ? (
+                                    <a key={download.name} href={download.href} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-[#f7efe5]">
+                                        <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${download.tone}`}>{download.icon}</span>
+                                        <span className="flex flex-1 flex-col"><span className="text-sm font-semibold text-[#2e2823]">{download.name}</span><span className="text-xs text-[#877c73]">{download.platform}</span></span>
+                                        <ArrowUpRight className="h-4 w-4 text-[#9b9086]" />
+                                    </a>
+                                ) : (
+                                    <div key={download.name} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left">
+                                        <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${download.tone}`}>{download.icon}</span>
+                                        <span className="flex flex-1 flex-col"><span className="text-sm font-semibold text-[#2e2823]">{download.name}</span><span className="text-xs text-[#877c73]">{download.platform}</span></span>
+                                        <span className="rounded-full bg-[#f7efe5] px-2 py-1 text-[10px] font-semibold text-[#9b6a3c]">Coming soon</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </Reveal>
                 {stats.length > 0 && (
                     <Reveal delay={340} className="mx-auto mt-12 flex max-w-lg items-start justify-center gap-8 sm:gap-14">
@@ -245,6 +297,20 @@ function Hero({ landing, auth, canRegister }) {
                         ))}
                     </Reveal>
                 )}
+                <Reveal delay={420} className="mx-auto mt-12 max-w-4xl">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#756b62]">One workspace for every customer channel</p>
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2 rounded-3xl border border-white/60 bg-white/45 px-4 py-3 shadow-[0_14px_35px_rgba(87,60,31,0.08)] backdrop-blur-sm sm:gap-3 sm:px-5">
+                        {[
+                            ['whatsapp', 'WhatsApp'], ['facebook', 'Facebook'], ['instagram', 'Instagram'], ['email', 'Email'], ['telegram', 'Telegram'],
+                            ['ebay', 'eBay'], ['shopify', 'Shopify'], ['amazon', 'Amazon'], ['youtube', 'YouTube'], ['tiktok', 'TikTok'],
+                        ].map(([platform, label]) => (
+                            <div key={platform} className="inline-flex items-center gap-2 rounded-xl bg-white/70 px-2.5 py-2 text-xs font-semibold text-[#4a4038] shadow-[0_2px_8px_rgba(82,56,30,0.06)] sm:px-3">
+                                <span className="flex h-5 w-5 items-center justify-center"><HeroPlatformMark platform={platform} /></span>
+                                <span>{label}</span>
+                            </div>
+                        ))}
+                    </div>
+                </Reveal>
             </div>
         </section>
     );
@@ -300,7 +366,11 @@ function Editorial({ landing }) {
                 </Reveal>
 
                 <Reveal delay={120} className="relative">
-                    <Placeholder className="aspect-[4/3] w-full" label="Editorial image" hint="Add a supporting visual" />
+                    <img
+                        src="/images/landing/omnichannel-support-editorial.png"
+                        alt="A unified customer support inbox connecting conversations from every channel"
+                        className="aspect-[4/3] w-full rounded-3xl border border-[#d8bc93]/70 object-cover shadow-[0_28px_70px_rgba(105,68,27,0.13)]"
+                    />
                     <div className="absolute -bottom-6 -left-4 w-56 rounded-2xl bg-brand-500 p-6 text-white shadow-xl shadow-brand-500/25 sm:-left-8">
                         <p className="font-display text-4xl font-semibold leading-none">{statValue}</p>
                         <p className="mt-3 text-xs leading-relaxed text-white/90">{statLabel} — resolved faster across every channel.</p>
@@ -409,7 +479,11 @@ function UseCases({ landing }) {
                 </Reveal>
 
                 <Reveal delay={100} className="mt-12">
-                    <Placeholder className="aspect-[16/7] w-full" label="Product dashboard" hint="Add a screenshot of the app" />
+                    <img
+                        src="/images/landing/wisperbot-dashboard.png"
+                        alt="WisperBot omnichannel support dashboard with inbox, customer conversations and agent details"
+                        className="aspect-[16/7] w-full rounded-3xl border border-[#d8bc93]/70 object-cover object-center shadow-[0_28px_70px_rgba(105,68,27,0.13)]"
+                    />
                 </Reveal>
 
                 <div className="mt-6 grid gap-5 sm:grid-cols-3">
@@ -537,6 +611,138 @@ function Testimonials({ landing }) {
     );
 }
 
+function Team() {
+    const teams = [
+        {
+            initials: 'PS',
+            title: 'Product & strategy',
+            description: 'Turns customer needs into practical support experiences that teams can adopt quickly.',
+            tone: 'bg-[#f9d8bd] text-[#9d4218]',
+        },
+        {
+            initials: 'EN',
+            title: 'Engineering',
+            description: 'Builds the reliable connections, automations and AI workflows behind every conversation.',
+            tone: 'bg-[#d9eadf] text-[#256044]',
+        },
+        {
+            initials: 'CX',
+            title: 'Customer experience',
+            description: 'Keeps the product focused on clear, helpful and human customer interactions.',
+            tone: 'bg-[#e9ddf6] text-[#684397]',
+        },
+        {
+            initials: 'DX',
+            title: 'Design & experience',
+            description: 'Makes sophisticated support tools feel calm, clear and effortless to use.',
+            tone: 'bg-[#dceaf7] text-[#2b5c89]',
+        },
+    ];
+
+    return (
+        <section id="team" className="bg-[#f6efe2] py-20 sm:py-28">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+                <Reveal className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-end">
+                    <div>
+                        <Eyebrow>Our Team</Eyebrow>
+                        <h2 className="mt-6 max-w-xl font-display text-4xl font-medium leading-[1.05] tracking-tight text-[#241f1a] sm:text-5xl">
+                            <AccentHeading text="One focused team behind better conversations." />
+                        </h2>
+                    </div>
+                    <p className="max-w-xl text-base leading-relaxed text-[#71675e] sm:text-lg">
+                        WisperBot brings product, engineering, design and customer experience together so growing teams can support people with more clarity and less busywork.
+                    </p>
+                </Reveal>
+
+                <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {teams.map((team, index) => (
+                        <Reveal key={team.title} delay={index * 70} className="h-full">
+                            <article className="flex h-full flex-col rounded-3xl border border-[#ddcfbc] bg-[#fffdf9] p-6 shadow-[0_16px_35px_rgba(105,68,27,0.06)]">
+                                <div className={`relative flex h-14 w-14 items-center justify-center rounded-2xl text-sm font-bold tracking-wide ${team.tone}`}>
+                                    {team.initials}
+                                    <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#fffdf9] bg-emerald-500" aria-label="Active" />
+                                </div>
+                                <h3 className="mt-7 font-display text-xl font-medium text-[#241f1a]">{team.title}</h3>
+                                <p className="mt-3 text-sm leading-relaxed text-[#71675e]">{team.description}</p>
+                            </article>
+                        </Reveal>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function LatestInsights({ posts = [] }) {
+    const formatDate = (value) => value
+        ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+        : '';
+
+    return (
+        <section className="bg-[#fffdf9] py-20 sm:py-28" aria-labelledby="latest-insights-title">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+                <Reveal className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="max-w-2xl">
+                        <Eyebrow>Ideas for better support</Eyebrow>
+                        <h2 id="latest-insights-title" className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
+                            Latest from the <span className="italic text-brand-500">WisperBot blog</span>
+                        </h2>
+                        <p className="mt-4 text-base leading-relaxed text-[#6f6660]">Practical guides on AI support, omnichannel messaging, automation and customer growth.</p>
+                    </div>
+                    <Link href={route('blog.index')} className="group inline-flex w-fit items-center gap-2 rounded-full border border-[#241f1a]/15 px-5 py-2.5 text-sm font-semibold text-[#241f1a] transition hover:border-brand-500 hover:text-brand-600">
+                        See all blogs
+                        <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    </Link>
+                </Reveal>
+
+                {posts.length > 0 ? (
+                    <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {posts.map((post, index) => (
+                            <Reveal key={post.id} delay={(index % 3) * 80}>
+                                <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/[0.05]">
+                                    <Link href={route('blog.show', post.slug)} className="relative block aspect-[16/9] overflow-hidden bg-gradient-to-br from-[#fde8d7] via-[#faf0e3] to-[#eadbc8]">
+                                        {post.featured_image_url ? (
+                                            <img src={post.featured_image_url} alt={post.featured_image_alt || post.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center text-brand-500">
+                                                <svg className="h-11 w-11" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 5.25A2.25 2.25 0 016.75 3h3A2.25 2.25 0 0112 5.25V21a2.25 2.25 0 00-2.25-2.25h-3A2.25 2.25 0 014.5 16.5V5.25zm15 0A2.25 2.25 0 0017.25 3h-3A2.25 2.25 0 0012 5.25V21a2.25 2.25 0 012.25-2.25h3a2.25 2.25 0 002.25-2.25V5.25z" />
+                                                </svg>
+                                            </div>
+                                        )}
+                                    </Link>
+                                    <div className="flex flex-1 flex-col p-6">
+                                        <div className="flex flex-wrap items-center gap-2 text-xs text-[#8a817a]">
+                                            {post.category && <span className="rounded-full bg-brand-500/10 px-2.5 py-1 font-semibold text-brand-600">{post.category.name}</span>}
+                                            {post.published_at && <time dateTime={post.published_at}>{formatDate(post.published_at)}</time>}
+                                            {post.reading_minutes > 0 && <><span aria-hidden="true">·</span><span>{post.reading_minutes} min read</span></>}
+                                        </div>
+                                        <h3 className="mt-4 font-display text-xl font-medium leading-snug text-[#241f1a] transition-colors group-hover:text-brand-600">
+                                            <Link href={route('blog.show', post.slug)}>{post.title}</Link>
+                                        </h3>
+                                        <p className="mt-3 line-clamp-3 flex-1 text-sm leading-relaxed text-[#6f6660]">{post.excerpt}</p>
+                                        <Link href={route('blog.show', post.slug)} className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600">
+                                            Read article <ArrowUpRight className="h-3.5 w-3.5" />
+                                        </Link>
+                                    </div>
+                                </article>
+                            </Reveal>
+                        ))}
+                    </div>
+                ) : (
+                    <Reveal className="mt-12 rounded-3xl border border-dashed border-[#dcc7a8] bg-[#faf5ec] px-6 py-12 text-center">
+                        <p className="font-display text-xl font-medium text-[#241f1a]">New practical guides are on the way.</p>
+                        <p className="mt-2 text-sm text-[#6f6660]">Visit the blog to browse every published WisperBot resource.</p>
+                        <Link href={route('blog.index')} className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600">
+                            See all blogs <ArrowUpRight className="h-3.5 w-3.5" />
+                        </Link>
+                    </Reveal>
+                )}
+            </div>
+        </section>
+    );
+}
+
 function Faq({ landing }) {
     const s = (k, d = '') => landing[`landing.${k}`] ?? d;
     const [open, setOpen] = useState(0);
@@ -621,6 +827,7 @@ function Footer({ landing }) {
         ] },
         { title: t('landing_page_admin.footer_company', { defaultValue: 'Company' }), links: [
             { label: t('landing_page_admin.footer_about', { defaultValue: 'About' }), href: '/about' },
+            { label: t('nav.blog', { defaultValue: 'Blog' }), href: '/blog' },
             { label: t('nav.use_cases', { defaultValue: 'Use Cases' }), href: '/use-cases' },
             { label: t('nav.contact', { defaultValue: 'Contact' }), href: '/contact' },
         ] },
@@ -658,7 +865,7 @@ function Footer({ landing }) {
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
-export default function Welcome({ auth, canLogin, canRegister, landing = {}, plans = [] }) {
+export default function Welcome({ auth, canLogin, canRegister, landing = {}, plans = [], latestPosts = [] }) {
     const s = (k, d = '') => landing[`landing.${k}`] ?? d;
     const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
     const metaTitle = s('seo_title') || s('hero_title') || appName;
@@ -687,6 +894,8 @@ export default function Welcome({ auth, canLogin, canRegister, landing = {}, pla
                 <Process landing={landing} />
                 <Features landing={landing} />
                 <Testimonials landing={landing} />
+                <Team />
+                <LatestInsights posts={latestPosts} />
                 <Faq landing={landing} />
                 <CtaBand landing={landing} auth={auth} canRegister={canRegister} />
             </main>
