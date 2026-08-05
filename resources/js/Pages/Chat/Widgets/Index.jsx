@@ -4,14 +4,13 @@ import ClientLayout from '@/Layouts/ClientLayout';
 import { Head } from '@inertiajs/react';
 
 /**
- * The legacy widget-listing page. With one-widget-per-workspace the listing
- * is no longer meaningful, so the backend now redirects this URL. This
- * component only renders if the redirect ever fails (e.g. cached HTML) and
- * acts as a defensive client-side fallback.
+ * Defensive client-side fallback. The server redirects /chat-widgets to
+ * Appearance on every visit, but if a stale cache ever lands here we
+ * forward the visitor to the right place.
  */
 export default function ChatWidgetIndex() {
     useEffect(() => {
-        router.visit(route('client.inbox.chat-widgets.integration'), { replace: true });
+        router.visit(route('client.inbox.chat-widgets.settings'), { replace: true });
     }, []);
 
     return (

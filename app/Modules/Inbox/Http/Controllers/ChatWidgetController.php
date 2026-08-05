@@ -33,25 +33,17 @@ class ChatWidgetController extends Controller
      */
     public function index(Request $request): RedirectResponse
     {
-        $widget = ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->first();
-
-        return $widget
-            ? redirect()->route('client.inbox.chat-widgets.edit', $widget)
-            : redirect()->route('client.inbox.chat-widgets.integration');
+        // Single-widget workspaces no longer need a listing or an edit page —
+        // every link in the nav points at Integrations or Appearance, and the
+        // backend auto-creates the widget on first visit (see ensureWidget()).
+        return redirect()->route('client.inbox.chat-widgets.settings');
     }
 
-    public function create(Request $request): Response|RedirectResponse
+    public function create(Request $request): RedirectResponse
     {
-        $existing = ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->first();
-        if ($existing) {
-            return redirect()->route('client.inbox.chat-widgets.edit', $existing)
-                ->with('info', 'You already have a chat widget. Edit it from Appearance.');
-        }
-
-        return Inertia::render('Chat/Widgets/Create', [
-            'chatbots' => $this->chatbots($request),
-            'canUseCustomLauncherLogo' => $this->canUseCustomLauncherLogo($request),
-        ]);
+        // The single-widget invariant: create is no longer reachable from the
+        // UI. Send the user to Appearance and let ensureWidget() do its job.
+        return redirect()->route('client.inbox.chat-widgets.settings');
     }
 
     /**
@@ -88,19 +80,14 @@ class ChatWidgetController extends Controller
         ]);
     }
 
-    public function edit(Request $request, ChatWidget $chatWidget): Response
+    public function edit(Request $request, ChatWidget $chatWidget): RedirectResponse
     {
         $this->assertOwner($request, $chatWidget);
 
-        return Inertia::render('Chat/Widgets/Edit', [
-            'widget' => $chatWidget,
-            'chatbots' => $this->chatbots($request),
-            'embedBase' => rtrim(url('/'), '/'),
-            // Server-side only (the model hides identity_secret); shown to the
-            // client so they can HMAC-sign logged-in users on their backend.
-            'identitySecret' => $chatWidget->identity_secret,
-            'canUseCustomLauncherLogo' => $this->canUseCustomLauncherLogo($request),
-        ]);
+        // Edit was the old single-widget form before we split it into
+        // Integrations (install + identity) and Appearance (branding).
+        // Keep the URL alive as a bookmark by redirecting to Appearance.
+        return redirect()->route('client.inbox.chat-widgets.settings');
     }
 
     public function store(Request $request): RedirectResponse
@@ -108,8 +95,7 @@ class ChatWidgetController extends Controller
         $workspaceId = $this->workspaceId($request);
 
         if (ChatWidget::where('workspace_id', $workspaceId)->exists()) {
-            $existing = ChatWidget::where('workspace_id', $workspaceId)->latest()->first();
-            return redirect()->route('client.inbox.chat-widgets.edit', $existing)
+            return redirect()->route('client.inbox.chat-widgets.settings')
                 ->with('error', 'You already have a chat widget. Each workspace can only have one.');
         }
 
