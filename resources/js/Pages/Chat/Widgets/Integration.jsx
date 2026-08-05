@@ -33,6 +33,8 @@ export default function ChatWidgetIntegration({ widget, embedBase }) {
                 {widget
                     ? <InstallFlow embedBase={embedBase} widget={widget} />
                     : <EmptyState />}
+
+                <MobileSdkSpot />
             </div>
         </ClientLayout>
     );
@@ -50,9 +52,73 @@ function PageHeader() {
                 Install your chat widget
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-neutral-500 dark:text-neutral-400">
-                Paste one snippet before <code className="rounded bg-neutral-100 px-1 dark:bg-neutral-800">&lt;/body&gt;</code> and the widget shows up for every visitor. Logged-out visitors stay anonymous on the same snippet; identify them once they sign in and your agents instantly see who they are talking to.
+                WisperBot gives you three ways to put a chat widget in front of your customers. Pick the one that matches where you ship — and you can mix them: the same widget identity follows the visitor across every surface.
             </p>
+
+            <ul className="mt-4 grid gap-2 sm:grid-cols-3">
+                <SurfaceChip
+                    icon={<MonitorSmartphone className="h-3.5 w-3.5" />}
+                    label="Website"
+                    sub="Drop one snippet"
+                />
+                <SurfaceChip
+                    icon={<Code2 className="h-3.5 w-3.5" />}
+                    label="Single-page app"
+                    sub="Same snippet + identify()"
+                />
+                <SurfaceChip
+                    icon={<Smartphone className="h-3.5 w-3.5" />}
+                    label="Mobile app"
+                    sub="Native SDK (iOS / Android)"
+                />
+            </ul>
         </header>
+    );
+}
+
+function SurfaceChip({ icon, label, sub }) {
+    return (
+        <li className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                {icon}
+            </span>
+            <span className="leading-tight">
+                <span className="block text-sm font-semibold text-neutral-900 dark:text-white">{label}</span>
+                <span className="block text-[11px] text-neutral-500 dark:text-neutral-400">{sub}</span>
+            </span>
+        </li>
+    );
+}
+
+/* ── Mobile SDK spot ─────────────────────────────────────────────────────── */
+
+function MobileSdkSpot() {
+    return (
+        <a
+            href="https://github.com/netrosystems/wisperbot-mobile-sdk"
+            target="_blank"
+            rel="noopener"
+            className="group flex items-start gap-4 rounded-2xl border border-neutral-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-brand-700"
+        >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                <Smartphone className="h-5 w-5" />
+            </span>
+            <span className="flex-1">
+                <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-neutral-900 dark:text-white">Building a native mobile app?</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">
+                        <Sparkles className="h-3 w-3" /> iOS &amp; Android
+                    </span>
+                </span>
+                <span className="mt-1 block text-sm text-neutral-500 dark:text-neutral-400">
+                    The WisperBot native SDK ships the same chat experience inside your own app — Swift / Kotlin, with the same identify() and user_hash APIs as the web snippet. Get the source, release notes, and integration docs on GitHub.
+                </span>
+                <span className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 group-hover:underline dark:text-brand-400">
+                    View the WisperBot mobile SDK on GitHub
+                    <ExternalLink className="h-3.5 w-3.5" />
+                </span>
+            </span>
+        </a>
     );
 }
 
@@ -125,20 +191,15 @@ function FooterActions({ widgetKey }) {
  */
 function UniversalSnippet({ embedBase, widgetKey }) {
     const snippet =
-`<script>
-  // Optional: set this BEFORE the snippet below when the visitor is signed in.
-  // If you don't know yet, omit it — WisperBot falls back to anonymous mode.
-  // window.WisperBotSettings = {
-  //   external_id: "${'{{ user.id }}'}",
-  //   name:        "${'{{ user.name }}'}",
-  //   email:       "${'{{ user.email }}'}",
-  //   avatar:      "${'{{ user.avatar_url }}'}"
-  // };
-</script>
-<script src="${embedBase}/widgets/chat/${widgetKey}.js" async></script>`;
+`<script src="${embedBase}/widgets/chat/${widgetKey}.js" async></script>`;
 
     return (
-        <Step n={1} title="Add this snippet to your site" sub="One line covers every page, every visitor.">
+        <Step
+            n={1}
+            kicker="Anonymous only"
+            title="Simple website integration"
+            sub="Drop one script tag. Visitors stay anonymous — no name, no email, no user lookup. Great for marketing sites and landing pages."
+        >
             <CopyBox code={snippet} />
             <ol className="mt-4 grid gap-2.5 text-sm text-neutral-600 dark:text-neutral-300">
                 <StepRow
@@ -150,11 +211,6 @@ function UniversalSnippet({ embedBase, widgetKey }) {
                     icon={<Code2 className="h-4 w-4" />}
                     label="Single-page app"
                     text="Add the same snippet to index.html. The widget mounts instantly and waits for WisperBot('identify') after login."
-                />
-                <StepRow
-                    icon={<Smartphone className="h-4 w-4" />}
-                    label="Mobile app"
-                    text="Use the same external ID from your server-side identity and call the mobile SDK's identify() with a signed user_hash."
                 />
             </ol>
             <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
@@ -197,8 +253,9 @@ window.WisperBot('logout');`;
     return (
         <Step
             n={2}
-            title="Show your agents who they're chatting with"
-            sub="Same snippet, optional identity. Works for server-rendered pages and SPAs alike."
+            kicker="Logged-in users only"
+            title="Identify who your visitors are"
+            sub="For sites with user accounts. After step 1's loader runs, hand us the visitor's name, email, and avatar so agents see who they're chatting with. Skip if your site has no accounts."
             badge="Recommended"
         >
             <SubSnippet
@@ -236,8 +293,9 @@ const userHash = crypto
     return (
         <Step
             n={3}
-            title="Verify the visitor is really your user"
-            sub="Optional HMAC signing so visitors can't claim to be someone they aren't."
+            kicker="Anti-spoofing"
+            title="Prove the identity is genuine"
+            sub="Sign the visitor's id on your server with HMAC. Without this, anyone can call identify() and pretend to be your user. Turn this on before passing real PII in step 2."
         >
             <div className={`rounded-xl border px-3.5 py-2.5 text-xs leading-5 ${
                 verification
@@ -268,7 +326,7 @@ const userHash = crypto
 
 /* ── Reusable bits ───────────────────────────────────────────────────────── */
 
-function Step({ n, title, sub, badge, children }) {
+function Step({ n, kicker, title, sub, badge, children }) {
     return (
         <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
             <header className="flex items-start gap-3 border-b border-neutral-100 bg-neutral-50/60 px-5 py-4 dark:border-neutral-800 dark:bg-neutral-950/30">
@@ -284,6 +342,11 @@ function Step({ n, title, sub, badge, children }) {
                             </span>
                         )}
                     </div>
+                    {kicker && (
+                        <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">
+                            {kicker}
+                        </p>
+                    )}
                     {sub && <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">{sub}</p>}
                 </div>
             </header>
