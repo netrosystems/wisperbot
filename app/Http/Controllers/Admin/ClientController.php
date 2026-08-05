@@ -312,13 +312,27 @@ class ClientController extends Controller
             return redirect()->back()->with('error', __('Client has no active users. Add a user first.'));
         }
 
+        // Safety: a client user must have role=client, otherwise the role
+        // middleware will bounce them to admin.dashboard on the next request
+        // and the impersonation looks broken.
+        if ($targetUser->role !== 'client') {
+            return redirect()->back()->with('error', __('Selected user cannot be impersonated.'));
+        }
+
         $admin = $request->user('admin');
 
-        $request->session()->put('impersonator_admin_id', $admin->id);
-        $request->session()->put('impersonating', true);
-        $request->session()->put('impersonated_client_id', $client->id);
+        // Rotate the session ID *before* setting impersonation flags so the
+        // new (impersonated) session row is fresh and doesn't inherit any
+        // accidentally-mirrored admin state from the prior session row.
+        $session = $request->session();
+        $session->regenerate();
+
+        $session->put('impersonator_admin_id', $admin->id);
+        $session->put('impersonating', true);
+        $session->put('impersonated_client_id', $client->id);
 
         Auth::guard('web')->login($targetUser, $request->boolean('remember', false));
+        $session->regenerateToken();
 
         $this->auditLog->logAdmin('impersonation.started', User::class, (int) $targetUser->id, [
             'client_id' => $client->id,
