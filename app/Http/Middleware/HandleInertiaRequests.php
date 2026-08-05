@@ -31,10 +31,24 @@ class HandleInertiaRequests extends Middleware
 
     /**
      * Determine the current asset version.
+     *
+     * Inertia uses this value to detect when the server is serving a different
+     * release than the one the SPA is running. When they disagree, Inertia
+     * forces a hard reload — which during impersonation looks like the user
+     * has been "bounced back to admin" and clears the SPA's impersonation
+     * banner. Hashing the Vite manifest (the framework default) flips on every
+     * `npm run build`, so a single stale tab triggers the reload on the next
+     * navigation. We instead pin the version to APP_VERSION, which only changes
+     * on intentional deploys. Fresh pages receive the new version in the boot
+     * HTML, so their first SPA navigation matches the server; tabs that were
+     * open before the deploy will refresh on their next interaction, which is
+     * the behaviour we already want after a release.
      */
     public function version(Request $request): ?string
     {
-        return parent::version($request);
+        $version = (string) config('app.version', '');
+
+        return $version !== '' ? hash('xxh128', 'wisperbot:'.$version) : parent::version($request);
     }
 
     /**
