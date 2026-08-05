@@ -55,16 +55,13 @@ class ChatWidgetController extends Controller
     }
 
     /**
-     * Settings/branding owner. Now that each workspace has a single widget,
-     * this route directly loads the Edit form for that widget (failing
-     * gracefully to the Integration page's empty state when none exists).
+     * Settings/branding owner. Each workspace always has one widget (created
+     * on demand by {@see ensureWidget()} on first visit), so this route
+     * never has to handle a "missing widget" case.
      */
-    public function settings(Request $request): Response|RedirectResponse
+    public function settings(Request $request): Response
     {
-        $widget = ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->first();
-        if (! $widget) {
-            return redirect()->route('client.inbox.chat-widgets.integration');
-        }
+        $widget = $this->ensureWidget($request);
 
         return Inertia::render('Chat/Widgets/Settings', [
             'widget' => $widget,
@@ -77,18 +74,16 @@ class ChatWidgetController extends Controller
 
     public function integration(Request $request): Response
     {
-        $widget = ChatWidget::where('workspace_id', $this->workspaceId($request))
-            ->latest()
-            ->first();
+        $widget = $this->ensureWidget($request);
 
         return Inertia::render('Chat/Widgets/Integration', [
-            'widget' => $widget ? [
+            'widget' => [
                 'id' => $widget->id,
                 'name' => $widget->name,
                 'widget_key' => $widget->widget_key,
                 'identity_secret' => $widget->identity_secret,
                 'identity_verification' => $widget->identity_verification,
-            ] : null,
+            ],
             'embedBase' => rtrim(url('/'), '/'),
         ]);
     }
@@ -280,6 +275,51 @@ class ChatWidgetController extends Controller
     private function workspaceId(Request $request): int
     {
         return $request->user()->current_workspace_id ?? $request->user()->workspace_id;
+    }
+
+    /**
+     * Each workspace is guaranteed to have exactly one chat widget. If the
+     * workspace doesn't have one yet (e.g. a fresh workspace, or one that
+     * deleted its widget) we transparently create one with sensible defaults
+     * so the UI never has to show an empty state. The matching `webchat`
+     * channel_account is created alongside it so conversations resolve in
+     * the omnichannel inbox from the very first message.
+     */
+    private function ensureWidget(Request $request): ChatWidget
+    {
+        $workspaceId = $this->workspaceId($request);
+
+        $widget = ChatWidget::where('workspace_id', $workspaceId)->latest()->first();
+        if ($widget) {
+            return $widget;
+        }
+
+        $channelAccount = ChannelAccount::create([
+            'workspace_id' => $workspaceId,
+            'channel' => 'webchat',
+            'status' => 'active',
+            'display_name' => 'Website chat',
+            'meta_json' => [],
+        ]);
+
+        return ChatWidget::create([
+            'workspace_id' => $workspaceId,
+            'channel_account_id' => $channelAccount->id,
+            'name' => null,
+            'title' => 'Chat with us',
+            'subtitle' => 'We typically reply in a few minutes',
+            'welcome_message' => 'Hi there 👋 How can we help you today?',
+            'agent_name' => 'Support',
+            'primary_color' => '#ff762e',
+            'position' => 'bottom_right',
+            'footer_company_name' => 'WisperBot',
+            'prechat_fields' => ['name', 'email'],
+            'allowed_domains' => [],
+            'ai_enabled' => false,
+            'require_prechat' => false,
+            'identity_verification' => false,
+            'enabled' => true,
+        ]);
     }
 
     private function assertOwner(Request $request, ChatWidget $widget): void
