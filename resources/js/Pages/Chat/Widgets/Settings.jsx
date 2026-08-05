@@ -2,8 +2,6 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import { ArrowLeft, Check, Trash2 } from 'lucide-react';
 import ChatWidgetForm from './Partials/ChatWidgetForm';
-import InstallCard from './Partials/InstallCard';
-import IdentityCard from './Partials/IdentityCard';
 
 /**
  * "Appearance" — branding + behaviour for the workspace's single chat widget.
@@ -14,8 +12,6 @@ import IdentityCard from './Partials/IdentityCard';
 export default function ChatWidgetSettings({
     widget,
     chatbots = [],
-    embedBase,
-    identitySecret,
     canUseCustomLauncherLogo = false,
 }) {
     const flash = usePage().props.flash ?? {};
@@ -78,14 +74,6 @@ export default function ChatWidgetSettings({
                     canUseCustomLauncherLogo={canUseCustomLauncherLogo}
                     submitLabel="Save changes"
                     onSubmit={submit}
-                />
-
-                <InstallCard embedBase={embedBase} widgetKey={widget.widget_key} />
-                <IdentityCard
-                    embedBase={embedBase}
-                    widgetKey={widget.widget_key}
-                    identitySecret={identitySecret}
-                    verification={widget.identity_verification}
                 />
             </div>
         </ClientLayout>
