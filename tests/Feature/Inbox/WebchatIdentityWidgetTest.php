@@ -24,6 +24,78 @@ class WebchatIdentityWidgetTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_resumed_session_refreshes_logged_in_identity_and_records_server_ip(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+
+        $anonymous = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.42'])
+            ->withHeader('X-Widget-Token', $anonymous->json('token'))
+            ->postJson(route('widget.session'), [
+                'key' => $widget->widget_key,
+                'visitor_id' => $anonymous->json('visitor_id'),
+                'name' => 'Signed In Customer',
+                'email' => 'signed-in@example.com',
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseCount('contacts', 1);
+        $contact = Contact::where('workspace_id', $workspace->id)->sole();
+        $this->assertSame('Signed', $contact->first_name);
+        $this->assertSame('In Customer', $contact->last_name);
+        $this->assertSame('signed-in@example.com', $contact->email);
+        $this->assertSame('provided', $contact->custom_fields['webchat_identity_type']);
+        $this->assertSame('203.0.113.42', $contact->custom_fields['webchat_last_ip']);
+    }
+
+    public function test_agent_can_open_a_live_visitors_widget_through_polling_command(): void
+    {
+        Cache::flush();
+        ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+
+        $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key])->assertOk();
+        $conversation = Conversation::where('workspace_id', $workspace->id)->sole();
+
+        $this->actingAs($agent)
+            ->postJson(route('client.inbox.open-widget', $conversation->uuid))
+            ->assertOk()
+            ->assertJsonPath('command.type', 'open_widget');
+
+        $this->withHeader('X-Widget-Token', $session->json('token'))
+            ->getJson(route('widget.poll', ['key' => $widget->widget_key, 'after' => 0]))
+            ->assertOk()
+            ->assertJsonPath('command.type', 'open_widget');
+    }
+
     public function test_widget_and_agent_share_expiring_typing_presence_without_creating_messages(): void
     {
         Cache::flush();

@@ -97,7 +97,9 @@ export default function useClientNav() {
     ];
 
     const chatbotSetupItems = [
-        { label: t('nav.website_chatbot'), href: safeRoute('client.inbox.chat-widgets.index'), icon: <MessageCircle className={iconClass} />, activePattern: 'client.inbox.chat-widgets.*' },
+        { label: t('nav.widgets', { defaultValue: 'Widgets' }), href: safeRoute('client.inbox.chat-widgets.index'), icon: <MessageCircle className={iconClass} />, activePattern: 'client.inbox.chat-widgets.index' },
+        { label: t('nav.widget_settings', { defaultValue: 'Widget Settings' }), href: safeRoute('client.inbox.chat-widgets.settings'), icon: <Settings className={iconClass} />, activePattern: 'client.inbox.chat-widgets.settings' },
+        { label: t('nav.app_integration', { defaultValue: 'App Integration' }), href: safeRoute('client.inbox.chat-widgets.integration'), icon: <Webhook className={iconClass} />, activePattern: 'client.inbox.chat-widgets.integration' },
         { label: t('nav.wa_chatbot'), href: safeRoute('client.whatsapp.widget.index'), icon: whatsappNavIcon, activePattern: 'client.whatsapp.widget.*' },
     ];
 
@@ -132,7 +134,7 @@ export default function useClientNav() {
     return [
         { type: 'group', label: t('nav.group_landing'),       items: landingItems },
         { type: 'group', label: t('nav.group_inbox'),         items: inboxItems },
-        { type: 'group', label: t('nav.group_chatbot_setup'), items: chatbotSetupItems },
+        { type: 'group', label: t('nav.group_chatbot_widget', { defaultValue: 'Chatbot Widget' }), items: chatbotSetupItems },
         { type: 'group', label: t('nav.group_social_media'),  items: socialItems },
         { type: 'group', label: t('nav.group_wa_messaging'),  items: waMessagingItems },
         { type: 'group', label: t('nav.group_contacts'),      items: contactsItems },

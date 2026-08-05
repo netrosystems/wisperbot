@@ -49,4 +49,18 @@ class AppVersionManagerTest extends TestCase
 
         (new AppVersionManager($this->envPath))->set('release-one');
     }
+
+    public function test_it_advances_only_once_for_each_deployed_revision(): void
+    {
+        $versions = new AppVersionManager($this->envPath);
+
+        $first = $versions->bumpForRelease('abc123');
+        $sameRelease = $versions->bumpForRelease('abc123');
+        $next = $versions->bumpForRelease('def456');
+
+        $this->assertSame(['version' => '1.0.1', 'changed' => true], $first);
+        $this->assertSame(['version' => '1.0.1', 'changed' => false], $sameRelease);
+        $this->assertSame(['version' => '1.0.2', 'changed' => true], $next);
+        $this->assertStringContainsString('APP_RELEASE_COMMIT=def456', file_get_contents($this->envPath));
+    }
 }

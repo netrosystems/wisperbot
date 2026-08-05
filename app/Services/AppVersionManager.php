@@ -54,6 +54,46 @@ class AppVersionManager
         return $this->write($this->normalize($version));
     }
 
+    /**
+     * Increment the patch version once for each newly deployed Git revision.
+     *
+     * Keeping the deployed revision in .env makes this idempotent: running the
+     * deployment finalisation command again for the same code never creates a
+     * misleading extra release number.
+     *
+     * @return array{version: string, changed: bool}
+     */
+    public function bumpForRelease(string $revision): array
+    {
+        $revision = trim($revision);
+
+        if ($revision === '') {
+            throw new InvalidArgumentException('A deployment revision is required to create an automatic version.');
+        }
+
+        if (hash_equals($this->currentReleaseRevision(), $revision)) {
+            return ['version' => $this->current(), 'changed' => false];
+        }
+
+        $version = $this->bump('patch');
+        (new EnvWriter($this->envPath))->set(['APP_RELEASE_COMMIT' => $revision]);
+
+        return ['version' => $version, 'changed' => true];
+    }
+
+    public function currentReleaseRevision(): string
+    {
+        if (! is_file($this->envPath)) {
+            return '';
+        }
+
+        $contents = (string) file_get_contents($this->envPath);
+
+        return preg_match('/^APP_RELEASE_COMMIT\s*=\s*["\']?([^\s"\']+)["\']?\s*$/mi', $contents, $matches)
+            ? trim($matches[1])
+            : '';
+    }
+
     private function write(string $version): string
     {
         (new EnvWriter($this->envPath))->set(['APP_VERSION' => $version]);

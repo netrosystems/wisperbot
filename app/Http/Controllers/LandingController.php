@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Admin\LandingPageController;
+use App\Models\BlogPost;
 use App\Models\Plan;
 use App\Models\SystemSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,6 +46,35 @@ class LandingController extends Controller
         }
     }
 
+    private function latestBlogPosts(): array
+    {
+        try {
+            return BlogPost::query()
+                ->publiclyVisible()
+                ->with(['category:id,name,slug', 'author:id,name'])
+                ->latest('published_at')
+                ->limit(3)
+                ->get()
+                ->map(fn (BlogPost $post) => [
+                    'id' => $post->id,
+                    'title' => $post->title,
+                    'slug' => $post->slug,
+                    'excerpt' => $post->excerpt ?: Str::limit(strip_tags($post->content), 150),
+                    'featured_image_url' => $post->featured_image_url,
+                    'featured_image_alt' => $post->featured_image_alt,
+                    'published_at' => $post->published_at?->toIso8601String(),
+                    'reading_minutes' => $post->reading_minutes,
+                    'category' => $post->category,
+                    'author' => $post->show_author ? $post->author : null,
+                ])
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            // Keep the landing page available before blog migrations are run.
+            return [];
+        }
+    }
+
     public function index(): Response|RedirectResponse
     {
         if ($redirect = $this->landingDisabledRedirect()) {
@@ -55,6 +86,7 @@ class LandingController extends Controller
             'canRegister' => Route::has('register'),
             'landing'     => LandingPageController::getPublicSettings(),
             'plans'       => $this->plans(),
+            'latestPosts' => $this->latestBlogPosts(),
         ]);
     }
 

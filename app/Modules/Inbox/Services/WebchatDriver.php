@@ -128,6 +128,22 @@ class WebchatDriver implements ChannelDriverInterface
     }
 
     /**
+     * Refresh the identity on an already token-bound conversation. This is
+     * essential for SPAs where the widget starts anonymously and the customer
+     * signs in later without receiving a new browser session.
+     */
+    public function syncConversationIdentity(Conversation $conversation, string $visitorId, array $identity): Conversation
+    {
+        $contact = $this->resolveVisitorContact($conversation->workspace_id, $visitorId, $identity);
+
+        if ($conversation->contact_id !== $contact->id) {
+            $conversation->update(['contact_id' => $contact->id]);
+        }
+
+        return $conversation->setRelation('contact', $contact);
+    }
+
+    /**
      * Find-or-create the visitor as a Contact. A logged-in customer passed from
      * the client's site is matched on their stable external id
      * (custom_fields.webchat_external_id) so they map to ONE contact across
@@ -152,6 +168,7 @@ class WebchatDriver implements ChannelDriverInterface
         $avatar = (string) ($identity['avatar'] ?? '');
         $avatar = str_starts_with($avatar, 'http') ? $avatar : null; // only accept URLs
         $identityVerified = (bool) ($identity['identity_verified'] ?? false);
+        $identityProvided = $name !== '' || $email !== null || $avatar !== null;
         $externalId = $identityVerified ? trim((string) ($identity['external_id'] ?? '')) : '';
 
         $contact = null;
@@ -184,7 +201,8 @@ class WebchatDriver implements ChannelDriverInterface
                 'custom_fields' => array_filter([
                     'webchat_visitor_id' => $visitorId,
                     'webchat_external_id' => $externalId ?: null,
-                    'webchat_identity_type' => $identityVerified ? 'logged_in' : 'anonymous',
+                    'webchat_identity_type' => $identityVerified ? 'logged_in' : ($identityProvided ? 'provided' : 'anonymous'),
+                    'webchat_last_ip' => $identity['ip_address'] ?? null,
                 ]),
                 'last_seen_at' => now(),
             ]);
@@ -202,6 +220,12 @@ class WebchatDriver implements ChannelDriverInterface
         }
         if (empty($cf['webchat_visitor_id'])) {
             $cf['webchat_visitor_id'] = $visitorId;
+        }
+        if ($identityProvided && ($cf['webchat_identity_type'] ?? 'anonymous') === 'anonymous') {
+            $cf['webchat_identity_type'] = $identityVerified ? 'logged_in' : 'provided';
+        }
+        if (! empty($identity['ip_address'])) {
+            $cf['webchat_last_ip'] = $identity['ip_address'];
         }
 
         $updates = ['last_seen_at' => now(), 'custom_fields' => $cf];

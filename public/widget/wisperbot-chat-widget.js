@@ -23,6 +23,7 @@
   var LS_TOKEN = storageKey('token');
   var LS_THREAD = storageKey('thread');   // identity-scoped cached message history
   var LS_PRECHAT = storageKey('prechat');
+  var LS_COMMAND = storageKey('command');
 
   // ── State ──────────────────────────────────────────────────────────────────
   var visitorId = safeGet(LS_VISITOR);
@@ -37,6 +38,7 @@
   var inviteTimer = null;
   var inviteVisibleTimer = null;
   var unreadCount = 0;
+  var lastCommandId = safeGet(LS_COMMAND);
   var audioCtx = null;
   var audioUnlocked = false;
   var mediaRecorder = null;
@@ -49,6 +51,7 @@
   var visitorTypingIdleTimer = null;
   var prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
   var handoff = { enabled: !!CFG.ai_enabled, eligible: false, status: 'bot' };
+  var handoffWatchdog = null;
 
   function safeGet(k) { try { return window.localStorage.getItem(k) || ''; } catch (e) { return ''; } }
   function safeSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
@@ -58,7 +61,7 @@
   function getSettings() { return window.WisperBotSettings || window.wisperBotSettings || {}; }
   function identityStorageScope() {
     var s = getSettings();
-    var identity = String(s.external_id || s.user_id || s.email || '').trim();
+    var identity = String(s.external_id || s.externalId || s.user_id || s.userId || s.email || '').trim();
     if (!identity) return 'anonymous';
     var hash = 2166136261;
     for (var i = 0; i < identity.length; i++) {
@@ -80,11 +83,11 @@
   function identityPayload(extra) {
     var s = getSettings();
     return {
-      name: (extra && extra.name) || s.name || undefined,
+      name: (extra && extra.name) || s.name || s.full_name || undefined,
       email: (extra && extra.email) || s.email || undefined,
-      avatar: s.avatar || s.avatar_url || undefined,
-      external_id: s.external_id || s.user_id || undefined,
-      user_hash: s.user_hash || undefined
+      avatar: s.avatar || s.avatar_url || s.avatarUrl || undefined,
+      external_id: s.external_id || s.externalId || s.user_id || s.userId || undefined,
+      user_hash: s.user_hash || s.userHash || undefined
     };
   }
 
@@ -135,7 +138,7 @@
   thread.forEach(function (m) {
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename);
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type);
   });
   updateStatus();
   if (prechatNeeded) { prechat.style.display = 'block'; form.style.display = 'none'; }
@@ -188,9 +191,9 @@
     });
   }
 
-  // If a returning visitor already has a session, quietly restore + poll for
-  // any replies that arrived while they were away.
-  if (visitorId && token) { ensureSession().then(startPolling); }
+  // Establish presence even before the visitor opens the panel. This powers
+  // the client's Live Users view and also restores replies from prior visits.
+  ensureSession().then(startPolling).catch(function () {});
 
   // Start discreetly, then make the live-chat invitation visible. Any page
   // scrolling dismisses it and restarts the twenty-second idle timer, so it never
@@ -278,6 +281,7 @@
     LS_TOKEN = storageKey('token');
     LS_THREAD = storageKey('thread');
     LS_PRECHAT = storageKey('prechat');
+    LS_COMMAND = storageKey('command');
     visitorId = safeGet(LS_VISITOR);
     token = safeGet(LS_TOKEN);
     thread = loadThread();
@@ -286,6 +290,7 @@
     started = false;
     starting = false;
     unreadCount = 0;
+    lastCommandId = safeGet(LS_COMMAND);
     visitorTyping = false;
     visitorTypingLastSentAt = 0;
     if (visitorTypingIdleTimer) clearTimeout(visitorTypingIdleTimer);
@@ -297,7 +302,7 @@
     thread.forEach(function (m) {
       rendered[m.id] = true;
       if (m.id > lastId) lastId = m.id;
-      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename);
+      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type);
     });
     prechat.style.display = prechatNeeded ? 'block' : 'none';
     form.style.display = prechatNeeded ? 'none' : 'flex';
@@ -314,7 +319,7 @@
     var id = identityPayload(prechatData);
     for (var k in id) { if (id[k] !== undefined) body[k] = id[k]; }
     starting = post('/widget/v1/session', body).then(function (data) {
-      if (!data) return;
+      if (!data || !data.token || !data.visitor_id) throw new Error('session unavailable');
       started = true;
       visitorId = data.visitor_id; token = data.token;
       safeSet(LS_VISITOR, visitorId); safeSet(LS_TOKEN, token);
@@ -326,20 +331,39 @@
       notifyAboutAgentMessages(newAgentMessages);
       applyHandoff(data.handoff);
       updateStatus(); scrollDown();
-    }).catch(function () {}).then(function () { starting = false; });
+      return data;
+    }).then(function (data) {
+      starting = false;
+      return data;
+    }, function (error) {
+      starting = false;
+      throw error;
+    });
     return starting;
   }
 
   function send(text) {
+    // Render immediately; a slow network must never make a submitted message
+    // look lost. Replace this temporary bubble with the canonical server echo.
+    var optimisticRow = addBubble('visitor', text);
+    if (optimisticRow) optimisticRow.classList.add('wb-pending');
     ensureSession().then(function () {
       startPolling();
       return post('/widget/v1/messages', { key: KEY, message: text });
     }).then(function (data) {
-      // Render from the server echo (carries the real id) so it dedupes cleanly
-      // against the next poll — no optimistic double-render.
+      if (optimisticRow && optimisticRow.parentNode) optimisticRow.parentNode.removeChild(optimisticRow);
       if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
-    }).catch(function () {});
+    }).catch(function () {
+      if (!optimisticRow) return;
+      optimisticRow.classList.remove('wb-pending');
+      optimisticRow.classList.add('wb-failed');
+      optimisticRow.title = 'Message was not sent. Click to try again.';
+      optimisticRow.addEventListener('click', function retry() {
+        if (optimisticRow.parentNode) optimisticRow.parentNode.removeChild(optimisticRow);
+        send(text);
+      }, { once: true });
+    });
   }
 
   function noteVisitorTyping() {
@@ -558,6 +582,11 @@
       if (typeof data.online === 'boolean') { online = data.online; updateStatus(); }
       applyHandoff(data.handoff);
       renderAgentTyping(data.agent_typing);
+      if (data.command && data.command.id && data.command.id !== lastCommandId) {
+        lastCommandId = data.command.id;
+        safeSet(LS_COMMAND, lastCommandId);
+        if (data.command.type === 'open_widget') openPanel();
+      }
       var newAgentMessages = 0;
       (data.messages || []).forEach(function (m) {
         var added = addMessage(m);
@@ -572,9 +601,9 @@
     if (!m || rendered[m.id]) return false;
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename });
+    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type });
     saveThread();
-    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename);
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type);
     return true;
   }
 
@@ -607,7 +636,7 @@
     if (!activelyComposing) playNotificationSound();
   }
 
-  function addBubble(role, text, name, attachmentUrl, type, filename) {
+  function addBubble(role, text, name, attachmentUrl, type, filename, mimeType) {
     var row = document.createElement('div');
     row.className = 'wb-row wb-' + (role === 'visitor' ? 'out' : 'in');
     var av = '';
@@ -620,7 +649,10 @@
     if (attachmentUrl && type === 'image') {
       attachment = '<img class="wb-media-image" src="' + esc(attachmentUrl) + '" alt="' + esc(filename || text || 'Image attachment') + '">';
     } else if (attachmentUrl && type === 'audio') {
-      attachment = '<audio class="wb-media-audio" src="' + esc(attachmentUrl) + '" controls preload="metadata"></audio>';
+      // Firefox is much more reliable with an explicit type for recorded
+      // WebM/Opus and OGG voice messages; without it it can show 0:00.
+      var audioType = mimeType || inferAudioMimeType(filename);
+      attachment = '<audio class="wb-media-audio" controls preload="metadata"><source src="' + esc(attachmentUrl) + '"' + (audioType ? ' type="' + escAttr(audioType) + '"' : '') + '>Your browser cannot play this audio.</audio>';
     } else if (attachmentUrl) {
       attachment = '<a class="wb-media-file" href="' + esc(attachmentUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(filename || 'Open attachment') + '</a>';
     }
@@ -634,6 +666,12 @@
     row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + '</div>';
     body.appendChild(row);
     scrollDown();
+    return row;
+  }
+
+  function inferAudioMimeType(filename) {
+    var ext = String(filename || '').split('.').pop().toLowerCase();
+    return ({ mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', amr: 'audio/amr', ogg: 'audio/ogg', oga: 'audio/ogg', wav: 'audio/wav', webm: 'audio/webm' })[ext] || '';
   }
 
   function updateStatus() {
@@ -703,9 +741,27 @@
     renderHandoff();
     updateStatus();
 
+    // A browser fetch can remain pending when a visitor has an intermittent
+    // connection, an extension blocks the request, or a proxy drops the
+    // response. Never leave the visitor in a permanent "Connecting" state.
+    // First poll the authoritative conversation state: the handoff may have
+    // been saved even if the original POST response did not reach the browser.
+    clearHandoffWatchdog();
+    handoffWatchdog = setTimeout(function () {
+      confirmHandoffOrOfferRetry();
+
+      // `poll()` is itself a network request and can also be left pending by
+      // a captive portal or browser extension. Give it a short chance to
+      // confirm the saved handoff, then always restore a usable retry action.
+      setTimeout(function () {
+        if (handoff.status === 'connecting') offerHandoffRetry();
+      }, 2500);
+    }, 12000);
+
     ensureSession().then(function () {
       return post('/widget/v1/handoff', { key: KEY });
     }).then(function (data) {
+      clearHandoffWatchdog();
       var wait = Math.max(0, 500 - (Date.now() - startedAt));
       setTimeout(function () {
         applyHandoff(data && data.handoff ? data.handoff : {
@@ -715,22 +771,32 @@
         });
       }, wait);
     }).catch(function () {
-      // The database handoff may have succeeded even if a downstream
-      // notification provider failed. Confirm current state before showing an
-      // error, which also makes retries safe and idempotent.
-      return poll().then(function () {
-        if (handoff.status === 'connected') return;
-        handoff = { enabled: true, eligible: true, status: 'bot' };
-        handoffEl.style.display = 'flex';
-        handoffEl.innerHTML = '<span>Could not connect.</span><button class="wb-handoff-btn" type="button">Try again</button>';
-        updateStatus();
-      }).catch(function () {
-        handoff = { enabled: true, eligible: true, status: 'bot' };
-        handoffEl.style.display = 'flex';
-        handoffEl.innerHTML = '<span>Could not connect.</span><button class="wb-handoff-btn" type="button">Try again</button>';
-        updateStatus();
-      });
+      clearHandoffWatchdog();
+      return confirmHandoffOrOfferRetry();
     });
+  }
+
+  function clearHandoffWatchdog() {
+    if (handoffWatchdog) clearTimeout(handoffWatchdog);
+    handoffWatchdog = null;
+  }
+
+  function confirmHandoffOrOfferRetry() {
+    // The database handoff may have succeeded even if a downstream
+    // notification provider failed. Confirm current state before showing an
+    // error, which also makes retries safe and idempotent.
+    return poll().then(function () {
+      if (handoff.status === 'connected') return;
+      offerHandoffRetry();
+    }).catch(offerHandoffRetry);
+  }
+
+  function offerHandoffRetry() {
+    clearHandoffWatchdog();
+    handoff = { enabled: true, eligible: true, status: 'bot' };
+    handoffEl.style.display = 'flex';
+    handoffEl.innerHTML = '<span>Could not connect.</span><button class="wb-handoff-btn" type="button">Try again</button>';
+    updateStatus();
   }
 
   function formatMessageText(value) {
@@ -928,6 +994,9 @@
       '.wb-close:hover{opacity:1}',
       '.wb-body{flex:1;min-height:0;overflow-x:hidden;overflow-y:scroll;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:16px;background:#f7f8fa;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}',
       '.wb-row{display:flex;align-items:flex-end;gap:8px;max-width:85%}',
+      '.wb-row.wb-pending{opacity:.65}',
+      '.wb-row.wb-failed{cursor:pointer;opacity:.8}',
+      '.wb-row.wb-failed .wb-bubble{outline:1px solid #ef4444}',
       '.wb-in{align-self:flex-start}.wb-out{align-self:flex-end;flex-direction:row-reverse}',
       '.wb-row .wb-av{width:14px;height:14px;font-size:9px}',
       '.wb-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;word-wrap:break-word;white-space:normal}',

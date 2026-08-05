@@ -29,6 +29,7 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
     Route::post('/conversations/{conversation}/assign', [InboxController::class, 'assign'])->name('assign');
     Route::post('/conversations/{conversation}/status', [InboxController::class, 'updateStatus'])->name('status');
     Route::post('/conversations/{conversation}/typing', [InboxController::class, 'typing'])->name('typing');
+    Route::post('/conversations/{conversation}/open-widget', [InboxController::class, 'openWidget'])->name('open-widget');
     Route::get('/conversations/{conversation}/notes', [InternalNoteController::class, 'index'])->name('notes.index');
     Route::post('/conversations/{conversation}/notes', [InternalNoteController::class, 'store'])->name('notes.store');
     Route::post('/conversations/{conversation}/handover', [InboxController::class, 'handover'])->name('handover');
@@ -50,6 +51,8 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
 
     // Website live-chat widgets
     Route::get('/chat-widgets', [ChatWidgetController::class, 'index'])->name('chat-widgets.index');
+    Route::get('/chat-widgets/settings', [ChatWidgetController::class, 'settings'])->name('chat-widgets.settings');
+    Route::get('/chat-widgets/integration', [ChatWidgetController::class, 'integration'])->name('chat-widgets.integration');
     Route::get('/chat-widgets/create', [ChatWidgetController::class, 'create'])->name('chat-widgets.create');
     Route::post('/chat-widgets', [ChatWidgetController::class, 'store'])->name('chat-widgets.store');
     Route::get('/chat-widgets/{chatWidget}/edit', [ChatWidgetController::class, 'edit'])->name('chat-widgets.edit');

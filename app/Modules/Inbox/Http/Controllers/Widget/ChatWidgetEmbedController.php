@@ -16,15 +16,17 @@ use Illuminate\Http\Response;
  */
 class ChatWidgetEmbedController extends Controller
 {
-    /** Bump when the static widget bundle changes, to bust the browser cache. */
-    private const BUNDLE_VERSION = '23';
-
     public function script(string $key): Response
     {
         $widget = ChatWidget::where('widget_key', $key)->where('enabled', true)->firstOrFail();
 
         $apiBase = rtrim(url('/'), '/');
-        $bundleUrl = $apiBase.'/widget/wisperbot-chat-widget.js?v='.self::BUNDLE_VERSION;
+        // Version the shared bundle from its contents. The embed loader itself
+        // is not cached, so each deployment automatically loads the current
+        // widget without a manual version bump being forgotten.
+        $bundlePath = public_path('widget/wisperbot-chat-widget.js');
+        $bundleVersion = is_file($bundlePath) ? substr(hash_file('sha256', $bundlePath), 0, 12) : 'current';
+        $bundleUrl = $apiBase.'/widget/wisperbot-chat-widget.js?v='.$bundleVersion;
         $configJson = json_encode(array_merge($widget->publicConfig(), ['api_base' => $apiBase]), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $keyJson = json_encode($key);
         $bundleJson = json_encode($bundleUrl);

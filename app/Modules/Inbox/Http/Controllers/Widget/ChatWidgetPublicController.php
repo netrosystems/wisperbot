@@ -7,6 +7,7 @@ use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\WebchatDriver;
+use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Services\StorageManager;
@@ -27,6 +28,7 @@ class ChatWidgetPublicController extends Controller
         private readonly WebchatDriver $driver,
         private readonly StorageManager $storageManager,
         private readonly HumanHandoffService $humanHandoff,
+        private readonly WebchatPresence $presence,
     ) {}
 
     /** POST /widget/v1/session — start or restore a visitor's chat session. */
@@ -46,6 +48,9 @@ class ChatWidgetPublicController extends Controller
         $this->assertDomainAllowed($widget, $request);
 
         $identity = $this->resolveIdentity($widget, $data);
+        // IP is derived by the server and can never be spoofed through the
+        // public widget payload.
+        $identity['ip_address'] = $request->ip();
         $resume = $this->verifiedResumePayload($request, $widget, (string) ($data['visitor_id'] ?? ''));
 
         if ($resume) {
@@ -62,7 +67,15 @@ class ChatWidgetPublicController extends Controller
             $conversation = null;
         }
 
-        $conversation ??= $this->driver->resolveConversation($widget, $visitorId, $identity);
+        if ($conversation) {
+            // A visitor can sign in after the anonymous widget session was
+            // created. Refresh the bound contact instead of silently keeping
+            // the old "Customer N" identity forever.
+            $conversation = $this->driver->syncConversationIdentity($conversation, $visitorId, $identity);
+        } else {
+            $conversation = $this->driver->resolveConversation($widget, $visitorId, $identity);
+        }
+        $this->presence->touch($conversation, $request->ip());
         $token = WebchatVisitorToken::issue($conversation->id, $widget->widget_key, $visitorId);
 
         return response()->json([
@@ -98,6 +111,7 @@ class ChatWidgetPublicController extends Controller
             ->where('workspace_id', $widget->workspace_id)
             ->first();
         abort_if($conversation === null, 404, 'Conversation not found.');
+        $this->presence->touch($conversation, $request->ip());
 
         $type = $data['type'] ?? 'text';
         $body = trim((string) ($data['message'] ?? ''));
@@ -116,7 +130,7 @@ class ChatWidgetPublicController extends Controller
             $this->storageManager->disk()->putFileAs(dirname($storedPath), $file, basename($storedPath));
 
             $messagePayload = [
-                'preview_url' => $this->storageManager->disk()->url($storedPath),
+                'preview_url' => $this->browserSafePublicUrl($this->storageManager->disk()->url($storedPath)),
                 'filename' => $file->getClientOriginalName(),
                 'mime_type' => $mimeType,
                 'caption' => $body !== '' ? $body : null,
@@ -154,6 +168,7 @@ class ChatWidgetPublicController extends Controller
             ->where('channel_account_id', $widget->channel_account_id)
             ->firstOrFail();
         $agentTyping = app(TypingPresence::class)->agent($conversation);
+        $this->presence->touch($conversation, $request->ip());
 
         return response()->json([
             'messages' => $this->mapMessages((int) $payload['c'], $widget, (int) ($data['after'] ?? 0)),
@@ -163,6 +178,7 @@ class ChatWidgetPublicController extends Controller
                 'is_typing' => $agentTyping !== null,
                 'name' => $agentTyping['user_name'] ?? null,
             ],
+            'command' => $this->presence->command($conversation),
         ]);
     }
 
@@ -184,6 +200,7 @@ class ChatWidgetPublicController extends Controller
             ->firstOrFail();
 
         $typingPresence->setVisitor($conversation, (bool) $data['is_typing']);
+        $this->presence->touch($conversation, $request->ip());
 
         return response()->json(['ok' => true]);
     }
@@ -349,8 +366,12 @@ class ChatWidgetPublicController extends Controller
             'type' => $m->type,
             // Website-chat media is stored by the inbox reply action. Expose
             // only its generated public URL, never a provider media ID.
-            'attachment_url' => $m->payload['preview_url'] ?? null,
+            // APP_URL can remain http behind a TLS-terminating proxy. Sending
+            // that URL to an HTTPS embed is mixed content and gets blocked by
+            // browsers, most noticeably for Firefox image/audio rendering.
+            'attachment_url' => $this->browserSafePublicUrl($m->payload['preview_url'] ?? null),
             'filename' => $m->payload['filename'] ?? null,
+            'mime_type' => $m->payload['mime_type'] ?? null,
             'sent_by' => $m->sent_by,
             'agent_name' => $isAgent
                 ? ($m->sender?->name ?: ($widget->agent_name ?: 'Support'))
@@ -385,6 +406,24 @@ class ChatWidgetPublicController extends Controller
             ->limit(2)
             ->get(['id'])
             ->count() >= 2;
+    }
+
+    /** Keep same-host local-disk URLs safe for an HTTPS public widget. */
+    private function browserSafePublicUrl(?string $url): ?string
+    {
+        if (! $url || ! str_starts_with(strtolower($url), 'http://')) {
+            return $url;
+        }
+
+        $assetHost = parse_url($url, PHP_URL_HOST);
+        $requestHost = request()->getHost();
+        $shouldUseHttps = request()->isSecure() || app()->environment('production');
+
+        if ($shouldUseHttps && $assetHost && strcasecmp($assetHost, $requestHost) === 0) {
+            return 'https://'.substr($url, strlen('http://'));
+        }
+
+        return $url;
     }
 
     /** Whether the widget is inside its configured working hours (default: always). */

@@ -8,7 +8,7 @@ import {
     Paperclip, Image as ImageIcon, ChevronDown, UserCheck,
     LayoutTemplate, Plus, Loader2, Bot, Calendar, BarChart2, PhoneMissed,
     Mic, Square,
-    Volume2, VolumeX, ShoppingBag,
+    Volume2, VolumeX, ShoppingBag, Radio,
 } from 'lucide-react';
 import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
 import { formatTimeTz, formatInTz } from '@/Utils/datetime';
@@ -21,6 +21,7 @@ import axios from 'axios';
 
 const FOLDERS = [
     { key: null,         labelKey: 'inbox.folder_all',        icon: Inbox },
+    { key: 'live',       labelKey: 'inbox.folder_live_users', icon: Radio },
     { key: 'mine',       labelKey: 'inbox.folder_mine',       icon: User },
     { key: 'unassigned', labelKey: 'inbox.folder_unassigned', icon: MessageSquare },
     { key: 'resolved',   labelKey: 'inbox.folder_resolved',   icon: CheckCircle },
@@ -49,7 +50,7 @@ function AnonymousVisitorBadge({ conversation }) {
     const isWebchat = conversation.channel_account?.channel === 'webchat';
     const hasVerifiedExternalIdentity = Boolean(conversation.contact?.custom_fields?.webchat_external_id);
 
-    if (!isWebchat || identityType === 'logged_in' || hasVerifiedExternalIdentity) return null;
+    if (!isWebchat || identityType !== 'anonymous' || hasVerifiedExternalIdentity) return null;
 
     return (
         <span className="inline-flex items-center rounded-full bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
@@ -941,7 +942,7 @@ function ConversationCard({ conv, isActive, userTz, filters = {} }) {
     );
 }
 
-function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChannel, onAccount, onLabel, emailOnly = false }) {
+function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChannel, onAccount, onLabel, emailOnly = false, liveUsersCount = 0 }) {
     const { t } = useTranslation();
     return (
         <div className="flex flex-col h-full overflow-y-auto">
@@ -955,6 +956,7 @@ function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChan
                                 : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
                         }`}>
                         <Icon className="h-4 w-4 shrink-0" />{t(labelKey)}
+                        {key === 'live' && liveUsersCount > 0 && <span className="ml-auto rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">{liveUsersCount}</span>}
                     </button>
                 ))}
             </div>}
@@ -1471,6 +1473,7 @@ export default function InboxShow({
     whatsappTemplates = [],
     channelAccounts = [],
     hasEcommerceStore = false,
+    liveUsersCount = 0,
 }) {
     const { t } = useTranslation();
     const { props } = usePage();
@@ -2025,7 +2028,7 @@ export default function InboxShow({
     const otherViewers = viewers.filter(v => v.id !== authUser?.id);
     const filteredList = listSearch.trim() && conversations?.data
         ? conversations.data.filter(c => {
-            const n = `${c.contact?.first_name ?? ''} ${c.contact?.last_name ?? ''} ${c.contact?.phone_e164 ?? ''}`.toLowerCase();
+            const n = `${c.contact?.first_name ?? ''} ${c.contact?.last_name ?? ''} ${c.contact?.phone_e164 ?? ''} ${c.contact?.email ?? ''} ${c.contact?.custom_fields?.webchat_last_ip ?? ''}`.toLowerCase();
             return n.includes(listSearch.toLowerCase());
         })
         : (conversations?.data ?? []);
@@ -2073,6 +2076,7 @@ export default function InboxShow({
                         onAccount={(id) => navigateList({ account_id: String(filters.account_id) === String(id) ? undefined : id, channel: emailOnly ? 'email' : undefined })}
                         onLabel={(id) => navigateList({ label: String(filters.label) === String(id) ? undefined : id })}
                         emailOnly={emailOnly}
+                        liveUsersCount={liveUsersCount}
                     />
                 </aside>
 
@@ -2476,6 +2480,12 @@ export default function InboxShow({
                             <p className="flex items-center gap-1.5 text-xs text-neutral-500 mb-1">
                                 <ChannelBrandIcon channel="email" className="h-3.5 w-3.5 shrink-0" />
                                 <span className="truncate">{conversation.contact.email}</span>
+                            </p>
+                        )}
+                        {conversation.contact?.custom_fields?.webchat_last_ip && (
+                            <p className="flex items-center gap-1.5 text-xs text-neutral-500 mb-1">
+                                <Globe className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">IP: {conversation.contact.custom_fields.webchat_last_ip}</span>
                             </p>
                         )}
                         <Link href={route('client.contacts.show', conversation.contact?.uuid ?? '')} className="text-xs text-brand-600 hover:underline dark:text-brand-400">

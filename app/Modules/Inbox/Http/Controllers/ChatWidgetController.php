@@ -43,6 +43,32 @@ class ChatWidgetController extends Controller
         ]);
     }
 
+    public function settings(Request $request): Response
+    {
+        return Inertia::render('Chat/Widgets/Settings', [
+            'widgets' => ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->get(),
+        ]);
+    }
+
+    public function integration(Request $request): Response
+    {
+        $widgets = ChatWidget::where('workspace_id', $this->workspaceId($request))
+            ->latest()
+            ->get()
+            ->map(fn (ChatWidget $widget) => [
+                'id' => $widget->id,
+                'name' => $widget->name,
+                'widget_key' => $widget->widget_key,
+                'identity_secret' => $widget->identity_secret,
+                'identity_verification' => $widget->identity_verification,
+            ]);
+
+        return Inertia::render('Chat/Widgets/Integration', [
+            'widgets' => $widgets,
+            'embedBase' => rtrim(url('/'), '/'),
+        ]);
+    }
+
     public function edit(Request $request, ChatWidget $chatWidget): Response
     {
         $this->assertOwner($request, $chatWidget);

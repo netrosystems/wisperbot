@@ -9,17 +9,14 @@ git checkout main
 git pull --ff-only origin main
 composer install --no-dev --optimize-autoloader
 php artisan migrate --force
-php artisan app:version:bump
-php artisan optimize:clear
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-php artisan queue:restart
+php artisan app:deploy:finalize
 php artisan up
 ```
 
-`app:version:bump` increments the patch version for a normal deployment:
-`v1.0.0` becomes `v1.0.1`, then `v1.0.2`, and so on.
+`app:deploy:finalize` automatically increments the patch version once for a
+new Git commit: `v1.0.0` becomes `v1.0.1`, then `v1.0.2`, and so on. It also
+refreshes Laravel caches and restarts queue workers. Re-running it for the
+same commit does not increment the version again.
 
 For a feature release or major release, use:
 

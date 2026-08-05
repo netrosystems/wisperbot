@@ -14,6 +14,14 @@ class BlogTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Feature tests must not depend on the external production license API.
+        config()->set('license.verify', false);
+    }
+
     private function admin(): AdminUser
     {
         return $this->createSuperAdmin();
@@ -57,6 +65,32 @@ class BlogTest extends TestCase
 
         $this->get(route('blog.index', ['category' => 'automation']))
             ->assertOk()->assertSee($matching->title)->assertDontSee($other->title);
+    }
+
+    public function test_homepage_surfaces_only_the_latest_public_articles(): void
+    {
+        $older = $this->makePost([
+            'title' => 'Older public article',
+            'slug' => 'older-public-article',
+            'published_at' => now()->subDays(2),
+        ]);
+        $latest = $this->makePost([
+            'title' => 'Latest public article',
+            'slug' => 'latest-public-article',
+            'published_at' => now()->subMinute(),
+        ]);
+        $this->makePost([
+            'title' => 'Private draft',
+            'slug' => 'private-homepage-draft',
+            'status' => 'draft',
+            'published_at' => null,
+        ]);
+
+        $this->get(route('home'))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Welcome')
+            ->has('latestPosts', 2)
+            ->where('latestPosts.0.id', $latest->id)
+            ->where('latestPosts.1.id', $older->id));
     }
 
     public function test_admin_can_create_a_sanitized_article_with_normalized_slug(): void

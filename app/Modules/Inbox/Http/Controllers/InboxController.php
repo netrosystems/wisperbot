@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\TypingPresence;
+use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -41,8 +42,15 @@ class InboxController extends Controller
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
         $userId = $request->user()->id;
 
+        $liveSince = app(WebchatPresence::class)->onlineSince();
+        $isLiveFolder = $request->folder === 'live';
+
         $conversations = Conversation::where('workspace_id', $workspaceId)
             ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
+            ->when($isLiveFolder, fn ($q) => $q
+                ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
+                ->whereHas('contact', fn ($contact) => $contact->where('last_seen_at', '>=', $liveSince)))
+            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('messages'))
             ->when($request->folder === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when($request->folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($request->channel, fn ($q) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $request->channel)))
@@ -54,14 +62,16 @@ class InboxController extends Controller
             ->when($request->folder === 'resolved', fn ($q) => $q->where('status', 'resolved'))
             ->when($request->folder === 'snoozed', fn ($q) => $q->where('status', 'snoozed'))
             ->when($request->label, fn ($q) => $q->whereHas('labels', fn ($q) => $q->where('inbox_labels.id', $request->label)))
-            ->orderByDesc('last_message_at')
+            ->when($isLiveFolder, fn ($q) => $q->orderByDesc(
+                Contact::select('last_seen_at')->whereColumn('contacts.id', 'conversations.contact_id')->limit(1)
+            ), fn ($q) => $q->orderByDesc('last_message_at'))
             ->paginate(30)
             ->withQueryString();
 
         $labels = InboxLabel::where('workspace_id', $workspaceId)->orderBy('name')->get(['id', 'name', 'color']);
         $channelAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('status', 'active')
-            ->when(($filters['channel'] ?? null) === 'email', fn ($query) => $query->where('channel', 'email'))
+            ->when($request->channel === 'email', fn ($query) => $query->where('channel', 'email'))
             ->orderBy('channel')
             ->orderBy('display_name')
             ->get(['id', 'channel', 'display_name', 'phone_number_id']);
@@ -71,6 +81,7 @@ class InboxController extends Controller
             'filters' => $request->only('folder', 'channel', 'label', 'account_id'),
             'labels' => $labels,
             'channelAccounts' => $channelAccounts,
+            'liveUsersCount' => $this->liveUsersQuery($workspaceId, $liveSince)->distinct('contact_id')->count('contact_id'),
         ]);
     }
 
@@ -122,6 +133,7 @@ class InboxController extends Controller
 
         $conversation->load(['contact', 'channelAccount', 'labels']);
         $messages = $conversation->messages()->with(['conversation', 'sender'])->orderBy('sent_at')->get();
+        $messages->each(fn (Message $message) => $this->normaliseMessageMediaUrl($message, $request));
 
         // Mark as read
         $conversation->update(['unread_count' => 0]);
@@ -157,6 +169,10 @@ class InboxController extends Controller
         }
         $conversations = Conversation::where('workspace_id', $workspaceId)
             ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
+            ->when(($filters['folder'] ?? null) === 'live', fn ($q) => $q
+                ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
+                ->whereHas('contact', fn ($contact) => $contact->where('last_seen_at', '>=', app(WebchatPresence::class)->onlineSince())))
+            ->when(($filters['folder'] ?? null) !== 'live', fn ($q) => $q->whereHas('messages'))
             ->when(($filters['folder'] ?? null) === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when(($filters['folder'] ?? null) === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($filters['channel'] ?? null, fn ($q, $ch) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $ch)))
@@ -194,7 +210,31 @@ class InboxController extends Controller
             'whatsappTemplates' => $whatsappTemplates,
             'channelAccounts' => $channelAccounts,
             'hasEcommerceStore' => $hasEcommerceStore,
+            'liveUsersCount' => $this->liveUsersQuery($workspaceId, app(WebchatPresence::class)->onlineSince())->distinct('contact_id')->count('contact_id'),
         ]);
+    }
+
+    /** Ask a currently-online website visitor's widget to open. */
+    public function openWidget(Request $request, Conversation $conversation, WebchatPresence $presence): JsonResponse
+    {
+        $this->authorise($request, $conversation);
+        $conversation->loadMissing(['channelAccount', 'contact']);
+
+        abort_unless($conversation->channelAccount?->channel === 'webchat', 422, 'This action is only available for website visitors.');
+        abort_unless($conversation->contact?->last_seen_at?->gte($presence->onlineSince()), 409, 'This visitor is no longer online.');
+
+        return response()->json([
+            'ok' => true,
+            'command' => $presence->requestWidgetOpen($conversation),
+        ]);
+    }
+
+    private function liveUsersQuery(int $workspaceId, \Illuminate\Support\Carbon $liveSince)
+    {
+        return Conversation::query()
+            ->where('workspace_id', $workspaceId)
+            ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
+            ->whereHas('contact', fn ($contact) => $contact->where('last_seen_at', '>=', $liveSince));
     }
 
     public function messages(
@@ -224,7 +264,7 @@ class InboxController extends Controller
                 'channel' => $message->channel,
                 'type' => $message->type,
                 'body' => $message->body,
-                'payload' => $message->payload,
+                'payload' => $this->normalisedMessagePayload($message->payload, $request),
                 'status' => $message->status,
                 'provider_message_id' => $message->provider_message_id,
                 'sent_by' => $message->sent_by,
@@ -300,7 +340,7 @@ class InboxController extends Controller
             // was connected.
             $storedPath = $this->storageManager->prefixedPath('message-media/'.$file->hashName());
             $this->storageManager->disk()->putFileAs(dirname($storedPath), $file, basename($storedPath));
-            $previewUrl = $this->storageManager->disk()->url($storedPath);
+            $previewUrl = $this->browserSafePublicUrl($this->storageManager->disk()->url($storedPath), $request);
 
             $attachmentPayload = [
                 'preview_url' => $previewUrl,
@@ -383,7 +423,7 @@ class InboxController extends Controller
             // Always return 200 so the UI can display the queued/failed bubble
             // immediately; the message status conveys delivery state.
             return response()->json([
-                'message' => $message,
+                'message' => tap($message, fn (Message $reply) => $this->normaliseMessageMediaUrl($reply, $request)),
                 'error' => $sendError,
             ]);
         }
@@ -668,7 +708,7 @@ class InboxController extends Controller
 
             $filename = $this->storageManager->prefixedPath($filename);
             $this->storageManager->disk()->put($filename, $bytes);
-            $previewUrl = $this->storageManager->disk()->url($filename);
+            $previewUrl = $this->browserSafePublicUrl($this->storageManager->disk()->url($filename), $request);
 
             // Cache for next request
             $message->update(['payload' => array_merge($payload, ['preview_url' => $previewUrl, 'mime_type' => $mimeType])]);
@@ -701,12 +741,57 @@ class InboxController extends Controller
             // Store a local copy so the UI can display a preview (WhatsApp media IDs are not URLs)
             $path = $this->storageManager->prefixedPath('template-media/'.$file->hashName());
             $this->storageManager->disk()->putFileAs(dirname($path), $file, basename($path));
-            $previewUrl = $this->storageManager->disk()->url($path);
+            $previewUrl = $this->browserSafePublicUrl($this->storageManager->disk()->url($path), $request);
 
             return response()->json(['media_id' => $mediaId, 'mime_type' => $mimeType, 'preview_url' => $previewUrl]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * Normalise old and newly-created local storage URLs before they reach an
+     * HTTPS browser. This keeps media playable even if APP_URL is internally
+     * configured with http behind the production proxy.
+     *
+     * @param  array<string, mixed>|null  $payload
+     * @return array<string, mixed>|null
+     */
+    private function normalisedMessagePayload(?array $payload, Request $request): ?array
+    {
+        if (! $payload || empty($payload['preview_url'])) {
+            return $payload;
+        }
+
+        $payload['preview_url'] = $this->browserSafePublicUrl((string) $payload['preview_url'], $request);
+
+        return $payload;
+    }
+
+    private function normaliseMessageMediaUrl(Message $message, Request $request): void
+    {
+        $payload = $this->normalisedMessagePayload($message->payload, $request);
+
+        if ($payload !== $message->payload) {
+            $message->setAttribute('payload', $payload);
+        }
+    }
+
+    private function browserSafePublicUrl(string $url, Request $request): string
+    {
+        if (! str_starts_with(strtolower($url), 'http://')) {
+            return $url;
+        }
+
+        $assetHost = parse_url($url, PHP_URL_HOST);
+        $requestHost = $request->getHost();
+        $shouldUseHttps = $request->isSecure() || app()->environment('production');
+
+        if ($shouldUseHttps && $assetHost && strcasecmp($assetHost, $requestHost) === 0) {
+            return 'https://'.substr($url, strlen('http://'));
+        }
+
+        return $url;
     }
 
     /** Return approved WhatsApp templates for the workspace (JSON) */

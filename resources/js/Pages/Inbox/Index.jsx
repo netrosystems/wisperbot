@@ -5,15 +5,17 @@ import NewConversationModal from '@/Components/Inbox/NewConversationModal';
 import { Skeleton } from '@/Components/ui';
 import {
     MessageSquare, Inbox, CheckCircle, Clock, User, RefreshCw,
-    Search, Plus,
+    Search, Plus, Radio, Globe2,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
 import { formatTimeTz } from '@/Utils/datetime';
+import axios from 'axios';
 
 const FOLDERS = [
     { key: null,         labelKey: 'inbox.folder_all',        icon: Inbox },
+    { key: 'live',       labelKey: 'inbox.folder_live_users', icon: Radio },
     { key: 'mine',       labelKey: 'inbox.folder_mine',       icon: User },
     { key: 'unassigned', labelKey: 'inbox.folder_unassigned', icon: MessageSquare },
     { key: 'resolved',   labelKey: 'inbox.folder_resolved',   icon: CheckCircle },
@@ -47,7 +49,7 @@ function AnonymousVisitorBadge({ conversation }) {
     const isWebchat = conversation.channel_account?.channel === 'webchat';
     const hasVerifiedExternalIdentity = Boolean(conversation.contact?.custom_fields?.webchat_external_id);
 
-    if (!isWebchat || identityType === 'logged_in' || hasVerifiedExternalIdentity) return null;
+    if (!isWebchat || identityType !== 'anonymous' || hasVerifiedExternalIdentity) return null;
 
     return (
         <span className="inline-flex items-center rounded-full bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
@@ -71,7 +73,7 @@ function HumanAgentDot({ conversation }) {
     );
 }
 
-function ConversationCard({ conv, isFlashing, isActive, userTz }) {
+function ConversationCard({ conv, isFlashing, isActive, userTz, liveMode = false }) {
     const { t } = useTranslation();
     const channel = conv.channel_account?.channel ?? 'whatsapp';
     const lastMsg = conv.last_message ?? {};
@@ -88,6 +90,14 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
         if (conv.contact?.id) {
             router.visit(route('client.contacts.show', conv.contact.uuid));
         }
+    };
+
+    const openVisitorWidget = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        axios.post(route('client.inbox.open-widget', conv.uuid))
+            .then(() => router.visit(route('client.inbox.show', conv.uuid)))
+            .catch(() => {});
     };
 
     return (
@@ -135,7 +145,7 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                         <p className={`text-xs truncate flex-1 ${conv.unread_count > 0 ? 'text-neutral-700 dark:text-neutral-300' : 'text-neutral-400 dark:text-neutral-500'}`}>
-                            {lastMsg.body || '(media)'}
+                            {lastMsg.body || (liveMode ? 'Browsing your website now' : '(media)')}
                         </p>
                         {conv.unread_count > 0 && (
                             <span className="shrink-0 h-5 min-w-5 rounded-full bg-brand-600 text-white text-[10px] font-bold flex items-center justify-center px-1">
@@ -152,6 +162,17 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
                         <StatusBadge status={conv.status} />
                         <AnonymousVisitorBadge conversation={conv} />
                     </div>
+                    {liveMode && (
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                            <span className="inline-flex min-w-0 items-center gap-1 text-[10px] text-neutral-400">
+                                <Globe2 className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{conv.contact?.custom_fields?.webchat_last_ip || 'IP unavailable'}</span>
+                            </span>
+                            <button type="button" onClick={openVisitorWidget} className="shrink-0 rounded-md bg-brand-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-brand-700">
+                                Open chat
+                            </button>
+                        </div>
+                    )}
                     {conv.labels?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                             {conv.labels.map(label => (
@@ -179,7 +200,7 @@ function ConversationSkeleton() {
     );
 }
 
-function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChannel, onAccount, onLabel }) {
+function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChannel, onAccount, onLabel, liveUsersCount = 0 }) {
     const { t } = useTranslation();
     return (
         <div className="flex flex-col h-full overflow-y-auto">
@@ -198,6 +219,7 @@ function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChan
                     >
                         <Icon className="h-4 w-4 shrink-0" />
                         <span>{t(labelKey)}</span>
+                        {key === 'live' && liveUsersCount > 0 && <span className="ml-auto rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">{liveUsersCount}</span>}
                     </button>
                 ))}
             </div>
@@ -266,7 +288,7 @@ function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChan
     );
 }
 
-export default function InboxIndex({ conversations: initialConversations, filters, labels = [], channelAccounts = [] }) {
+export default function InboxIndex({ conversations: initialConversations, filters, labels = [], channelAccounts = [], liveUsersCount = 0 }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const authUser = props.auth?.user;
@@ -341,7 +363,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
             if (document.hidden || refreshing) return;
             refreshing = true;
             router.reload({
-                only: ['conversations'],
+                only: ['conversations', 'liveUsersCount'],
                 preserveScroll: true,
                 preserveState: true,
                 onFinish: () => { refreshing = false; },
@@ -367,7 +389,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
 
     const filtered = search.trim()
         ? conversations.data.filter(c => {
-            const name = `${c.contact?.first_name ?? ''} ${c.contact?.last_name ?? ''} ${c.contact?.phone_e164 ?? ''}`.toLowerCase();
+            const name = `${c.contact?.first_name ?? ''} ${c.contact?.last_name ?? ''} ${c.contact?.phone_e164 ?? ''} ${c.contact?.email ?? ''} ${c.contact?.custom_fields?.webchat_last_ip ?? ''}`.toLowerCase();
             return name.includes(search.toLowerCase());
         })
         : conversations.data;
@@ -403,6 +425,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
                         onChannel={handleChannel}
                         onAccount={handleAccount}
                         onLabel={handleLabel}
+                        liveUsersCount={liveUsersCount}
                     />
                 </aside>
 
@@ -463,6 +486,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
                                     isFlashing={flashingIds.has(conv.id)}
                                     isActive={false}
                                     userTz={userTz}
+                                    liveMode={filters.folder === 'live'}
                                 />
                             ))
                         )}
