@@ -97,9 +97,9 @@ export default function useClientNav() {
     ];
 
     const chatbotSetupItems = [
-        { label: t('nav.widgets', { defaultValue: 'Widgets' }), href: safeRoute('client.inbox.chat-widgets.index'), icon: <MessageCircle className={iconClass} />, activePattern: 'client.inbox.chat-widgets.index' },
-        { label: t('nav.widget_settings', { defaultValue: 'Widget Settings' }), href: safeRoute('client.inbox.chat-widgets.settings'), icon: <Settings className={iconClass} />, activePattern: 'client.inbox.chat-widgets.settings' },
-        { label: t('nav.app_integration', { defaultValue: 'App Integration' }), href: safeRoute('client.inbox.chat-widgets.integration'), icon: <Webhook className={iconClass} />, activePattern: 'client.inbox.chat-widgets.integration' },
+        { label: 'Widgets', href: safeRoute('client.inbox.chat-widgets.index'), icon: <MessageCircle className={iconClass} />, activePattern: 'client.inbox.chat-widgets.index' },
+        { label: 'Appearance', href: safeRoute('client.inbox.chat-widgets.settings'), icon: <Settings className={iconClass} />, activePattern: 'client.inbox.chat-widgets.settings' },
+        { label: 'Integrations', href: safeRoute('client.inbox.chat-widgets.integration'), icon: <Webhook className={iconClass} />, activePattern: 'client.inbox.chat-widgets.integration' },
         { label: t('nav.wa_chatbot'), href: safeRoute('client.whatsapp.widget.index'), icon: whatsappNavIcon, activePattern: 'client.whatsapp.widget.*' },
     ];
 

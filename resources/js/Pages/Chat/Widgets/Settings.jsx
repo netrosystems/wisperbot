@@ -4,13 +4,13 @@ import { MessageCircle, Pencil, Plus, Settings as SettingsIcon } from 'lucide-re
 
 export default function ChatWidgetSettings({ widgets = [] }) {
     return (
-        <ClientLayout title="Widget settings">
-            <Head title="Widget settings" />
+        <ClientLayout title="Widget appearance">
+            <Head title="Widget appearance" />
             <div className="mx-auto max-w-5xl space-y-6">
                 <header>
                     <div className="flex items-center gap-2 text-xs font-semibold text-brand-600"><SettingsIcon className="h-4 w-4" /> CHATBOT WIDGET</div>
-                    <h1 className="mt-2 text-2xl font-bold text-neutral-900 dark:text-white">Widget settings</h1>
-                    <p className="mt-1 text-sm text-neutral-500">Choose a widget to update its appearance, welcome message, AI replies, visitor experience and availability.</p>
+                    <h1 className="mt-2 text-2xl font-bold text-neutral-900 dark:text-white">Appearance</h1>
+                    <p className="mt-1 text-sm text-neutral-500">Choose a widget to control its brand, launcher, welcome message and visitor experience.</p>
                 </header>
 
                 {widgets.length ? (
@@ -23,7 +23,7 @@ export default function ChatWidgetSettings({ widgets = [] }) {
                                 </div>
                                 <h2 className="mt-4 font-semibold text-neutral-900 dark:text-white">{widget.name || widget.title || 'Website chat widget'}</h2>
                                 <p className="mt-1 text-sm text-neutral-500">{widget.title || 'Chat with us'}</p>
-                                <Link href={route('client.inbox.chat-widgets.edit', widget.id)} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-700"><Pencil className="h-4 w-4" />Edit settings</Link>
+                                <Link href={route('client.inbox.chat-widgets.edit', widget.id)} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-700"><Pencil className="h-4 w-4" />Edit appearance</Link>
                             </div>
                         ))}
                     </div>
