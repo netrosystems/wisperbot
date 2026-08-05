@@ -24,8 +24,8 @@ export default function ChatWidgetEdit({ widget, chatbots = [], embedBase, ident
             <div className="space-y-6">
                 <div className="flex items-start justify-between gap-3">
                     <div>
-                        <Link href={route('client.inbox.chat-widgets.index')} className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">
-                            <ArrowLeft className="h-4 w-4" /> Website widgets
+                        <Link href={route('client.inbox.chat-widgets.integration')} className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">
+                            <ArrowLeft className="h-4 w-4" /> Integrations
                         </Link>
                         <h2 className="mt-2 text-xl font-semibold text-neutral-900 dark:text-neutral-100">{widget.name || 'Website chat widget'}</h2>
                     </div>

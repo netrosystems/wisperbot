@@ -25,46 +25,70 @@ class ChatWidgetController extends Controller
 {
     public function __construct(private readonly StorageManager $storageManager) {}
 
-    public function index(Request $request): Response
+    /**
+     * Each workspace is allowed exactly one chat widget. The legacy index
+     * page was a list of widgets; with N=1 it is meaningless, so the URL
+     * now serves as a redirect to the right destination depending on
+     * whether the workspace has a widget yet.
+     */
+    public function index(Request $request): RedirectResponse
     {
-        $widgets = ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->get();
+        $widget = ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->first();
 
-        return Inertia::render('Chat/Widgets/Index', [
-            'widgets' => $widgets,
-            'embedBase' => rtrim(url('/'), '/'),
-        ]);
+        return $widget
+            ? redirect()->route('client.inbox.chat-widgets.edit', $widget)
+            : redirect()->route('client.inbox.chat-widgets.integration');
     }
 
-    public function create(Request $request): Response
+    public function create(Request $request): Response|RedirectResponse
     {
+        $existing = ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->first();
+        if ($existing) {
+            return redirect()->route('client.inbox.chat-widgets.edit', $existing)
+                ->with('info', 'You already have a chat widget. Edit it from Appearance.');
+        }
+
         return Inertia::render('Chat/Widgets/Create', [
             'chatbots' => $this->chatbots($request),
             'canUseCustomLauncherLogo' => $this->canUseCustomLauncherLogo($request),
         ]);
     }
 
-    public function settings(Request $request): Response
+    /**
+     * Settings/branding owner. Now that each workspace has a single widget,
+     * this route directly loads the Edit form for that widget (failing
+     * gracefully to the Integration page's empty state when none exists).
+     */
+    public function settings(Request $request): Response|RedirectResponse
     {
+        $widget = ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->first();
+        if (! $widget) {
+            return redirect()->route('client.inbox.chat-widgets.integration');
+        }
+
         return Inertia::render('Chat/Widgets/Settings', [
-            'widgets' => ChatWidget::where('workspace_id', $this->workspaceId($request))->latest()->get(),
+            'widget' => $widget,
+            'chatbots' => $this->chatbots($request),
+            'embedBase' => rtrim(url('/'), '/'),
+            'identitySecret' => $widget->identity_secret,
+            'canUseCustomLauncherLogo' => $this->canUseCustomLauncherLogo($request),
         ]);
     }
 
     public function integration(Request $request): Response
     {
-        $widgets = ChatWidget::where('workspace_id', $this->workspaceId($request))
+        $widget = ChatWidget::where('workspace_id', $this->workspaceId($request))
             ->latest()
-            ->get()
-            ->map(fn (ChatWidget $widget) => [
+            ->first();
+
+        return Inertia::render('Chat/Widgets/Integration', [
+            'widget' => $widget ? [
                 'id' => $widget->id,
                 'name' => $widget->name,
                 'widget_key' => $widget->widget_key,
                 'identity_secret' => $widget->identity_secret,
                 'identity_verification' => $widget->identity_verification,
-            ]);
-
-        return Inertia::render('Chat/Widgets/Integration', [
-            'widgets' => $widgets,
+            ] : null,
             'embedBase' => rtrim(url('/'), '/'),
         ]);
     }
@@ -86,8 +110,15 @@ class ChatWidgetController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $this->validated($request);
         $workspaceId = $this->workspaceId($request);
+
+        if (ChatWidget::where('workspace_id', $workspaceId)->exists()) {
+            $existing = ChatWidget::where('workspace_id', $workspaceId)->latest()->first();
+            return redirect()->route('client.inbox.chat-widgets.edit', $existing)
+                ->with('error', 'You already have a chat widget. Each workspace can only have one.');
+        }
+
+        $data = $this->validated($request);
         $data = $this->applyLauncherLogo($request, $data);
 
         $channelAccount = ChannelAccount::create([
@@ -103,7 +134,7 @@ class ChatWidgetController extends Controller
             'channel_account_id' => $channelAccount->id,
         ]));
 
-        return redirect()->route('client.inbox.chat-widgets.index')->with('success', 'Chat widget created.');
+        return redirect()->route('client.inbox.chat-widgets.integration')->with('success', 'Chat widget created.');
     }
 
     public function update(Request $request, ChatWidget $chatWidget): RedirectResponse
@@ -131,7 +162,7 @@ class ChatWidgetController extends Controller
         $chatWidget->channelAccount?->update(['status' => 'inactive']);
         $chatWidget->delete();
 
-        return redirect()->route('client.inbox.chat-widgets.index')->with('success', 'Widget deleted.');
+        return redirect()->route('client.inbox.chat-widgets.integration')->with('success', 'Widget deleted.');
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

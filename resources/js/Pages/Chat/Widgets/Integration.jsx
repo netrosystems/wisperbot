@@ -4,7 +4,7 @@ import { Code2, MessageCircle, Plus, ShieldCheck, Smartphone, MonitorSmartphone 
 import InstallCard from './Partials/InstallCard';
 import IdentityCard from './Partials/IdentityCard';
 
-export default function ChatWidgetIntegration({ widgets = [], embedBase }) {
+export default function ChatWidgetIntegration({ widget = null, embedBase }) {
     return (
         <ClientLayout title="Widget integrations">
             <Head title="Widget integrations" />
@@ -17,13 +17,13 @@ export default function ChatWidgetIntegration({ widgets = [], embedBase }) {
 
                 <IntegrationOverview />
 
-                {widgets.length ? widgets.map((widget) => (
-                    <section key={widget.id} className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50/50 p-5 dark:border-neutral-800 dark:bg-neutral-950/30">
+                {widget ? (
+                    <section className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50/50 p-5 dark:border-neutral-800 dark:bg-neutral-950/30">
                         <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-500/10 text-brand-600"><MessageCircle className="h-4 w-4" /></span><div><h2 className="font-semibold text-neutral-900 dark:text-white">{widget.name || 'Website chat widget'}</h2><p className="text-xs text-neutral-500">Use this code only on the website assigned to this widget.</p></div></div>
                         <InstallCard embedBase={embedBase} widgetKey={widget.widget_key} />
                         <IdentityCard embedBase={embedBase} widgetKey={widget.widget_key} identitySecret={widget.identity_secret} verification={widget.identity_verification} />
                     </section>
-                )) : <EmptyState />}
+                ) : <EmptyState />}
             </div>
         </ClientLayout>
     );

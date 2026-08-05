@@ -1,40 +1,93 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
-import { MessageCircle, Pencil, Plus, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Check, Trash2 } from 'lucide-react';
+import ChatWidgetForm from './Partials/ChatWidgetForm';
+import InstallCard from './Partials/InstallCard';
+import IdentityCard from './Partials/IdentityCard';
 
-export default function ChatWidgetSettings({ widgets = [] }) {
+/**
+ * "Appearance" — branding + behaviour for the workspace's single chat widget.
+ * Since each workspace now has at most one widget, this page IS the edit page:
+ * no listing, no create button. Backend redirects here when the workspace has
+ * no widget yet (it falls through to the Integration empty state).
+ */
+export default function ChatWidgetSettings({
+    widget,
+    chatbots = [],
+    embedBase,
+    identitySecret,
+    canUseCustomLauncherLogo = false,
+}) {
+    const flash = usePage().props.flash ?? {};
+
+    const submit = (payload) => {
+        router.post(
+            route('client.inbox.chat-widgets.update', widget.id),
+            { ...payload, _method: 'put' },
+            { preserveScroll: true, forceFormData: true },
+        );
+    };
+
+    const remove = () => {
+        if (confirm('Delete this widget? The embed will stop working. Past conversations stay in your inbox.')) {
+            router.delete(route('client.inbox.chat-widgets.destroy', widget.id));
+        }
+    };
+
     return (
         <ClientLayout title="Widget appearance">
             <Head title="Widget appearance" />
-            <div className="mx-auto max-w-5xl space-y-6">
-                <header>
-                    <div className="flex items-center gap-2 text-xs font-semibold text-brand-600"><SettingsIcon className="h-4 w-4" /> CHATBOT WIDGET</div>
-                    <h1 className="mt-2 text-2xl font-bold text-neutral-900 dark:text-white">Appearance</h1>
-                    <p className="mt-1 text-sm text-neutral-500">Choose a widget to control its brand, launcher, welcome message and visitor experience.</p>
-                </header>
-
-                {widgets.length ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                        {widgets.map((widget) => (
-                            <div key={widget.id} className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-                                <div className="flex items-start justify-between gap-4">
-                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white" style={{ background: widget.primary_color || '#ff762e' }}><MessageCircle className="h-5 w-5" /></span>
-                                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${widget.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-600'}`}>{widget.enabled ? 'Live' : 'Off'}</span>
-                                </div>
-                                <h2 className="mt-4 font-semibold text-neutral-900 dark:text-white">{widget.name || widget.title || 'Website chat widget'}</h2>
-                                <p className="mt-1 text-sm text-neutral-500">{widget.title || 'Chat with us'}</p>
-                                <Link href={route('client.inbox.chat-widgets.edit', widget.id)} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-700"><Pencil className="h-4 w-4" />Edit appearance</Link>
-                            </div>
-                        ))}
+            <div className="space-y-6">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <Link
+                            href={route('client.inbox.chat-widgets.integration')}
+                            className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                        >
+                            <ArrowLeft className="h-4 w-4" /> Integrations
+                        </Link>
+                        <h2 className="mt-2 text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+                            {widget.name || 'Website chat widget'}
+                        </h2>
+                        <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
+                            Brand the chat bubble, choose greeting copy, wire up AI, and decide who can chat.
+                        </p>
                     </div>
-                ) : (
-                    <EmptyState />
+                    <button
+                        onClick={remove}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                    >
+                        <Trash2 className="h-4 w-4" /> Delete widget
+                    </button>
+                </div>
+
+                {flash.success && (
+                    <div className="rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 text-sm flex items-center gap-2">
+                        <Check className="h-4 w-4 flex-shrink-0" /> {flash.success}
+                    </div>
                 )}
+                {flash.error && (
+                    <div className="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 text-sm">
+                        {flash.error}
+                    </div>
+                )}
+
+                <ChatWidgetForm
+                    widget={widget}
+                    chatbots={chatbots}
+                    canUseCustomLauncherLogo={canUseCustomLauncherLogo}
+                    submitLabel="Save changes"
+                    onSubmit={submit}
+                />
+
+                <InstallCard embedBase={embedBase} widgetKey={widget.widget_key} />
+                <IdentityCard
+                    embedBase={embedBase}
+                    widgetKey={widget.widget_key}
+                    identitySecret={identitySecret}
+                    verification={widget.identity_verification}
+                />
             </div>
         </ClientLayout>
     );
-}
-
-function EmptyState() {
-    return <div className="rounded-2xl border border-dashed border-neutral-300 bg-white px-6 py-14 text-center dark:border-neutral-700 dark:bg-neutral-900"><MessageCircle className="mx-auto h-9 w-9 text-neutral-300" /><h2 className="mt-4 font-semibold text-neutral-800 dark:text-white">Create a widget first</h2><p className="mt-1 text-sm text-neutral-500">Once created, its appearance and behavior can be tailored here.</p><Link href={route('client.inbox.chat-widgets.create')} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"><Plus className="h-4 w-4" />Create widget</Link></div>;
 }
