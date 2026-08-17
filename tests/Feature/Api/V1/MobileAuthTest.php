@@ -21,6 +21,7 @@ class MobileAuthTest extends TestCase
             'email' => ' Agent@Example.com ',
             'password' => 'password',
             'device_name' => 'QA iPhone',
+            'device_id' => 'onesignal-subscription-123',
         ]);
 
         $response
@@ -31,6 +32,13 @@ class MobileAuthTest extends TestCase
         $this->assertDatabaseHas('personal_access_tokens', [
             'tokenable_id' => $user->id,
             'name' => 'QA iPhone',
+        ]);
+        $this->assertDatabaseHas('user_push_tokens', [
+            'user_id' => $user->id,
+            'provider' => 'onesignal',
+            'token' => 'onesignal-subscription-123',
+            'device_name' => 'QA iPhone',
+            'revoked_at' => null,
         ]);
     }
 

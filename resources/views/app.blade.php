@@ -73,6 +73,8 @@
             window.OneSignalDeferred = window.OneSignalDeferred || [];
 
             OneSignalDeferred.push(async function (OneSignal) {
+                var _keepPushAfterLogoutKey = 'wisperbot_keep_push_after_logout';
+
                 try {
                     await OneSignal.init({
                         appId: "{{ $oneSignalAppId }}",
@@ -130,6 +132,16 @@
                     }
                 }
                 window.osLogin = osLogin;
+                window.osKeepAfterLogoutEnabled = function () {
+                    try { return localStorage.getItem(_keepPushAfterLogoutKey) === '1'; } catch (_) { return false; }
+                };
+                window.osSetKeepAfterLogout = async function (enabled) {
+                    try {
+                        if (enabled) localStorage.setItem(_keepPushAfterLogoutKey, '1');
+                        else localStorage.removeItem(_keepPushAfterLogoutKey);
+                    } catch (_) {}
+                    if (enabled) await osLogin();
+                };
 
                 // If permission is already granted, wait for the subscription token
                 // to be populated before attempting login.
@@ -160,9 +172,21 @@
                         }
                     });
                 } catch (_) {}
+                try {
+                    OneSignal.User.PushSubscription.addEventListener('change', function (event) {
+                        var cur = event.current;
+                        if (cur?.token && !(cur?.id && String(cur.id).startsWith('local-'))) {
+                            osLogin();
+                        }
+                    });
+                } catch (_) {}
                 @else
                 // Do not keep the former user's identifier in a shared browser.
-                try { await OneSignal.logout(); } catch (_) {}
+                var _keepPushAfterLogout = false;
+                try { _keepPushAfterLogout = localStorage.getItem(_keepPushAfterLogoutKey) === '1'; } catch (_) {}
+                if (!_keepPushAfterLogout) {
+                    try { await OneSignal.logout(); } catch (_) {}
+                }
                 @endif
             });
 

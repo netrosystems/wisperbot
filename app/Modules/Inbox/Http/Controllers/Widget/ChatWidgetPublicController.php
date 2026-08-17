@@ -8,19 +8,21 @@ use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Inbox\Services\WebchatPresence;
+use App\Modules\Inbox\Services\WidgetPayloadBuilder;
+use App\Modules\Inbox\Services\WidgetVisitorPushService;
 use App\Modules\Shared\Models\Conversation;
-use App\Modules\Shared\Models\Message;
 use App\Services\StorageManager;
 use App\Support\WebchatVisitorToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Pusher\Pusher;
 
 /**
  * Public, anonymous API consumed by the embedded website chat widget. No session
  * / CSRF. Access is scoped by: (1) the unguessable widget_key, (2) a per-widget
  * domain whitelist, and (3) a signed visitor session token bound to one
- * conversation. Realtime is by polling (GET /messages).
+ * conversation. Realtime uses private Pusher channels with polling fallback.
  */
 class ChatWidgetPublicController extends Controller
 {
@@ -29,6 +31,8 @@ class ChatWidgetPublicController extends Controller
         private readonly StorageManager $storageManager,
         private readonly HumanHandoffService $humanHandoff,
         private readonly WebchatPresence $presence,
+        private readonly WidgetPayloadBuilder $payloads,
+        private readonly WidgetVisitorPushService $visitorPush,
     ) {}
 
     /** POST /widget/v1/session — start or restore a visitor's chat session. */
@@ -42,6 +46,8 @@ class ChatWidgetPublicController extends Controller
             'avatar' => ['nullable', 'string', 'max:512'],
             'external_id' => ['nullable', 'string', 'max:190'],
             'user_hash' => ['nullable', 'string', 'max:128'],
+            'push' => ['nullable', 'array'],
+            'push.token' => ['nullable', 'string', 'max:255'],
         ]);
 
         $widget = $this->resolveWidget($data['key']);
@@ -76,15 +82,17 @@ class ChatWidgetPublicController extends Controller
             $conversation = $this->driver->resolveConversation($widget, $visitorId, $identity);
         }
         $this->presence->touch($conversation, $request->ip());
+        $this->visitorPush->register($widget, $conversation, $visitorId, $data['push']['token'] ?? null);
         $token = WebchatVisitorToken::issue($conversation->id, $widget->widget_key, $visitorId);
 
         return response()->json([
             'visitor_id' => $visitorId,
+            'conversation_id' => $conversation->id,
             'token' => $token,
             'config' => $widget->publicConfig(),
             'online' => $this->isOnline($widget),
-            'messages' => $this->mapMessages($conversation->id, $widget, 0),
-            'handoff' => $this->handoffState($widget, $conversation),
+            'messages' => $this->payloads->messages($conversation->id, $widget, 0),
+            'handoff' => $this->payloads->handoff($widget, $conversation),
         ]);
     }
 
@@ -99,6 +107,7 @@ class ChatWidgetPublicController extends Controller
                 'nullable', 'file', 'max:10240',
                 'mimes:jpg,jpeg,png,webp,mp3,aac,m4a,amr,ogg,oga,wav,webm',
             ],
+            'client_message_id' => ['nullable', 'string', 'max:64'],
         ]);
 
         $widget = $this->resolveWidget($data['key']);
@@ -145,9 +154,14 @@ class ChatWidgetPublicController extends Controller
         app(TypingPresence::class)->setVisitor($conversation, false);
         $message = $this->driver->recordInboundMessage($conversation, $payload['v'], $body, $type, $messagePayload);
 
+        $messagePayloadData = $this->payloads->message($message, $widget);
+        if (! empty($data['client_message_id'])) {
+            $messagePayloadData['client_message_id'] = (string) $data['client_message_id'];
+        }
+
         return response()->json([
-            'message' => $this->mapMessage($message, $widget),
-            'handoff' => $this->handoffState($widget, $conversation->refresh()),
+            'message' => $messagePayloadData,
+            'handoff' => $this->payloads->handoff($widget, $conversation->refresh()),
         ]);
     }
 
@@ -171,9 +185,9 @@ class ChatWidgetPublicController extends Controller
         $this->presence->touch($conversation, $request->ip());
 
         return response()->json([
-            'messages' => $this->mapMessages((int) $payload['c'], $widget, (int) ($data['after'] ?? 0)),
+            'messages' => $this->payloads->messages((int) $payload['c'], $widget, (int) ($data['after'] ?? 0)),
             'online' => $this->isOnline($widget),
-            'handoff' => $this->handoffState($widget, $conversation),
+            'handoff' => $this->payloads->handoff($widget, $conversation),
             'agent_typing' => [
                 'is_typing' => $agentTyping !== null,
                 'name' => $agentTyping['user_name'] ?? null,
@@ -205,6 +219,42 @@ class ChatWidgetPublicController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /** POST /widget/v1/broadcasting/auth — private Pusher channel auth for visitors. */
+    public function broadcastingAuth(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string'],
+            'socket_id' => ['required', 'string', 'max:64'],
+            'channel_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $widget = $this->resolveWidget($data['key']);
+        $this->assertDomainAllowed($widget, $request);
+        $payload = $this->authVisitor($request, $widget);
+
+        $conversationId = (int) $payload['c'];
+        $channelName = (string) $data['channel_name'];
+
+        abort_unless($channelName === "private-widget-conversation.{$conversationId}", 403, 'Invalid channel.');
+
+        Conversation::where('id', $conversationId)
+            ->where('workspace_id', $widget->workspace_id)
+            ->where('channel_account_id', $widget->channel_account_id)
+            ->firstOrFail();
+
+        $config = config('broadcasting.connections.pusher');
+        abort_if(empty($config['key']) || empty($config['secret']) || empty($config['app_id']), 503, 'Realtime is not configured.');
+
+        $pusher = new Pusher(
+            (string) $config['key'],
+            (string) $config['secret'],
+            (string) $config['app_id'],
+            (array) ($config['options'] ?? []),
+        );
+
+        return response()->json(json_decode($pusher->authorizeChannel($channelName, (string) $data['socket_id']), true));
+    }
+
     /** POST /widget/v1/handoff — visitor asks to continue with a person. */
     public function handoff(Request $request): JsonResponse
     {
@@ -219,12 +269,12 @@ class ChatWidgetPublicController extends Controller
             ->firstOrFail();
 
         abort_unless($widget->hasActiveAiChatbot(), 422, 'AI chat is not enabled for this widget.');
-        abort_unless($this->hasTwoCustomerMessages($conversation), 422, 'Human Agent becomes available after two messages.');
+        abort_unless($this->payloads->hasTwoCustomerMessages($conversation), 422, 'Human Agent becomes available after two messages.');
 
         $conversation = $this->humanHandoff->request($conversation, 'widget_button');
 
         return response()->json([
-            'handoff' => $this->handoffState($widget, $conversation),
+            'handoff' => $this->payloads->handoff($widget, $conversation),
         ]);
     }
 
@@ -333,79 +383,6 @@ class ChatWidgetPublicController extends Controller
         abort_if($payload === null, 401, 'Invalid or expired session.');
 
         return $payload;
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function mapMessages(int $conversationId, ChatWidget $widget, int $afterId): array
-    {
-        return Message::where('conversation_id', $conversationId)
-            ->with('sender')
-            ->where('id', '>', $afterId)
-            ->whereIn('direction', ['in', 'out'])
-            ->where('status', '!=', 'failed')
-            ->orderBy('id')
-            ->limit(100)
-            ->get()
-            ->map(fn (Message $m) => $this->mapMessage($m, $widget))
-            ->all();
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function mapMessage(Message $m, ChatWidget $widget): array
-    {
-        $isAgent = $m->direction === 'out';
-
-        return [
-            'id' => $m->id,
-            'role' => $isAgent ? 'agent' : 'visitor',
-            'body' => (string) $m->body,
-            'type' => $m->type,
-            // Website-chat media is stored by the inbox reply action. Expose
-            // only its generated public URL, never a provider media ID.
-            // APP_URL can remain http behind a TLS-terminating proxy. Sending
-            // that URL to an HTTPS embed is mixed content and gets blocked by
-            // browsers, most noticeably for Firefox image/audio rendering.
-            'attachment_url' => $this->browserSafePublicUrl($m->payload['preview_url'] ?? null),
-            'filename' => $m->payload['filename'] ?? null,
-            'mime_type' => $m->payload['mime_type'] ?? null,
-            'sent_by' => $m->sent_by,
-            'agent_name' => $isAgent
-                ? ($m->sender?->name ?: ($widget->agent_name ?: 'Support'))
-                : null,
-            'created_at' => optional($m->sent_at ?? $m->created_at)->toIso8601String(),
-        ];
-    }
-
-    /**
-     * The visitor sees the handoff action only after their second message and
-     * only while this specific widget has an active AI chatbot.
-     *
-     * @return array{enabled:bool,eligible:bool,status:string}
-     */
-    private function handoffState(ChatWidget $widget, Conversation $conversation): array
-    {
-        $enabled = $widget->hasActiveAiChatbot();
-        $connected = ($conversation->assigned_to ?? 'bot') === 'human';
-
-        return [
-            'enabled' => $enabled,
-            'eligible' => $enabled && ! $connected && $this->hasTwoCustomerMessages($conversation),
-            'status' => $enabled && $connected ? 'connected' : 'bot',
-        ];
-    }
-
-    private function hasTwoCustomerMessages(Conversation $conversation): bool
-    {
-        return $conversation->messages()
-            ->where('direction', 'in')
-            ->orderBy('id')
-            ->limit(2)
-            ->get(['id'])
-            ->count() >= 2;
     }
 
     /** Keep same-host local-disk URLs safe for an HTTPS public widget. */

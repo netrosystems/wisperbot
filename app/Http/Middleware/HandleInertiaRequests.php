@@ -7,6 +7,7 @@ use App\Models\Currency;
 use App\Models\Locale;
 use App\Models\SystemSetting;
 use App\Services\OneSignalService;
+use App\Services\PusherPublicConfig;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\Broadcasting\Models\UsageMeter;
@@ -15,6 +16,7 @@ use App\Services\AddonEntitlementService;
 use App\Services\I18n\I18nFileService;
 use App\Services\OnboardingService;
 use App\Services\StorageManager;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -134,26 +136,7 @@ class HandleInertiaRequests extends Middleware
 
     private function pusherPublicConfig(): array
     {
-        try {
-            $key = SystemSetting::get('pusher_app_key') ?: env('PUSHER_APP_KEY', '');
-            $cluster = SystemSetting::get('pusher_app_cluster') ?: env('PUSHER_APP_CLUSTER', 'mt1');
-            $dbFlag = SystemSetting::get('pusher_enabled');
-
-            // If the admin panel has explicitly disabled Pusher, respect that.
-            // Otherwise (setting absent/null) treat a non-empty key as enabled,
-            // so the .env credentials work out-of-the-box without a DB toggle.
-            $enabled = $dbFlag === 'false' ? false : ! empty($key);
-
-            return [
-                'key' => $key,
-                'cluster' => $cluster,
-                'enabled' => $enabled,
-            ];
-        } catch (\Throwable) {
-            $key = env('PUSHER_APP_KEY', '');
-
-            return ['key' => $key, 'cluster' => env('PUSHER_APP_CLUSTER', 'mt1'), 'enabled' => ! empty($key)];
-        }
+        return app(PusherPublicConfig::class)->app();
     }
 
     private function brandingShare(): array
@@ -400,6 +383,9 @@ class HandleInertiaRequests extends Middleware
     {
         app(StorageManager::class)->ensureDiskReady($disk);
 
-        return Storage::disk($disk)->url($path);
+        /** @var FilesystemAdapter $storage */
+        $storage = Storage::disk($disk);
+
+        return $storage->url($path);
     }
 }

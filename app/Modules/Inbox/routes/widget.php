@@ -24,6 +24,8 @@ Route::prefix('widget/v1')->name('widget.')->group(function () {
         ->middleware('throttle:60,1')->name('send');
     Route::get('/messages', [ChatWidgetPublicController::class, 'poll'])
         ->middleware('throttle:300,1')->name('poll');
+    Route::post('/broadcasting/auth', [ChatWidgetPublicController::class, 'broadcastingAuth'])
+        ->middleware('throttle:300,1')->name('broadcasting-auth');
     Route::post('/typing', [ChatWidgetPublicController::class, 'typing'])
         ->middleware('throttle:60,1')->name('typing');
     Route::post('/handoff', [ChatWidgetPublicController::class, 'handoff'])
