@@ -60,7 +60,13 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
         e.preventDefault();
         transform((formData) => ({
             ...formData,
-            scheduled_at: formData.scheduled_at ? tzLocalToUtcIso(formData.scheduled_at, formData.timezone || 'UTC') : null,
+            // A published post may retain its historical scheduled_at value.
+            // Never resubmit that hidden, now-past timestamp during a live edit.
+            scheduled_at: isRemotePublished
+                ? null
+                : formData.scheduled_at
+                  ? tzLocalToUtcIso(formData.scheduled_at, formData.timezone || 'UTC')
+                  : null,
             media_urls: (formData.media_urls ?? []).filter(Boolean),
             target_accounts: formData.target_accounts.map(Number),
         }));

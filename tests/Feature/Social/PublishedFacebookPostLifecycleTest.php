@@ -5,9 +5,11 @@ namespace Tests\Feature\Social;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Models\SocialPostAccount;
+use App\Modules\Social\Jobs\PublishSocialPostJob;
 use App\Modules\Social\Services\SocialPublisher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -17,6 +19,7 @@ class PublishedFacebookPostLifecycleTest extends TestCase
 
     public function test_composer_upgrades_same_origin_media_to_https_and_redirects_to_posts(): void
     {
+        Bus::fake();
         $context = $this->createWorkspaceContext();
         $account = $this->facebookAccount($context['workspace']->id, 'PAGE_1', 'Review Page');
 
@@ -36,6 +39,63 @@ class PublishedFacebookPostLifecycleTest extends TestCase
 
         $this->assertSame(['https://127.0.0.1/storage/media/post.png'], $post->media_urls);
         $this->assertSame('scheduled', $post->status);
+        Bus::assertDispatched(PublishSocialPostJob::class, function (PublishSocialPostJob $job) use ($post): bool {
+            return $job->postId === $post->id
+                && $job->queue === 'social'
+                && $job->delay?->equalTo($post->scheduled_at);
+        });
+    }
+
+    public function test_due_delayed_job_claims_and_publishes_a_scheduled_post(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $account = $this->facebookAccount($context['workspace']->id, 'PAGE_1', 'Review Page');
+        $post = SocialPost::create([
+            'workspace_id' => $context['workspace']->id,
+            'title' => 'Precisely scheduled post',
+            'body' => 'Publish at the requested time.',
+            'media_urls' => [],
+            'target_accounts' => [$account->id],
+            'status' => 'scheduled',
+            'scheduled_at' => now()->subSecond(),
+            'timezone' => 'UTC',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'graph.facebook.com/v25.0/PAGE_1/feed' => Http::response(['id' => 'PAGE_1_POST_PRECISE']),
+        ]);
+
+        (new PublishSocialPostJob($post->id))->handle(app(SocialPublisher::class));
+
+        $this->assertSame('published', $post->fresh()->status);
+        $this->assertDatabaseHas('social_media_post_accounts', [
+            'post_id' => $post->id,
+            'social_account_id' => $account->id,
+            'platform_post_id' => 'PAGE_1_POST_PRECISE',
+        ]);
+    }
+
+    public function test_a_stale_delayed_job_cannot_publish_a_cancelled_draft(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $account = $this->facebookAccount($context['workspace']->id, 'PAGE_1', 'Review Page');
+        $post = SocialPost::create([
+            'workspace_id' => $context['workspace']->id,
+            'body' => 'This schedule was cancelled.',
+            'media_urls' => [],
+            'target_accounts' => [$account->id],
+            'status' => 'draft',
+            'scheduled_at' => null,
+            'timezone' => 'UTC',
+        ]);
+
+        Http::preventStrayRequests();
+
+        (new PublishSocialPostJob($post->id))->handle(app(SocialPublisher::class));
+
+        $this->assertSame('draft', $post->fresh()->status);
+        Http::assertNothingSent();
     }
 
     public function test_composer_still_rejects_insecure_external_media_urls(): void
@@ -123,6 +183,32 @@ class PublishedFacebookPostLifecycleTest extends TestCase
             && $request['message'] === 'Updated on Facebook'
             && $request['access_token'] === $account->access_token
         );
+    }
+
+    public function test_a_published_scheduled_post_ignores_its_historical_schedule_during_edit(): void
+    {
+        $context = $this->createWorkspaceContext();
+        [$post] = $this->publishedPost($context['workspace']->id, [
+            'scheduled_at' => now()->subHour(),
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'graph.facebook.com/v25.0/PAGE_1_POST_1' => Http::response(['success' => true]),
+        ]);
+
+        $this->actingAs($context['user'])
+            ->put(route('client.social.posts.update', $post), $this->updatePayload($post, [
+                'body' => 'Historical schedule no longer blocks edits',
+                'scheduled_at' => $post->scheduled_at->toIso8601String(),
+            ]))
+            ->assertRedirect(route('client.social.posts.index'))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', 'Facebook Page post updated successfully.');
+
+        $post->refresh();
+        $this->assertSame('Historical schedule no longer blocks edits', $post->body);
+        $this->assertNotNull($post->scheduled_at);
     }
 
     public function test_a_published_facebook_post_is_deleted_remotely_before_local_records_are_removed(): void

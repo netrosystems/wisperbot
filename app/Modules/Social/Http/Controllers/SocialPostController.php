@@ -194,9 +194,13 @@ class SocialPostController extends Controller
             'status' => $validated['scheduled_at'] ? 'scheduled' : 'draft',
         ]));
 
-        if (! $validated['scheduled_at']) {
-            PublishSocialPostJob::dispatch($post->id)->onQueue('social');
+        if ($post->scheduled_at) {
+            $this->dispatchAtScheduledTime($post);
+        } else {
+            // Set the state before dispatching so a fast queue worker cannot
+            // observe a draft while an immediate publish is already running.
             $post->update(['status' => 'publishing']);
+            PublishSocialPostJob::dispatch($post->id)->onQueue('social');
         }
 
         if ($request->expectsJson()) {
@@ -274,7 +278,12 @@ class SocialPostController extends Controller
             ]);
         }
 
-        if (! empty($validated['scheduled_at']) && now()->subSeconds(30)->gt($validated['scheduled_at'])) {
+        // scheduled_at is historical metadata once a remote post is live. An
+        // older client may still submit it even though scheduling is hidden,
+        // so ignore it instead of rejecting an otherwise valid text update.
+        if ($capabilities['has_remote_posts']) {
+            $validated['scheduled_at'] = null;
+        } elseif (! empty($validated['scheduled_at']) && now()->subSeconds(30)->gt($validated['scheduled_at'])) {
             throw ValidationException::withMessages([
                 'scheduled_at' => ['The scheduled time must be in the future.'],
             ]);
@@ -291,11 +300,28 @@ class SocialPostController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         }
 
+        $post->refresh();
+        if (! $capabilities['has_remote_posts'] && $post->status === 'scheduled' && $post->scheduled_at) {
+            $this->dispatchAtScheduledTime($post);
+        }
+
         $message = $capabilities['has_remote_posts']
             ? 'Facebook Page post updated successfully.'
             : 'Post updated successfully.';
 
         return redirect()->route('client.social.posts.index')->with('success', $message);
+    }
+
+    /**
+     * Queue the post as soon as it is scheduled so a continuously running
+     * worker can publish at the requested second. The every-minute scheduler
+     * remains a recovery path if the queue was unavailable at creation time.
+     */
+    private function dispatchAtScheduledTime(SocialPost $post): void
+    {
+        PublishSocialPostJob::dispatch($post->id)
+            ->delay($post->scheduled_at)
+            ->onQueue('social');
     }
 
     /**
