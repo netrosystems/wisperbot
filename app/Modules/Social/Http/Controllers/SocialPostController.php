@@ -139,6 +139,7 @@ class SocialPostController extends Controller
     public function store(Request $request): JsonResponse|RedirectResponse
     {
         $wid = $this->workspaceId($request);
+        $this->normalizeSameOriginMediaUrls($request);
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:256'],
             'body' => ['required', 'string', 'max:5000'],
@@ -202,7 +203,8 @@ class SocialPostController extends Controller
             return response()->json(['success' => true, 'post_id' => $post->id]);
         }
 
-        return back()->with('success', 'Post '.($validated['scheduled_at'] ? 'scheduled' : 'queued for publishing').'.');
+        return redirect()->route('client.social.posts.index')
+            ->with('success', 'Post '.($validated['scheduled_at'] ? 'scheduled' : 'queued for publishing').'.');
     }
 
     public function edit(Request $request, SocialPost $post): Response|RedirectResponse
@@ -234,6 +236,7 @@ class SocialPostController extends Controller
             return back()->with('error', $capabilities['reason'] ?? 'This post cannot be edited safely.');
         }
 
+        $this->normalizeSameOriginMediaUrls($request);
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:256'],
             'body' => ['required', 'string', 'max:5000'],
@@ -293,6 +296,34 @@ class SocialPostController extends Controller
             : 'Post updated successfully.';
 
         return redirect()->route('client.social.posts.index')->with('success', $message);
+    }
+
+    /**
+     * Storage URLs created before APP_URL was configured as HTTPS may still be
+     * submitted as http://. Upgrade only URLs hosted by this application; the
+     * existing HTTPS-only validation remains in force for every external URL.
+     */
+    private function normalizeSameOriginMediaUrls(Request $request): void
+    {
+        $requestHost = strtolower($request->getHost());
+        $mediaUrls = collect($request->input('media_urls', []))
+            ->map(function ($url) use ($requestHost) {
+                if (! is_string($url) || trim($url) === '') {
+                    return $url;
+                }
+
+                $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+                $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+                if ($scheme === 'http' && $host !== '' && hash_equals($requestHost, $host)) {
+                    return preg_replace('/^http:\/\//i', 'https://', $url, 1);
+                }
+
+                return $url;
+            })
+            ->all();
+
+        $request->merge(['media_urls' => $mediaUrls]);
     }
 
     public function publishNow(Request $request, SocialPost $post): RedirectResponse

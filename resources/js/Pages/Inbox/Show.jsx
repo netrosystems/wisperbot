@@ -27,7 +27,7 @@ const FOLDERS = [
     { key: 'resolved',   labelKey: 'inbox.folder_resolved',   icon: CheckCircle },
     { key: 'snoozed',    labelKey: 'inbox.folder_snoozed',    icon: Clock },
 ];
-const ALL_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'telegram', 'ebay', 'amazon', 'sms', 'email'];
+const ALL_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'telegram', 'ebay', 'amazon', 'webchat'];
 
 const STATUS_COLORS = {
     open:     'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
@@ -960,7 +960,7 @@ function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChan
                     </button>
                 ))}
             </div>}
-            <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
+            {!emailOnly && <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1.5">{t('inbox.channels')}</p>
                 {ALL_CHANNELS.map(ch => (
                     <button key={ch} onClick={() => onChannel(ch)}
@@ -973,7 +973,7 @@ function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChan
                         <span>{CHANNEL_LABELS[ch] ?? ch}</span>
                     </button>
                 ))}
-            </div>
+            </div>}
             {channelAccounts.length > 0 && (
                 <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1.5">{emailOnly ? 'Mailboxes' : t('inbox.numbers')}</p>

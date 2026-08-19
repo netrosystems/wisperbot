@@ -15,6 +15,49 @@ class PublishedFacebookPostLifecycleTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_composer_upgrades_same_origin_media_to_https_and_redirects_to_posts(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $account = $this->facebookAccount($context['workspace']->id, 'PAGE_1', 'Review Page');
+
+        $this->actingAs($context['user'])
+            ->post('/app/social/posts', [
+                'title' => 'Scheduled post',
+                'body' => 'This post should be scheduled.',
+                'media_urls' => ['http://127.0.0.1/storage/media/post.png'],
+                'target_accounts' => [$account->id],
+                'scheduled_at' => now()->addHour()->toIso8601String(),
+                'timezone' => 'UTC',
+            ])
+            ->assertRedirect(route('client.social.posts.index'))
+            ->assertSessionHas('success', 'Post scheduled.');
+
+        $post = SocialPost::query()->latest('id')->firstOrFail();
+
+        $this->assertSame(['https://127.0.0.1/storage/media/post.png'], $post->media_urls);
+        $this->assertSame('scheduled', $post->status);
+    }
+
+    public function test_composer_still_rejects_insecure_external_media_urls(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $account = $this->facebookAccount($context['workspace']->id, 'PAGE_1', 'Review Page');
+
+        $this->actingAs($context['user'])
+            ->from(route('client.social.composer'))
+            ->post('/app/social/posts', [
+                'body' => 'External media must remain HTTPS-only.',
+                'media_urls' => ['http://cdn.example.com/post.png'],
+                'target_accounts' => [$account->id],
+                'scheduled_at' => now()->addHour()->toIso8601String(),
+                'timezone' => 'UTC',
+            ])
+            ->assertRedirect(route('client.social.composer'))
+            ->assertSessionHasErrors('media_urls.0');
+
+        $this->assertDatabaseCount('social_media_posts', 0);
+    }
+
     public function test_facebook_page_post_creation_uses_the_page_token_and_saves_the_remote_id(): void
     {
         $context = $this->createWorkspaceContext();

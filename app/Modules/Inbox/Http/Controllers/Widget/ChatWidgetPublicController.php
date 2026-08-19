@@ -42,6 +42,7 @@ class ChatWidgetPublicController extends Controller
             'avatar' => ['nullable', 'string', 'max:512'],
             'external_id' => ['nullable', 'string', 'max:190'],
             'user_hash' => ['nullable', 'string', 'max:128'],
+            'active' => ['nullable', 'boolean'],
         ]);
 
         $widget = $this->resolveWidget($data['key']);
@@ -75,7 +76,9 @@ class ChatWidgetPublicController extends Controller
         } else {
             $conversation = $this->driver->resolveConversation($widget, $visitorId, $identity);
         }
-        $this->presence->touch($conversation, $request->ip());
+        if ((bool) ($data['active'] ?? false)) {
+            $this->presence->touch($conversation, $request->ip());
+        }
         $token = WebchatVisitorToken::issue($conversation->id, $widget->widget_key, $visitorId);
 
         return response()->json([
@@ -157,6 +160,7 @@ class ChatWidgetPublicController extends Controller
         $data = $request->validate([
             'key' => ['required', 'string'],
             'after' => ['nullable', 'integer'],
+            'active' => ['nullable', 'boolean'],
         ]);
 
         $widget = $this->resolveWidget($data['key']);
@@ -168,7 +172,9 @@ class ChatWidgetPublicController extends Controller
             ->where('channel_account_id', $widget->channel_account_id)
             ->firstOrFail();
         $agentTyping = app(TypingPresence::class)->agent($conversation);
-        $this->presence->touch($conversation, $request->ip());
+        if ((bool) ($data['active'] ?? false)) {
+            $this->presence->touch($conversation, $request->ip());
+        }
 
         return response()->json([
             'messages' => $this->mapMessages((int) $payload['c'], $widget, (int) ($data['after'] ?? 0)),

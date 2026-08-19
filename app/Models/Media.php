@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\StorageManager;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -39,7 +40,18 @@ class Media extends Model
     {
         $this->ensureDiskConfigured();
 
-        return Storage::disk($this->disk)->url($this->path);
+        $url = Storage::disk($this->disk)->url($this->path);
+        $urlHost = strtolower((string) parse_url($url, PHP_URL_HOST));
+        $appUrl = (string) config('app.url');
+        $appHost = strtolower((string) parse_url($appUrl, PHP_URL_HOST));
+        $appUsesHttps = strtolower((string) parse_url($appUrl, PHP_URL_SCHEME)) === 'https';
+        $requestUsesHttps = app()->bound('request') && request()->isSecure();
+
+        if (($appUsesHttps || $requestUsesHttps) && $urlHost !== '' && $urlHost === $appHost) {
+            return preg_replace('/^http:\/\//i', 'https://', $url, 1);
+        }
+
+        return $url;
     }
 
     public function delete(): bool
@@ -52,6 +64,6 @@ class Media extends Model
 
     private function ensureDiskConfigured(): void
     {
-        app(\App\Services\StorageManager::class)->ensureDiskReady($this->disk);
+        app(StorageManager::class)->ensureDiskReady($this->disk);
     }
 }

@@ -9,12 +9,13 @@ use Illuminate\Support\Str;
 /**
  * Lightweight website-visitor presence and agent-to-widget commands.
  *
- * Contact presence is persisted at most once every 15 seconds so an open site
- * can poll frequently without turning every heartbeat into a database write.
+ * Presence belongs to a website conversation, not the contact's generic
+ * last_seen_at value. This prevents activity on another channel (or a stale
+ * contact record) from being counted as a live website visitor.
  */
 class WebchatPresence
 {
-    public const ONLINE_SECONDS = 90;
+    public const ONLINE_SECONDS = 30;
 
     public function touch(Conversation $conversation, ?string $ipAddress = null): void
     {
@@ -23,8 +24,8 @@ class WebchatPresence
             return;
         }
 
-        $throttleKey = "webchat:presence-touch:{$contact->id}";
-        if (! Cache::add($throttleKey, true, 15)) {
+        $throttleKey = "webchat:presence-touch:{$conversation->id}";
+        if (! Cache::add($throttleKey, true, 10)) {
             return;
         }
 
@@ -32,6 +33,8 @@ class WebchatPresence
         if ($ipAddress) {
             $customFields['webchat_last_ip'] = $ipAddress;
         }
+
+        $conversation->forceFill(['webchat_last_seen_at' => now()])->save();
 
         $contact->update([
             'last_seen_at' => now(),
