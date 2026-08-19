@@ -447,6 +447,12 @@ class MobileConversationController extends WorkspaceScopedController
             'unread_count' => (int) $c->unread_count,
             'last_message_at' => $c->last_message_at?->toIso8601String(),
             'assigned_user_id' => $c->assigned_user_id,
+            'assigned_to' => $c->assigned_to,
+            'assigned_user' => $c->assignedUser ? [
+                'id' => $c->assignedUser->id,
+                'name' => $c->assignedUser->name,
+                'avatar' => $c->assignedUser->avatar ?? null,
+            ] : null,
             'contact' => $c->contact ? [
                 'id' => $c->contact->id,
                 'name' => Demo::name($c->contact->full_name),
@@ -469,12 +475,6 @@ class MobileConversationController extends WorkspaceScopedController
 
         if ($detail) {
             $data['is_whatsapp_window_open'] = $c->getAttribute('is_whatsapp_window_open') ?? true;
-            $data['assigned_user'] = $c->assignedUser ? [
-                'id' => $c->assignedUser->id,
-                'name' => $c->assignedUser->name,
-                'avatar' => $c->assignedUser->avatar ?? null,
-            ] : null;
-            $data['assigned_to'] = $c->assigned_to;
             $data['handover_at'] = $c->handover_at?->toIso8601String();
             $data['resolved_at'] = $c->resolved_at?->toIso8601String();
             $data['created_at'] = $c->created_at->toIso8601String();
