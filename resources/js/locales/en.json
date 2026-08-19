@@ -2660,7 +2660,9 @@
         "browse": "browse",
         "max_size_mb": "max {{max}} MB",
         "file_exceeds_limit": "File exceeds {{max}} MB limit.",
-        "upload_failed_retry": "Upload failed. Please try again."
+        "upload_failed_retry": "Upload failed. Please try again.",
+        "remove_uploaded_file": "Remove uploaded file",
+        "remove_upload_failed": "The uploaded file could not be removed. Please try again."
     },
     "inbox_ui": {
         "new_conversation": "New Conversation",
