@@ -38,7 +38,7 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
     const postTz = post.timezone || userTz;
     const isRemotePublished = Boolean(remoteLifecycle.has_remote_posts);
 
-    const { data, setData, processing, errors, transform } = useForm({
+    const { data, setData, processing, errors, transform, put } = useForm({
         title: post.title ?? '',
         body: post.body ?? '',
         media_urls: (post.media_urls ?? []).filter(Boolean).length ? post.media_urls.filter(Boolean) : [''],
@@ -63,7 +63,9 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
             scheduled_at: formData.scheduled_at ? tzLocalToUtcIso(formData.scheduled_at, formData.timezone || 'UTC') : null,
             media_urls: (formData.media_urls ?? []).filter(Boolean),
             target_accounts: formData.target_accounts.map(Number),
-        })).put(route('client.social.posts.update', post.id), {
+        }));
+
+        put(route('client.social.posts.update', post.id), {
             preserveScroll: true,
         });
     };
