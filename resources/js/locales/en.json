@@ -3850,12 +3850,17 @@
         "confirm_publish_now": "Publish this post now?",
         "confirm_cancel_schedule": "Cancel this scheduled post?",
         "confirm_delete_post": "Delete this post?",
+        "confirm_delete_facebook_post": "Delete this post from every connected Facebook Page and from WisperBot? This cannot be undone.",
+        "delete_from_facebook": "Delete from Facebook and WisperBot",
         "cancel_schedule": "Cancel Schedule",
         "cancelling": "Cancelling…",
         "view": "View",
         "edit_post_title": "Edit Post",
         "edit_post_head": "Edit Post · Social",
-        "edit_post_subtitle": "Changes will not re-publish already published content.",
+        "edit_post_subtitle": "Update your draft or scheduled content.",
+        "edit_published_facebook_subtitle": "Update the text on the live Facebook Page post.",
+        "published_facebook_update_notice": "This post is already live on Facebook. WisperBot will update every published Facebook Page copy before saving the local change. Connected Pages and media stay locked to prevent inconsistent content.",
+        "update_facebook_post": "Update Facebook Post",
         "content": "Content",
         "edit_title_placeholder": "Add a title…",
         "no_media_attached": "No media attached.",
@@ -4099,7 +4104,5 @@
             }
         ]
     ],
-    "v20": [
-        "0"
-    ]
+    "v20": ["0"]
 }
