@@ -6,14 +6,15 @@ use App\Models\Client;
 use App\Models\Currency;
 use App\Models\Locale;
 use App\Models\SystemSetting;
-use App\Services\OneSignalService;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\Broadcasting\Models\UsageMeter;
 use App\Modules\Integrations\Services\CredentialResolver;
 use App\Services\AddonEntitlementService;
+use App\Services\AppVersionManager;
 use App\Services\I18n\I18nFileService;
 use App\Services\OnboardingService;
+use App\Services\OneSignalService;
 use App\Services\StorageManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -46,7 +47,7 @@ class HandleInertiaRequests extends Middleware
      */
     public function version(Request $request): ?string
     {
-        $version = (string) config('app.version', '');
+        $version = $this->appVersion();
 
         return $version !== '' ? hash('xxh128', 'wisperbot:'.$version) : parent::version($request);
     }
@@ -92,13 +93,32 @@ class HandleInertiaRequests extends Middleware
                 'displayCurrency' => 'USD',
                 'theme' => 'light',
                 'demo_mode' => false,
-                'app_version' => config('app.version', '1.0.0'),
+                'app_version' => $this->appVersion(),
                 'onboardingSummary' => null,
                 'entitlements' => ['developer_tools' => false],
             ];
         }
 
         return array_merge($parent, $app);
+    }
+
+    private function appVersion(): string
+    {
+        $versions = app(AppVersionManager::class);
+
+        try {
+            if (app()->environment('production')) {
+                return $versions->synchronizeWithDeployment()['version'];
+            }
+
+            return $versions->current();
+        } catch (\Throwable $e) {
+            Log::warning('Automatic application version synchronization failed.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return (string) config('app.version', '1.0.0');
+        }
     }
 
     private function firebasePublicConfig(): array
@@ -370,7 +390,7 @@ class HandleInertiaRequests extends Middleware
             'displayCurrency' => $displayCurrency,
             'demo_mode' => config('app.demo_mode', false),
             'current_workspace_usage' => $this->workspaceUsage($workspaceId ?? null, $plan ?? null),
-            'app_version' => config('app.version', '1.0.0'),
+            'app_version' => $this->appVersion(),
             'onboardingSummary' => $onboardingSummary,
             'landingPageEnabled' => SystemSetting::get('landing.page_enabled', '1') === '1',
             'branding' => $this->brandingShare(),
