@@ -291,6 +291,12 @@ function PostCard({ post, accountMap, userTz, onView, onDelete }) {
                     </p>
                 )}
 
+                {post.remote_lifecycle?.reason && !canEdit && !canDelete && !post.remote_lifecycle?.update_reason && (
+                    <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                        {post.remote_lifecycle.reason}
+                    </p>
+                )}
+
                 {/* Secondary actions */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                     {canPublishNow && (

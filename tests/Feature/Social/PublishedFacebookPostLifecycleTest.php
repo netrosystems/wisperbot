@@ -283,6 +283,44 @@ class PublishedFacebookPostLifecycleTest extends TestCase
         );
     }
 
+    public function test_missing_published_account_link_is_recovered_from_publish_results(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $account = SocialAccount::create([
+            'workspace_id' => $context['workspace']->id,
+            'network' => 'instagram',
+            'account_id' => 'IG_USER_RECOVERY',
+            'name' => '@recovered_account',
+            'access_token' => 'instagram-token',
+            'active' => true,
+        ]);
+        $post = SocialPost::create([
+            'workspace_id' => $context['workspace']->id,
+            'title' => 'Recoverable post',
+            'body' => 'Published before account-link persistence was reliable.',
+            'media_urls' => ['https://cdn.example.com/recovery.jpg'],
+            'target_accounts' => [$account->id],
+            'status' => 'published',
+            'published_at' => now(),
+            'publish_results' => [
+                $account->id => ['status' => 'published', 'post_id' => 'IG_MEDIA_RECOVERED'],
+            ],
+        ]);
+
+        $this->assertDatabaseMissing('social_media_post_accounts', ['post_id' => $post->id]);
+
+        $capabilities = app(PublishedPostLifecycle::class)->capabilities($post);
+
+        $this->assertTrue($capabilities['can_delete']);
+        $this->assertFalse($capabilities['can_update']);
+        $this->assertDatabaseHas('social_media_post_accounts', [
+            'post_id' => $post->id,
+            'social_account_id' => $account->id,
+            'status' => 'published',
+            'platform_post_id' => 'IG_MEDIA_RECOVERED',
+        ]);
+    }
+
     public function test_failed_remote_update_does_not_claim_the_local_post_was_updated(): void
     {
         $context = $this->createWorkspaceContext();

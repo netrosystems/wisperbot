@@ -3,7 +3,9 @@
 namespace App\Modules\Social\Services;
 
 use App\Modules\Social\Exceptions\PublishedPostLifecycleException;
+use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Models\SocialPost;
+use App\Modules\Social\Models\SocialPostAccount;
 use App\Modules\Social\Services\Drivers\FacebookDriver;
 use App\Modules\Social\Services\Drivers\InstagramSocialDriver;
 use App\Modules\Social\Services\Drivers\ManagesPublishedPosts;
@@ -39,6 +41,7 @@ class PublishedPostLifecycle
             return $this->capability(false, false, false, 'Wait for publishing to finish before changing this post.');
         }
 
+        $this->recoverPublishedLinks($post);
         $links = $this->activePublishedLinks($post);
 
         if ($links->isEmpty()) {
@@ -80,6 +83,7 @@ class PublishedPostLifecycle
     {
         $this->withPostLock($post, function () use ($post, $validated): void {
             $post->refresh();
+            $this->recoverPublishedLinks($post);
             $links = $this->activePublishedLinks($post);
 
             if ($links->isEmpty()) {
@@ -146,6 +150,7 @@ class PublishedPostLifecycle
     {
         $this->withPostLock($post, function () use ($post): void {
             $post->refresh();
+            $this->recoverPublishedLinks($post);
             $links = $this->activePublishedLinks($post);
 
             if ($links->isEmpty()) {
@@ -224,6 +229,59 @@ class PublishedPostLifecycle
                 'id', 'workspace_id', 'network', 'account_id', 'name', 'access_token', 'meta',
             ])])
             ->get();
+    }
+
+    /**
+     * Older publisher workers stored provider IDs in publish_results but did
+     * not always persist the corresponding social_media_post_accounts row.
+     * Recover only mappings that can be proven to belong to this post's own
+     * workspace and selected accounts. This keeps published-post management
+     * available after an upgrade without trusting arbitrary JSON IDs.
+     */
+    private function recoverPublishedLinks(SocialPost $post): void
+    {
+        if ($post->status !== 'published' || ! is_array($post->publish_results)) {
+            return;
+        }
+
+        $targetIds = collect($post->target_accounts ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique();
+
+        if ($targetIds->isEmpty()) {
+            return;
+        }
+
+        $accounts = SocialAccount::query()
+            ->where('workspace_id', $post->workspace_id)
+            ->whereIn('id', $targetIds->all())
+            ->get(['id'])
+            ->keyBy('id');
+
+        foreach ($post->publish_results as $accountId => $result) {
+            $accountId = (int) $accountId;
+            $platformId = is_array($result) ? trim((string) ($result['post_id'] ?? '')) : '';
+
+            if (
+                ! $targetIds->contains($accountId)
+                || ! $accounts->has($accountId)
+                || ($result['status'] ?? null) !== 'published'
+                || $platformId === ''
+                || strlen($platformId) > 256
+            ) {
+                continue;
+            }
+
+            SocialPostAccount::firstOrCreate(
+                ['post_id' => $post->id, 'social_account_id' => $accountId],
+                [
+                    'status' => 'published',
+                    'platform_post_id' => $platformId,
+                    'published_at' => $post->published_at ?? now(),
+                ],
+            );
+        }
     }
 
     private function unsupportedReason(SocialPost $post, Collection $links, string $operation): ?string
