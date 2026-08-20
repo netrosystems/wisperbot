@@ -333,6 +333,16 @@ function PostCard({ post, accountMap, userTz, onView, onDelete }) {
                             <Pencil className="h-3.5 w-3.5" /> {t('common.edit')}
                         </Link>
                     )}
+                    {canDelete && (
+                        <button
+                            type="button"
+                            onClick={() => onDelete(post)}
+                            title={lifecycle.has_remote_posts ? 'Delete from the social network and WisperBot' : t('common.delete')}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:border-red-300 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" /> {t('common.delete')}
+                        </button>
+                    )}
                 </div>
 
                 {lifecycle.update_reason && !canEdit && (
@@ -376,16 +386,6 @@ function PostCard({ post, accountMap, userTz, onView, onDelete }) {
                         >
                             <ExternalLink className="h-3 w-3" /> {t('social.view')}
                         </a>
-                    )}
-                    {canDelete && (
-                        <button
-                            type="button"
-                            onClick={() => onDelete(post)}
-                            title={lifecycle.has_remote_posts ? 'Delete from the social network and WisperBot' : t('common.delete')}
-                            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600 transition hover:border-red-300 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-                        >
-                            <Trash2 className="h-3 w-3" /> {t('common.delete')}
-                        </button>
                     )}
                 </div>
             </div>
