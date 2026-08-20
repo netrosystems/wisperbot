@@ -3,9 +3,10 @@
 namespace App\Modules\Social\Services\Drivers;
 
 use App\Modules\Social\Models\SocialAccount;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
-class FacebookDriver implements SocialNetworkInterface
+class FacebookDriver implements ManagesPublishedPosts, SocialNetworkInterface
 {
     public function network(): string
     {
@@ -37,15 +38,15 @@ class FacebookDriver implements SocialNetworkInterface
     public function publish(SocialAccount $account, array $postData): string
     {
         $pageId = $account->meta['page_id'] ?? $account->account_id;
-        $token  = $account->access_token;
+        $token = $account->access_token;
         $message = $postData['body'] ?? '';
         $mediaUrls = array_values(array_filter($postData['media_urls'] ?? [], fn ($u) => $u !== null && $u !== ''));
 
         // Single image → POST /{page}/photos
         if (count($mediaUrls) === 1) {
             $res = Http::post("https://graph.facebook.com/v25.0/{$pageId}/photos", [
-                'url'          => $mediaUrls[0],
-                'caption'      => $message,
+                'url' => $mediaUrls[0],
+                'caption' => $message,
                 'access_token' => $token,
             ])->json();
 
@@ -62,8 +63,8 @@ class FacebookDriver implements SocialNetworkInterface
 
             foreach ($mediaUrls as $url) {
                 $upload = Http::post("https://graph.facebook.com/v25.0/{$pageId}/photos", [
-                    'url'          => $url,
-                    'published'    => false,
+                    'url' => $url,
+                    'published' => false,
                     'access_token' => $token,
                 ])->json();
 
@@ -75,9 +76,9 @@ class FacebookDriver implements SocialNetworkInterface
             }
 
             $res = Http::post("https://graph.facebook.com/v25.0/{$pageId}/feed", [
-                'message'        => $message,
+                'message' => $message,
                 'attached_media' => $attachedMedia,
-                'access_token'   => $token,
+                'access_token' => $token,
             ])->json();
 
             if (! isset($res['id'])) {
@@ -89,8 +90,8 @@ class FacebookDriver implements SocialNetworkInterface
 
         // Text-only post
         $res = Http::post("https://graph.facebook.com/v25.0/{$pageId}/feed", [
-            'message'      => $message,
-            'link'         => $postData['link'] ?? null,
+            'message' => $message,
+            'link' => $postData['link'] ?? null,
             'access_token' => $token,
         ])->json();
 
@@ -99,5 +100,59 @@ class FacebookDriver implements SocialNetworkInterface
         }
 
         return $res['id'];
+    }
+
+    public function updatePublishedPost(SocialAccount $account, string $platformPostId, array $postData): void
+    {
+        $response = Http::timeout(20)
+            ->asForm()
+            ->post($this->objectUrl($platformPostId), [
+                'message' => $postData['body'] ?? '',
+                'access_token' => $account->access_token,
+            ]);
+
+        $this->assertMutationSucceeded($response, 'update');
+    }
+
+    public function deletePublishedPost(SocialAccount $account, string $platformPostId): void
+    {
+        $response = Http::timeout(20)
+            ->asForm()
+            ->delete($this->objectUrl($platformPostId), [
+                'access_token' => $account->access_token,
+            ]);
+
+        $this->assertMutationSucceeded($response, 'delete');
+    }
+
+    private function objectUrl(string $platformPostId): string
+    {
+        if ($platformPostId === '' || ! preg_match('/^[A-Za-z0-9_:\-]+$/', $platformPostId)) {
+            throw new \InvalidArgumentException('Facebook returned an invalid post ID.');
+        }
+
+        return 'https://graph.facebook.com/v25.0/'.rawurlencode($platformPostId);
+    }
+
+    private function assertMutationSucceeded(Response $response, string $operation): void
+    {
+        $payload = $response->json();
+        $success = $response->successful()
+            && ($payload === true || data_get($payload, 'success') === true || is_string(data_get($payload, 'id')));
+
+        if ($success) {
+            return;
+        }
+
+        $providerMessage = (string) ($response->json('error.message') ?? 'Unknown Graph API error.');
+        $providerCode = $response->json('error.code');
+
+        throw new \RuntimeException(sprintf(
+            'Facebook %s failed (HTTP %d%s): %s',
+            $operation,
+            $response->status(),
+            $providerCode !== null ? ", code {$providerCode}" : '',
+            mb_substr($providerMessage, 0, 500)
+        ));
     }
 }

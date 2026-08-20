@@ -59,7 +59,11 @@ function FacebookPreview({ body, mediaUrls, accountName, pictureUrl }) {
             <p className="text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap break-words leading-snug">
                 {body || <span className="text-neutral-400 italic">{t('social.preview_post_placeholder')}</span>}
             </p>
-            {mediaUrls?.[0] && <img src={mediaUrls[0]} alt="" className="mt-3 -mx-4 w-[calc(100%+2rem)] object-cover max-h-52" />}
+            {mediaUrls?.[0] && (
+                <div className="mt-3 -mx-4 flex justify-center overflow-hidden bg-neutral-100 dark:bg-neutral-950">
+                    <img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" />
+                </div>
+            )}
             <div className="mt-3 flex items-center justify-between text-neutral-500 text-xs border-t border-neutral-100 dark:border-neutral-700 pt-2">
                 <span className="flex items-center gap-1"><ThumbsUp className="h-3.5 w-3.5" /> {t('social.preview_like')}</span>
                 <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {t('social.preview_comment')}</span>
@@ -81,7 +85,7 @@ function InstagramPreview({ body, mediaUrls, accountName, pictureUrl }) {
                 <span className="font-semibold text-neutral-900 dark:text-neutral-100 text-xs">@{handle}</span>
             </div>
             {mediaUrls?.[0]
-                ? <img src={mediaUrls[0]} alt="" className="w-full object-cover max-h-52" />
+                ? <div className="flex justify-center bg-neutral-100 dark:bg-neutral-950"><img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" /></div>
                 : <div className="w-full h-36 bg-gradient-to-br from-neutral-100 to-neutral-200 dark:from-neutral-800 dark:to-neutral-700 flex items-center justify-center text-neutral-400 text-xs">{t('social.preview_photo_video')}</div>
             }
             <div className="px-3 pt-2 pb-3">
@@ -112,7 +116,7 @@ function LinkedInPreview({ body, mediaUrls, accountName, pictureUrl }) {
             <p className="text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap break-words leading-snug">
                 {body || <span className="text-neutral-400 italic">{t('social.preview_post_placeholder')}</span>}
             </p>
-            {mediaUrls?.[0] && <img src={mediaUrls[0]} alt="" className="mt-3 rounded-lg w-full object-cover max-h-48" />}
+            {mediaUrls?.[0] && <div className="mt-3 flex justify-center overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-950"><img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" /></div>}
             <div className="mt-3 flex items-center gap-4 text-neutral-500 text-xs border-t border-neutral-100 dark:border-neutral-700 pt-2">
                 <span className="flex items-center gap-1"><ThumbsUp className="h-3.5 w-3.5" /> {t('social.preview_like')}</span>
                 <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {t('social.preview_comment')}</span>
@@ -130,7 +134,7 @@ function TikTokPreview({ body, mediaUrls, accountName }) {
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-black text-sm font-[system-ui] overflow-hidden">
             <div className="relative">
                 {mediaUrls?.[0]
-                    ? <img src={mediaUrls[0]} alt="" className="w-full object-cover max-h-64" />
+                    ? <img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" />
                     : <div className="w-full h-52 bg-neutral-900 flex items-center justify-center text-neutral-600 text-xs">{t('social.preview_video')}</div>
                 }
                 <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
@@ -154,7 +158,7 @@ function YouTubePreview({ body, mediaUrls, accountName }) {
     return (
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm font-[system-ui] overflow-hidden">
             {mediaUrls?.[0]
-                ? <img src={mediaUrls[0]} alt="" className="w-full object-cover max-h-44" />
+                ? <div className="flex justify-center bg-neutral-100 dark:bg-neutral-950"><img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" /></div>
                 : <div className="w-full h-36 bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
                     <div className="h-12 w-12 rounded-full bg-red-600 flex items-center justify-center">
                         <div className="border-t-[8px] border-b-[8px] border-l-[14px] border-t-transparent border-b-transparent border-l-white ml-1" />
@@ -199,6 +203,7 @@ export default function SocialComposer({ accounts }) {
     const [aiLoading, setAiLoading] = useState(false);
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiError, setAiError] = useState('');
+    const [submitError, setSubmitError] = useState('');
 
     const selectedAccounts = accounts.filter(a => data.target_accounts.includes(a.id.toString()));
     const selectedNetworks  = selectedAccounts.map(a => a.network);
@@ -234,13 +239,21 @@ export default function SocialComposer({ accounts }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        setSubmitError('');
         // Convert wall-clock datetime-local value to UTC ISO; strip blank media URLs.
         transform(d => ({
             ...d,
             scheduled_at: d.scheduled_at ? tzLocalToUtcIso(d.scheduled_at, d.timezone || 'UTC') : null,
             media_urls: (d.media_urls ?? []).filter(Boolean),
         }));
-        post(route('client.social.posts.store'), { preserveScroll: true, onSuccess: () => reset() });
+        post(route('client.social.posts.store'), {
+            preserveScroll: true,
+            onSuccess: () => reset(),
+            onError: validationErrors => {
+                const firstMessage = Object.values(validationErrors ?? {}).flat().find(Boolean);
+                setSubmitError(firstMessage || 'The post could not be submitted. Review the highlighted fields and try again.');
+            },
+        });
     };
 
     const mediaUrls = (data.media_urls ?? []).filter(Boolean);
@@ -258,6 +271,12 @@ export default function SocialComposer({ accounts }) {
                     </div>
 
                     {flash.success && <div className="rounded-lg bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-4 py-2 text-sm">{flash.success}</div>}
+                    {flash.error && <div className="rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 px-4 py-2 text-sm">{flash.error}</div>}
+                    {submitError && (
+                        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+                            {submitError}
+                        </div>
+                    )}
 
                     {/* Account selector */}
                     <div className={`rounded-xl border bg-white dark:bg-neutral-900 p-4 ${errors.target_accounts ? 'border-red-400 ring-2 ring-red-300 dark:ring-red-700' : 'border-neutral-200 dark:border-neutral-700'}`}>
@@ -371,6 +390,7 @@ export default function SocialComposer({ accounts }) {
                             {(data.media_urls ?? []).length === 0 && (
                                 <p className="text-xs text-neutral-400">{t('social.no_media_hint')}</p>
                             )}
+                            {errors.media_urls && <p className="text-xs text-red-500">{errors.media_urls}</p>}
                         </div>
 
                         <div className="space-y-2">
@@ -392,6 +412,7 @@ export default function SocialComposer({ accounts }) {
                                 </p>
                             )}
                             {errors.scheduled_at && <p className="text-xs text-red-500">{errors.scheduled_at}</p>}
+                            {errors.timezone && <p className="text-xs text-red-500">{errors.timezone}</p>}
                         </div>
 
                         {(

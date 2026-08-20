@@ -32,6 +32,17 @@ use Inertia\Response;
 
 class InboxController extends Controller
 {
+    /** Channels that belong in the conversational Omni Channel Inbox. */
+    private const OMNI_CHANNELS = [
+        'whatsapp',
+        'instagram',
+        'messenger',
+        'telegram',
+        'ebay',
+        'amazon',
+        'webchat',
+    ];
+
     public function __construct(
         private ChannelManager $channelManager,
         private StorageManager $storageManager,
@@ -46,10 +57,11 @@ class InboxController extends Controller
         $isLiveFolder = $request->folder === 'live';
 
         $conversations = Conversation::where('workspace_id', $workspaceId)
+            ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
             ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
-                ->whereHas('contact', fn ($contact) => $contact->where('last_seen_at', '>=', $liveSince)))
+                ->where('webchat_last_seen_at', '>=', $liveSince))
             ->when(! $isLiveFolder, fn ($q) => $q->whereHas('messages'))
             ->when($request->folder === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when($request->folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
@@ -62,16 +74,14 @@ class InboxController extends Controller
             ->when($request->folder === 'resolved', fn ($q) => $q->where('status', 'resolved'))
             ->when($request->folder === 'snoozed', fn ($q) => $q->where('status', 'snoozed'))
             ->when($request->label, fn ($q) => $q->whereHas('labels', fn ($q) => $q->where('inbox_labels.id', $request->label)))
-            ->when($isLiveFolder, fn ($q) => $q->orderByDesc(
-                Contact::select('last_seen_at')->whereColumn('contacts.id', 'conversations.contact_id')->limit(1)
-            ), fn ($q) => $q->orderByDesc('last_message_at'))
+            ->when($isLiveFolder, fn ($q) => $q->orderByDesc('webchat_last_seen_at'), fn ($q) => $q->orderByDesc('last_message_at'))
             ->paginate(30)
             ->withQueryString();
 
         $labels = InboxLabel::where('workspace_id', $workspaceId)->orderBy('name')->get(['id', 'name', 'color']);
         $channelAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('status', 'active')
-            ->when($request->channel === 'email', fn ($query) => $query->where('channel', 'email'))
+            ->whereIn('channel', self::OMNI_CHANNELS)
             ->orderBy('channel')
             ->orderBy('display_name')
             ->get(['id', 'channel', 'display_name', 'phone_number_id']);
@@ -167,11 +177,16 @@ class InboxController extends Controller
         if ($conversation->channelAccount?->channel === 'email') {
             $filters['channel'] = 'email';
         }
+        $emailOnly = $conversation->channelAccount?->channel === 'email';
+
         $conversations = Conversation::where('workspace_id', $workspaceId)
+            ->whereHas('channelAccount', fn ($account) => $emailOnly
+                ? $account->where('channel', 'email')
+                : $account->whereIn('channel', self::OMNI_CHANNELS))
             ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
             ->when(($filters['folder'] ?? null) === 'live', fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
-                ->whereHas('contact', fn ($contact) => $contact->where('last_seen_at', '>=', app(WebchatPresence::class)->onlineSince())))
+                ->where('webchat_last_seen_at', '>=', app(WebchatPresence::class)->onlineSince()))
             ->when(($filters['folder'] ?? null) !== 'live', fn ($q) => $q->whereHas('messages'))
             ->when(($filters['folder'] ?? null) === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when(($filters['folder'] ?? null) === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
@@ -188,6 +203,9 @@ class InboxController extends Controller
 
         $channelAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('status', 'active')
+            ->when($emailOnly,
+                fn ($query) => $query->where('channel', 'email'),
+                fn ($query) => $query->whereIn('channel', self::OMNI_CHANNELS))
             ->orderBy('channel')
             ->orderBy('display_name')
             ->get(['id', 'channel', 'display_name', 'phone_number_id']);
@@ -221,7 +239,7 @@ class InboxController extends Controller
         $conversation->loadMissing(['channelAccount', 'contact']);
 
         abort_unless($conversation->channelAccount?->channel === 'webchat', 422, 'This action is only available for website visitors.');
-        abort_unless($conversation->contact?->last_seen_at?->gte($presence->onlineSince()), 409, 'This visitor is no longer online.');
+        abort_unless($conversation->webchat_last_seen_at?->gte($presence->onlineSince()), 409, 'This visitor is no longer online.');
 
         return response()->json([
             'ok' => true,
@@ -234,7 +252,7 @@ class InboxController extends Controller
         return Conversation::query()
             ->where('workspace_id', $workspaceId)
             ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
-            ->whereHas('contact', fn ($contact) => $contact->where('last_seen_at', '>=', $liveSince));
+            ->where('webchat_last_seen_at', '>=', $liveSince);
     }
 
     public function messages(

@@ -82,7 +82,10 @@ class WebchatIdentityWidgetTest extends TestCase
             'position' => 'bottom_right',
         ]);
 
-        $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key])->assertOk();
+        $session = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+            'active' => true,
+        ])->assertOk();
         $conversation = Conversation::where('workspace_id', $workspace->id)->sole();
 
         $this->actingAs($agent)

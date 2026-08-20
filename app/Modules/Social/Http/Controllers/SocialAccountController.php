@@ -55,7 +55,7 @@ class SocialAccountController extends Controller
 
         Session::put('social_oauth_workspace', $this->workspaceId($request));
 
-        $callbackUrl = route('client.social.oauth.callback', $network);
+        $callbackUrl = $this->callbackUrl($network);
 
         try {
             $authUrl = $this->oauth->getAuthUrl($network, $this->workspaceId($request), $callbackUrl);
@@ -69,11 +69,11 @@ class SocialAccountController extends Controller
 
     public function callback(Request $request, string $network): RedirectResponse
     {
-        $code     = $request->query('code');
-        $state    = $request->query('state');
-        $error    = $request->query('error');
-        $wid      = Session::get('social_oauth_workspace', $this->workspaceId($request));
-        $stored   = Session::pull('social_oauth_state', []);
+        $code = $request->query('code');
+        $state = $request->query('state');
+        $error = $request->query('error');
+        $wid = Session::get('social_oauth_workspace', $this->workspaceId($request));
+        $stored = Session::pull('social_oauth_state', []);
 
         if ($error || ! $code) {
             return redirect()->route('client.social.accounts.index')->with('error', 'OAuth failed: '.($error ?? 'No code received'));
@@ -84,7 +84,7 @@ class SocialAccountController extends Controller
             return redirect()->route('client.social.accounts.index')->with('error', 'Invalid OAuth state. Please try connecting again.');
         }
 
-        $callbackUrl = route('client.social.oauth.callback', $network);
+        $callbackUrl = $this->callbackUrl($network);
         try {
             $tokens = $this->oauth->exchangeCode($network, $code, $callbackUrl, $stored);
 
@@ -243,5 +243,17 @@ class SocialAccountController extends Controller
         $account->delete();
 
         return back()->with('success', 'Account disconnected.');
+    }
+
+    /**
+     * Meta requires an exact redirect URI match. Building this URL from the
+     * current request can produce http:// or a www hostname behind a proxy,
+     * while the URI registered in Meta uses the canonical APP_URL. Use the
+     * configured application origin for both authorization and token exchange.
+     */
+    private function callbackUrl(string $network): string
+    {
+        return rtrim((string) config('app.url'), '/')
+            .'/app/social/accounts/callback/'.rawurlencode($network);
     }
 }

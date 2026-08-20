@@ -36,6 +36,7 @@
   var rendered = {};        // message id -> true (dedupe)
   var online = true;
   var pollTimer = null;
+  var pollInFlight = false;
   var inviteTimer = null;
   var inviteVisibleTimer = null;
   var unreadCount = 0;
@@ -198,9 +199,16 @@
     });
   }
 
-  // Establish presence even before the visitor opens the panel. This powers
-  // the client's Live Users view and also restores replies from prior visits.
-  ensureSession().then(startPolling).catch(function () {});
+  // Establish presence before the visitor opens the panel, but only while this
+  // page is actually visible. Hidden/background tabs must not inflate the
+  // client's Live Users count.
+  resumePresence();
+  document.addEventListener('visibilitychange', function () {
+    if (pageCanReportPresence()) resumePresence();
+    else pausePolling();
+  });
+  window.addEventListener('pageshow', resumePresence);
+  window.addEventListener('pagehide', pausePolling);
 
   // Start discreetly, then make the live-chat invitation visible. Any page
   // scrolling dismisses it and restarts the twenty-second idle timer, so it never
@@ -221,7 +229,7 @@
         ? Object.assign({}, data || {})
         : Object.assign({}, getSettings(), data || {});
       switchIdentityScope();
-      ensureSession().then(startPolling);
+      resumePresence();
     } else if (action === 'logout' || action === 'reset') {
       window.WisperBotSettings = {};
       switchIdentityScope();
@@ -324,7 +332,11 @@
   function ensureSession(prechatData) {
     if (started) return Promise.resolve();
     if (starting) return starting;
-    var body = { key: KEY, visitor_id: visitorId || undefined };
+    var body = {
+      key: KEY,
+      visitor_id: visitorId || undefined,
+      active: pageCanReportPresence()
+    };
     var id = identityPayload(prechatData);
     for (var k in id) { if (id[k] !== undefined) body[k] = id[k]; }
     starting = post('/widget/v1/session', body).then(function (data) {
@@ -592,10 +604,18 @@
   }
 
   function startPolling() {
-    if (pollTimer || !started) return;
+    if (pollTimer || pollInFlight || !started || !pageCanReportPresence()) return;
     var tick = function () {
-      poll().then(function () { pollTimer = setTimeout(tick, pollDelay()); })
-            .catch(function () { pollTimer = setTimeout(tick, realtimeConnected ? 30000 : 8000); });
+      pollTimer = null;
+      if (!pageCanReportPresence()) return;
+      pollInFlight = true;
+      poll().then(function () {
+        pollInFlight = false;
+        pollTimer = pageCanReportPresence() ? setTimeout(tick, pollDelay()) : null;
+      }).catch(function () {
+        pollInFlight = false;
+        pollTimer = pageCanReportPresence() ? setTimeout(tick, realtimeConnected ? 30000 : 8000) : null;
+      });
     };
     pollTimer = setTimeout(tick, realtimeConnected ? 15000 : (open ? 2500 : 8000));
   }
@@ -605,9 +625,23 @@
     return open ? 3000 : 8000;
   }
 
+  function pageCanReportPresence() {
+    return document.visibilityState !== 'hidden';
+  }
+
+  function pausePolling() {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  function resumePresence() {
+    if (!pageCanReportPresence()) return;
+    ensureSession().then(startPolling).catch(function () {});
+  }
+
   function poll() {
     if (!token) return Promise.resolve();
-    return get('/widget/v1/messages?key=' + encodeURIComponent(KEY) + '&after=' + lastId).then(function (data) {
+    return get('/widget/v1/messages?key=' + encodeURIComponent(KEY) + '&after=' + lastId + '&active=1').then(function (data) {
       if (!data) return;
       if (typeof data.online === 'boolean') { online = data.online; updateStatus(); }
       applyHandoff(data.handoff);

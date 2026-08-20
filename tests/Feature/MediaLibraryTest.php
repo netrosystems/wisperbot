@@ -46,6 +46,31 @@ class MediaLibraryTest extends TestCase
         ]);
     }
 
+    public function test_social_composer_can_upload_a_two_megabyte_image_and_receive_media_metadata(): void
+    {
+        Storage::fake('public');
+        $user = $this->clientUser();
+        $file = UploadedFile::fake()->create('scheduled-post.jpg', 2048, 'image/jpeg');
+
+        $response = $this->actingAs($user)
+            ->postJson(route('client.media.store'), [
+                'file' => $file,
+                'collection' => 'social',
+            ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonStructure(['id', 'filename', 'url', 'size_bytes'])
+            ->assertJsonPath('filename', 'scheduled-post.jpg');
+
+        $this->assertDatabaseHas('media', [
+            'mediable_type' => User::class,
+            'mediable_id' => $user->id,
+            'collection' => 'social',
+            'filename' => 'scheduled-post.jpg',
+        ]);
+    }
+
     public function test_user_can_delete_own_media(): void
     {
         Storage::fake('public');

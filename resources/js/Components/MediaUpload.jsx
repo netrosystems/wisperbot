@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { Upload, Link, X, Image, FileText, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, Link, X, FileText, Loader2, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -31,6 +31,8 @@ export default function MediaUpload({
     const { t } = useTranslation();
     const [mode, setMode] = useState('upload'); // 'url' | 'upload'
     const [uploading, setUploading] = useState(false);
+    const [removing, setRemoving] = useState(false);
+    const [uploadedMediaId, setUploadedMediaId] = useState(null);
     const [error, setError] = useState(null);
     const [dragging, setDragging] = useState(false);
     const fileRef = useRef(null);
@@ -58,7 +60,10 @@ export default function MediaUpload({
             });
 
             onChange?.(resp.data.url);
-            setMode('url');
+            setUploadedMediaId(resp.data.id ?? null);
+            // Keep the uploader visible after success. The preview below makes
+            // the selected asset explicit and lets the user remove/replace it.
+            setMode('upload');
         } catch (err) {
             const msg =
                 err?.response?.data?.error ||
@@ -83,9 +88,35 @@ export default function MediaUpload({
         if (file) uploadFile(file);
     };
 
-    const clear = () => {
-        onChange?.('');
+    const clear = async (event) => {
+        event?.stopPropagation();
+
+        if (removing) return;
+
         setError(null);
+
+        // Files uploaded during this component session are safe to delete from
+        // the media library when detached. Pasted URLs and pre-existing values
+        // are only removed from the post.
+        if (uploadedMediaId) {
+            setRemoving(true);
+            try {
+                await axios.delete(route('client.media.destroy', uploadedMediaId));
+            } catch (err) {
+                setError(
+                    err?.response?.data?.error ||
+                    err?.response?.data?.message ||
+                    t('ui.remove_upload_failed')
+                );
+                setRemoving(false);
+                return;
+            }
+            setRemoving(false);
+        }
+
+        setUploadedMediaId(null);
+        onChange?.('');
+        setMode('upload');
     };
 
     return (
@@ -139,6 +170,7 @@ export default function MediaUpload({
                         <button
                             type="button"
                             onClick={clear}
+                            disabled={removing}
                             className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
                         >
                             <X className="h-4 w-4" />
@@ -211,9 +243,12 @@ export default function MediaUpload({
                     <button
                         type="button"
                         onClick={clear}
-                        className="shrink-0 text-neutral-400 hover:text-coral-500 transition"
+                        disabled={removing}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-coral-600 transition hover:bg-coral-50 disabled:opacity-50 dark:text-coral-400 dark:hover:bg-coral-950/30"
+                        aria-label={t('ui.remove_uploaded_file')}
                     >
-                        <X className="h-4 w-4" />
+                        {removing ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                        {t('common.remove')}
                     </button>
                 </div>
             )}

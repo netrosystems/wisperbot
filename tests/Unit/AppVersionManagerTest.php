@@ -20,7 +20,11 @@ class AppVersionManagerTest extends TestCase
 
     protected function tearDown(): void
     {
-        @unlink($this->envPath);
+        foreach ([$this->envPath, $this->envPath.'.version.lock'] as $path) {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
 
         parent::tearDown();
     }
@@ -62,5 +66,15 @@ class AppVersionManagerTest extends TestCase
         $this->assertSame(['version' => '1.0.1', 'changed' => false], $sameRelease);
         $this->assertSame(['version' => '1.0.2', 'changed' => true], $next);
         $this->assertStringContainsString('APP_RELEASE_COMMIT=def456', file_get_contents($this->envPath));
+    }
+
+    public function test_release_lock_does_not_cause_duplicate_versions(): void
+    {
+        $firstManager = new AppVersionManager($this->envPath);
+        $secondManager = new AppVersionManager($this->envPath);
+
+        $this->assertTrue($firstManager->bumpForRelease('release-commit')['changed']);
+        $this->assertFalse($secondManager->bumpForRelease('release-commit')['changed']);
+        $this->assertSame('1.0.1', $secondManager->current());
     }
 }

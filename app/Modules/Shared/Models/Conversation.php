@@ -32,7 +32,7 @@ class Conversation extends Model
     protected $fillable = [
         'workspace_id', 'channel_account_id', 'contact_id', 'external_thread_id',
         'status', 'assigned_user_id', 'assigned_to', 'handover_at',
-        'last_message_at', 'unread_count',
+        'last_message_at', 'webchat_last_seen_at', 'unread_count',
         'first_response_at', 'resolved_at', 'last_inbound_at',
         'unanswered_reminder_sent_at',
     ];
@@ -41,6 +41,7 @@ class Conversation extends Model
     {
         return [
             'last_message_at' => 'datetime',
+            'webchat_last_seen_at' => 'datetime',
             'first_response_at' => 'datetime',
             'resolved_at' => 'datetime',
             'last_inbound_at' => 'datetime',
