@@ -3,6 +3,7 @@
 namespace App\Modules\Social\Services\OAuth;
 
 use App\Modules\Integrations\Services\CredentialResolver;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Session;
 
@@ -45,8 +46,8 @@ class OAuthManager
     }
 
     /**
-     * @param array $storedState The already-validated session state data (passed in by the controller
-     *                           after it verified the `state` query param — avoids re-reading the session).
+     * @param  array  $storedState  The already-validated session state data (passed in by the controller
+     *                              after it verified the `state` query param — avoids re-reading the session).
      */
     public function exchangeCode(string $network, string $code, string $callbackUrl, array $storedState = []): array
     {
@@ -91,7 +92,7 @@ class OAuthManager
     private function facebookAuthUrl($creds, string $redirect, string $network): string
     {
         $scopes = $network === 'instagram'
-            ? 'instagram_basic,instagram_content_publish,pages_show_list,business_management'
+            ? 'instagram_basic,instagram_content_publish,instagram_manage_contents,pages_read_engagement,pages_show_list,business_management'
             : 'pages_manage_posts,pages_read_engagement,pages_show_list,business_management';
         $state = $this->storeState(['network' => $network]);
 
@@ -310,7 +311,7 @@ class OAuthManager
         return $state;
     }
 
-    private function assertSuccessful(\Illuminate\Http\Client\Response $response, string $operation): void
+    private function assertSuccessful(Response $response, string $operation): void
     {
         if ($response->successful()) {
             return;

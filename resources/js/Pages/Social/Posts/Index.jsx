@@ -285,9 +285,9 @@ function PostCard({ post, accountMap, userTz, onView, onDelete }) {
                     )}
                 </div>
 
-                {post.remote_lifecycle?.reason && !canEdit && !canDelete && (
+                {post.remote_lifecycle?.update_reason && !canEdit && (
                     <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-                        {post.remote_lifecycle.reason}
+                        {post.remote_lifecycle.update_reason}
                     </p>
                 )}
 
@@ -324,7 +324,7 @@ function PostCard({ post, accountMap, userTz, onView, onDelete }) {
                     {canDelete && (
                         <button
                             onClick={() => onDelete(post)}
-                            title={post.remote_lifecycle?.has_remote_posts ? t('social.delete_from_facebook') : t('common.delete')}
+                            title={post.remote_lifecycle?.has_remote_posts ? 'Delete from the social network and WisperBot' : t('common.delete')}
                             className="ml-auto inline-flex items-center gap-1 rounded-lg border border-neutral-200 dark:border-neutral-700 px-2 py-1 text-[11px] text-neutral-400 hover:text-red-500 hover:border-red-300 transition"
                         >
                             <Trash2 className="h-3 w-3" />
@@ -354,7 +354,13 @@ export default function PostsIndex({ posts, accounts, filters }) {
         router.get(route('client.social.posts.index'), { ...filters, [key]: val || undefined }, { preserveState: true, replace: true });
 
     const handleDelete = (post) => {
-        const message = post.remote_lifecycle?.has_remote_posts ? t('social.confirm_delete_facebook_post') : t('social.confirm_delete_post');
+        const targetNetworks = (post.target_accounts ?? [])
+            .map((id) => accountMap[id]?.network)
+            .filter(Boolean);
+        const remoteNetwork = [...new Set(targetNetworks)].join(' and ');
+        const message = post.remote_lifecycle?.has_remote_posts
+            ? `Delete this post permanently from ${remoteNetwork || 'the connected social network'} and WisperBot? This cannot be undone.`
+            : t('social.confirm_delete_post');
         if (confirm(message)) {
             router.delete(route('client.social.posts.destroy', post.id), { preserveScroll: true });
         }

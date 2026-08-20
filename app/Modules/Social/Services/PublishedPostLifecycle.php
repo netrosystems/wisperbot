@@ -5,6 +5,7 @@ namespace App\Modules\Social\Services;
 use App\Modules\Social\Exceptions\PublishedPostLifecycleException;
 use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Services\Drivers\FacebookDriver;
+use App\Modules\Social\Services\Drivers\InstagramSocialDriver;
 use App\Modules\Social\Services\Drivers\ManagesPublishedPosts;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Collection;
@@ -21,6 +22,7 @@ class PublishedPostLifecycle
     {
         $this->drivers = [
             'facebook' => new FacebookDriver,
+            'instagram' => new InstagramSocialDriver,
         ];
     }
 
@@ -56,9 +58,17 @@ class PublishedPostLifecycle
             return $this->capability(false, true, true, null);
         }
 
-        $reason = $this->unsupportedReason($post, $links);
+        $deleteReason = $this->unsupportedReason($post, $links, 'delete');
+        $updateReason = $this->unsupportedReason($post, $links, 'update');
 
-        return $this->capability(true, $reason === null, $reason === null, $reason);
+        return $this->capability(
+            true,
+            $updateReason === null,
+            $deleteReason === null,
+            $updateReason ?? $deleteReason,
+            $updateReason,
+            $deleteReason,
+        );
     }
 
     /**
@@ -90,7 +100,7 @@ class PublishedPostLifecycle
                 return;
             }
 
-            $this->assertSupported($post, $links, 'updated');
+            $this->assertSupported($post, $links, 'update');
             $this->assertPublishedFieldsAreSafe($post, $validated);
 
             $failures = [];
@@ -101,8 +111,8 @@ class PublishedPostLifecycle
                     $driver->updatePublishedPost($link->account, $link->platform_post_id, $validated);
                     $link->update(['error' => null]);
                 } catch (\Throwable $e) {
-                    $failures[] = $link->account->name ?: 'Facebook Page';
-                    $link->update(['error' => 'The Facebook post update failed. Retry to reconcile this Page.']);
+                    $failures[] = $link->account->name ?: 'social account';
+                    $link->update(['error' => 'The remote post update failed. Retry to reconcile this account.']);
                     Log::error('Published social post update failed', [
                         'post_id' => $post->id,
                         'social_account_id' => $link->social_account_id,
@@ -156,7 +166,7 @@ class PublishedPostLifecycle
                 return;
             }
 
-            $this->assertSupported($post, $links, 'deleted');
+            $this->assertSupported($post, $links, 'delete');
             $failures = [];
 
             foreach ($links as $link) {
@@ -165,8 +175,8 @@ class PublishedPostLifecycle
                     $driver->deletePublishedPost($link->account, $link->platform_post_id);
                     $link->update(['deleted_at' => now(), 'error' => null]);
                 } catch (\Throwable $e) {
-                    $failures[] = $link->account->name ?: 'Facebook Page';
-                    $link->update(['error' => 'The Facebook post deletion failed. Retry to finish deleting it.']);
+                    $failures[] = $link->account->name ?: 'social account';
+                    $link->update(['error' => 'The remote post deletion failed. Retry to finish deleting it.']);
                     Log::error('Published social post delete failed', [
                         'post_id' => $post->id,
                         'social_account_id' => $link->social_account_id,
@@ -179,7 +189,7 @@ class PublishedPostLifecycle
 
             if ($failures !== []) {
                 throw new PublishedPostLifecycleException(
-                    'Facebook could not delete '.count($failures).' Page post(s). Successful deletions were saved; retry to finish the remaining Pages.'
+                    'Meta could not delete '.count($failures).' published post(s). Successful deletions were saved; retry to finish the remaining accounts.'
                 );
             }
 
@@ -216,7 +226,7 @@ class PublishedPostLifecycle
             ->get();
     }
 
-    private function unsupportedReason(SocialPost $post, Collection $links): ?string
+    private function unsupportedReason(SocialPost $post, Collection $links, string $operation): ?string
     {
         foreach ($links as $link) {
             if (! $link->account || (int) $link->account->workspace_id !== (int) $post->workspace_id) {
@@ -226,6 +236,10 @@ class PublishedPostLifecycle
             if (! isset($this->drivers[$link->account->network])) {
                 return 'This post also exists on a platform that WisperBot cannot safely update or delete yet.';
             }
+
+            if ($operation === 'update' && $link->account->network === 'instagram') {
+                return 'Instagram does not allow published captions or media to be edited through its API. Delete this post and publish a corrected version instead.';
+            }
         }
 
         return null;
@@ -234,10 +248,11 @@ class PublishedPostLifecycle
     private function assertSupported(SocialPost $post, Collection $links, string $operation): void
     {
         if ($post->status === 'publishing') {
-            throw new PublishedPostLifecycleException("Wait for publishing to finish before this post is {$operation}.");
+            $verb = $operation === 'delete' ? 'deleted' : 'updated';
+            throw new PublishedPostLifecycleException("Wait for publishing to finish before this post is {$verb}.");
         }
 
-        if ($reason = $this->unsupportedReason($post, $links)) {
+        if ($reason = $this->unsupportedReason($post, $links, $operation)) {
             throw new PublishedPostLifecycleException($reason);
         }
     }
@@ -276,13 +291,21 @@ class PublishedPostLifecycle
         }
     }
 
-    private function capability(bool $hasRemote, bool $canUpdate, bool $canDelete, ?string $reason): array
-    {
+    private function capability(
+        bool $hasRemote,
+        bool $canUpdate,
+        bool $canDelete,
+        ?string $reason,
+        ?string $updateReason = null,
+        ?string $deleteReason = null,
+    ): array {
         return [
             'has_remote_posts' => $hasRemote,
             'can_update' => $canUpdate,
             'can_delete' => $canDelete,
             'reason' => $reason,
+            'update_reason' => $updateReason,
+            'delete_reason' => $deleteReason,
         ];
     }
 }

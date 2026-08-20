@@ -383,6 +383,17 @@ class SocialPostController extends Controller
             return back()->with('error', $capabilities['reason'] ?? 'This post cannot be deleted safely.');
         }
 
+        $remoteNetworks = $post->accountLinks()
+            ->where('status', 'published')
+            ->whereNotNull('platform_post_id')
+            ->whereNull('deleted_at')
+            ->with('account:id,network')
+            ->get()
+            ->pluck('account.network')
+            ->filter()
+            ->unique()
+            ->values();
+
         try {
             $this->publishedPosts->delete($post);
         } catch (PublishedPostLifecycleException $e) {
@@ -392,7 +403,11 @@ class SocialPostController extends Controller
         return back()->with(
             'success',
             $capabilities['has_remote_posts']
-                ? 'Post deleted from Facebook and WisperBot.'
+                ? ($remoteNetworks->all() === ['facebook']
+                    ? 'Post deleted from Facebook and WisperBot.'
+                    : ($remoteNetworks->all() === ['instagram']
+                        ? 'Post deleted from Instagram and WisperBot.'
+                        : 'Post deleted from the connected social accounts and WisperBot.'))
                 : 'Post deleted.'
         );
     }

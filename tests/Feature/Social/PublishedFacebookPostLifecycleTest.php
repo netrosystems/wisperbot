@@ -2,10 +2,11 @@
 
 namespace Tests\Feature\Social;
 
+use App\Modules\Social\Jobs\PublishSocialPostJob;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Models\SocialPostAccount;
-use App\Modules\Social\Jobs\PublishSocialPostJob;
+use App\Modules\Social\Services\PublishedPostLifecycle;
 use App\Modules\Social\Services\SocialPublisher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -230,6 +231,55 @@ class PublishedFacebookPostLifecycleTest extends TestCase
 
         Http::assertSent(fn (Request $request) => $request->method() === 'DELETE'
             && $request->url() === 'https://graph.facebook.com/v25.0/PAGE_1_POST_1'
+        );
+    }
+
+    public function test_a_published_instagram_post_can_be_deleted_but_not_edited(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $account = SocialAccount::create([
+            'workspace_id' => $context['workspace']->id,
+            'network' => 'instagram',
+            'account_id' => 'IG_USER_1',
+            'name' => '@review_account',
+            'access_token' => 'instagram-token',
+            'active' => true,
+        ]);
+        $post = SocialPost::create([
+            'workspace_id' => $context['workspace']->id,
+            'title' => 'Instagram review post',
+            'body' => 'Published Instagram caption',
+            'media_urls' => ['https://cdn.example.com/instagram.jpg'],
+            'target_accounts' => [$account->id],
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+        SocialPostAccount::create([
+            'post_id' => $post->id,
+            'social_account_id' => $account->id,
+            'status' => 'published',
+            'platform_post_id' => 'IG_MEDIA_1',
+            'published_at' => now(),
+        ]);
+
+        $capabilities = app(PublishedPostLifecycle::class)->capabilities($post);
+        $this->assertFalse($capabilities['can_update']);
+        $this->assertTrue($capabilities['can_delete']);
+        $this->assertStringContainsString('does not allow published captions', $capabilities['update_reason']);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'graph.facebook.com/v25.0/IG_MEDIA_1' => Http::response(['success' => true]),
+        ]);
+
+        $this->actingAs($context['user'])
+            ->delete(route('client.social.posts.destroy', $post))
+            ->assertSessionHas('success', 'Post deleted from Instagram and WisperBot.');
+
+        $this->assertDatabaseMissing('social_media_posts', ['id' => $post->id]);
+        Http::assertSent(fn (Request $request) => $request->method() === 'DELETE'
+            && $request->url() === 'https://graph.facebook.com/v25.0/IG_MEDIA_1'
+            && $request['access_token'] === 'instagram-token'
         );
     }
 
