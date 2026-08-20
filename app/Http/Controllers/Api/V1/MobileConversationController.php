@@ -82,7 +82,7 @@ class MobileConversationController extends WorkspaceScopedController
         $messages = $conversation->messages()
             ->with('conversation')
             ->orderBy('sent_at')
-            ->paginate(50);
+            ->get();
 
         $conversation->update(['unread_count' => 0]);
 
@@ -95,8 +95,8 @@ class MobileConversationController extends WorkspaceScopedController
             'conversation' => $this->formatConversation($conversation, detail: true),
             'messages' => $messages->map(fn ($m) => $this->formatMessage($m)),
             'messages_meta' => [
-                'current_page' => $messages->currentPage(),
-                'last_page' => $messages->lastPage(),
+                'current_page' => 1,
+                'last_page' => 1,
             ],
         ]);
     }
@@ -113,13 +113,13 @@ class MobileConversationController extends WorkspaceScopedController
 
         $messages = $conversation->messages()
             ->orderBy('sent_at')
-            ->paginate(50);
+            ->get();
 
         return response()->json([
             'data' => $messages->map(fn ($m) => $this->formatMessage($m)),
             'meta' => [
-                'current_page' => $messages->currentPage(),
-                'last_page' => $messages->lastPage(),
+                'current_page' => 1,
+                'last_page' => 1,
             ],
         ]);
     }
