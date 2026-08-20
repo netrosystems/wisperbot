@@ -41,9 +41,12 @@ Schedule::call(function () {
     });
 })->daily()->name('sync-whatsapp-templates');
 
-// Dispatch scheduled social posts (every minute)
+// Safety net for scheduled social posts. The primary path is the delayed
+// PublishSocialPostJob queued when a post is created. Check frequently here so
+// a temporarily unavailable queue worker does not introduce a full-minute lag
+// once the scheduler is available again.
 Schedule::job(new DispatchScheduledPostsJob, 'social')
-    ->everyMinute()
+    ->everyTenSeconds()
     ->name('dispatch-social-posts')
     ->withoutOverlapping();
 
