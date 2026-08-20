@@ -67,6 +67,31 @@ class SocialOAuthProtocolTest extends TestCase
             && $request['grant_type'] === 'fb_exchange_token');
     }
 
+    public function test_meta_target_inspection_returns_only_explicitly_selected_page_assets(): void
+    {
+        Http::fake(['graph.facebook.com/v25.0/debug_token*' => Http::response([
+            'data' => [
+                'is_valid' => true,
+                'granular_scopes' => [
+                    ['scope' => 'pages_show_list', 'target_ids' => ['PAGE_MINI_PC']],
+                    ['scope' => 'pages_manage_posts', 'target_ids' => ['PAGE_MINI_PC']],
+                    ['scope' => 'business_management', 'target_ids' => ['BUSINESS_NETRO']],
+                ],
+            ],
+        ])]);
+
+        $targetIds = $this->managerFor('facebook')->selectedMetaTargetIds(
+            'facebook',
+            'long-lived-user-token',
+            ['pages_show_list', 'pages_manage_posts'],
+        );
+
+        $this->assertSame(['PAGE_MINI_PC'], $targetIds);
+        Http::assertSent(fn (Request $request) => str_contains($request->url(), '/debug_token')
+            && $request['input_token'] === 'long-lived-user-token'
+            && $request['access_token'] === 'client-id|client-secret');
+    }
+
     public function test_linkedin_oidc_profile_and_publish_response_headers_are_used(): void
     {
         Http::fake([
