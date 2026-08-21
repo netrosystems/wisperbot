@@ -73,7 +73,8 @@ class SocialOAuthProtocolTest extends TestCase
             'data' => [
                 'is_valid' => true,
                 'granular_scopes' => [
-                    ['scope' => 'pages_show_list', 'target_ids' => ['PAGE_MINI_PC']],
+                    ['scope' => 'pages_show_list', 'target_ids' => ['PAGE_MINI_PC', 'PAGE_NETRO']],
+                    ['scope' => 'pages_read_engagement', 'target_ids' => ['PAGE_MINI_PC', 'PAGE_NETRO']],
                     ['scope' => 'pages_manage_posts', 'target_ids' => ['PAGE_MINI_PC']],
                     ['scope' => 'business_management', 'target_ids' => ['BUSINESS_NETRO']],
                 ],
@@ -83,7 +84,7 @@ class SocialOAuthProtocolTest extends TestCase
         $targetIds = $this->managerFor('facebook')->selectedMetaTargetIds(
             'facebook',
             'long-lived-user-token',
-            ['pages_show_list', 'pages_manage_posts'],
+            ['pages_manage_posts', 'pages_read_engagement', 'pages_show_list'],
         );
 
         $this->assertSame(['PAGE_MINI_PC'], $targetIds);

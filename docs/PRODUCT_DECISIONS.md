@@ -62,6 +62,7 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 - Facebook Page posts may expose remote edit/delete only when the stored provider result confirms support and a usable remote ID/token exists.
 - Instagram published content is not editable through the integrated API flow. Delete availability is capability/provider-result driven.
 - Drafts and scheduled-but-unpublished records remain editable/cancellable locally.
+- If a published post's connected social account is no longer available, workspace admins may remove the stale record from WisperBot. The action must be labelled as local cleanup and must explicitly warn that it does not delete the remote Facebook/Instagram post.
 
 ## Seller messaging
 

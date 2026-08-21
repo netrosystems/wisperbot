@@ -476,6 +476,50 @@ class PublishedFacebookPostLifecycleTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_orphaned_published_post_can_be_removed_locally_without_calling_meta(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $otherWorkspace = $this->createWorkspaceContext()['workspace'];
+        [$post, $account] = $this->publishedPost($context['workspace']->id);
+
+        // Simulate a stale provider link whose account is no longer available
+        // to the owning workspace while preserving the remote post mapping.
+        $account->update(['workspace_id' => $otherWorkspace->id]);
+
+        $capabilities = app(PublishedPostLifecycle::class)->capabilities($post);
+        $this->assertFalse($capabilities['can_delete']);
+        $this->assertTrue($capabilities['can_remove_local']);
+        $this->assertStringContainsString('remote post may remain', $capabilities['local_remove_reason']);
+
+        Http::preventStrayRequests();
+
+        $this->actingAs($context['user'])
+            ->delete(route('client.social.posts.remove-local', $post))
+            ->assertSessionHas(
+                'success',
+                'Post record removed from WisperBot. The remote post was not deleted because its connected account is unavailable.'
+            );
+
+        $this->assertDatabaseMissing('social_media_posts', ['id' => $post->id]);
+        $this->assertDatabaseMissing('social_media_post_accounts', ['post_id' => $post->id]);
+        Http::assertNothingSent();
+    }
+
+    public function test_local_only_removal_cannot_bypass_a_valid_remote_delete(): void
+    {
+        $context = $this->createWorkspaceContext();
+        [$post] = $this->publishedPost($context['workspace']->id);
+
+        Http::preventStrayRequests();
+
+        $this->actingAs($context['user'])
+            ->delete(route('client.social.posts.remove-local', $post))
+            ->assertSessionHas('error', 'Local-only removal is available only when the connected social account no longer exists.');
+
+        $this->assertDatabaseHas('social_media_posts', ['id' => $post->id]);
+        Http::assertNothingSent();
+    }
+
     private function publishedPost(int $workspaceId, array $attributes = []): array
     {
         $account = $this->facebookAccount($workspaceId, 'PAGE_1', 'Review Page');

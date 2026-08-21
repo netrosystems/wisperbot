@@ -82,6 +82,7 @@ Meta Messenger and Instagram webhook processing currently uses the `whatsapp` qu
 2. A post and per-account mappings are stored.
 3. Immediate/delayed `PublishSocialPostJob` runs on `social`; the scheduler is a safety net.
 4. Provider results store remote IDs and capability information used to show valid edit/delete actions.
+5. `DELETE /app/social/posts/{post}` performs capability-checked provider deletion before local deletion. `DELETE /app/social/posts/{post}/local` is a workspace-scoped recovery route available only for orphaned published mappings whose connected account is unavailable; it never calls the provider.
 
 ## Route organization
 

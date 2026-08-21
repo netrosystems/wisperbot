@@ -6,6 +6,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 - Added the maintained project documentation system and repository-wide documentation impact policy.
 - Fixed Meta social OAuth so only the Facebook Page or Instagram account explicitly selected by the client is connected; other Pages discovered through the same Business Portfolio are ignored.
+- Prioritized Meta publishing-scope `target_ids` over broader retained discovery/read selections so reconnecting one Page cannot implicitly add another Page.
+- Added a safe “Remove from WisperBot” action for orphaned published-post records when their connected social account is no longer available, with an explicit warning that the remote post may remain.
 
 ## Current baseline — 2026-08-21
 

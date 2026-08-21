@@ -33,7 +33,9 @@ Meta uses two functional areas:
 
 Do not assume authorization in one area automatically creates the correct record/token for the other. OAuth redirect URIs must exactly match the production URL, without an accidental `www` or trailing slash.
 
-Connected Social Media treats Meta's granular OAuth `target_ids` as the source of truth for asset selection. Business Portfolio discovery may enumerate additional owned/client Pages, but the callback must filter those results before persistence so selecting one Page never connects another Page implicitly. If the selected targets cannot be verified, the connection fails without saving accounts.
+Connected Social Media treats Meta's granular OAuth `target_ids` as the source of truth for asset selection. Business Portfolio discovery may enumerate additional owned/client Pages, but the callback must filter those results before persistence so selecting one Page never connects another Page implicitly. Capability-specific write scopes (`pages_manage_posts` for Facebook and `instagram_content_publish` for Instagram) take precedence over broader discovery/read scopes because Meta can retain more previously authorized assets on the latter. If the selected targets cannot be verified, the connection fails without saving accounts.
+
+Remote post edit/delete requires the original connected account, usable token, and stored provider post ID. If that account has been removed, WisperBot may offer a clearly labelled local cleanup action; it removes only the stale WisperBot record and does not claim or attempt deletion on Facebook or Instagram.
 
 Current relevant Meta permissions include (depending on use case):
 

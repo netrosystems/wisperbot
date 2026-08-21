@@ -33,7 +33,7 @@ class PublishedPostLifecycle
      * internals. A published legacy row without per-account IDs is considered
      * immutable because WisperBot cannot prove which remote object it controls.
      *
-     * @return array{has_remote_posts: bool, can_update: bool, can_delete: bool, reason: ?string}
+     * @return array{has_remote_posts: bool, can_update: bool, can_delete: bool, can_remove_local: bool, reason: ?string, update_reason: ?string, delete_reason: ?string, local_remove_reason: ?string}
      */
     public function capabilities(SocialPost $post): array
     {
@@ -63,6 +63,7 @@ class PublishedPostLifecycle
 
         $deleteReason = $this->unsupportedReason($post, $links, 'delete');
         $updateReason = $this->unsupportedReason($post, $links, 'update');
+        $missingAccount = $this->hasMissingAccount($post, $links);
 
         return $this->capability(
             true,
@@ -71,7 +72,32 @@ class PublishedPostLifecycle
             $updateReason ?? $deleteReason,
             $updateReason,
             $deleteReason,
+            $missingAccount,
+            $missingAccount
+                ? 'Removing this record only cleans up WisperBot. The remote post may remain on the social network.'
+                : null,
         );
+    }
+
+    /**
+     * Remove an orphaned published-post record when its provider account is no
+     * longer available. This intentionally performs no provider API request.
+     */
+    public function removeLocal(SocialPost $post): void
+    {
+        $this->withPostLock($post, function () use ($post): void {
+            $post->refresh();
+            $this->recoverPublishedLinks($post);
+            $links = $this->activePublishedLinks($post);
+
+            if (! $this->hasMissingAccount($post, $links)) {
+                throw new PublishedPostLifecycleException(
+                    'Local-only removal is available only when the connected social account no longer exists.'
+                );
+            }
+
+            $this->deleteLocalPost($post);
+        });
     }
 
     /**
@@ -303,6 +329,14 @@ class PublishedPostLifecycle
         return null;
     }
 
+    private function hasMissingAccount(SocialPost $post, Collection $links): bool
+    {
+        return $links->contains(
+            fn (SocialPostAccount $link) => ! $link->account
+                || (int) $link->account->workspace_id !== (int) $post->workspace_id
+        );
+    }
+
     private function assertSupported(SocialPost $post, Collection $links, string $operation): void
     {
         if ($post->status === 'publishing') {
@@ -356,14 +390,18 @@ class PublishedPostLifecycle
         ?string $reason,
         ?string $updateReason = null,
         ?string $deleteReason = null,
+        bool $canRemoveLocal = false,
+        ?string $localRemoveReason = null,
     ): array {
         return [
             'has_remote_posts' => $hasRemote,
             'can_update' => $canUpdate,
             'can_delete' => $canDelete,
+            'can_remove_local' => $canRemoveLocal,
             'reason' => $reason,
             'update_reason' => $updateReason,
             'delete_reason' => $deleteReason,
+            'local_remove_reason' => $localRemoveReason,
         ];
     }
 }

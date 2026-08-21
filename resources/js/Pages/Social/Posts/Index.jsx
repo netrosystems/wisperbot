@@ -106,9 +106,11 @@ function postLifecycle(post, accountMap) {
             has_remote_posts: true,
             can_update: canUpdate,
             can_delete: canDelete,
+            can_remove_local: false,
             reason: updateReason,
             update_reason: updateReason,
             delete_reason: canDelete ? null : 'This platform does not support deleting a published post from WisperBot.',
+            local_remove_reason: null,
         };
     }
 
@@ -117,9 +119,11 @@ function postLifecycle(post, accountMap) {
         has_remote_posts: false,
         can_update: mutableLocally,
         can_delete: mutableLocally,
+        can_remove_local: false,
         reason: post.status === 'published' ? 'The remote post mapping is unavailable, so this post cannot be changed safely.' : null,
         update_reason: null,
         delete_reason: null,
+        local_remove_reason: null,
     };
 }
 
@@ -245,7 +249,7 @@ function PostDetailModal({ post, accountMap, userTz, onClose }) {
 }
 
 /* ── Post Card ────────────────────────────────────────────────── */
-function PostCard({ post, accountMap, userTz, onView, onDelete }) {
+function PostCard({ post, accountMap, userTz, onView, onDelete, onRemoveLocal }) {
     const { t } = useTranslation();
     const [actioning, setActioning] = useState(null);
     const targets = post.target_accounts ?? [];
@@ -253,6 +257,7 @@ function PostCard({ post, accountMap, userTz, onView, onDelete }) {
     const tz = post.timezone || userTz;
     const lifecycle = postLifecycle(post, accountMap);
     const canDelete = lifecycle.can_delete;
+    const canRemoveLocal = lifecycle.can_remove_local;
     const canEdit = lifecycle.can_update;
     const canPublishNow = ['draft', 'scheduled', 'failed'].includes(post.status);
     const canCancel = post.status === 'scheduled';
@@ -343,6 +348,16 @@ function PostCard({ post, accountMap, userTz, onView, onDelete }) {
                             <Trash2 className="h-3.5 w-3.5" /> {t('common.delete')}
                         </button>
                     )}
+                    {canRemoveLocal && (
+                        <button
+                            type="button"
+                            onClick={() => onRemoveLocal(post)}
+                            title="Remove this stale record from WisperBot only"
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:border-red-300 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" /> Remove from WisperBot
+                        </button>
+                    )}
                 </div>
 
                 {lifecycle.update_reason && !canEdit && (
@@ -354,6 +369,12 @@ function PostCard({ post, accountMap, userTz, onView, onDelete }) {
                 {lifecycle.reason && !canEdit && !canDelete && !lifecycle.update_reason && (
                     <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                         {lifecycle.reason}
+                    </p>
+                )}
+
+                {lifecycle.local_remove_reason && canRemoveLocal && (
+                    <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                        {lifecycle.local_remove_reason}
                     </p>
                 )}
 
@@ -421,6 +442,14 @@ export default function PostsIndex({ posts, accounts, filters }) {
             : t('social.confirm_delete_post');
         if (confirm(message)) {
             router.delete(route('client.social.posts.destroy', post.id), { preserveScroll: true });
+        }
+    };
+
+    const handleRemoveLocal = (post) => {
+        const message =
+            'Remove this post record from WisperBot? The post may still exist on Facebook or Instagram because the connected account is unavailable.';
+        if (confirm(message)) {
+            router.delete(route('client.social.posts.remove-local', post.id), { preserveScroll: true });
         }
     };
 
@@ -530,7 +559,15 @@ export default function PostsIndex({ posts, accounts, filters }) {
                 ) : (
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {posts.data.map((post) => (
-                            <PostCard key={post.id} post={post} accountMap={accountMap} userTz={userTz} onView={setDetailPost} onDelete={handleDelete} />
+                            <PostCard
+                                key={post.id}
+                                post={post}
+                                accountMap={accountMap}
+                                userTz={userTz}
+                                onView={setDetailPost}
+                                onDelete={handleDelete}
+                                onRemoveLocal={handleRemoveLocal}
+                            />
                         ))}
                     </div>
                 )}

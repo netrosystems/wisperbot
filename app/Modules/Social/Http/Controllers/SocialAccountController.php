@@ -127,8 +127,8 @@ class SocialAccountController extends Controller
             // asset picker. Filter against the granular target IDs before writing
             // anything so an unselected Page is never connected implicitly.
             $selectionScopes = $network === 'instagram'
-                ? ['pages_show_list', 'pages_read_engagement', 'instagram_basic', 'instagram_content_publish', 'instagram_manage_contents']
-                : ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'];
+                ? ['instagram_content_publish', 'instagram_manage_contents', 'instagram_basic', 'pages_read_engagement', 'pages_show_list']
+                : ['pages_manage_posts', 'pages_read_engagement', 'pages_show_list'];
 
             try {
                 $selectedTargetIds = $this->oauth->selectedMetaTargetIds(

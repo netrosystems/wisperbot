@@ -48,7 +48,11 @@ class SelectedMetaAccountConnectionTest extends TestCase
                 return Http::response(['data' => [
                     'is_valid' => true,
                     'granular_scopes' => [
-                        ['scope' => 'pages_show_list', 'target_ids' => ['PAGE_MINI_PC']],
+                        // Meta may retain every previously granted Page on a
+                        // broad read scope even though this authorization chose
+                        // only PAGE_MINI_PC for publishing.
+                        ['scope' => 'pages_show_list', 'target_ids' => ['PAGE_MINI_PC', 'PAGE_NETRO']],
+                        ['scope' => 'pages_read_engagement', 'target_ids' => ['PAGE_MINI_PC', 'PAGE_NETRO']],
                         ['scope' => 'pages_manage_posts', 'target_ids' => ['PAGE_MINI_PC']],
                         ['scope' => 'business_management', 'target_ids' => ['BUSINESS_NETRO']],
                     ],

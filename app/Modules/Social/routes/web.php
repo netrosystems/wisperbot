@@ -16,6 +16,7 @@ Route::middleware(['web', 'client-app'])->prefix('app/social')->name('client.soc
     Route::get('/posts/{post}/edit', [SocialPostController::class, 'edit'])->name('posts.edit');
     Route::put('/posts/{post}', [SocialPostController::class, 'update'])->name('posts.update');
     Route::delete('/posts/{post}', [SocialPostController::class, 'destroy'])->name('posts.destroy');
+    Route::delete('/posts/{post}/local', [SocialPostController::class, 'removeLocal'])->name('posts.remove-local');
     Route::post('/posts/{post}/publish-now', [SocialPostController::class, 'publishNow'])->name('posts.publish-now');
     Route::post('/posts/{post}/cancel', [SocialPostController::class, 'cancel'])->name('posts.cancel');
     Route::post('/ai-generate', [SocialPostController::class, 'aiGenerate'])->name('ai-generate');
