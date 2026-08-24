@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\StorageManager;
+use App\Services\UserPushTokenService;
 use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,10 @@ use Illuminate\Validation\ValidationException;
 
 class MobileAuthController extends Controller
 {
-    public function __construct(private StorageManager $storageManager) {}
+    public function __construct(
+        private StorageManager $storageManager,
+        private UserPushTokenService $pushTokens,
+    ) {}
 
     /**
      * POST /api/v1/auth/login
@@ -27,6 +31,8 @@ class MobileAuthController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
             'device_name' => ['nullable', 'string', 'max:255'],
+            'device_id' => ['nullable', 'string', 'max:255'],
+            'push_token' => ['nullable', 'string', 'max:255'],
         ]);
 
         $email = Str::lower(trim($validated['email']));
@@ -56,6 +62,7 @@ class MobileAuthController extends Controller
 
         $deviceName = $validated['device_name'] ?? 'ChatAgent Mobile';
         $token = $user->createToken($deviceName, ['*'])->plainTextToken;
+        $this->pushTokens->register($user, $validated['push_token'] ?? $validated['device_id'] ?? null, $deviceName);
 
         return response()->json([
             'token' => $token,

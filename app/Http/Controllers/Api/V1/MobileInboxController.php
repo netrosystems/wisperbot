@@ -152,10 +152,10 @@ class MobileInboxController extends WorkspaceScopedController
         $contact = Contact::where('workspace_id', $wsId)->findOrFail($id);
 
         $conversations = $contact->conversations()
-            ->with('channelAccount')
+            ->with(['channelAccount', 'assignedUser'])
             ->orderByDesc('last_message_at')
             ->limit(10)
-            ->get(['id', 'uuid', 'status', 'channel_account_id', 'last_message_at', 'unread_count']);
+            ->get(['id', 'uuid', 'status', 'channel_account_id', 'assigned_user_id', 'assigned_to', 'last_message_at', 'unread_count']);
 
         return response()->json([
             'id' => $contact->id,
@@ -174,6 +174,13 @@ class MobileInboxController extends WorkspaceScopedController
                 'channel' => $c->channelAccount?->channel,
                 'last_message_at' => $c->last_message_at?->toIso8601String(),
                 'unread_count' => $c->unread_count,
+                'assigned_user_id' => $c->assigned_user_id,
+                'assigned_to' => $c->assigned_to,
+                'assigned_user' => $c->assignedUser ? [
+                    'id' => $c->assignedUser->id,
+                    'name' => $c->assignedUser->name,
+                    'avatar' => $c->assignedUser->avatar ?? null,
+                ] : null,
             ]),
         ]);
     }

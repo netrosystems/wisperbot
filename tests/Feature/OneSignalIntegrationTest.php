@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AdminUser;
 use App\Models\NotificationPreference;
+use App\Models\UserPushToken;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -97,6 +98,39 @@ class OneSignalIntegrationTest extends TestCase
             && $request->hasHeader('Authorization', 'Key rest-key')
             && $request['include_aliases']['external_id'] === ['user:42']
             && $request['target_channel'] === 'push');
+    }
+
+    public function test_channel_sends_to_backend_managed_user_push_tokens(): void
+    {
+        IntegrationConfig::create([
+            'provider' => 'onesignal', 'label' => 'OneSignal Push Notifications', 'mode' => 'live', 'enabled' => true,
+            'credentials' => ['app_id' => 'app-id', 'rest_api_key' => 'rest-key'],
+        ]);
+        Http::fake(['https://api.onesignal.com/notifications' => Http::response(['id' => 'message-id'])]);
+        $context = $this->createWorkspaceContext();
+        $user = $context['user'];
+        UserPushToken::create([
+            'user_id' => $user->id,
+            'provider' => 'onesignal',
+            'token' => 'stored-subscription-id',
+            'device_name' => 'QA iPhone',
+            'last_seen_at' => now(),
+        ]);
+        $notification = new class extends \Illuminate\Notifications\Notification {
+            public function toOneSignal(object $notifiable): array
+            {
+                return ['title' => 'New chat', 'body' => 'Hello', 'conversation_id' => 123];
+            }
+        };
+
+        app(OneSignalChannel::class)->send($user, $notification);
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://api.onesignal.com/notifications'
+            && ($request['include_subscription_ids'] ?? null) === ['stored-subscription-id']
+            && $request['contents']['en'] === 'Hello'
+            && $request['data']['conversation_id'] === 123);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://api.onesignal.com/notifications'
+            && ($request['include_aliases']['external_id'] ?? null) === ['user:'.$user->id]);
     }
 
     public function test_super_admins_are_never_sent_onesignal_pushes(): void

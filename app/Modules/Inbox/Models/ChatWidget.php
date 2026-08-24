@@ -6,6 +6,7 @@ use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\StorageManager;
+use App\Services\PusherPublicConfig;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
@@ -141,6 +142,7 @@ class ChatWidget extends Model
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,
+            'realtime' => app(PusherPublicConfig::class)->widget(),
         ];
     }
 

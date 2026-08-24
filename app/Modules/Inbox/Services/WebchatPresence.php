@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inbox\Services;
 
+use App\Events\WidgetCommand;
 use App\Modules\Shared\Models\Conversation;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -52,6 +53,11 @@ class WebchatPresence
         ];
 
         Cache::put($this->commandKey($conversation), $command, 60);
+        $conversation->loadMissing('channelAccount');
+
+        if ($conversation->channelAccount?->channel === 'webchat') {
+            broadcast(new WidgetCommand((int) $conversation->id, $command));
+        }
 
         return $command;
     }

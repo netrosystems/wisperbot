@@ -4,11 +4,15 @@ namespace App\Notifications\Channels;
 
 use App\Models\User;
 use App\Services\OneSignalService;
+use App\Services\UserPushTokenService;
 use Illuminate\Notifications\Notification;
 
 class OneSignalChannel
 {
-    public function __construct(private OneSignalService $service) {}
+    public function __construct(
+        private OneSignalService $service,
+        private UserPushTokenService $pushTokens,
+    ) {}
 
     public function isConfigured(): bool
     {
@@ -36,6 +40,11 @@ class OneSignalChannel
         $body           = $data['body'] ?? '';
         $url            = $data['url'] ?? null;
         $conversationId = $data['conversation_id'] ?? null;
+
+        $tokens = $this->pushTokens->activeTokensFor($notifiable);
+        if ($tokens !== []) {
+            $this->service->sendToSubscriptionIds($tokens, $title, $body, $url, $conversationId);
+        }
 
         $this->service->sendToExternalId('user:'.$notifiable->id, $title, $body, $url, $conversationId);
     }

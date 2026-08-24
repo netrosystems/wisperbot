@@ -3,7 +3,7 @@
  * Self-contained, dependency-free, rendered inside a Shadow DOM so it never
  * collides with the host site's CSS. Loaded by the per-widget bootstrap served
  * at /widgets/chat/{key}.js, which sets window.__WB_CHAT__ = { key, config }.
- * Realtime is by polling the public widget API.
+ * Realtime uses Pusher when available, with polling as the permanent fallback.
  */
 (function () {
   'use strict';
@@ -28,6 +28,7 @@
   // ── State ──────────────────────────────────────────────────────────────────
   var visitorId = safeGet(LS_VISITOR);
   var token = safeGet(LS_TOKEN);
+  var conversationId = '';
   var open = false;
   var started = false;      // session established
   var starting = false;
@@ -53,6 +54,12 @@
   var prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
   var handoff = { enabled: !!CFG.ai_enabled, eligible: false, status: 'bot' };
   var handoffWatchdog = null;
+  var pusherClient = null;
+  var pusherChannel = null;
+  var realtimeStarting = false;
+  var realtimeConnected = false;
+  var realtimeDisabled = false;
+  var sendingText = false;
 
   function safeGet(k) { try { return window.localStorage.getItem(k) || ''; } catch (e) { return ''; } }
   function safeSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
@@ -160,7 +167,7 @@
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var text = input.value.trim();
-    if (!text) return;
+    if (!text || sendingText) return;
     stopVisitorTyping();
     input.value = '';
     send(text);
@@ -292,6 +299,8 @@
     LS_COMMAND = storageKey('command');
     visitorId = safeGet(LS_VISITOR);
     token = safeGet(LS_TOKEN);
+    conversationId = '';
+    disconnectRealtime();
     thread = loadThread();
     rendered = {};
     lastId = 0;
@@ -333,7 +342,7 @@
     starting = post('/widget/v1/session', body).then(function (data) {
       if (!data || !data.token || !data.visitor_id) throw new Error('session unavailable');
       started = true;
-      visitorId = data.visitor_id; token = data.token;
+      visitorId = data.visitor_id; token = data.token; conversationId = data.conversation_id || '';
       safeSet(LS_VISITOR, visitorId); safeSet(LS_TOKEN, token);
       online = data.online !== false;
       var newAgentMessages = 0;
@@ -342,6 +351,7 @@
       });
       notifyAboutAgentMessages(newAgentMessages);
       applyHandoff(data.handoff);
+      initRealtime((data.config && data.config.realtime) || CFG.realtime || {});
       updateStatus(); scrollDown();
       return data;
     }).then(function (data) {
@@ -355,18 +365,29 @@
   }
 
   function send(text) {
+    if (sendingText) return;
+    sendingText = true;
+    var clientMessageId = makeClientMessageId();
     // Render immediately; a slow network must never make a submitted message
     // look lost. Replace this temporary bubble with the canonical server echo.
     var optimisticRow = addBubble('visitor', text);
-    if (optimisticRow) optimisticRow.classList.add('wb-pending');
+    if (optimisticRow) {
+      optimisticRow.classList.add('wb-pending');
+      optimisticRow.setAttribute('data-wb-pending-body', text);
+      optimisticRow.setAttribute('data-wb-client-message-id', clientMessageId);
+    }
+    if (handoff.status !== 'connected') {
+      renderAgentTyping({ is_typing: true, name: CFG.agent_name || 'Support' });
+    }
     ensureSession().then(function () {
       startPolling();
-      return post('/widget/v1/messages', { key: KEY, message: text });
+      return post('/widget/v1/messages', { key: KEY, message: text, client_message_id: clientMessageId });
     }).then(function (data) {
       if (optimisticRow && optimisticRow.parentNode) optimisticRow.parentNode.removeChild(optimisticRow);
       if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
     }).catch(function () {
+      renderAgentTyping(null);
       if (!optimisticRow) return;
       optimisticRow.classList.remove('wb-pending');
       optimisticRow.classList.add('wb-failed');
@@ -375,6 +396,8 @@
         if (optimisticRow.parentNode) optimisticRow.parentNode.removeChild(optimisticRow);
         send(text);
       }, { once: true });
+    }).then(function () {
+      sendingText = false;
     });
   }
 
@@ -493,6 +516,7 @@
       var fd = new FormData();
       fd.append('key', KEY);
       fd.append('type', 'audio');
+      fd.append('client_message_id', makeClientMessageId());
       fd.append('message', input.value.trim());
       fd.append('attachment', pendingAudio.file);
       return postForm('/widget/v1/messages', fd);
@@ -535,6 +559,7 @@
       var fd = new FormData();
       fd.append('key', KEY);
       fd.append('type', 'image');
+      fd.append('client_message_id', makeClientMessageId());
       fd.append('message', input.value.trim());
       fd.append('attachment', pendingImage.file);
       return postForm('/widget/v1/messages', fd);
@@ -586,13 +611,18 @@
       pollInFlight = true;
       poll().then(function () {
         pollInFlight = false;
-        pollTimer = pageCanReportPresence() ? setTimeout(tick, open ? 3000 : 8000) : null;
+        pollTimer = pageCanReportPresence() ? setTimeout(tick, pollDelay()) : null;
       }).catch(function () {
         pollInFlight = false;
-        pollTimer = pageCanReportPresence() ? setTimeout(tick, 8000) : null;
+        pollTimer = pageCanReportPresence() ? setTimeout(tick, realtimeConnected ? 30000 : 8000) : null;
       });
     };
-    pollTimer = setTimeout(tick, open ? 2500 : 8000);
+    pollTimer = setTimeout(tick, realtimeConnected ? 15000 : (open ? 2500 : 8000));
+  }
+
+  function pollDelay() {
+    if (realtimeConnected) return open ? 30000 : 60000;
+    return open ? 3000 : 8000;
   }
 
   function pageCanReportPresence() {
@@ -616,11 +646,7 @@
       if (typeof data.online === 'boolean') { online = data.online; updateStatus(); }
       applyHandoff(data.handoff);
       renderAgentTyping(data.agent_typing);
-      if (data.command && data.command.id && data.command.id !== lastCommandId) {
-        lastCommandId = data.command.id;
-        safeSet(LS_COMMAND, lastCommandId);
-        if (data.command.type === 'open_widget') openPanel();
-      }
+      applyCommand(data.command);
       var newAgentMessages = 0;
       (data.messages || []).forEach(function (m) {
         var added = addMessage(m);
@@ -631,14 +657,169 @@
   }
 
   // ── Rendering ──────────────────────────────────────────────────────────────
+  function initRealtime(config) {
+    if (realtimeDisabled || realtimeStarting || pusherClient || !started || !token || !conversationId) return;
+    config = config || {};
+    var key = config.key || '';
+    var cluster = config.cluster || 'mt1';
+    var cdnUrl = config.cdn_url || 'https://js.pusher.com/8.5.0/pusher.min.js';
+    var authEndpoint = config.auth_endpoint || (API + '/widget/v1/broadcasting/auth');
+
+    if (!key) return;
+
+    realtimeStarting = true;
+    loadPusher(cdnUrl).then(function (PusherCtor) {
+      if (!PusherCtor || !token || !conversationId) throw new Error('pusher unavailable');
+
+      pusherClient = new PusherCtor(key, {
+        cluster: cluster,
+        forceTLS: true,
+        disableStats: true,
+        enabledTransports: ['ws', 'wss'],
+        channelAuthorization: {
+          customHandler: function (params, callback) {
+            fetch(authEndpoint, {
+              method: 'POST',
+              headers: headers(),
+              body: JSON.stringify({
+                key: KEY,
+                socket_id: params.socketId,
+                channel_name: params.channelName
+              })
+            }).then(handle).then(function (authData) {
+              callback(null, authData);
+            }).catch(function (error) {
+              realtimeConnected = false;
+              callback(error, null);
+            });
+          }
+        }
+      });
+
+      pusherClient.connection.bind('connected', function () {
+        realtimeConnected = true;
+        poll().catch(function () {});
+      });
+      pusherClient.connection.bind('unavailable', markRealtimeDisconnected);
+      pusherClient.connection.bind('failed', markRealtimeDisconnected);
+      pusherClient.connection.bind('disconnected', markRealtimeDisconnected);
+      pusherClient.connection.bind('error', markRealtimeDisconnected);
+
+      pusherChannel = pusherClient.subscribe('private-widget-conversation.' + conversationId);
+      pusherChannel.bind('pusher:subscription_succeeded', function () {
+        realtimeConnected = true;
+        poll().catch(function () {});
+      });
+      pusherChannel.bind('pusher:subscription_error', function () {
+        realtimeDisabled = true;
+        disconnectRealtime();
+      });
+      pusherChannel.bind('WidgetMessageCreated', function (data) {
+        var message = data && data.message;
+        if (message && addMessage(message) && message.role === 'agent') {
+          notifyAboutAgentMessages(1);
+        }
+      });
+      pusherChannel.bind('WidgetTypingChanged', function (data) {
+        renderAgentTyping(data && data.agent_typing);
+      });
+      pusherChannel.bind('WidgetHandoffUpdated', function (data) {
+        applyHandoff(data && data.handoff);
+      });
+      pusherChannel.bind('WidgetCommand', function (data) {
+        applyCommand(data && data.command);
+      });
+    }).catch(function () {
+      realtimeDisabled = true;
+      disconnectRealtime();
+    }).then(function () {
+      realtimeStarting = false;
+    });
+  }
+
+  function loadPusher(url) {
+    if (window.Pusher) return Promise.resolve(window.Pusher);
+    return new Promise(function (resolve, reject) {
+      var existing = document.querySelector('script[data-wisperbot-pusher]');
+      if (existing) {
+        existing.addEventListener('load', function () { resolve(window.Pusher); }, { once: true });
+        existing.addEventListener('error', reject, { once: true });
+        return;
+      }
+
+      var script = document.createElement('script');
+      script.src = url;
+      script.async = true;
+      script.defer = true;
+      script.setAttribute('data-wisperbot-pusher', '1');
+      script.onload = function () { resolve(window.Pusher); };
+      script.onerror = reject;
+      (document.head || document.documentElement).appendChild(script);
+    });
+  }
+
+  function markRealtimeDisconnected() {
+    realtimeConnected = false;
+  }
+
+  function disconnectRealtime() {
+    realtimeConnected = false;
+    realtimeStarting = false;
+    if (pusherClient) {
+      try {
+        if (pusherChannel) pusherClient.unsubscribe(pusherChannel.name);
+        pusherClient.disconnect();
+      } catch (e) {}
+    }
+    pusherClient = null;
+    pusherChannel = null;
+  }
+
+  function applyCommand(command) {
+    if (!command || !command.id || command.id === lastCommandId) return;
+    lastCommandId = command.id;
+    safeSet(LS_COMMAND, lastCommandId);
+    if (command.type === 'open_widget') openPanel();
+  }
+
   function addMessage(m) {
-    if (!m || rendered[m.id]) return false;
+    if (!m) return false;
+    removeMatchingPendingVisitorMessage(m);
+    if (m.role === 'agent') renderAgentTyping(null);
+    if (rendered[m.id]) return false;
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
     thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type });
     saveThread();
     addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type);
     return true;
+  }
+
+  function removeMatchingPendingVisitorMessage(m) {
+    if (!m || m.role !== 'visitor' || !body) return;
+
+    var pending = body.querySelectorAll('.wb-row.wb-out.wb-pending');
+    var expectedBody = String(m.body || '').trim();
+    var expectedClientId = m.client_message_id ? String(m.client_message_id) : '';
+
+    for (var i = 0; i < pending.length; i++) {
+      var row = pending[i];
+      var rowClientId = row.getAttribute('data-wb-client-message-id') || '';
+      var rowBody = (row.getAttribute('data-wb-pending-body') || '').trim();
+
+      if ((expectedClientId && rowClientId === expectedClientId) || (!expectedClientId && expectedBody && rowBody === expectedBody)) {
+        if (row.parentNode) row.parentNode.removeChild(row);
+        return;
+      }
+    }
+  }
+
+  function makeClientMessageId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+
+    return 'cm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 12);
   }
 
   function renderAgentTyping(presence) {
