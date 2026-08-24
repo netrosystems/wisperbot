@@ -67,6 +67,66 @@ class OAuthManager
     }
 
     /**
+     * Return the Page/Instagram asset IDs explicitly selected in Meta's OAuth
+     * dialog for the requested granular scopes.
+     *
+     * Scope order is significant. Meta can retain a broader target set for a
+     * read/discovery scope while returning only the asset chosen in the current
+     * authorization for the write scope. Unioning every scope would therefore
+     * connect unselected Pages. Use the first requested scope that contains
+     * target IDs so callers can make the capability-specific write scope
+     * authoritative and keep read scopes as compatibility fallbacks.
+     *
+     * @param  list<string>  $scopes
+     * @return list<string>
+     */
+    public function selectedMetaTargetIds(string $network, string $accessToken, array $scopes): array
+    {
+        if (! in_array($network, ['facebook', 'instagram'], true)) {
+            throw new \InvalidArgumentException("Meta target inspection is not supported for [{$network}].");
+        }
+
+        $creds = $this->credentials->oauth($network);
+        if ($creds === null || ! $creds->clientId() || ! $creds->clientSecret()) {
+            throw new \RuntimeException('Meta OAuth credentials are not configured.');
+        }
+
+        $response = Http::timeout(15)->get(self::META_GRAPH_BASE.'/debug_token', [
+            'input_token' => $accessToken,
+            'access_token' => $creds->clientId().'|'.$creds->clientSecret(),
+        ]);
+        $this->assertSuccessful($response, 'Meta token inspection');
+
+        if (! $response->json('data.is_valid', false)) {
+            throw new \RuntimeException('Meta token inspection reported an invalid access token.');
+        }
+
+        /** @var array<string, list<string>> $targetsByScope */
+        $targetsByScope = [];
+        foreach ((array) $response->json('data.granular_scopes', []) as $scope) {
+            $scopeName = (string) ($scope['scope'] ?? '');
+            if (! in_array($scopeName, $scopes, true)) {
+                continue;
+            }
+
+            foreach ((array) ($scope['target_ids'] ?? []) as $targetId) {
+                if (is_string($targetId) || is_int($targetId)) {
+                    $targetsByScope[$scopeName][] = (string) $targetId;
+                }
+            }
+        }
+
+        foreach ($scopes as $scopeName) {
+            $targetIds = array_values(array_unique($targetsByScope[$scopeName] ?? []));
+            if ($targetIds !== []) {
+                return $targetIds;
+            }
+        }
+
+        return [];
+    }
+
+    /**
      * Refresh an access token using a refresh_token.
      * Returns ['access_token', 'refresh_token' (if rotated), 'expires_in'] or throws on failure.
      */

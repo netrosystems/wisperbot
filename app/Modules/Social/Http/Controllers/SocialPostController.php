@@ -412,6 +412,22 @@ class SocialPostController extends Controller
         );
     }
 
+    public function removeLocal(Request $request, SocialPost $post): RedirectResponse
+    {
+        abort_unless((int) $post->workspace_id === $this->workspaceId($request), 403);
+
+        try {
+            $this->publishedPosts->removeLocal($post);
+        } catch (PublishedPostLifecycleException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with(
+            'success',
+            'Post record removed from WisperBot. The remote post was not deleted because its connected account is unavailable.'
+        );
+    }
+
     public function aiPlan(Request $request): JsonResponse
     {
         $wid = $this->workspaceId($request);

@@ -122,6 +122,38 @@ class SocialAccountController extends Controller
             $discovery = $this->metaPages->discover($tokens['access_token'], $fields);
             $pages = $discovery['pages'];
 
+            // Business Portfolio discovery can return every Page in the selected
+            // business, even when the user selected only one Page in Meta's OAuth
+            // asset picker. Filter against the granular target IDs before writing
+            // anything so an unselected Page is never connected implicitly.
+            $selectionScopes = $network === 'instagram'
+                ? ['instagram_content_publish', 'instagram_manage_contents', 'instagram_basic', 'pages_read_engagement', 'pages_show_list']
+                : ['pages_manage_posts', 'pages_read_engagement', 'pages_show_list'];
+
+            try {
+                $selectedTargetIds = $this->oauth->selectedMetaTargetIds(
+                    $network,
+                    $tokens['access_token'],
+                    $selectionScopes,
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Social OAuth: selected Meta assets could not be verified', [
+                    'workspace_id' => $wid,
+                    'network' => $network,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return redirect()->route('client.social.accounts.index')
+                    ->with('error', 'Meta authorization succeeded, but WisperBot could not verify which account you selected. No accounts were connected. Please try again.');
+            }
+
+            if ($selectedTargetIds === []) {
+                return redirect()->route('client.social.accounts.index')
+                    ->with('error', 'Meta did not return a selected Page or Instagram account. No accounts were connected. Reconnect and choose the specific account you want to add.');
+            }
+
+            $pages = $this->filterMetaPagesToSelectedTargets($pages, $selectedTargetIds);
+
             if ($discovery['errors'] !== []) {
                 Log::warning('Social OAuth: one or more Meta Page discovery sources failed', [
                     'workspace_id' => $wid,
@@ -255,5 +287,21 @@ class SocialAccountController extends Controller
     {
         return rtrim((string) config('app.url'), '/')
             .'/app/social/accounts/callback/'.rawurlencode($network);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $pages
+     * @param  list<string>  $selectedTargetIds
+     * @return list<array<string, mixed>>
+     */
+    private function filterMetaPagesToSelectedTargets(array $pages, array $selectedTargetIds): array
+    {
+        return array_values(array_filter($pages, function (array $page) use ($selectedTargetIds): bool {
+            $pageId = (string) ($page['id'] ?? '');
+            $instagramId = (string) ($page['instagram_business_account']['id'] ?? '');
+
+            return ($pageId !== '' && in_array($pageId, $selectedTargetIds, true))
+                || ($instagramId !== '' && in_array($instagramId, $selectedTargetIds, true));
+        }));
     }
 }

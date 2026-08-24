@@ -1,3 +1,11 @@
+<IfModule LiteSpeed>
+    # Keep LiteSpeed's request limits aligned with Laravel's 50 MB media rule.
+    # post_max_size must be larger to allow for multipart request overhead.
+    php_value upload_max_filesize 50M
+    php_value post_max_size 55M
+    php_value max_file_uploads 20
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
