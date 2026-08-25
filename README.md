@@ -6,19 +6,25 @@ The application is built with Laravel 12, PHP 8.2+, Inertia, React 19, Vite, MyS
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md). The most useful entry points are:
+Start with the [documentation index](docs/README.md) or explore the master specifications:
 
-- [Architecture](docs/ARCHITECTURE.md) — modules, request paths, tenancy, events, queues, and data ownership.
-- [Product decisions](docs/PRODUCT_DECISIONS.md) — intentional product behavior and terminology.
-- [Integrations](docs/INTEGRATIONS.md) — third-party platforms, OAuth, webhooks, and limitations.
-- [Operations](docs/OPERATIONS.md) and [deployment](DEPLOYMENT.md) — local setup, scheduler, workers, production release, and diagnostics.
-- [Security](docs/SECURITY.md) — authentication surfaces, workspace isolation, secrets, webhook verification, and local licensing.
-- [Known issues](docs/KNOWN_ISSUES.md) — unresolved limitations and operational risks.
-- [Handoff](docs/HANDOFF.md) — current repository state and the next engineer/LLM checklist.
+- [**Technical Architecture Specification (`ARCHITECTURE.md`)**](ARCHITECTURE.md) — System boundaries, modules, request paths, tenancy, queues, and real-time events.
+- [**UI/UX Design System (`DESIGNSYSTEM.md`)**](DESIGNSYSTEM.md) — Space Grotesk & Fraunces typography, Orange & Amber brand palette, layout archetypes, and UI components.
+- [**Feature Plan & Specifications (`PLAN.md`)**](PLAN.md) — Core user journeys, feature module breakdowns, and UI state machines.
+- [**Agent Routing Guide (`AGENTS.md`)**](AGENTS.md) — Fast-lookup routing instructions for AI coding agents and repository maintenance rules.
+
+### Detailed Domain Documentation (`docs/`)
+
+- [Product decisions](docs/PRODUCT_DECISIONS.md) — Intentional product behavior and terminology.
+- [Integrations](docs/INTEGRATIONS.md) — Third-party platforms, OAuth, webhooks, and limitations.
+- [Operations](docs/OPERATIONS.md) and [Deployment](DEPLOYMENT.md) — Local setup, scheduler, workers, production release, and diagnostics.
+- [Security](docs/SECURITY.md) — Authentication surfaces, workspace isolation, secrets, webhook verification, and local licensing.
+- [Known issues](docs/KNOWN_ISSUES.md) — Unresolved limitations and operational risks.
+- [Handoff](docs/HANDOFF.md) — Current repository state and the next engineer/LLM checklist.
 
 Repository-wide maintenance rules for people and coding agents are in [AGENTS.md](AGENTS.md).
 
-## Local development
+## Local Development
 
 ```bash
 composer install

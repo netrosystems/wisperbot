@@ -18,15 +18,18 @@ use App\Modules\Shared\Services\ChannelManager;
 use App\Modules\Whatsapp\Models\WhatsappTemplate;
 use App\Modules\Whatsapp\Services\CloudApiClient;
 use App\Notifications\ConversationHandoverNotification;
+use App\Services\Media\AttachmentService;
 use App\Services\StorageManager;
 use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -46,6 +49,7 @@ class InboxController extends Controller
     public function __construct(
         private ChannelManager $channelManager,
         private StorageManager $storageManager,
+        private AttachmentService $attachmentService,
     ) {}
 
     public function index(Request $request): Response
@@ -247,7 +251,7 @@ class InboxController extends Controller
         ]);
     }
 
-    private function liveUsersQuery(int $workspaceId, \Illuminate\Support\Carbon $liveSince)
+    private function liveUsersQuery(int $workspaceId, Carbon $liveSince)
     {
         return Conversation::query()
             ->where('workspace_id', $workspaceId)
@@ -328,8 +332,8 @@ class InboxController extends Controller
             'payload' => ['nullable', 'array'],
             // Allow-list of messaging media types (no HTML/SVG/executables).
             'attachment' => [
-                'nullable', 'file', 'max:20480',
-                'mimes:jpg,jpeg,png,webp,mp4,3gp,mov,mp3,aac,m4a,amr,ogg,oga,wav,webm,pdf,doc,docx,xls,xlsx,ppt,pptx,txt',
+                'nullable', 'file', 'max:'.AttachmentService::MAX_FILE_KILOBYTES,
+                'mimes:'.AttachmentService::ALLOWED_MIMES,
             ],
         ]);
 
@@ -341,30 +345,36 @@ class InboxController extends Controller
         // Handle direct file attachment (image / document sent from compose bar)
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $mimeType = $file->getMimeType() ?? 'application/octet-stream';
+            $upload = $this->attachmentService->processUpload($file, 'message-media');
 
-            // Derive type from MIME if not explicitly set
-            if ($msgType === 'text') {
-                $msgType = str_starts_with($mimeType, 'image/') ? 'image'
-                    : (str_starts_with($mimeType, 'video/') ? 'video'
-                        : (str_starts_with($mimeType, 'audio/') ? 'audio' : 'document'));
+            // Derive type from upload result unless explicitly set (e.g. voice recording)
+            if ($msgType === 'text' || empty($msgType)) {
+                $msgType = $upload['type'];
+            } elseif ($msgType === 'audio' && in_array($upload['type'], ['audio', 'video', 'document'], true)) {
+                $msgType = 'audio';
+            } else {
+                $msgType = $upload['type'];
             }
 
-            // Every channel needs a public URL for the local preview. WhatsApp is
-            // the only channel that additionally needs a Graph API media ID. The
-            // old implementation performed that WhatsApp-only upload for every
-            // conversation, which prevented website-chat, Messenger, and
-            // Instagram agents from attaching a file when no WhatsApp account
-            // was connected.
-            $storedPath = $this->storageManager->prefixedPath('message-media/'.$file->hashName());
-            $this->storageManager->disk()->putFileAs(dirname($storedPath), $file, basename($storedPath));
-            $previewUrl = $this->browserSafePublicUrl($this->storageManager->disk()->url($storedPath), $request);
+            // Instagram Graph API cannot deliver raw documents
+            if ($channel === 'instagram' && ! in_array($msgType, ['image', 'video', 'audio'], true)) {
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'error' => 'Instagram direct messaging only supports image, video, and audio attachments. Documents cannot be sent via Instagram DM.',
+                    ], 422);
+                }
+
+                return back()->with('error', 'Instagram direct messaging only supports image, video, and audio attachments. Documents cannot be sent via Instagram DM.');
+            }
+
+            $previewUrl = $this->browserSafePublicUrl($upload['url'], $request);
 
             $attachmentPayload = [
                 'preview_url' => $previewUrl,
                 'caption' => $validated['body'] ?? null,
-                'filename' => $file->getClientOriginalName(),
-                'mime_type' => $mimeType,
+                'filename' => $upload['filename'],
+                'mime_type' => $upload['mime_type'],
+                'file_size' => $upload['size_bytes'],
             ];
 
             if ($channel === 'whatsapp') {
@@ -373,7 +383,23 @@ class InboxController extends Controller
                     return response()->json(['error' => 'No active WhatsApp account.'], 422);
                 }
 
-                $attachmentPayload['media_id'] = $client->uploadMedia($file->getRealPath(), $mimeType);
+                // If converted HEIC, upload from stored path or temp file
+                $tempPath = null;
+                if ($upload['is_converted_heic']) {
+                    $tempPath = tempnam(sys_get_temp_dir(), 'wa_upload_').'.jpg';
+                    file_put_contents($tempPath, $this->storageManager->disk()->get($upload['path']));
+                    $uploadPath = $tempPath;
+                } else {
+                    $uploadPath = $file->getRealPath();
+                }
+
+                try {
+                    $attachmentPayload['media_id'] = $client->uploadMedia($uploadPath, $upload['mime_type']);
+                } finally {
+                    if ($tempPath && file_exists($tempPath)) {
+                        @unlink($tempPath);
+                    }
+                }
             }
 
             $msgPayload = array_merge($msgPayload ?? [], $attachmentPayload);
@@ -381,7 +407,7 @@ class InboxController extends Controller
             // Audio should render as a playable voice message, not as a raw
             // .wav/.webm filename beneath the player.
             $validated['body'] = $validated['body']
-                ?? ($msgType === 'audio' ? 'Voice message' : $file->getClientOriginalName());
+                ?? ($msgType === 'audio' ? 'Voice message' : $upload['filename']);
         }
 
         // Require body for plain text messages
@@ -833,6 +859,16 @@ class InboxController extends Controller
 
         $contacts = Contact::where('workspace_id', $workspaceId)
             ->with('tags')
+            ->withCount([
+                'conversations as has_messenger_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'messenger')),
+                'conversations as has_instagram_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'instagram')),
+                'conversations as has_telegram_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'telegram')),
+                'conversations as has_ebay_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'ebay')),
+                'conversations as has_amazon_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'amazon')),
+                'conversations as has_webchat_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'webchat')),
+                'conversations as has_email_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'email')),
+                'conversations as has_whatsapp_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'whatsapp')),
+            ])
             ->when($q, fn ($query) => $query->where(function ($query) use ($q) {
                 $query->where('first_name', 'like', "%{$q}%")
                     ->orWhere('last_name', 'like', "%{$q}%")
@@ -841,10 +877,18 @@ class InboxController extends Controller
             }))
             ->latest()
             ->limit(30)
-            ->get(['id', 'first_name', 'last_name', 'phone_e164', 'email', 'country', 'avatar']);
+            ->get(['id', 'uuid', 'first_name', 'last_name', 'phone_e164', 'email', 'country', 'avatar', 'custom_fields', 'source']);
 
         return response()->json($contacts->map(fn ($c) => array_merge($c->toArray(), [
             'avatar_url' => Demo::active() ? null : $c->avatar_url,
+            'has_messenger_thread' => (int) ($c->has_messenger_thread ?? 0) > 0,
+            'has_instagram_thread' => (int) ($c->has_instagram_thread ?? 0) > 0,
+            'has_telegram_thread' => (int) ($c->has_telegram_thread ?? 0) > 0,
+            'has_ebay_thread' => (int) ($c->has_ebay_thread ?? 0) > 0,
+            'has_amazon_thread' => (int) ($c->has_amazon_thread ?? 0) > 0,
+            'has_webchat_thread' => (int) ($c->has_webchat_thread ?? 0) > 0,
+            'has_email_thread' => (int) ($c->has_email_thread ?? 0) > 0,
+            'has_whatsapp_thread' => (int) ($c->has_whatsapp_thread ?? 0) > 0,
         ])));
     }
 
@@ -855,6 +899,7 @@ class InboxController extends Controller
 
         $accounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('status', 'active')
+            ->whereIn('channel', array_merge(self::OMNI_CHANNELS, ['email', 'sms']))
             ->get(['id', 'channel', 'display_name', 'phone_number_id']);
 
         return response()->json($accounts);
@@ -872,7 +917,45 @@ class InboxController extends Controller
         ]);
 
         $contact = Contact::where('workspace_id', $workspaceId)->findOrFail($validated['contact_id']);
-        $channelAccount = ChannelAccount::where('workspace_id', $workspaceId)->findOrFail($validated['channel_account_id']);
+        $channelAccount = ChannelAccount::where('workspace_id', $workspaceId)
+            ->whereIn('channel', array_merge(self::OMNI_CHANNELS, ['email', 'sms']))
+            ->findOrFail($validated['channel_account_id']);
+
+        // Channel reachability and delivery target validation
+        match ($channelAccount->channel) {
+            'whatsapp', 'sms' => throw_if(
+                empty($contact->phone_e164),
+                ValidationException::withMessages([
+                    'channel_account_id' => 'Contact does not have a valid phone number for messaging.',
+                ])
+            ),
+            'email' => throw_if(
+                empty($contact->email),
+                ValidationException::withMessages([
+                    'channel_account_id' => 'Contact does not have an email address.',
+                ])
+            ),
+            'messenger', 'instagram', 'telegram', 'ebay', 'amazon' => throw_if(
+                ! Conversation::where('workspace_id', $workspaceId)
+                    ->where('contact_id', $contact->id)
+                    ->where('channel_account_id', $channelAccount->id)
+                    ->exists(),
+                ValidationException::withMessages([
+                    'channel_account_id' => "Outbound conversations on {$channelAccount->channel} cannot be initiated without an existing customer thread.",
+                ])
+            ),
+            'webchat' => throw_if(
+                empty($contact->custom_fields['webchat_visitor_id'])
+                && ! Conversation::where('workspace_id', $workspaceId)
+                    ->where('contact_id', $contact->id)
+                    ->where('channel_account_id', $channelAccount->id)
+                    ->exists(),
+                ValidationException::withMessages([
+                    'channel_account_id' => 'Contact does not have an active website chat session.',
+                ])
+            ),
+            default => null,
+        };
 
         // Reuse the most recent open conversation for this contact + channel, or create a new one
         $conversation = Conversation::where('workspace_id', $workspaceId)

@@ -233,7 +233,7 @@ class WebchatDriver implements ChannelDriverInterface
             $updates['first_name'] = $first;
             $updates['last_name'] = $last;
         }
-        if ($email && ! $contact->email) {
+        if ($email && (! $contact->email || $contact->email !== $email)) {
             $updates['email'] = $email;
         }
         if ($avatar && ! $contact->avatar) {

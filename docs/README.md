@@ -1,19 +1,25 @@
-# WisperBot documentation index
+# WisperBot Documentation Index
 
-This directory is the durable project memory for engineers, operators, product owners, and coding agents.
+This directory and the root specification files form the durable project memory for engineers, operators, product owners, and coding agents.
 
-## Read in this order
+## Core Specifications (Root)
 
-1. [Handoff](HANDOFF.md) — current state and immediate cautions.
-2. [Architecture](ARCHITECTURE.md) — how the system is assembled.
-3. [Product decisions](PRODUCT_DECISIONS.md) — why important behavior exists.
-4. [Integrations](INTEGRATIONS.md) — provider configuration and limitations.
-5. [Operations](OPERATIONS.md) — local and production operation.
-6. [Security](SECURITY.md) — trust boundaries and required safeguards.
-7. [Known issues](KNOWN_ISSUES.md) — unfinished or fragile areas.
-8. [Changelog](CHANGELOG.md) — documentation-level release history.
+- [**Agent Routing Guide (`AGENTS.md`)**](../AGENTS.md) — Lightweight instructions & decision routing table for AI coding agents to minimize token burn.
+- [**Technical Architecture Specification (`ARCHITECTURE.md`)**](../ARCHITECTURE.md) — System boundaries, modular monolith architecture, multi-tenancy, queue pipelines, WebSocket events, and quality gates.
+- [**UI/UX Design System (`DESIGNSYSTEM.md`)**](../DESIGNSYSTEM.md) — Space Grotesk & Fraunces typography, Orange & Amber brand tokens, layout archetypes, border-driven surfaces, and UI component primitives.
+- [**Feature Plan & Specifications (`PLAN.md`)**](../PLAN.md) — Core user journeys, feature module breakdowns, UI state machines, and testing verification matrices.
 
-Additional setup guides:
+## Detailed Domain Guides (`docs/`)
+
+1. [Handoff](HANDOFF.md) — Current state and immediate cautions.
+2. [Product Decisions](PRODUCT_DECISIONS.md) — Why important behavior and terminology exist.
+3. [Integrations](INTEGRATIONS.md) — Provider configuration, OAuth scopes, and limitations.
+4. [Operations](OPERATIONS.md) — Local and production environment operation.
+5. [Security](SECURITY.md) — Trust boundaries and required safeguards.
+6. [Known Issues](KNOWN_ISSUES.md) — Unfinished or fragile areas.
+7. [Changelog](CHANGELOG.md) — Documentation-level release history.
+
+## Additional Setup Guides
 
 - [Deployment](../DEPLOYMENT.md)
 - [eBay Seller Messaging](../EBAY_SELLER_MESSAGING_SETUP.md)
