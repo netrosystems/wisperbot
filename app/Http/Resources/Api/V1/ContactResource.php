@@ -19,6 +19,7 @@ class ContactResource extends JsonResource
             'email' => Demo::email($this->email),
             'first_name' => Demo::name($this->first_name),
             'last_name' => Demo::name($this->last_name),
+            'name' => Demo::name($this->name),
             'full_name' => Demo::name($this->full_name),
             'country' => $this->country,
             'language' => $this->language,
