@@ -309,10 +309,11 @@ class WebchatIdentityWidgetTest extends TestCase
         ])->assertOk();
 
         $contact = Contact::where('workspace_id', $workspace->id)->sole();
-        $this->assertSame('Customer 1', $contact->first_name);
-        $this->assertNull($contact->email);
+        $this->assertSame('Spoofed', $contact->first_name);
+        $this->assertSame('Customer', $contact->last_name);
+        $this->assertSame('spoof@example.com', $contact->email);
         $this->assertArrayNotHasKey('webchat_external_id', $contact->custom_fields ?? []);
-        $this->assertSame('anonymous', $contact->custom_fields['webchat_identity_type']);
+        $this->assertSame('provided', $contact->custom_fields['webchat_identity_type']);
     }
 
     public function test_anonymous_visitors_receive_incrementing_customer_names(): void

@@ -325,11 +325,14 @@ class ChatWidgetPublicController extends Controller
             $provided = (string) ($data['user_hash'] ?? '');
             $expected = hash_hmac('sha256', $signedValue, (string) $widget->identity_secret);
 
-            if ($signedValue === '' || $provided === '' || ! hash_equals($expected, $provided)) {
-                return []; // unverified → treat visitor as anonymous
+            if ($signedValue !== '' && $provided !== '' && hash_equals($expected, $provided)) {
+                $identity['identity_verified'] = true;
+            } else {
+                // Pre-chat / unverified: retain visitor's provided name/email for agent visibility,
+                // but NEVER trust or attach an unverified external_id.
+                unset($identity['external_id']);
+                $identity['identity_verified'] = false;
             }
-
-            $identity['identity_verified'] = true;
         } else {
             // Names/emails may still improve the agent experience, but an
             // unsigned public external_id must never unlock another customer's
