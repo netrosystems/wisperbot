@@ -206,4 +206,112 @@ class MobileInboxController extends WorkspaceScopedController
             ]),
         ]);
     }
+
+    /**
+     * PATCH/PUT/POST /api/v1/mobile/contacts/{id}
+     * Update contact name, email, phone, custom fields from mobile app.
+     */
+    public function updateContact(Request $request, int $id): JsonResponse
+    {
+        $wsId = $this->workspaceId($request);
+        $contact = Contact::where('workspace_id', $wsId)->findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:200'],
+            'full_name' => ['nullable', 'string', 'max:200'],
+            'first_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['nullable', 'string', 'max:100'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'phone_e164' => ['nullable', 'string', 'max:30'],
+            'country' => ['nullable', 'string', 'max:4'],
+            'language' => ['nullable', 'string', 'max:8'],
+            'opt_in_whatsapp' => ['nullable', 'boolean'],
+            'opt_in_sms' => ['nullable', 'boolean'],
+            'opt_in_email' => ['nullable', 'boolean'],
+            'custom_fields' => ['nullable', 'array', 'max:50'],
+        ]);
+
+        $updates = [];
+
+        if (array_key_exists('email', $validated)) {
+            $updates['email'] = $validated['email'] ? trim($validated['email']) : null;
+        }
+
+        if (array_key_exists('phone_e164', $validated)) {
+            $updates['phone_e164'] = $validated['phone_e164'] ? trim($validated['phone_e164']) : null;
+        } elseif (array_key_exists('phone', $validated)) {
+            $updates['phone_e164'] = $validated['phone'] ? trim($validated['phone']) : null;
+        }
+
+        if (array_key_exists('country', $validated)) {
+            $updates['country'] = $validated['country'] ? strtoupper(trim($validated['country'])) : null;
+        }
+
+        if (array_key_exists('language', $validated)) {
+            $updates['language'] = $validated['language'] ? strtolower(trim($validated['language'])) : null;
+        }
+
+        if (array_key_exists('opt_in_whatsapp', $validated)) {
+            $updates['opt_in_whatsapp'] = (bool) $validated['opt_in_whatsapp'];
+        }
+
+        if (array_key_exists('opt_in_sms', $validated)) {
+            $updates['opt_in_sms'] = (bool) $validated['opt_in_sms'];
+        }
+
+        if (array_key_exists('opt_in_email', $validated)) {
+            $updates['opt_in_email'] = (bool) $validated['opt_in_email'];
+        }
+
+        $submittedName = $validated['name'] ?? ($validated['full_name'] ?? null);
+        if ($submittedName !== null) {
+            $submittedName = trim($submittedName);
+            if ($submittedName !== '') {
+                $parts = explode(' ', $submittedName, 2);
+                $updates['first_name'] = $parts[0];
+                $updates['last_name'] = $parts[1] ?? '';
+            } else {
+                $updates['first_name'] = null;
+                $updates['last_name'] = null;
+            }
+        } else {
+            if (array_key_exists('first_name', $validated)) {
+                $updates['first_name'] = $validated['first_name'] ? trim($validated['first_name']) : null;
+            }
+            if (array_key_exists('last_name', $validated)) {
+                $updates['last_name'] = $validated['last_name'] ? trim($validated['last_name']) : null;
+            }
+        }
+
+        if (isset($validated['custom_fields'])) {
+            $updates['custom_fields'] = array_merge($contact->custom_fields ?? [], $validated['custom_fields']);
+        }
+
+        if (! empty($updates)) {
+            $contact->update($updates);
+            $contact->refresh();
+        }
+
+        return response()->json([
+            'id' => $contact->id,
+            'uuid' => $contact->uuid,
+            'name' => Demo::name($contact->name),
+            'first_name' => Demo::name($contact->first_name),
+            'last_name' => Demo::name($contact->last_name),
+            'phone' => Demo::phone($contact->phone_e164),
+            'phone_e164' => $contact->phone_e164,
+            'email' => Demo::email($contact->email),
+            'country' => $contact->country,
+            'language' => $contact->language,
+            'opt_in_whatsapp' => (bool) $contact->opt_in_whatsapp,
+            'opt_in_sms' => (bool) $contact->opt_in_sms,
+            'opt_in_email' => (bool) $contact->opt_in_email,
+            'avatar' => Demo::active() ? null : $contact->avatar_url,
+            'custom_fields' => Demo::active()
+                ? Demo::maskArrayValues($contact->custom_fields ?? [])
+                : ($contact->custom_fields ?? []),
+            'created_at' => $contact->created_at->toIso8601String(),
+        ]);
+    }
 }
