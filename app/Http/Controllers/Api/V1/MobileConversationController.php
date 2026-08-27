@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Events\ConversationAssigned;
 use App\Events\MessageSent;
 use App\Events\TypingChanged;
-use App\Models\InternalNote;
 use App\Models\User;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -13,6 +12,7 @@ use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Modules\Shared\Services\ChannelManager;
 use App\Modules\Whatsapp\Services\CloudApiClient;
+use App\Services\Media\AttachmentService;
 use App\Services\StorageManager;
 use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +24,7 @@ class MobileConversationController extends WorkspaceScopedController
     public function __construct(
         private ChannelManager $channelManager,
         private StorageManager $storageManager,
+        private AttachmentService $attachmentService,
     ) {}
 
     /**
@@ -140,53 +141,67 @@ class MobileConversationController extends WorkspaceScopedController
             'type' => ['nullable', 'in:text,template,image,document,video,audio'],
             'payload' => ['nullable', 'array'],
             'attachment' => [
-                'nullable', 'file', 'max:20480',
-                'mimes:jpg,jpeg,png,webp,mp4,3gp,mov,mp3,aac,m4a,amr,ogg,oga,wav,webm,pdf,doc,docx,xls,xlsx,ppt,pptx,txt',
+                'nullable', 'file', 'max:'.AttachmentService::MAX_FILE_KILOBYTES,
+                'mimes:'.AttachmentService::ALLOWED_MIMES,
             ],
         ]);
 
         $msgType = $validated['type'] ?? 'text';
         $msgPayload = $validated['payload'] ?? null;
+        $channel = $conversation->channelAccount?->channel ?? 'whatsapp';
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $mimeType = $file->getMimeType() ?? 'application/octet-stream';
+            $upload = $this->attachmentService->processUpload($file, 'message-media');
 
-            if ($msgType === 'text') {
-                $msgType = str_starts_with($mimeType, 'image/') ? 'image'
-                    : (str_starts_with($mimeType, 'video/') ? 'video'
-                        : (str_starts_with($mimeType, 'audio/') ? 'audio' : 'document'));
+            if ($msgType === 'text' || empty($msgType)) {
+                $msgType = $upload['type'];
+            } elseif ($msgType === 'audio' && in_array($upload['type'], ['audio', 'video', 'document'], true)) {
+                $msgType = 'audio';
+            } else {
+                $msgType = $upload['type'];
             }
 
-            $channel = $conversation->channelAccount?->channel ?? 'whatsapp';
+            if ($channel === 'instagram' && ! in_array($msgType, ['image', 'video', 'audio'], true)) {
+                return response()->json([
+                    'error' => 'Instagram direct messaging only supports image, video, and audio attachments. Documents cannot be sent via Instagram DM.',
+                ], 422);
+            }
+
+            $attachmentPayload = [
+                'preview_url' => $upload['url'],
+                'caption' => $validated['body'] ?? null,
+                'filename' => $upload['filename'],
+                'mime_type' => $upload['mime_type'],
+                'file_size' => $upload['size_bytes'],
+            ];
+
             if ($channel === 'whatsapp') {
                 $client = CloudApiClient::forWorkspace($conversation->workspace_id);
                 if (! $client) {
                     return response()->json(['error' => 'No active WhatsApp account.'], 422);
                 }
-                $mediaId = $client->uploadMedia($file->getRealPath(), $mimeType);
-                $storedPath = $this->storageManager->prefixedPath('message-media/'.$file->hashName());
-                $this->storageManager->disk()->putFileAs(dirname($storedPath), $file, basename($storedPath));
-                $previewUrl = $this->storageManager->disk()->url($storedPath);
 
-                $msgPayload = array_merge($msgPayload ?? [], [
-                    'media_id' => $mediaId,
-                    'preview_url' => $previewUrl,
-                    'caption' => $validated['body'] ?? null,
-                    'filename' => $file->getClientOriginalName(),
-                ]);
-            } else {
-                $storedPath = $this->storageManager->prefixedPath('message-media/'.$file->hashName());
-                $this->storageManager->disk()->putFileAs(dirname($storedPath), $file, basename($storedPath));
-                $previewUrl = $this->storageManager->disk()->url($storedPath);
-                $msgPayload = array_merge($msgPayload ?? [], [
-                    'preview_url' => $previewUrl,
-                    'caption' => $validated['body'] ?? null,
-                    'filename' => $file->getClientOriginalName(),
-                ]);
+                $tempPath = null;
+                if ($upload['is_converted_heic']) {
+                    $tempPath = tempnam(sys_get_temp_dir(), 'wa_upload_').'.jpg';
+                    file_put_contents($tempPath, $this->storageManager->disk()->get($upload['path']));
+                    $uploadPath = $tempPath;
+                } else {
+                    $uploadPath = $file->getRealPath();
+                }
+
+                try {
+                    $attachmentPayload['media_id'] = $client->uploadMedia($uploadPath, $upload['mime_type']);
+                } finally {
+                    if ($tempPath && file_exists($tempPath)) {
+                        @unlink($tempPath);
+                    }
+                }
             }
 
-            $validated['body'] = $validated['body'] ?? $file->getClientOriginalName();
+            $msgPayload = array_merge($msgPayload ?? [], $attachmentPayload);
+            $validated['body'] = $validated['body'] ?? ($msgType === 'audio' ? 'Voice message' : $upload['filename']);
         }
 
         if ($msgType === 'text' && empty($validated['body'])) {

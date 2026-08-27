@@ -47,11 +47,10 @@
   var recordingStream = null;
   var recordingChunks = [];
   var pendingAudio = null;
-  var pendingImage = null;
+  var pendingFile = null;
   var visitorTyping = false;
   var visitorTypingLastSentAt = 0;
-  var visitorTypingIdleTimer = null;
-  var prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
+  var prechatNeeded = isPrechatNeeded();
   var handoff = { enabled: !!CFG.ai_enabled, eligible: false, status: 'bot' };
   var handoffWatchdog = null;
   var pusherClient = null;
@@ -79,6 +78,12 @@
     return 'identity_' + (hash >>> 0).toString(36);
   }
   function storageKey(kind) { return 'wb_chat_' + kind + '_' + KEY + '_' + storageScope; }
+  function isPrechatNeeded() {
+    if (!CFG.require_prechat) return false;
+    var s = getSettings();
+    var hasIdentity = !!String(s.email || s.name || s.full_name || '').trim();
+    return !hasIdentity && !safeGet(storageKey('prechat'));
+  }
 
   // Device-cached message history: shows instantly on return visits (incl. any
   // agent replies that arrived while the visitor was away) before the network.
@@ -122,12 +127,15 @@
   var body = root.querySelector('.wb-body');
   var form = root.querySelector('.wb-inputbar');
   var input = root.querySelector('.wb-input');
-  var imageBtn = root.querySelector('.wb-image-btn');
-  var imageInput = root.querySelector('.wb-image-input');
-  var imagePreview = root.querySelector('.wb-image-preview');
-  var imagePreviewImg = root.querySelector('.wb-image-preview-img');
-  var imageSendBtn = root.querySelector('.wb-image-send');
-  var imageDiscardBtn = root.querySelector('.wb-image-discard');
+  var attachBtn = root.querySelector('.wb-attach-btn');
+  var fileInput = root.querySelector('.wb-file-input');
+  var filePreview = root.querySelector('.wb-file-preview');
+  var filePreviewImg = root.querySelector('.wb-file-preview-img');
+  var filePreviewDoc = root.querySelector('.wb-file-preview-doc');
+  var filePreviewName = root.querySelector('.wb-file-preview-name');
+  var filePreviewSize = root.querySelector('.wb-file-preview-size');
+  var fileSendBtn = root.querySelector('.wb-file-send');
+  var fileDiscardBtn = root.querySelector('.wb-file-discard');
   var micBtn = root.querySelector('.wb-mic');
   var audioPreview = root.querySelector('.wb-audio-preview');
   var audioPreviewPlayer = root.querySelector('.wb-audio-player');
@@ -146,7 +154,7 @@
   thread.forEach(function (m) {
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type);
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size);
   });
   updateStatus();
   if (prechatNeeded) { prechat.style.display = 'block'; form.style.display = 'none'; }
@@ -158,9 +166,9 @@
   ['click', 'touchstart', 'keydown'].forEach(function (eventName) {
     document.addEventListener(eventName, unlockSound, { once: true, passive: true });
   });
-  ['wheel', 'touchmove'].forEach(function (eventName) {
-    body.addEventListener(eventName, function (event) {
-      event.stopPropagation();
+  ['wheel', 'touchmove'].forEach(function (event) {
+    body.addEventListener(event, function (e) {
+      e.stopPropagation();
     }, { passive: true });
   });
 
@@ -177,10 +185,17 @@
   micBtn.addEventListener('click', toggleRecording);
   audioSendBtn.addEventListener('click', sendPendingAudio);
   audioDiscardBtn.addEventListener('click', discardPendingAudio);
-  imageBtn.addEventListener('click', function () { imageInput.click(); });
-  imageInput.addEventListener('change', handleImageSelected);
-  imageSendBtn.addEventListener('click', sendPendingImage);
-  imageDiscardBtn.addEventListener('click', discardPendingImage);
+  if (attachBtn) attachBtn.addEventListener('click', function () { fileInput.click(); });
+  if (fileInput) fileInput.addEventListener('change', handleFileSelected);
+  if (fileSendBtn) fileSendBtn.addEventListener('click', sendPendingFile);
+  if (fileDiscardBtn) fileDiscardBtn.addEventListener('click', discardPendingFile);
+  panel.addEventListener('dragover', function (e) { e.preventDefault(); e.stopPropagation(); });
+  panel.addEventListener('drop', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var dropped = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (dropped) processSelectedFile(dropped);
+  });
   handoffEl.addEventListener('click', function (event) {
     if (event.target.closest('.wb-handoff-btn')) requestHumanAgent();
   });
@@ -188,10 +203,11 @@
   if (prechatForm) {
     prechatForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      var name = (root.querySelector('.wb-pc-name') || {}).value || '';
-      var email = (root.querySelector('.wb-pc-email') || {}).value || '';
-      ensureSession({ name: name, email: email }).then(function () {
+      var name = ((root.querySelector('.wb-pc-name') || {}).value || '').trim();
+      var email = ((root.querySelector('.wb-pc-email') || {}).value || '').trim();
+      ensureSession({ name: name, email: email }, true).then(function () {
         safeSet(LS_PRECHAT, '1');
+        prechatNeeded = false;
         prechat.style.display = 'none';
         form.style.display = 'flex';
         input.focus();
@@ -246,6 +262,14 @@
     launcher.classList.add('wb-active');
     unreadCount = 0;
     updateBadge();
+    prechatNeeded = isPrechatNeeded();
+    if (prechatNeeded) {
+      prechat.style.display = 'block';
+      form.style.display = 'none';
+    } else {
+      prechat.style.display = 'none';
+      form.style.display = 'flex';
+    }
     if (!prechatNeeded && !started) { ensureSession().then(startPolling); }
     else { startPolling(); }
     setTimeout(function () { if (!prechatNeeded) input.focus(); scrollDown(); }, 60);
@@ -312,7 +336,7 @@
     visitorTypingLastSentAt = 0;
     if (visitorTypingIdleTimer) clearTimeout(visitorTypingIdleTimer);
     visitorTypingIdleTimer = null;
-    prechatNeeded = !!CFG.require_prechat && !safeGet(LS_PRECHAT);
+    prechatNeeded = isPrechatNeeded();
 
     body.innerHTML = '';
     if (CFG.welcome_message) addBubble('agent', CFG.welcome_message, CFG.agent_name);
@@ -329,8 +353,8 @@
     updateBadge();
   }
 
-  function ensureSession(prechatData) {
-    if (started) return Promise.resolve();
+  function ensureSession(prechatData, force) {
+    if (started && !force && !prechatData) return Promise.resolve();
     if (starting) return starting;
     var body = {
       key: KEY,
@@ -532,54 +556,90 @@
     });
   }
 
-  function handleImageSelected(event) {
+  function handleFileSelected(event) {
     var file = event.target.files && event.target.files[0];
     event.target.value = '';
     if (!file) return;
-    if (!/^image\//.test(file.type || '')) {
-      setAudioStatus('Please choose an image file.');
-      return;
-    }
+    processSelectedFile(file);
+  }
+
+  function processSelectedFile(file) {
+    if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      setAudioStatus('Image is too large. Please choose an image under 10 MB.');
+      setAudioStatus('File is too large. Please choose a file under 10 MB.');
       return;
     }
     discardPendingAudio();
-    discardPendingImage();
-    pendingImage = { file: file, url: URL.createObjectURL(file) };
-    imagePreviewImg.src = pendingImage.url;
-    imagePreview.style.display = 'flex';
+    discardPendingFile();
+
+    var ext = (file.name || '').split('.').pop().toLowerCase();
+    var isImage = /^image\//.test(file.type || '') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].indexOf(ext) !== -1;
+    var sizeStr = formatFileSize(file.size);
+    var previewUrl = isImage ? URL.createObjectURL(file) : null;
+
+    pendingFile = {
+      file: file,
+      url: previewUrl,
+      isImage: isImage,
+      name: file.name || 'Attachment',
+      size: sizeStr,
+      ext: ext
+    };
+
+    if (isImage) {
+      filePreviewImg.src = previewUrl;
+      filePreviewImg.style.display = 'block';
+      if (filePreviewDoc) filePreviewDoc.style.display = 'none';
+    } else {
+      filePreviewImg.removeAttribute('src');
+      filePreviewImg.style.display = 'none';
+      if (filePreviewName) filePreviewName.textContent = pendingFile.name;
+      if (filePreviewSize) filePreviewSize.textContent = pendingFile.size;
+      if (filePreviewDoc) filePreviewDoc.style.display = 'flex';
+    }
+    if (filePreview) filePreview.style.display = 'flex';
+    setAudioStatus('');
   }
 
-  function sendPendingImage() {
-    if (!pendingImage) return;
+  function sendPendingFile() {
+    if (!pendingFile) return;
     ensureSession().then(function () {
       startPolling();
-      imageSendBtn.disabled = true;
+      if (fileSendBtn) fileSendBtn.disabled = true;
       var fd = new FormData();
       fd.append('key', KEY);
-      fd.append('type', 'image');
+      fd.append('type', pendingFile.isImage ? 'image' : 'document');
       fd.append('client_message_id', makeClientMessageId());
       fd.append('message', input.value.trim());
-      fd.append('attachment', pendingImage.file);
+      fd.append('attachment', pendingFile.file);
       return postForm('/widget/v1/messages', fd);
     }).then(function (data) {
       if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
       input.value = '';
-      discardPendingImage();
+      discardPendingFile();
     }).catch(function () {
-      setAudioStatus('Could not send image. Please try again.');
+      setAudioStatus('Could not send attachment. Please try again.');
     }).then(function () {
-      imageSendBtn.disabled = false;
+      if (fileSendBtn) fileSendBtn.disabled = false;
     });
   }
 
-  function discardPendingImage() {
-    if (pendingImage && pendingImage.url) URL.revokeObjectURL(pendingImage.url);
-    pendingImage = null;
-    imagePreviewImg.removeAttribute('src');
-    imagePreview.style.display = 'none';
+  function discardPendingFile() {
+    if (pendingFile && pendingFile.url) URL.revokeObjectURL(pendingFile.url);
+    pendingFile = null;
+    if (filePreviewImg) {
+      filePreviewImg.removeAttribute('src');
+      filePreviewImg.style.display = 'none';
+    }
+    if (filePreviewDoc) filePreviewDoc.style.display = 'none';
+    if (filePreview) filePreview.style.display = 'none';
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes || bytes <= 0) return '0 KB';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
   function discardPendingAudio() {
@@ -789,9 +849,9 @@
     if (rendered[m.id]) return false;
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type });
+    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size });
     saveThread();
-    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type);
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size);
     return true;
   }
 
@@ -851,7 +911,7 @@
     if (!activelyComposing) playNotificationSound();
   }
 
-  function addBubble(role, text, name, attachmentUrl, type, filename, mimeType) {
+  function addBubble(role, text, name, attachmentUrl, type, filename, mimeType, fileSize) {
     var row = document.createElement('div');
     row.className = 'wb-row wb-' + (role === 'visitor' ? 'out' : 'in');
     var av = '';
@@ -869,7 +929,17 @@
       var audioType = mimeType || inferAudioMimeType(filename);
       attachment = '<audio class="wb-media-audio" controls preload="metadata"><source src="' + esc(attachmentUrl) + '"' + (audioType ? ' type="' + escAttr(audioType) + '"' : '') + '>Your browser cannot play this audio.</audio>';
     } else if (attachmentUrl) {
-      attachment = '<a class="wb-media-file" href="' + esc(attachmentUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(filename || 'Open attachment') + '</a>';
+      var ext = (filename || '').split('.').pop().toUpperCase();
+      var sizeText = typeof fileSize === 'number' ? formatFileSize(fileSize) : '';
+      var metaText = ext ? (ext + (sizeText ? ' · ' + sizeText : '')) : (sizeText || 'Document');
+      attachment = '<a class="wb-media-doc-card" href="' + escAttr(attachmentUrl) + '" target="_blank" rel="noopener noreferrer" download="' + escAttr(filename || 'document') + '">' +
+        '<span class="wb-doc-icon">' + docIconSvg(ext) + '</span>' +
+        '<span class="wb-doc-info">' +
+          '<strong class="wb-doc-name">' + esc(filename || 'Attachment') + '</strong>' +
+          '<small class="wb-doc-meta">' + esc(metaText) + '</small>' +
+        '</span>' +
+        '<span class="wb-doc-dl" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>' +
+      '</a>';
     }
     var genericAudioLabel = type === 'audio' && (
       !text ||
@@ -877,11 +947,20 @@
       text === 'Voice message' ||
       /\.(wav|mp3|m4a|aac|ogg|oga|webm|amr)$/i.test(text)
     );
-    var caption = text && !genericAudioLabel ? '<div class="wb-caption">' + formatMessageText(text) + '</div>' : '';
+    var genericDocLabel = type === 'document' && (
+      !text ||
+      text === filename ||
+      text === 'Document attachment'
+    );
+    var caption = text && !genericAudioLabel && !genericDocLabel ? '<div class="wb-caption">' + formatMessageText(text) + '</div>' : '';
     row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + '</div>';
     body.appendChild(row);
     scrollDown();
     return row;
+  }
+
+  function docIconSvg(ext) {
+    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
   }
 
   function inferAudioMimeType(filename) {
@@ -1113,13 +1192,16 @@
 
   // ── Markup + styles ──────────────────────────────────────────────────────────
   function template() {
+    var s = getSettings();
+    var defaultName = escAttr((s.name || s.full_name || '').trim());
+    var defaultEmail = escAttr((s.email || '').trim());
     var av = CFG.avatar_url
       ? '<span class="wb-head-av-shell"><img class="wb-head-av" src="' + esc(CFG.avatar_url) + '" alt=""></span>'
       : '<span class="wb-head-av wb-av-ini">' + esc(initial(CFG.agent_name)) + '</span>';
     var pcName = (CFG.prechat_fields || []).indexOf('name') !== -1
-      ? '<input class="wb-pc-name" type="text" placeholder="Your name" required>' : '';
+      ? '<input class="wb-pc-name" type="text" placeholder="Your name" value="' + defaultName + '" required>' : '';
     var pcEmail = (CFG.prechat_fields || []).indexOf('email') !== -1
-      ? '<input class="wb-pc-email" type="email" placeholder="Email address" required>' : '';
+      ? '<input class="wb-pc-email" type="email" placeholder="Email address" value="' + defaultEmail + '" required>' : '';
     var launcherIcon = CFG.launcher_logo_url
       ? '<img class="wb-launcher-logo" src="' + esc(CFG.launcher_logo_url) + '" alt="">'
       : '<svg class="wb-ic-chat" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.5 3 2 6.9 2 11.7c0 2.2 1 4.3 2.6 5.8-.1 1-.5 2.4-1.4 3.4 1.5-.2 3.2-.8 4.3-1.6 1.4.6 2.9.9 4.5.9 5.5 0 10-3.9 10-8.7S17.5 3 12 3z"/></svg>';
@@ -1142,10 +1224,17 @@
           '</form>' +
         '</div>' +
         '<form class="wb-inputbar">' +
-          '<div class="wb-image-preview">' +
-            '<img class="wb-image-preview-img" alt="Selected image preview">' +
-            '<button class="wb-image-send" type="button">Send</button>' +
-            '<button class="wb-image-discard" type="button" aria-label="Discard image">&#x2715;</button>' +
+          '<div class="wb-file-preview">' +
+            '<img class="wb-file-preview-img" alt="Attachment preview">' +
+            '<div class="wb-file-preview-doc">' +
+              '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+              '<div class="wb-file-preview-info">' +
+                '<span class="wb-file-preview-name"></span>' +
+                '<span class="wb-file-preview-size"></span>' +
+              '</div>' +
+            '</div>' +
+            '<button class="wb-file-send" type="button">Send</button>' +
+            '<button class="wb-file-discard" type="button" aria-label="Discard attachment">&#x2715;</button>' +
           '</div>' +
           '<div class="wb-audio-preview">' +
             '<audio class="wb-audio-player" controls preload="metadata"></audio>' +
@@ -1153,10 +1242,10 @@
             '<button class="wb-audio-discard" type="button" aria-label="Discard voice message">&#x2715;</button>' +
           '</div>' +
           '<div class="wb-audio-status" aria-live="polite"></div>' +
-          '<button class="wb-tool-btn wb-image-btn" type="button" aria-label="Attach image" title="Attach image">' +
-            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>' +
+          '<button class="wb-tool-btn wb-attach-btn" type="button" aria-label="Attach file or photo" title="Attach file or photo">' +
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.97 8.8l-8.58 8.57a2 2 0 0 1-2.83-2.83l7.87-7.87"/></svg>' +
           '</button>' +
-          '<input class="wb-image-input" type="file" accept="image/*">' +
+          '<input class="wb-file-input" type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.heic,.heif">' +
           '<button class="wb-mic" type="button" aria-label="Record voice message" title="Record voice message">' +
             '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>' +
           '</button>' +
@@ -1217,7 +1306,15 @@
       '.wb-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;word-wrap:break-word;white-space:normal}',
       '.wb-in .wb-bubble{background:#fff;color:#1f2430;border:1px solid #eceef2;border-bottom-left-radius:5px}',
       '.wb-out .wb-bubble{background:' + COLOR + ';color:#fff;border-bottom-right-radius:5px}',
-      '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-media-audio{display:block;width:220px;max-width:100%;height:38px;margin-bottom:6px}.wb-caption:empty{display:none}.wb-media-file{display:block;color:inherit;font-weight:600;text-decoration:underline;word-break:break-word}',
+      '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-media-audio{display:block;width:220px;max-width:100%;height:38px;margin-bottom:6px}.wb-caption:empty{display:none}',
+      '.wb-media-doc-card{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:12px;text-decoration:none;transition:background .15s;max-width:100%}',
+      '.wb-in .wb-media-doc-card{background:#f1f5f9;color:#0f172a}',
+      '.wb-out .wb-media-doc-card{background:rgba(255,255,255,.2);color:#fff}',
+      '.wb-doc-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.85}',
+      '.wb-doc-info{display:flex;flex-direction:column;min-width:0;flex:1}',
+      '.wb-doc-name{font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}',
+      '.wb-doc-meta{font-size:11px;opacity:.75;display:block;margin-top:1px}',
+      '.wb-doc-dl{display:flex;align-items:center;justify-content:center;padding:4px;border-radius:50%;opacity:.85;flex-shrink:0}',
       '.wb-caption a{color:inherit;font-weight:650;text-decoration:underline;text-underline-offset:2px;word-break:break-word}',
       '.wb-agent-typing{display:none;align-items:center;gap:7px;min-height:30px;padding:5px 16px;border-top:1px solid #f0f1f4;background:#f7f8fa;color:#737984;font-size:11px;font-weight:600}',
       '.wb-typing-dots{display:inline-flex;align-items:center;gap:3px}.wb-typing-dots i{display:block;width:5px;height:5px;border-radius:50%;background:' + COLOR + ';animation:wb-typing 1.05s ease-in-out infinite}.wb-typing-dots i:nth-child(2){animation-delay:.14s}.wb-typing-dots i:nth-child(3){animation-delay:.28s}',
@@ -1229,7 +1326,7 @@
       '.wb-prechat-form input:focus{border-color:' + COLOR + '}',
       '.wb-pc-btn{background:' + COLOR + ';color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer}',
       '.wb-inputbar{display:flex;align-items:center;gap:8px;padding:12px;border-top:1px solid #eceef2;background:#fff;position:relative;flex-wrap:wrap}',
-      '.wb-image-preview{display:none;align-items:center;gap:8px;width:100%;padding:8px 9px;border:1px solid #eceef2;border-radius:12px;background:#f8fafc}.wb-image-preview-img{width:48px;height:48px;border-radius:10px;object-fit:cover}.wb-image-send{border:none;border-radius:999px;background:' + COLOR + ';color:#fff;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto}.wb-image-send:disabled{opacity:.6;cursor:wait}.wb-image-discard{width:30px;height:30px;border:none;border-radius:999px;background:#fff;color:#8b93a1;cursor:pointer;border:1px solid #e5e7eb}.wb-image-input{display:none}',
+      '.wb-file-preview{display:none;align-items:center;gap:8px;width:100%;padding:8px 9px;border:1px solid #eceef2;border-radius:12px;background:#f8fafc}.wb-file-preview-img{display:none;width:48px;height:48px;border-radius:10px;object-fit:cover}.wb-file-preview-doc{display:none;align-items:center;gap:8px;flex:1;min-width:0;color:#475569}.wb-file-preview-info{display:flex;flex-direction:column;min-width:0}.wb-file-preview-name{font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}.wb-file-preview-size{font-size:10px;color:#64748b}.wb-file-send{border:none;border-radius:999px;background:' + COLOR + ';color:#fff;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto;flex-shrink:0}.wb-file-send:disabled{opacity:.6;cursor:wait}.wb-file-discard{width:30px;height:30px;border:none;border-radius:999px;background:#fff;color:#8b93a1;cursor:pointer;border:1px solid #e5e7eb;flex-shrink:0}.wb-file-input{display:none}',
       '.wb-audio-preview{display:none;align-items:center;gap:8px;width:100%;padding:8px 9px;border:1px solid #eceef2;border-radius:12px;background:#f8fafc}.wb-audio-player{flex:1;min-width:160px;height:34px}.wb-audio-send{border:none;border-radius:999px;background:' + COLOR + ';color:#fff;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}.wb-audio-send:disabled{opacity:.6;cursor:wait}.wb-audio-discard{width:30px;height:30px;border:none;border-radius:999px;background:#fff;color:#8b93a1;cursor:pointer;border:1px solid #e5e7eb}.wb-audio-status{display:none;width:100%;font-size:11px;color:#6b7280;padding:0 4px 2px}.wb-mic{width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;background:#f1f3f6;color:#687386;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,color .15s,transform .15s}.wb-mic:hover{background:#e7eaf0;color:#303744}.wb-mic.wb-recording{background:#ef4444;color:#fff;animation:wb-record 1s ease-in-out infinite}',
       '.wb-tool-btn{width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;background:#f1f3f6;color:#687386;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,color .15s}.wb-tool-btn:hover{background:#e7eaf0;color:#303744}',
       '.wb-input{flex:1;border:none;outline:none;font-size:14px;padding:8px 4px;background:transparent}',

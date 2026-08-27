@@ -41,7 +41,7 @@ class ChatWidgetCrudTest extends TestCase
         $response = $this->actingAs($this->ctx['user'])
             ->delete(route('client.inbox.chat-widgets.destroy', $widget->id));
 
-        $response->assertRedirect(route('client.inbox.chat-widgets.index'));
+        $response->assertRedirect(route('client.inbox.chat-widgets.integration'));
         $this->assertDatabaseMissing('chat_widgets', ['id' => $widget->id]);
         $this->assertDatabaseHas('channel_accounts', [
             'id' => $channelAccount->id,
@@ -119,7 +119,7 @@ class ChatWidgetCrudTest extends TestCase
                 'position' => 'bottom_right',
                 'launcher_logo' => UploadedFile::fake()->image('logo.png', 96, 96),
             ])
-            ->assertRedirect(route('client.inbox.chat-widgets.index'));
+            ->assertRedirect(route('client.inbox.chat-widgets.integration'));
 
         $widget = ChatWidget::where('workspace_id', $workspace->id)->sole();
         $this->assertNotNull($widget->launcher_logo_path);

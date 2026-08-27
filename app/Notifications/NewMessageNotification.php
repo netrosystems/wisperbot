@@ -91,14 +91,14 @@ class NewMessageNotification extends Notification implements ShouldQueue
     public function toOneSignal(object $notifiable): array
     {
         $contact = $this->conversation->contact;
-        $name    = trim(implode(' ', array_filter([$contact?->first_name, $contact?->last_name])));
+        $name = $contact?->name;
         $channel = ucfirst($this->conversation->channel_account?->channel ?? 'message');
         $snippet = mb_substr((string) $this->message->body, 0, 100);
 
         return [
             'title' => $name ?: 'New message',
-            'body'  => $snippet ?: "New {$channel} message",
-            'url'   => route('client.inbox.show', $this->conversation),
+            'body' => $snippet ?: "New {$channel} message",
+            'url' => route('client.inbox.show', $this->conversation),
             // Extra data so the service worker can collapse duplicate notifications
             // for the same conversation.
             'conversation_id' => $this->conversation->id,
