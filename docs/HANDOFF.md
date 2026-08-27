@@ -13,14 +13,13 @@ Always run `git status --short` and inspect recent history before starting; this
 
 ## Current focus
 
-Recent work has concentrated on Meta App Review permissions and Facebook/Instagram social publishing behavior, especially:
+Recent work has concentrated on multi-format attachment support (PDFs, Docs, Spreadsheets, Presentations, TXT/CSV, ZIP, Images, Apple HEIC auto-conversion, 10MB limit) and Meta App Review permissions / Facebook & Instagram social publishing behavior:
 
-- correct OAuth redirects/scopes;
-- scheduled publishing timing;
-- storing provider results/remote IDs;
-- capability-driven edit/delete controls;
-- keeping Facebook and Instagram mutation behavior distinct;
-- ensuring the deployed backend revision and Vite bundle match.
+- unified paperclip attachment button and document cards on Chat Widget and Web Inbox;
+- strict 10 MB file validation and MIME normalization across Inbox, Widget, and Mobile APIs;
+- automatic Apple HEIC/HEIF photo conversion to JPEG with graceful document fallback;
+- channel-level guards preventing document sends over Instagram DM;
+- correct OAuth redirects/scopes and publishing controls;
 
 Before changing these flows, read `docs/PRODUCT_DECISIONS.md`, `docs/INTEGRATIONS.md`, the Social controllers/jobs/drivers, and their feature tests.
 

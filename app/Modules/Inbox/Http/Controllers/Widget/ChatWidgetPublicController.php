@@ -11,6 +11,7 @@ use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Inbox\Services\WidgetPayloadBuilder;
 use App\Modules\Inbox\Services\WidgetVisitorPushService;
 use App\Modules\Shared\Models\Conversation;
+use App\Services\Media\AttachmentService;
 use App\Services\StorageManager;
 use App\Support\WebchatVisitorToken;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +34,7 @@ class ChatWidgetPublicController extends Controller
         private readonly WebchatPresence $presence,
         private readonly WidgetPayloadBuilder $payloads,
         private readonly WidgetVisitorPushService $visitorPush,
+        private readonly AttachmentService $attachmentService,
     ) {}
 
     /** POST /widget/v1/session — start or restore a visitor's chat session. */
@@ -105,10 +107,10 @@ class ChatWidgetPublicController extends Controller
         $data = $request->validate([
             'key' => ['required', 'string'],
             'message' => ['nullable', 'string', 'max:4000'],
-            'type' => ['nullable', 'in:text,audio,image'],
+            'type' => ['nullable', 'in:text,audio,image,document,video'],
             'attachment' => [
-                'nullable', 'file', 'max:10240',
-                'mimes:jpg,jpeg,png,webp,mp3,aac,m4a,amr,ogg,oga,wav,webm',
+                'nullable', 'file', 'max:'.AttachmentService::MAX_FILE_KILOBYTES,
+                'mimes:'.AttachmentService::ALLOWED_MIMES,
             ],
             'client_message_id' => ['nullable', 'string', 'max:64'],
         ]);
@@ -131,25 +133,29 @@ class ChatWidgetPublicController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $mimeType = $file->getMimeType() ?? 'application/octet-stream';
-            $isAudioRecording = str_starts_with($mimeType, 'audio/')
-                || in_array($mimeType, ['video/webm', 'application/ogg'], true);
-            $isImage = str_starts_with($mimeType, 'image/');
-            abort_unless($isAudioRecording || $isImage, 422, 'Only image uploads and audio recordings are accepted here.');
+            $upload = $this->attachmentService->processUpload($file, 'message-media');
 
-            $type = $isImage ? 'image' : 'audio';
-            $storedPath = $this->storageManager->prefixedPath('message-media/'.$file->hashName());
-            $this->storageManager->disk()->putFileAs(dirname($storedPath), $file, basename($storedPath));
+            // Preserve explicit 'audio' voice recordings if indicated by client
+            $declaredType = $data['type'] ?? null;
+            if ($declaredType === 'audio' && in_array($upload['type'], ['audio', 'video', 'document'], true)) {
+                $type = 'audio';
+            } else {
+                $type = $upload['type'];
+            }
 
             $messagePayload = [
-                'preview_url' => $this->browserSafePublicUrl($this->storageManager->disk()->url($storedPath)),
-                'filename' => $file->getClientOriginalName(),
-                'mime_type' => $mimeType,
+                'preview_url' => $this->browserSafePublicUrl($upload['url']),
+                'filename' => $upload['filename'],
+                'mime_type' => $upload['mime_type'],
+                'file_size' => $upload['size_bytes'],
                 'caption' => $body !== '' ? $body : null,
             ];
+
             $body = $body !== ''
                 ? $body
-                : ($isImage ? ($file->getClientOriginalName() ?: 'Image attachment') : 'Voice message');
+                : ($type === 'image'
+                    ? ($upload['filename'] ?: 'Image attachment')
+                    : ($type === 'audio' ? 'Voice message' : ($upload['filename'] ?: 'Document attachment')));
         }
 
         abort_if($type === 'text' && $body === '', 422, 'Message body is required.');

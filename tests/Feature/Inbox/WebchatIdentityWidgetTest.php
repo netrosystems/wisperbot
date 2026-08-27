@@ -12,6 +12,7 @@ use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Notifications\ConversationHandoverNotification;
+use App\Notifications\NewMessageNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -506,5 +507,107 @@ class WebchatIdentityWidgetTest extends TestCase
         $this->withHeaders($headers)->postJson(route('widget.handoff'), [
             'key' => $widget->widget_key,
         ])->assertStatus(422);
+    }
+
+    public function test_prechat_form_submission_upgrades_anonymous_contact_name_and_email(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+            'require_prechat' => true,
+        ]);
+
+        // 1. Initial anonymous session from resumePresence on page load
+        $anonymous = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        $contact = Contact::where('workspace_id', $workspace->id)->sole();
+        $this->assertSame('Customer 1', $contact->first_name);
+        $this->assertNull($contact->email);
+        $this->assertSame('Customer 1', $contact->name);
+
+        // 2. Visitor submits pre-chat form (name & email)
+        $this->withHeader('X-Widget-Token', $anonymous->json('token'))
+            ->postJson(route('widget.session'), [
+                'key' => $widget->widget_key,
+                'visitor_id' => $anonymous->json('visitor_id'),
+                'name' => 'Sara Connor',
+                'email' => 'sara@example.com',
+            ])
+            ->assertOk();
+
+        $contact->refresh();
+        $this->assertSame('Sara', $contact->first_name);
+        $this->assertSame('Connor', $contact->last_name);
+        $this->assertSame('sara@example.com', $contact->email);
+        $this->assertSame('Sara Connor', $contact->name);
+        $this->assertSame('provided', $contact->custom_fields['webchat_identity_type']);
+    }
+
+    public function test_contact_name_accessor_and_notification_uses_full_name_or_fallbacks(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+
+        $contactWithFullName = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john@example.com',
+        ]);
+        $this->assertSame('John Doe', $contactWithFullName->name);
+
+        $contactWithPhoneOnly = Contact::create([
+            'workspace_id' => $workspace->id,
+            'phone_e164' => '+15551234567',
+        ]);
+        $this->assertSame('+15551234567', $contactWithPhoneOnly->name);
+
+        $contactWithEmailOnly = Contact::create([
+            'workspace_id' => $workspace->id,
+            'email' => 'guest@example.com',
+        ]);
+        $this->assertSame('guest@example.com', $contactWithEmailOnly->name);
+
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contactWithFullName->id,
+            'channel_account_id' => $account->id,
+        ]);
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'in',
+            'channel' => 'webchat',
+            'type' => 'text',
+            'body' => 'Hello there!',
+            'status' => 'delivered',
+            'sent_by' => 'human',
+            'sent_at' => now(),
+        ]);
+
+        $notification = new NewMessageNotification($message, $conversation);
+        $arrayData = $notification->toArray($workspace->owner);
+        $webPushData = $notification->toWebPush($workspace->owner);
+        $oneSignalData = $notification->toOneSignal($workspace->owner);
+
+        $this->assertSame('John Doe', $arrayData['contact_name']);
+        $this->assertSame('John Doe', $webPushData['body']);
+        $this->assertSame('John Doe', $oneSignalData['title']);
     }
 }

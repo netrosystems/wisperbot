@@ -41,6 +41,7 @@ class WidgetPayloadBuilder
             'attachment_url' => $this->browserSafePublicUrl($message->payload['preview_url'] ?? null),
             'filename' => $message->payload['filename'] ?? null,
             'mime_type' => $message->payload['mime_type'] ?? null,
+            'file_size' => $message->payload['file_size'] ?? null,
             'sent_by' => $message->sent_by,
             'agent_name' => $isAgent
                 ? ($message->sender?->name ?: ($widget->agent_name ?: 'Support'))

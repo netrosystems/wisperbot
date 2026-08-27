@@ -8,7 +8,7 @@ import {
     Paperclip, Image as ImageIcon, ChevronDown, UserCheck,
     LayoutTemplate, Plus, Loader2, Bot, Calendar, BarChart2, PhoneMissed,
     Mic, Square,
-    Volume2, VolumeX, ShoppingBag, Radio,
+    Volume2, VolumeX, ShoppingBag, Radio, Download,
 } from 'lucide-react';
 import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
 import { formatTimeTz, formatInTz } from '@/Utils/datetime';
@@ -381,16 +381,18 @@ function MediaAudio({ src, conversationId, messageId }) {
 function MediaDocument({ src, filename, conversationId, messageId, isOut }) {
     const { t } = useTranslation();
     const proxyUrl = src ?? route('client.inbox.message-media', { conversation: conversationId, message: messageId });
+    const ext = (filename || '').split('.').pop().toUpperCase();
     return (
-        <a href={proxyUrl} target="_blank" rel="noopener noreferrer"
+        <a href={proxyUrl} target="_blank" rel="noopener noreferrer" download={filename || 'document'}
             className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 mb-1 transition ${isOut ? 'bg-white/20 hover:bg-white/30' : 'bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600'}`}>
-            <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${isOut ? 'bg-white/20' : 'bg-neutral-200 dark:bg-neutral-600'}`}>
-                <Paperclip className="h-4 w-4" />
+            <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 font-bold text-[10px] uppercase ${isOut ? 'bg-white/20 text-white' : 'bg-neutral-200 dark:bg-neutral-600 text-neutral-700 dark:text-neutral-200'}`}>
+                {ext ? (ext.length > 4 ? ext.slice(0, 4) : ext) : <Paperclip className="h-4 w-4" />}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium truncate">{filename || t('inbox.document')}</p>
                 <p className="text-[10px] opacity-60">{t('inbox.tap_to_open')}</p>
             </div>
+            <Download className="h-3.5 w-3.5 opacity-60 shrink-0" />
         </a>
     );
 }
@@ -1931,9 +1933,22 @@ export default function InboxShow({
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const isImage = file.type.startsWith('image/');
-        const isAudio = file.type.startsWith('audio/');
-        const isVideo = file.type.startsWith('video/');
+        if (file.size > 10 * 1024 * 1024) {
+            setSendError('File is too large. Maximum allowed upload size is 10 MB.');
+            e.target.value = '';
+            return;
+        }
+        const ext = (file.name || '').split('.').pop().toLowerCase();
+        const isImage = file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(ext);
+        const isAudio = file.type.startsWith('audio/') || ['mp3', 'aac', 'm4a', 'amr', 'ogg', 'wav'].includes(ext);
+        const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', '3gp'].includes(ext);
+
+        if (channel === 'instagram' && !isImage && !isAudio && !isVideo) {
+            setSendError('Instagram direct messaging only supports image, video, and audio attachments. Documents cannot be sent via Instagram DM.');
+            e.target.value = '';
+            return;
+        }
+
         const url = URL.createObjectURL(file);
         setAttachPreview({ file, url, type: isImage ? 'image' : (isAudio ? 'audio' : (isVideo ? 'video' : 'document')) });
         e.target.value = '';
@@ -2389,12 +2404,13 @@ export default function InboxShow({
                                     </button>
                                     {/* Attachment */}
                                     <button type="button" onClick={() => fileRef.current?.click()}
-                                        title={t('inbox.attach_file')}
-                                        className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition">
+                                        disabled={channel === 'instagram'}
+                                        title={channel === 'instagram' ? 'Instagram DM does not support documents' : t('inbox.attach_file')}
+                                        className={`p-1.5 rounded-lg transition ${channel === 'instagram' ? 'opacity-30 cursor-not-allowed text-neutral-300 dark:text-neutral-600' : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
                                         <Paperclip className="h-4 w-4" />
                                     </button>
                                     {/* Image */}
-                                    <button type="button" onClick={() => { const i = document.createElement('input'); i.type='file'; i.accept='image/*'; i.onchange=handleFileChange; i.click(); }}
+                                    <button type="button" onClick={() => { const i = document.createElement('input'); i.type='file'; i.accept='image/*,.heic,.heif'; i.onchange=handleFileChange; i.click(); }}
                                         title={t('inbox.attach_image')}
                                         className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition">
                                         <ImageIcon className="h-4 w-4" />
@@ -2428,7 +2444,7 @@ export default function InboxShow({
                                         </button>
                                     )}
                                     {/* Hidden file input */}
-                                    <input ref={fileRef} type="file" className="hidden" onChange={handleFileChange} />
+                                    <input ref={fileRef} type="file" className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.heic,.heif" onChange={handleFileChange} />
                                 </div>
 
                                 {/* Text input + send */}
