@@ -81,7 +81,7 @@ class SecureHeaders
     {
         // The support widget is served from production even while this app is
         // being previewed on localhost or another WisperBot-owned deployment.
-        $extra = ' https://wisperbot.com https://static.cloudflareinsights.com';
+        $extra = ' https://wisperbot.com https://static.cloudflareinsights.com https://js.pusher.com';
         if ($this->oneSignalEnabled()) {
             // SDK loads from cdn; runtime sync/scripts also come from api.* (see OneSignal v16 CSP docs).
             $extra .= ' https://cdn.onesignal.com https://*.onesignal.com';
@@ -106,10 +106,17 @@ class SecureHeaders
     private function connectSources(): string
     {
         // The embedded support widget sends its API requests to this origin.
-        $sources = ['https://wisperbot.com'];
+        $sources = [
+            'https://wisperbot.com',
+            'wss:',
+            'https://*.pusher.com',
+            'wss://*.pusher.com',
+            'https://*.pusherapp.com',
+            'wss://*.pusherapp.com',
+            'https://sockjs-*.pusher.com',
+        ];
         if (config('app.env') !== 'production') {
             $sources[] = 'ws:';
-            $sources[] = 'wss:';
         }
         $url = config('app.url');
         if ($url) {
