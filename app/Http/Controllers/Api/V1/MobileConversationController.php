@@ -520,6 +520,24 @@ class MobileConversationController extends WorkspaceScopedController
         ], 201);
     }
 
+    /**
+     * PATCH/PUT/POST /api/v1/mobile/conversations/{uuid}/contact
+     * Update the contact attached to this conversation.
+     */
+    public function updateContact(Request $request, string $uuid): JsonResponse
+    {
+        $conversation = Conversation::where('workspace_id', $this->workspaceId($request))
+            ->where('uuid', $uuid)
+            ->with('contact')
+            ->firstOrFail();
+
+        if (! $conversation->contact) {
+            return response()->json(['error' => 'No contact attached to this conversation.'], 404);
+        }
+
+        return app(MobileInboxController::class)->updateContact($request, $conversation->contact->id);
+    }
+
     // ─── Private formatters ───────────────────────────────────────────────────
 
     private function formatConversation(Conversation $c, bool $detail = false): array
