@@ -77,7 +77,7 @@ class Contact extends Model
         return 'uuid';
     }
 
-    protected $appends = ['full_name', 'name', 'avatar_url'];
+    protected $appends = ['full_name', 'avatar_url'];
 
     protected $fillable = [
         'workspace_id', 'phone_e164', 'email', 'first_name', 'last_name',
