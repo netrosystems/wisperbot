@@ -83,4 +83,69 @@ class MobileConversationTest extends TestCase
         $this->assertCount(55, $response->json('messages'));
         $this->assertEquals('Message 55', $response->json('messages.54.body'));
     }
+
+    public function test_mobile_can_update_contact_by_id(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $contact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'Old',
+            'last_name' => 'Name',
+            'email' => 'old@example.com',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patchJson("/api/v1/mobile/contacts/{$contact->id}", [
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+            'phone' => '+1234567890',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('name', 'John Doe')
+            ->assertJsonPath('first_name', 'John')
+            ->assertJsonPath('last_name', 'Doe')
+            ->assertJsonPath('email', 'john@example.com');
+
+        $contact->refresh();
+        $this->assertSame('John', $contact->first_name);
+        $this->assertSame('Doe', $contact->last_name);
+        $this->assertSame('john@example.com', $contact->email);
+        $this->assertSame('+1234567890', $contact->phone_e164);
+    }
+
+    public function test_mobile_can_update_contact_by_conversation_uuid(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $contact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'Customer',
+            'last_name' => '100',
+        ]);
+
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/contact", [
+            'name' => 'Jane Smith',
+            'email' => 'jane@example.com',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('name', 'Jane Smith')
+            ->assertJsonPath('email', 'jane@example.com');
+
+        $contact->refresh();
+        $this->assertSame('Jane', $contact->first_name);
+        $this->assertSame('Smith', $contact->last_name);
+        $this->assertSame('jane@example.com', $contact->email);
+    }
 }

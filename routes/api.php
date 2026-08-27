@@ -86,6 +86,8 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])
     // Contacts
     Route::get('/contacts/search', [MobileInboxController::class, 'contactSearch']);
     Route::get('/contacts/{id}', [MobileInboxController::class, 'contact']);
+    Route::match(['patch', 'put', 'post'], '/contacts/{id}', [MobileInboxController::class, 'updateContact']);
+    Route::match(['patch', 'put', 'post'], '/conversations/{uuid}/contact', [MobileConversationController::class, 'updateContact']);
 });
 
 Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group(function () {
