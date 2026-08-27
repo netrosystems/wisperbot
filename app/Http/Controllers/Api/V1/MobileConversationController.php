@@ -8,6 +8,7 @@ use App\Events\TypingChanged;
 use App\Models\User;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Shared\Models\ChannelAccount;
+use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Modules\Shared\Services\ChannelManager;
@@ -18,6 +19,7 @@ use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class MobileConversationController extends WorkspaceScopedController
 {
@@ -417,7 +419,7 @@ class MobileConversationController extends WorkspaceScopedController
     }
 
     /**
-     * POST /api/v1/mobile/conversations/start
+     * POST /api/v1/mobile/conversations
      * Start a new conversation.
      */
     public function start(Request $request): JsonResponse
@@ -427,20 +429,89 @@ class MobileConversationController extends WorkspaceScopedController
         $validated = $request->validate([
             'contact_id' => ['required', 'integer'],
             'channel_account_id' => ['required', 'integer'],
+            'body' => ['nullable', 'string', 'max:4096'],
         ]);
 
+        $contact = Contact::where('workspace_id', $wsId)->findOrFail($validated['contact_id']);
         $channelAccount = ChannelAccount::where('workspace_id', $wsId)
             ->where('status', 'active')
             ->findOrFail($validated['channel_account_id']);
 
+        // Channel reachability and delivery target validation
+        match ($channelAccount->channel) {
+            'whatsapp', 'sms' => throw_if(
+                empty($contact->phone_e164),
+                ValidationException::withMessages([
+                    'channel_account_id' => 'Contact does not have a valid phone number for messaging.',
+                ])
+            ),
+            'email' => throw_if(
+                empty($contact->email),
+                ValidationException::withMessages([
+                    'channel_account_id' => 'Contact does not have an email address.',
+                ])
+            ),
+            'messenger', 'instagram', 'telegram', 'ebay', 'amazon' => throw_if(
+                ! Conversation::where('workspace_id', $wsId)
+                    ->where('contact_id', $contact->id)
+                    ->where('channel_account_id', $channelAccount->id)
+                    ->exists(),
+                ValidationException::withMessages([
+                    'channel_account_id' => "Outbound conversations on {$channelAccount->channel} cannot be initiated without an existing customer thread.",
+                ])
+            ),
+            'webchat' => throw_if(
+                empty($contact->custom_fields['webchat_visitor_id'])
+                && ! Conversation::where('workspace_id', $wsId)
+                    ->where('contact_id', $contact->id)
+                    ->where('channel_account_id', $channelAccount->id)
+                    ->exists(),
+                ValidationException::withMessages([
+                    'channel_account_id' => 'Contact does not have an active website chat session.',
+                ])
+            ),
+            default => null,
+        };
+
         $conversation = Conversation::firstOrCreate(
             [
                 'workspace_id' => $wsId,
-                'contact_id' => $validated['contact_id'],
+                'contact_id' => $contact->id,
                 'channel_account_id' => $channelAccount->id,
             ],
             ['status' => 'open']
         );
+
+        if (! empty($validated['body'])) {
+            $message = Message::create([
+                'conversation_id' => $conversation->id,
+                'direction' => 'out',
+                'channel' => $channelAccount->channel,
+                'type' => 'text',
+                'body' => $validated['body'],
+                'status' => 'queued',
+                'sent_by' => 'human',
+                'user_id' => $request->user()->id,
+                'sent_at' => now(),
+            ]);
+
+            try {
+                $driver = $this->channelManager->driver($channelAccount->channel);
+                $messageId = $driver->send($message);
+                $message->update(['status' => 'sent', 'provider_message_id' => $messageId]);
+            } catch (\Throwable $e) {
+                Log::error('Mobile start conversation send failed', [
+                    'conversation_id' => $conversation->id,
+                    'channel' => $channelAccount->channel,
+                    'error' => $e->getMessage(),
+                ]);
+                $message->update(['status' => 'failed', 'error_json' => ['message' => $e->getMessage()]]);
+            }
+
+            $conversation->update(['last_message_at' => now()]);
+            $message->load('conversation');
+            MessageSent::dispatch($message);
+        }
 
         $conversation->load(['contact', 'channelAccount', 'labels']);
 
@@ -470,7 +541,7 @@ class MobileConversationController extends WorkspaceScopedController
             ] : null,
             'contact' => $c->contact ? [
                 'id' => $c->contact->id,
-                'name' => Demo::name($c->contact->full_name),
+                'name' => Demo::name($c->contact->name),
                 'phone' => Demo::phone($c->contact->phone_e164),
                 'email' => Demo::email($c->contact->email),
                 'avatar' => Demo::active() ? null : $c->contact->avatar_url,
