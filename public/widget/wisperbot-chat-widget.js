@@ -366,7 +366,7 @@
     thread.forEach(function (m) {
       rendered[m.id] = true;
       if (m.id > lastId) lastId = m.id;
-      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.id);
+      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type);
     });
     prechat.style.display = prechatNeeded ? 'block' : 'none';
     form.style.display = prechatNeeded ? 'none' : 'flex';
@@ -417,8 +417,13 @@
     if (sendBtn) sendBtn.disabled = true;
     var clientMessageId = makeClientMessageId();
     // Render immediately; a slow network must never make a submitted message
-    // look lost. Replace this temporary bubble in-place with the canonical server echo.
-    var optimisticRow = addBubble('visitor', text, null, null, 'text', null, null, null, null, true, clientMessageId);
+    // look lost. Replace this temporary bubble with the canonical server echo.
+    var optimisticRow = addBubble('visitor', text);
+    if (optimisticRow) {
+      optimisticRow.classList.add('wb-pending');
+      optimisticRow.setAttribute('data-wb-pending-body', text);
+      optimisticRow.setAttribute('data-wb-client-message-id', clientMessageId);
+    }
     if (handoff.status !== 'connected') {
       renderAgentTyping({ is_typing: true, name: CFG.agent_name || 'Support' });
     }
@@ -441,10 +446,8 @@
     }
 
     doSend(0).then(function (data) {
-      if (data && data.message) {
-        if (!data.message.client_message_id) data.message.client_message_id = clientMessageId;
-        addMessage(data.message);
-      }
+      if (optimisticRow && optimisticRow.parentNode) optimisticRow.parentNode.removeChild(optimisticRow);
+      if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
     }).catch(function () {
       renderAgentTyping(null);
@@ -576,7 +579,6 @@
     if (sendBtn) sendBtn.disabled = true;
     var caption = input.value.trim();
     var clientMessageId = makeClientMessageId();
-    var optimisticRow = addBubble('visitor', caption || 'Voice message', null, pendingAudio.url, 'audio', 'voice-message.webm', pendingAudio.file ? pendingAudio.file.type : 'audio/webm', pendingAudio.file ? pendingAudio.file.size : null, null, true, clientMessageId);
 
     function doSend(attempt) {
       return ensureSession().then(function () {
@@ -608,18 +610,11 @@
     }
 
     doSend(0).then(function (data) {
-      if (data && data.message) {
-        if (!data.message.client_message_id) data.message.client_message_id = clientMessageId;
-        addMessage(data.message);
-      }
+      if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
       input.value = '';
       discardPendingAudio();
     }).catch(function () {
-      if (optimisticRow) {
-        optimisticRow.classList.remove('wb-pending');
-        optimisticRow.classList.add('wb-failed');
-      }
       setAudioStatus('Could not send voice message. Please try again.');
     }).then(function () {
       sendingText = false;
@@ -679,7 +674,6 @@
     if (sendBtn) sendBtn.disabled = true;
     var caption = input.value.trim();
     var clientMessageId = makeClientMessageId();
-    var optimisticRow = addBubble('visitor', caption, null, pendingFile.url, pendingFile.isImage ? 'image' : 'document', pendingFile.name, pendingFile.file ? pendingFile.file.type : null, pendingFile.file ? pendingFile.file.size : null, null, true, clientMessageId);
 
     function doSend(attempt) {
       return ensureSession().then(function () {
@@ -711,18 +705,11 @@
     }
 
     doSend(0).then(function (data) {
-      if (data && data.message) {
-        if (!data.message.client_message_id) data.message.client_message_id = clientMessageId;
-        addMessage(data.message);
-      }
+      if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
       input.value = '';
       discardPendingFile();
     }).catch(function () {
-      if (optimisticRow) {
-        optimisticRow.classList.remove('wb-pending');
-        optimisticRow.classList.add('wb-failed');
-      }
       setAudioStatus('Could not send attachment. Please try again.');
     }).then(function () {
       sendingText = false;
@@ -948,35 +935,20 @@
   }
 
   function addMessage(m) {
-    if (!m || !m.id) return false;
+    if (!m) return false;
+    removeMatchingPendingVisitorMessage(m);
+    if (m.role === 'agent') renderAgentTyping(null);
     if (rendered[m.id]) return false;
-
-    var upgradedRow = findAndUpgradePendingVisitorMessage(m);
-
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    if (m.role === 'agent') renderAgentTyping(null);
-
-    var foundIndex = -1;
-    for (var i = 0; i < thread.length; i++) {
-      if (thread[i].id === m.id) { foundIndex = i; break; }
-    }
-    if (foundIndex === -1) {
-      thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size });
-      thread.sort(function (a, b) { return (a.id || 0) - (b.id || 0); });
-      saveThread();
-    }
-
-    if (!upgradedRow) {
-      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.id);
-    } else {
-      scrollDown();
-    }
+    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size });
+    saveThread();
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size);
     return true;
   }
 
-  function findAndUpgradePendingVisitorMessage(m) {
-    if (!m || m.role !== 'visitor' || !body) return null;
+  function removeMatchingPendingVisitorMessage(m) {
+    if (!m || m.role !== 'visitor' || !body) return;
 
     var pending = body.querySelectorAll('.wb-row.wb-out.wb-pending');
     var expectedBody = String(m.body || '').trim();
@@ -988,40 +960,10 @@
       var rowBody = (row.getAttribute('data-wb-pending-body') || '').trim();
 
       if ((expectedClientId && rowClientId === expectedClientId) || (!expectedClientId && expectedBody && rowBody === expectedBody)) {
-        row.classList.remove('wb-pending');
-        row.removeAttribute('data-wb-pending-body');
-        row.removeAttribute('data-wb-client-message-id');
-        row.setAttribute('data-wb-id', String(m.id));
-        return row;
-      }
-    }
-    return null;
-  }
-
-  function insertBubbleInOrder(row, msgId, isPending) {
-    if (!body) return;
-    if (isPending || !msgId) {
-      body.appendChild(row);
-      return;
-    }
-
-    var numId = Number(msgId);
-    var rows = body.querySelectorAll('.wb-row[data-wb-id]');
-    for (var i = 0; i < rows.length; i++) {
-      var otherId = Number(rows[i].getAttribute('data-wb-id'));
-      if (otherId && otherId > numId) {
-        body.insertBefore(row, rows[i]);
+        if (row.parentNode) row.parentNode.removeChild(row);
         return;
       }
     }
-
-    var pendingRow = body.querySelector('.wb-row.wb-pending');
-    if (pendingRow) {
-      body.insertBefore(row, pendingRow);
-      return;
-    }
-
-    body.appendChild(row);
   }
 
   function makeClientMessageId() {
@@ -1061,16 +1003,9 @@
     if (!activelyComposing) playNotificationSound();
   }
 
-  function addBubble(role, text, name, attachmentUrl, type, filename, mimeType, fileSize, msgId, isPending, clientMessageId) {
+  function addBubble(role, text, name, attachmentUrl, type, filename, mimeType, fileSize) {
     var row = document.createElement('div');
     row.className = 'wb-row wb-' + (role === 'visitor' ? 'out' : 'in');
-    if (isPending) {
-      row.classList.add('wb-pending');
-      if (text) row.setAttribute('data-wb-pending-body', text);
-      if (clientMessageId) row.setAttribute('data-wb-client-message-id', clientMessageId);
-    } else if (msgId) {
-      row.setAttribute('data-wb-id', String(msgId));
-    }
     var av = '';
     if (role !== 'visitor') {
       av = CFG.avatar_url
@@ -1111,7 +1046,7 @@
     );
     var caption = text && !genericAudioLabel && !genericDocLabel ? '<div class="wb-caption">' + formatMessageText(text) + '</div>' : '';
     row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + '</div>';
-    insertBubbleInOrder(row, msgId, isPending);
+    body.appendChild(row);
     scrollDown();
     return row;
   }
