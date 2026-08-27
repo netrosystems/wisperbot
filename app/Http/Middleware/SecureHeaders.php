@@ -113,7 +113,6 @@ class SecureHeaders
             'wss://*.pusher.com',
             'https://*.pusherapp.com',
             'wss://*.pusherapp.com',
-            'https://sockjs-*.pusher.com',
         ];
         if (config('app.env') !== 'production') {
             $sources[] = 'ws:';
@@ -130,6 +129,7 @@ class SecureHeaders
             $sources[] = 'https://graph.facebook.com';
             $sources[] = 'https://www.facebook.com';
             $sources[] = 'https://web.facebook.com';
+            $sources[] = 'https://connect.facebook.net';
         }
         if ($this->firebaseEnabled()) {
             foreach ($this->firebaseConnectSources() as $source) {
