@@ -127,6 +127,7 @@
   var body = root.querySelector('.wb-body');
   var form = root.querySelector('.wb-inputbar');
   var input = root.querySelector('.wb-input');
+  var sendBtn = root.querySelector('.wb-send');
   var attachBtn = root.querySelector('.wb-attach-btn');
   var fileInput = root.querySelector('.wb-file-input');
   var filePreview = root.querySelector('.wb-file-preview');
@@ -134,7 +135,6 @@
   var filePreviewDoc = root.querySelector('.wb-file-preview-doc');
   var filePreviewName = root.querySelector('.wb-file-preview-name');
   var filePreviewSize = root.querySelector('.wb-file-preview-size');
-  var fileSendBtn = root.querySelector('.wb-file-send');
   var fileDiscardBtn = root.querySelector('.wb-file-discard');
   var micBtn = root.querySelector('.wb-mic');
   var audioPreview = root.querySelector('.wb-audio-preview');
@@ -172,13 +172,36 @@
     }, { passive: true });
   });
 
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
+  function submitCurrent(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (sendingText) return;
+
+    if (pendingFile) {
+      sendPendingFile();
+      return;
+    }
+
+    if (pendingAudio) {
+      sendPendingAudio();
+      return;
+    }
+
     var text = input.value.trim();
-    if (!text || sendingText) return;
+    if (!text) return;
     stopVisitorTyping();
     input.value = '';
     send(text);
+  }
+
+  form.addEventListener('submit', submitCurrent);
+  if (sendBtn) {
+    sendBtn.addEventListener('click', submitCurrent);
+  }
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      submitCurrent(e);
+    }
   });
   input.addEventListener('input', noteVisitorTyping);
   input.addEventListener('blur', stopVisitorTyping);
@@ -187,7 +210,6 @@
   audioDiscardBtn.addEventListener('click', discardPendingAudio);
   if (attachBtn) attachBtn.addEventListener('click', function () { fileInput.click(); });
   if (fileInput) fileInput.addEventListener('change', handleFileSelected);
-  if (fileSendBtn) fileSendBtn.addEventListener('click', sendPendingFile);
   if (fileDiscardBtn) fileDiscardBtn.addEventListener('click', discardPendingFile);
   panel.addEventListener('dragover', function (e) { e.preventDefault(); e.stopPropagation(); });
   panel.addEventListener('drop', function (e) {
@@ -391,6 +413,7 @@
   function send(text) {
     if (sendingText) return;
     sendingText = true;
+    if (sendBtn) sendBtn.disabled = true;
     var clientMessageId = makeClientMessageId();
     // Render immediately; a slow network must never make a submitted message
     // look lost. Replace this temporary bubble with the canonical server echo.
@@ -403,10 +426,25 @@
     if (handoff.status !== 'connected') {
       renderAgentTyping({ is_typing: true, name: CFG.agent_name || 'Support' });
     }
-    ensureSession().then(function () {
-      startPolling();
-      return post('/widget/v1/messages', { key: KEY, message: text, client_message_id: clientMessageId });
-    }).then(function (data) {
+
+    function doSend(attempt) {
+      return ensureSession().then(function () {
+        startPolling();
+        return post('/widget/v1/messages', { key: KEY, message: text, client_message_id: clientMessageId });
+      }).catch(function (err) {
+        if (attempt < 1 && err && /401|404/.test(String(err.message || err))) {
+          token = '';
+          started = false;
+          safeSet(LS_TOKEN, '');
+          return ensureSession(null, true).then(function () {
+            return post('/widget/v1/messages', { key: KEY, message: text, client_message_id: clientMessageId });
+          });
+        }
+        throw err;
+      });
+    }
+
+    doSend(0).then(function (data) {
       if (optimisticRow && optimisticRow.parentNode) optimisticRow.parentNode.removeChild(optimisticRow);
       if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
@@ -422,6 +460,7 @@
       }, { once: true });
     }).then(function () {
       sendingText = false;
+      if (sendBtn) sendBtn.disabled = false;
     });
   }
 
@@ -533,18 +572,43 @@
   }
 
   function sendPendingAudio() {
-    if (!pendingAudio) return;
-    ensureSession().then(function () {
-      startPolling();
-      audioSendBtn.disabled = true;
-      var fd = new FormData();
-      fd.append('key', KEY);
-      fd.append('type', 'audio');
-      fd.append('client_message_id', makeClientMessageId());
-      fd.append('message', input.value.trim());
-      fd.append('attachment', pendingAudio.file);
-      return postForm('/widget/v1/messages', fd);
-    }).then(function (data) {
+    if (!pendingAudio || sendingText) return;
+    sendingText = true;
+    if (audioSendBtn) audioSendBtn.disabled = true;
+    if (sendBtn) sendBtn.disabled = true;
+    var caption = input.value.trim();
+    var clientMessageId = makeClientMessageId();
+
+    function doSend(attempt) {
+      return ensureSession().then(function () {
+        startPolling();
+        var fd = new FormData();
+        fd.append('key', KEY);
+        fd.append('type', 'audio');
+        fd.append('client_message_id', clientMessageId);
+        if (caption) fd.append('message', caption);
+        fd.append('attachment', pendingAudio.file);
+        return postForm('/widget/v1/messages', fd);
+      }).catch(function (err) {
+        if (attempt < 1 && err && /401|404/.test(String(err.message || err))) {
+          token = '';
+          started = false;
+          safeSet(LS_TOKEN, '');
+          return ensureSession(null, true).then(function () {
+            var fd = new FormData();
+            fd.append('key', KEY);
+            fd.append('type', 'audio');
+            fd.append('client_message_id', clientMessageId);
+            if (caption) fd.append('message', caption);
+            fd.append('attachment', pendingAudio.file);
+            return postForm('/widget/v1/messages', fd);
+          });
+        }
+        throw err;
+      });
+    }
+
+    doSend(0).then(function (data) {
       if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
       input.value = '';
@@ -552,7 +616,9 @@
     }).catch(function () {
       setAudioStatus('Could not send voice message. Please try again.');
     }).then(function () {
-      audioSendBtn.disabled = false;
+      sendingText = false;
+      if (audioSendBtn) audioSendBtn.disabled = false;
+      if (sendBtn) sendBtn.disabled = false;
     });
   }
 
@@ -602,18 +668,42 @@
   }
 
   function sendPendingFile() {
-    if (!pendingFile) return;
-    ensureSession().then(function () {
-      startPolling();
-      if (fileSendBtn) fileSendBtn.disabled = true;
-      var fd = new FormData();
-      fd.append('key', KEY);
-      fd.append('type', pendingFile.isImage ? 'image' : 'document');
-      fd.append('client_message_id', makeClientMessageId());
-      fd.append('message', input.value.trim());
-      fd.append('attachment', pendingFile.file);
-      return postForm('/widget/v1/messages', fd);
-    }).then(function (data) {
+    if (!pendingFile || sendingText) return;
+    sendingText = true;
+    if (sendBtn) sendBtn.disabled = true;
+    var caption = input.value.trim();
+    var clientMessageId = makeClientMessageId();
+
+    function doSend(attempt) {
+      return ensureSession().then(function () {
+        startPolling();
+        var fd = new FormData();
+        fd.append('key', KEY);
+        fd.append('type', pendingFile.isImage ? 'image' : 'document');
+        fd.append('client_message_id', clientMessageId);
+        if (caption) fd.append('message', caption);
+        fd.append('attachment', pendingFile.file);
+        return postForm('/widget/v1/messages', fd);
+      }).catch(function (err) {
+        if (attempt < 1 && err && /401|404/.test(String(err.message || err))) {
+          token = '';
+          started = false;
+          safeSet(LS_TOKEN, '');
+          return ensureSession(null, true).then(function () {
+            var fd = new FormData();
+            fd.append('key', KEY);
+            fd.append('type', pendingFile.isImage ? 'image' : 'document');
+            fd.append('client_message_id', clientMessageId);
+            if (caption) fd.append('message', caption);
+            fd.append('attachment', pendingFile.file);
+            return postForm('/widget/v1/messages', fd);
+          });
+        }
+        throw err;
+      });
+    }
+
+    doSend(0).then(function (data) {
       if (data && data.message) addMessage(data.message);
       if (data) applyHandoff(data.handoff);
       input.value = '';
@@ -621,7 +711,8 @@
     }).catch(function () {
       setAudioStatus('Could not send attachment. Please try again.');
     }).then(function () {
-      if (fileSendBtn) fileSendBtn.disabled = false;
+      sendingText = false;
+      if (sendBtn) sendBtn.disabled = false;
     });
   }
 
@@ -1233,7 +1324,6 @@
                 '<span class="wb-file-preview-size"></span>' +
               '</div>' +
             '</div>' +
-            '<button class="wb-file-send" type="button">Send</button>' +
             '<button class="wb-file-discard" type="button" aria-label="Discard attachment">&#x2715;</button>' +
           '</div>' +
           '<div class="wb-audio-preview">' +
@@ -1326,11 +1416,11 @@
       '.wb-prechat-form input:focus{border-color:' + COLOR + '}',
       '.wb-pc-btn{background:' + COLOR + ';color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer}',
       '.wb-inputbar{display:flex;align-items:center;gap:8px;padding:12px;border-top:1px solid #eceef2;background:#fff;position:relative;flex-wrap:wrap}',
-      '.wb-file-preview{display:none;align-items:center;gap:8px;width:100%;padding:8px 9px;border:1px solid #eceef2;border-radius:12px;background:#f8fafc}.wb-file-preview-img{display:none;width:48px;height:48px;border-radius:10px;object-fit:cover}.wb-file-preview-doc{display:none;align-items:center;gap:8px;flex:1;min-width:0;color:#475569}.wb-file-preview-info{display:flex;flex-direction:column;min-width:0}.wb-file-preview-name{font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}.wb-file-preview-size{font-size:10px;color:#64748b}.wb-file-send{border:none;border-radius:999px;background:' + COLOR + ';color:#fff;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto;flex-shrink:0}.wb-file-send:disabled{opacity:.6;cursor:wait}.wb-file-discard{width:30px;height:30px;border:none;border-radius:999px;background:#fff;color:#8b93a1;cursor:pointer;border:1px solid #e5e7eb;flex-shrink:0}.wb-file-input{display:none}',
+      '.wb-file-preview{display:none;align-items:center;gap:8px;width:100%;padding:8px 9px;border:1px solid #eceef2;border-radius:12px;background:#f8fafc}.wb-file-preview-img{display:none;width:48px;height:48px;border-radius:10px;object-fit:cover}.wb-file-preview-doc{display:none;align-items:center;gap:8px;flex:1;min-width:0;color:#475569}.wb-file-preview-info{display:flex;flex-direction:column;min-width:0}.wb-file-preview-name{font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}.wb-file-preview-size{font-size:10px;color:#64748b}.wb-file-discard{width:28px;height:28px;border:none;border-radius:999px;background:#fff;color:#8b93a1;cursor:pointer;border:1px solid #e5e7eb;margin-left:auto;flex-shrink:0;display:flex;align-items:center;justify-content:center}.wb-file-discard:hover{background:#f1f5f9;color:#475569}.wb-file-input{display:none}',
       '.wb-audio-preview{display:none;align-items:center;gap:8px;width:100%;padding:8px 9px;border:1px solid #eceef2;border-radius:12px;background:#f8fafc}.wb-audio-player{flex:1;min-width:160px;height:34px}.wb-audio-send{border:none;border-radius:999px;background:' + COLOR + ';color:#fff;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}.wb-audio-send:disabled{opacity:.6;cursor:wait}.wb-audio-discard{width:30px;height:30px;border:none;border-radius:999px;background:#fff;color:#8b93a1;cursor:pointer;border:1px solid #e5e7eb}.wb-audio-status{display:none;width:100%;font-size:11px;color:#6b7280;padding:0 4px 2px}.wb-mic{width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;background:#f1f3f6;color:#687386;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,color .15s,transform .15s}.wb-mic:hover{background:#e7eaf0;color:#303744}.wb-mic.wb-recording{background:#ef4444;color:#fff;animation:wb-record 1s ease-in-out infinite}',
       '.wb-tool-btn{width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;background:#f1f3f6;color:#687386;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,color .15s}.wb-tool-btn:hover{background:#e7eaf0;color:#303744}',
       '.wb-input{flex:1;border:none;outline:none;font-size:14px;padding:8px 4px;background:transparent}',
-      '.wb-send{width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;background:' + COLOR + ';color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}',
+      '.wb-send{width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;background:' + COLOR + ';color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s;pointer-events:auto}.wb-send svg{pointer-events:none}.wb-send:disabled{opacity:.5;cursor:wait}',
       '.wb-send:hover{opacity:.88}',
       '.wb-brand{text-align:center;font-size:11px;color:#9aa1ad;padding:7px;background:#fff;border-top:1px solid #f1f2f4}',
       '.wb-brand b{color:#6b7280}',
