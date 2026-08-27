@@ -50,6 +50,7 @@
   var pendingFile = null;
   var visitorTyping = false;
   var visitorTypingLastSentAt = 0;
+  var visitorTypingIdleTimer = null;
   var prechatNeeded = isPrechatNeeded();
   var handoff = { enabled: !!CFG.ai_enabled, eligible: false, status: 'bot' };
   var handoffWatchdog = null;
@@ -517,7 +518,7 @@
       return;
     }
     discardPendingAudio();
-    discardPendingImage();
+    discardPendingFile();
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
       recordingStream = stream;
       recordingChunks = [];
