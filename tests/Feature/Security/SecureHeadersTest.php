@@ -26,5 +26,13 @@ class SecureHeadersTest extends TestCase
             '/connect-src [^;]*https:\\/\\/wisperbot\\.com/',
             $csp
         );
+        $this->assertMatchesRegularExpression(
+            '/connect-src [^;]*wss:\\/\\/\\*\\.pusher\\.com/',
+            $csp
+        );
+        $this->assertMatchesRegularExpression(
+            '/connect-src [^;]*wss:/',
+            $csp
+        );
     }
 }
