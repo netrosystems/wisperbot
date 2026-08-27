@@ -121,6 +121,16 @@ class MobileInboxController extends WorkspaceScopedController
         $q = $request->input('q', '');
 
         $contacts = Contact::where('workspace_id', $wsId)
+            ->withCount([
+                'conversations as has_messenger_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'messenger')),
+                'conversations as has_instagram_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'instagram')),
+                'conversations as has_telegram_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'telegram')),
+                'conversations as has_ebay_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'ebay')),
+                'conversations as has_amazon_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'amazon')),
+                'conversations as has_webchat_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'webchat')),
+                'conversations as has_email_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'email')),
+                'conversations as has_whatsapp_thread' => fn ($q) => $q->whereHas('channelAccount', fn ($ca) => $ca->where('channel', 'whatsapp')),
+            ])
             ->where(function ($query) use ($q) {
                 $query->where('first_name', 'like', "%{$q}%")
                     ->orWhere('last_name', 'like', "%{$q}%")
@@ -128,16 +138,28 @@ class MobileInboxController extends WorkspaceScopedController
                     ->orWhere('email', 'like', "%{$q}%");
             })
             ->orderBy('first_name')
-            ->limit(20)
-            ->get(['id', 'first_name', 'last_name', 'phone_e164', 'email', 'avatar']);
+            ->limit(30)
+            ->get(['id', 'uuid', 'first_name', 'last_name', 'phone_e164', 'email', 'avatar', 'custom_fields', 'source']);
 
         return response()->json([
             'data' => $contacts->map(fn ($c) => [
                 'id' => $c->id,
-                'name' => Demo::name($c->full_name),
+                'uuid' => $c->uuid,
+                'name' => Demo::name($c->name),
                 'phone' => Demo::phone($c->phone_e164),
+                'phone_e164' => $c->phone_e164,
                 'email' => Demo::email($c->email),
                 'avatar' => Demo::active() ? null : $c->avatar_url,
+                'custom_fields' => $c->custom_fields,
+                'source' => $c->source,
+                'has_messenger_thread' => (int) ($c->has_messenger_thread ?? 0) > 0,
+                'has_instagram_thread' => (int) ($c->has_instagram_thread ?? 0) > 0,
+                'has_telegram_thread' => (int) ($c->has_telegram_thread ?? 0) > 0,
+                'has_ebay_thread' => (int) ($c->has_ebay_thread ?? 0) > 0,
+                'has_amazon_thread' => (int) ($c->has_amazon_thread ?? 0) > 0,
+                'has_webchat_thread' => (int) ($c->has_webchat_thread ?? 0) > 0,
+                'has_email_thread' => (int) ($c->has_email_thread ?? 0) > 0,
+                'has_whatsapp_thread' => (int) ($c->has_whatsapp_thread ?? 0) > 0,
             ]),
         ]);
     }
@@ -159,7 +181,7 @@ class MobileInboxController extends WorkspaceScopedController
 
         return response()->json([
             'id' => $contact->id,
-            'name' => Demo::name($contact->full_name),
+            'name' => Demo::name($contact->name),
             'phone' => Demo::phone($contact->phone_e164),
             'email' => Demo::email($contact->email),
             'avatar' => Demo::active() ? null : $contact->avatar_url,
