@@ -16,12 +16,12 @@ use Illuminate\Support\Str;
  */
 class WebchatPresence
 {
-    public const ONLINE_SECONDS = 60;
+    public const ONLINE_SECONDS = 30;
 
     public function touch(Conversation $conversation, ?string $ipAddress = null): void
     {
         $throttleKey = "webchat:presence-touch:{$conversation->id}";
-        if (! Cache::add($throttleKey, true, 10)) {
+        if (! Cache::add($throttleKey, true, 4)) {
             return;
         }
 
