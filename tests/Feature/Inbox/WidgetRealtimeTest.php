@@ -3,6 +3,7 @@
 namespace Tests\Feature\Inbox;
 
 use App\Events\MessageSent;
+use App\Events\MessageStatusUpdated;
 use App\Events\WidgetMessageCreated;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Models\WidgetPushSubscription;
@@ -228,6 +229,82 @@ class WidgetRealtimeTest extends TestCase
         MessageSent::dispatch($message);
 
         Event::assertNotDispatched(WidgetMessageCreated::class);
+    }
+
+    public function test_widget_poll_marks_sent_messages_as_delivered(): void
+    {
+        Event::fake([MessageStatusUpdated::class]);
+
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'out',
+            'channel' => 'webchat',
+            'type' => 'text',
+            'body' => 'Hello from support',
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
+        $session = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        // Bind conversation to session
+        $token = \App\Support\WebchatVisitorToken::issue(
+            (int) $conversation->id,
+            $widget->widget_key,
+            (string) $session->json('visitor_id')
+        );
+
+        $this->withHeader('X-Widget-Token', $token)
+            ->getJson(route('widget.poll', [
+                'key' => $widget->widget_key,
+                'after' => 0,
+                'active' => 1,
+            ]))
+            ->assertOk();
+
+        $this->assertEquals('delivered', $message->fresh()->status);
+        Event::assertDispatched(MessageStatusUpdated::class, fn ($e) => $e->message->id === $message->id && $e->message->status === 'delivered');
+    }
+
+    public function test_widget_mark_read_endpoint_marks_messages_as_read(): void
+    {
+        Event::fake([MessageStatusUpdated::class]);
+
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'out',
+            'channel' => 'webchat',
+            'type' => 'text',
+            'body' => 'Please read this',
+            'status' => 'delivered',
+            'sent_at' => now(),
+        ]);
+
+        $token = \App\Support\WebchatVisitorToken::issue(
+            (int) $conversation->id,
+            $widget->widget_key,
+            'visitor-123'
+        );
+
+        $this->withHeader('X-Widget-Token', $token)
+            ->postJson(route('widget.read'), [
+                'key' => $widget->widget_key,
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertEquals('read', $message->fresh()->status);
+        Event::assertDispatched(MessageStatusUpdated::class, fn ($e) => $e->message->id === $message->id && $e->message->status === 'read');
     }
 
     /**

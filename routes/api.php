@@ -68,6 +68,8 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])
     Route::patch('/conversations/{uuid}/status', [MobileConversationController::class, 'updateStatus']);
     Route::post('/conversations/{uuid}/typing', [MobileConversationController::class, 'typing']);
     Route::post('/conversations/{uuid}/handover', [MobileConversationController::class, 'handover']);
+    Route::post('/conversations/{uuid}/open-widget', [MobileConversationController::class, 'openWidget']);
+    Route::post('/conversations/{uuid}/read', [MobileConversationController::class, 'markRead']);
 
     // Notes
     Route::get('/conversations/{uuid}/notes', [MobileConversationController::class, 'notes']);
@@ -79,6 +81,7 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])
 
     // Inbox setup data
     Route::get('/inbox/setup', [MobileInboxController::class, 'setup']);
+    Route::get('/inbox/counts', [MobileInboxController::class, 'counts']);
     Route::get('/inbox/templates', [MobileInboxController::class, 'templates']);
     Route::get('/inbox/labels', [MobileInboxController::class, 'labels']);
     Route::get('/inbox/canned-replies', [MobileInboxController::class, 'cannedReplies']);

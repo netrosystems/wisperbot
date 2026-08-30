@@ -148,4 +148,167 @@ class MobileConversationTest extends TestCase
         $this->assertSame('Smith', $contact->last_name);
         $this->assertSame('jane@example.com', $contact->email);
     }
+
+    public function test_mobile_conversations_index_supports_live_folder_and_returns_online_status(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website Widget',
+            'status' => 'active',
+        ]);
+        $contact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'Live',
+            'last_name' => 'Visitor',
+        ]);
+
+        $liveConv = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'channel_account_id' => $channelAccount->id,
+            'status' => 'open',
+            'webchat_last_seen_at' => now(),
+        ]);
+
+        $offlineConv = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'channel_account_id' => $channelAccount->id,
+            'status' => 'open',
+            'webchat_last_seen_at' => now()->subMinutes(5),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        // Standard index
+        $res = $this->getJson('/api/v1/mobile/conversations');
+        $res->assertOk()
+            ->assertJsonPath('meta.live_users_count', 1);
+
+        // Filter folder=live
+        $liveRes = $this->getJson('/api/v1/mobile/conversations?folder=live');
+        $liveRes->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $liveConv->id)
+            ->assertJsonPath('data.0.is_online', true);
+    }
+
+    public function test_mobile_inbox_setup_and_counts_include_live_users_count(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website Widget',
+            'status' => 'active',
+        ]);
+        $contact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'Online',
+            'last_name' => 'User',
+        ]);
+
+        Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'channel_account_id' => $channelAccount->id,
+            'status' => 'open',
+            'webchat_last_seen_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $setupRes = $this->getJson('/api/v1/mobile/inbox/setup');
+        $setupRes->assertOk()
+            ->assertJsonPath('live_users_count', 1);
+
+        $countsRes = $this->getJson('/api/v1/mobile/inbox/counts');
+        $countsRes->assertOk()
+            ->assertJsonPath('live', 1)
+            ->assertJsonPath('all', 1);
+    }
+
+    public function test_mobile_can_trigger_open_widget_for_live_visitor(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website Widget',
+            'status' => 'active',
+        ]);
+        $contact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'Live',
+            'last_name' => 'Visitor',
+        ]);
+
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'channel_account_id' => $channelAccount->id,
+            'status' => 'open',
+            'webchat_last_seen_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson("/api/v1/mobile/conversations/{$conversation->uuid}/open-widget");
+        $response->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('command.type', 'open_widget');
+    }
+
+    public function test_mobile_can_mark_conversation_as_read(): void
+    {
+        \Illuminate\Support\Facades\Event::fake([\App\Events\MessageStatusUpdated::class]);
+
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website Widget',
+            'status' => 'active',
+        ]);
+        $contact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+        ]);
+
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'channel_account_id' => $channelAccount->id,
+            'status' => 'open',
+            'unread_count' => 3,
+        ]);
+
+        $msg = \App\Modules\Shared\Models\Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'in',
+            'channel' => 'webchat',
+            'type' => 'text',
+            'body' => 'Need help',
+            'status' => 'delivered',
+            'sent_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson("/api/v1/mobile/conversations/{$conversation->uuid}/read");
+        $response->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('unread_count', 0);
+
+        $this->assertEquals(0, $conversation->fresh()->unread_count);
+        $this->assertEquals('read', $msg->fresh()->status);
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\MessageStatusUpdated::class);
+    }
 }

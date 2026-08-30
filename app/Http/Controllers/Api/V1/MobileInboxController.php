@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\User;
 use App\Modules\Inbox\Models\CannedReply;
 use App\Modules\Inbox\Models\InboxLabel;
+use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
+use App\Modules\Shared\Models\Conversation;
 use App\Modules\Whatsapp\Models\WhatsappTemplate;
 use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
@@ -16,11 +18,12 @@ class MobileInboxController extends WorkspaceScopedController
 {
     /**
      * GET /api/v1/mobile/inbox/setup
-     * Single bootstrapping call: labels, canned replies, channel accounts, team members.
+     * Single bootstrapping call: labels, canned replies, channel accounts, team members, live visitors count.
      */
     public function setup(Request $request): JsonResponse
     {
         $wsId = $this->workspaceId($request);
+        $liveSince = app(WebchatPresence::class)->onlineSince();
 
         $labels = InboxLabel::where('workspace_id', $wsId)
             ->orderBy('name')
@@ -40,6 +43,12 @@ class MobileInboxController extends WorkspaceScopedController
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
+        $liveUsersCount = Conversation::where('workspace_id', $wsId)
+            ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
+            ->where('webchat_last_seen_at', '>=', $liveSince)
+            ->distinct('contact_id')
+            ->count('contact_id');
+
         return response()->json([
             'labels' => $labels,
             'canned_replies' => $cannedReplies,
@@ -54,6 +63,34 @@ class MobileInboxController extends WorkspaceScopedController
                 'name' => $u->name,
                 'email' => $u->email,
             ]),
+            'live_users_count' => $liveUsersCount,
+        ]);
+    }
+
+    /**
+     * GET /api/v1/mobile/inbox/counts
+     * Lightweight badge count refresh for mobile navigation.
+     */
+    public function counts(Request $request): JsonResponse
+    {
+        $wsId = $this->workspaceId($request);
+        $userId = $request->user()->id;
+        $liveSince = app(WebchatPresence::class)->onlineSince();
+
+        $openQuery = Conversation::where('workspace_id', $wsId)->where('status', 'open');
+
+        return response()->json([
+            'all' => (clone $openQuery)->count(),
+            'mine' => (clone $openQuery)->where('assigned_user_id', $userId)->count(),
+            'unassigned' => (clone $openQuery)->whereNull('assigned_user_id')->count(),
+            'live' => Conversation::where('workspace_id', $wsId)
+                ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
+                ->where('webchat_last_seen_at', '>=', $liveSince)
+                ->distinct('contact_id')
+                ->count('contact_id'),
+            'unread' => Conversation::where('workspace_id', $wsId)
+                ->where('unread_count', '>', 0)
+                ->count(),
         ]);
     }
 

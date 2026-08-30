@@ -285,6 +285,7 @@
     launcher.classList.add('wb-active');
     unreadCount = 0;
     updateBadge();
+    if (token) { post('/widget/v1/read', { key: KEY }).catch(function () {}); }
     prechatNeeded = isPrechatNeeded();
     if (prechatNeeded) {
       prechat.style.display = 'block';
@@ -793,7 +794,7 @@
 
   function poll() {
     if (!token) return Promise.resolve();
-    return get('/widget/v1/messages?key=' + encodeURIComponent(KEY) + '&after=' + lastId + '&active=1').then(function (data) {
+    return get('/widget/v1/messages?key=' + encodeURIComponent(KEY) + '&after=' + lastId + '&active=1&open=' + (open ? '1' : '0')).then(function (data) {
       if (!data) return;
       if (typeof data.online === 'boolean') { online = data.online; updateStatus(); }
       applyHandoff(data.handoff);
@@ -881,6 +882,9 @@
       pusherChannel.bind('WidgetCommand', function (data) {
         applyCommand(data && data.command);
       });
+      pusherChannel.bind('MessageStatusUpdated', function (data) {
+        if (data && data.id) updateVisitorMessageStatus(data.id, data.status);
+      });
     }).catch(function () {
       realtimeDisabled = true;
       disconnectRealtime();
@@ -941,10 +945,20 @@
     if (rendered[m.id]) return false;
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size });
+    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status });
     saveThread();
-    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size);
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.status, m.id);
     return true;
+  }
+
+  function updateVisitorMessageStatus(msgId, status) {
+    if (!body || !msgId) return;
+    var el = body.querySelector('[data-wb-status-id="' + String(msgId) + '"]');
+    if (!el) return;
+    var glyph = status === 'read' ? '✓✓' : (status === 'delivered' ? '✓✓' : (status === 'sent' ? '✓' : '⋯'));
+    el.textContent = glyph;
+    if (status === 'read') el.classList.add('wb-status-read');
+    else el.classList.remove('wb-status-read');
   }
 
   function removeMatchingPendingVisitorMessage(m) {
@@ -1003,7 +1017,7 @@
     if (!activelyComposing) playNotificationSound();
   }
 
-  function addBubble(role, text, name, attachmentUrl, type, filename, mimeType, fileSize) {
+  function addBubble(role, text, name, attachmentUrl, type, filename, mimeType, fileSize, status, id) {
     var row = document.createElement('div');
     row.className = 'wb-row wb-' + (role === 'visitor' ? 'out' : 'in');
     var av = '';
@@ -1045,7 +1059,13 @@
       text === 'Document attachment'
     );
     var caption = text && !genericAudioLabel && !genericDocLabel ? '<div class="wb-caption">' + formatMessageText(text) + '</div>' : '';
-    row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + '</div>';
+    var statusMarkup = '';
+    if (role === 'visitor') {
+      var glyph = status === 'read' ? '✓✓' : (status === 'delivered' ? '✓✓' : (status === 'sent' ? '✓' : '⋯'));
+      var statusClass = 'wb-status-glyph' + (status === 'read' ? ' wb-status-read' : '');
+      statusMarkup = '<span class="' + statusClass + '" data-wb-status-id="' + escAttr(id || '') + '">' + glyph + '</span>';
+    }
+    row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + statusMarkup + '</div>';
     body.appendChild(row);
     scrollDown();
     return row;
@@ -1397,6 +1417,8 @@
       '.wb-bubble{padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.45;word-wrap:break-word;white-space:normal}',
       '.wb-in .wb-bubble{background:#fff;color:#1f2430;border:1px solid #eceef2;border-bottom-left-radius:5px}',
       '.wb-out .wb-bubble{background:' + COLOR + ';color:#fff;border-bottom-right-radius:5px}',
+      '.wb-status-glyph{font-size:10px;margin-left:5px;opacity:.75;display:inline-block;vertical-align:bottom;letter-spacing:-1px}',
+      '.wb-status-glyph.wb-status-read{opacity:1;color:#67e8f9}',
       '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-media-audio{display:block;width:220px;max-width:100%;height:38px;margin-bottom:6px}.wb-caption:empty{display:none}',
       '.wb-media-doc-card{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:12px;text-decoration:none;transition:background .15s;max-width:100%}',
       '.wb-in .wb-media-doc-card{background:#f1f5f9;color:#0f172a}',
