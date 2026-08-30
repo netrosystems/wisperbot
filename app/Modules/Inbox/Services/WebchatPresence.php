@@ -16,31 +16,30 @@ use Illuminate\Support\Str;
  */
 class WebchatPresence
 {
-    public const ONLINE_SECONDS = 30;
+    public const ONLINE_SECONDS = 60;
 
     public function touch(Conversation $conversation, ?string $ipAddress = null): void
     {
-        $contact = $conversation->contact;
-        if (! $contact) {
-            return;
-        }
-
         $throttleKey = "webchat:presence-touch:{$conversation->id}";
         if (! Cache::add($throttleKey, true, 10)) {
             return;
         }
 
-        $customFields = $contact->custom_fields ?? [];
-        if ($ipAddress) {
-            $customFields['webchat_last_ip'] = $ipAddress;
-        }
-
         $conversation->forceFill(['webchat_last_seen_at' => now()])->save();
 
-        $contact->update([
-            'last_seen_at' => now(),
-            'custom_fields' => $customFields,
-        ]);
+        $conversation->loadMissing('contact');
+        $contact = $conversation->contact;
+        if ($contact) {
+            $customFields = $contact->custom_fields ?? [];
+            if ($ipAddress) {
+                $customFields['webchat_last_ip'] = $ipAddress;
+            }
+
+            $contact->update([
+                'last_seen_at' => now(),
+                'custom_fields' => $customFields,
+            ]);
+        }
     }
 
     /** @return array{id:string,type:string,created_at:string} */
