@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inbox\Http\Controllers\Widget;
 
+use App\Events\MessageStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\HumanHandoffService;
@@ -11,6 +12,7 @@ use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Inbox\Services\WidgetPayloadBuilder;
 use App\Modules\Inbox\Services\WidgetVisitorPushService;
 use App\Modules\Shared\Models\Conversation;
+use App\Modules\Shared\Models\Message;
 use App\Services\Media\AttachmentService;
 use App\Services\StorageManager;
 use App\Support\WebchatVisitorToken;
@@ -181,6 +183,7 @@ class ChatWidgetPublicController extends Controller
             'key' => ['required', 'string'],
             'after' => ['nullable', 'integer'],
             'active' => ['nullable', 'boolean'],
+            'open' => ['nullable', 'boolean'],
         ]);
 
         $widget = $this->resolveWidget($data['key']);
@@ -196,8 +199,12 @@ class ChatWidgetPublicController extends Controller
             $this->presence->touch($conversation, $request->ip());
         }
 
+        $messages = $this->payloads->messages((int) $payload['c'], $widget, (int) ($data['after'] ?? 0));
+        $isOpen = (bool) ($data['open'] ?? false);
+        $this->acknowledgeOutboundMessages($conversation, $isOpen);
+
         return response()->json([
-            'messages' => $this->payloads->messages((int) $payload['c'], $widget, (int) ($data['after'] ?? 0)),
+            'messages' => $messages,
             'online' => $this->isOnline($widget),
             'handoff' => $this->payloads->handoff($widget, $conversation),
             'agent_typing' => [
@@ -206,6 +213,55 @@ class ChatWidgetPublicController extends Controller
             ],
             'command' => $this->presence->command($conversation),
         ]);
+    }
+
+    /** POST /widget/v1/read — visitor marks agent messages as read when opening panel. */
+    public function markRead(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string'],
+        ]);
+
+        $widget = $this->resolveWidget($data['key']);
+        $this->assertDomainAllowed($widget, $request);
+        $payload = $this->authVisitor($request, $widget);
+
+        if (! empty($payload['c'])) {
+            $conversation = Conversation::whereKey((int) $payload['c'])
+                ->where('workspace_id', $widget->workspace_id)
+                ->first();
+
+            if ($conversation) {
+                $this->acknowledgeOutboundMessages($conversation, true);
+            }
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function acknowledgeOutboundMessages(Conversation $conversation, bool $isOpen = false): void
+    {
+        $targetStatus = $isOpen ? 'read' : 'delivered';
+
+        $query = Message::where('conversation_id', $conversation->id)
+            ->where('direction', 'out');
+
+        $messagesToUpdate = $isOpen
+            ? $query->whereIn('status', ['queued', 'sent', 'delivered'])->get()
+            : $query->whereIn('status', ['queued', 'sent'])->get();
+
+        if ($messagesToUpdate->isEmpty()) {
+            return;
+        }
+
+        Message::whereIn('id', $messagesToUpdate->pluck('id'))
+            ->update(['status' => $targetStatus]);
+
+        foreach ($messagesToUpdate as $message) {
+            $message->status = $targetStatus;
+            $message->setRelation('conversation', $conversation);
+            MessageStatusUpdated::dispatch($message);
+        }
     }
 
     /** POST /widget/v1/typing — short-lived visitor typing presence. */
