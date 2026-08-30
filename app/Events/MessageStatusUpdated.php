@@ -22,9 +22,12 @@ class MessageStatusUpdated implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         $wsId = $this->message->conversation->workspace_id ?? null;
-        $convId = $this->message->conversation_id;
+        $convId = (int) $this->message->conversation_id;
 
-        $channels = [new PrivateChannel("conversation.{$convId}")];
+        $channels = [
+            new PrivateChannel("conversation.{$convId}"),
+            new PrivateChannel("widget-conversation.{$convId}"),
+        ];
 
         if ($wsId) {
             $channels[] = new PrivateChannel("workspace.{$wsId}");

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Events\ConversationAssigned;
 use App\Events\MessageSent;
+use App\Events\MessageStatusUpdated;
 use App\Events\TypingChanged;
 use App\Models\User;
 use App\Modules\Inbox\Models\InboxLabel;
+use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -39,11 +41,17 @@ class MobileConversationController extends WorkspaceScopedController
         $userId = $request->user()->id;
         $folder = $request->input('folder', 'all');
 
+        $liveSince = app(WebchatPresence::class)->onlineSince();
+        $isLiveFolder = $folder === 'live';
+
         $conversations = Conversation::where('workspace_id', $wsId)
             ->with(['contact', 'channelAccount', 'lastMessage', 'labels', 'assignedUser'])
+            ->when($isLiveFolder, fn ($q) => $q
+                ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
+                ->where('webchat_last_seen_at', '>=', $liveSince))
+            ->when(! $isLiveFolder && ! in_array($folder, ['resolved', 'snoozed'], true), fn ($q) => $q->where('status', 'open'))
             ->when($folder === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when($folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
-            ->when(! in_array($folder, ['resolved', 'snoozed'], true), fn ($q) => $q->where('status', 'open'))
             ->when($folder === 'resolved', fn ($q) => $q->where('status', 'resolved'))
             ->when($folder === 'snoozed', fn ($q) => $q->where('status', 'snoozed'))
             ->when($request->channel, fn ($q) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $request->channel)))
@@ -58,7 +66,7 @@ class MobileConversationController extends WorkspaceScopedController
                         ->orWhere('email', 'like', $term);
                 });
             })
-            ->orderByDesc('last_message_at')
+            ->when($isLiveFolder, fn ($q) => $q->orderByDesc('webchat_last_seen_at'), fn ($q) => $q->orderByDesc('last_message_at'))
             ->paginate(30);
 
         return response()->json([
@@ -67,6 +75,7 @@ class MobileConversationController extends WorkspaceScopedController
                 'current_page' => $conversations->currentPage(),
                 'last_page' => $conversations->lastPage(),
                 'total' => $conversations->total(),
+                'live_users_count' => $this->liveUsersQuery($wsId, $liveSince)->distinct('contact_id')->count('contact_id'),
             ],
         ]);
     }
@@ -538,10 +547,73 @@ class MobileConversationController extends WorkspaceScopedController
         return app(MobileInboxController::class)->updateContact($request, $conversation->contact->id);
     }
 
+    /**
+     * POST /api/v1/mobile/conversations/{uuid}/open-widget
+     * Prompt a currently-online website visitor's widget to open.
+     */
+    public function openWidget(Request $request, string $uuid, WebchatPresence $presence): JsonResponse
+    {
+        $conversation = Conversation::where('workspace_id', $this->workspaceId($request))
+            ->where('uuid', $uuid)
+            ->with(['channelAccount', 'contact'])
+            ->firstOrFail();
+
+        abort_unless($conversation->channelAccount?->channel === 'webchat', 422, 'This action is only available for website visitors.');
+        abort_unless($conversation->webchat_last_seen_at?->gte($presence->onlineSince()), 409, 'This visitor is no longer online.');
+
+        return response()->json([
+            'ok' => true,
+            'command' => $presence->requestWidgetOpen($conversation),
+        ]);
+    }
+
+    /**
+     * POST /api/v1/mobile/conversations/{uuid}/read
+     * Mark all unread incoming messages as read for this conversation.
+     */
+    public function markRead(Request $request, string $uuid): JsonResponse
+    {
+        $conversation = Conversation::where('workspace_id', $this->workspaceId($request))
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        $conversation->update(['unread_count' => 0]);
+
+        $unreadMessages = $conversation->messages()
+            ->where('direction', 'in')
+            ->whereIn('status', ['queued', 'sent', 'delivered'])
+            ->get();
+
+        if ($unreadMessages->isNotEmpty()) {
+            $conversation->messages()
+                ->whereIn('id', $unreadMessages->pluck('id'))
+                ->update(['status' => 'read']);
+
+            foreach ($unreadMessages as $msg) {
+                $msg->status = 'read';
+                $msg->setRelation('conversation', $conversation);
+                MessageStatusUpdated::dispatch($msg);
+            }
+        }
+
+        return response()->json(['ok' => true, 'unread_count' => 0]);
+    }
+
+    private function liveUsersQuery(int $workspaceId, \Illuminate\Support\Carbon $liveSince)
+    {
+        return Conversation::query()
+            ->where('workspace_id', $workspaceId)
+            ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
+            ->where('webchat_last_seen_at', '>=', $liveSince);
+    }
+
     // ─── Private formatters ───────────────────────────────────────────────────
 
     private function formatConversation(Conversation $c, bool $detail = false): array
     {
+        $isWebchat = $c->channelAccount?->channel === 'webchat';
+        $isOnline = $isWebchat && $c->webchat_last_seen_at !== null && $c->webchat_last_seen_at->gte(app(WebchatPresence::class)->onlineSince());
+
         $data = [
             'id' => $c->id,
             'uuid' => $c->uuid,
@@ -550,6 +622,8 @@ class MobileConversationController extends WorkspaceScopedController
             'channel_account_id' => $c->channel_account_id,
             'unread_count' => (int) $c->unread_count,
             'last_message_at' => $c->last_message_at?->toIso8601String(),
+            'is_online' => $isOnline,
+            'webchat_last_seen_at' => $c->webchat_last_seen_at?->toIso8601String(),
             'assigned_user_id' => $c->assigned_user_id,
             'assigned_to' => $c->assigned_to,
             'assigned_user' => $c->assignedUser ? [

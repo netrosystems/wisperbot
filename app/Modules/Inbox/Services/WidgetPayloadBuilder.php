@@ -36,6 +36,7 @@ class WidgetPayloadBuilder
         return [
             'id' => $message->id,
             'role' => $isAgent ? 'agent' : 'visitor',
+            'status' => $message->status,
             'body' => (string) $message->body,
             'type' => $message->type,
             'attachment_url' => $this->browserSafePublicUrl($message->payload['preview_url'] ?? null),
