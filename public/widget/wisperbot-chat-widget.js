@@ -770,12 +770,12 @@
         pollTimer = pageCanReportPresence() ? setTimeout(tick, realtimeConnected ? 30000 : 8000) : null;
       });
     };
-    pollTimer = setTimeout(tick, realtimeConnected ? 8000 : (open ? 2500 : 8000));
+    pollTimer = setTimeout(tick, realtimeConnected ? 3000 : (open ? 2000 : 5000));
   }
 
   function pollDelay() {
-    if (realtimeConnected) return open ? 15000 : 20000;
-    return open ? 3000 : 8000;
+    if (realtimeConnected) return open ? 5000 : 8000;
+    return open ? 3000 : 5000;
   }
 
   function pageCanReportPresence() {
