@@ -125,7 +125,7 @@ class OneSignalService
         ?string $url = null,
         int|string|null $conversationId = null,
         array $data = [],
-    ): void {
+    ): bool {
         $subscriptionIds = array_values(array_unique(array_filter(array_map(
             static fn ($id) => trim((string) $id),
             $subscriptionIds,
