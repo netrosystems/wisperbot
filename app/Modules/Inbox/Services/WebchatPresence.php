@@ -18,8 +18,18 @@ class WebchatPresence
 {
     public const ONLINE_SECONDS = 30;
 
-    public function touch(Conversation $conversation, ?string $ipAddress = null): void
-    {
+    public function __construct(
+        private ?WebchatGeoService $geoService = null,
+    ) {
+        $this->geoService = $geoService ?? app(WebchatGeoService::class);
+    }
+
+    public function touch(
+        Conversation $conversation,
+        ?string $ipAddress = null,
+        ?string $pageUrl = null,
+        ?string $pageTitle = null,
+    ): void {
         $throttleKey = "webchat:presence-touch:{$conversation->id}";
         if (! Cache::add($throttleKey, true, 4)) {
             return;
@@ -33,6 +43,27 @@ class WebchatPresence
             $customFields = $contact->custom_fields ?? [];
             if ($ipAddress) {
                 $customFields['webchat_last_ip'] = $ipAddress;
+
+                if (empty($customFields['webchat_country']) || empty($customFields['webchat_lat']) || ($customFields['webchat_resolved_ip'] ?? '') !== $ipAddress) {
+                    $geo = $this->geoService->resolve($ipAddress);
+                    if (! empty($geo['country'])) {
+                        $customFields['webchat_country'] = $geo['country'];
+                        $customFields['webchat_country_code'] = $geo['country_code'];
+                        $customFields['webchat_city'] = $geo['city'];
+                        $customFields['webchat_region'] = $geo['region'];
+                        $customFields['webchat_lat'] = $geo['lat'];
+                        $customFields['webchat_lon'] = $geo['lon'];
+                        $customFields['webchat_timezone'] = $geo['timezone'];
+                        $customFields['webchat_resolved_ip'] = $ipAddress;
+                    }
+                }
+            }
+
+            if ($pageUrl) {
+                $customFields['webchat_page_url'] = $pageUrl;
+            }
+            if ($pageTitle) {
+                $customFields['webchat_page_title'] = $pageTitle;
             }
 
             $contact->update([

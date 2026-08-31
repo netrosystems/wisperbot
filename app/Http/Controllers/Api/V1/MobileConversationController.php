@@ -69,6 +69,36 @@ class MobileConversationController extends WorkspaceScopedController
             ->when($isLiveFolder, fn ($q) => $q->orderByDesc('webchat_last_seen_at'), fn ($q) => $q->orderByDesc('last_message_at'))
             ->paginate(30);
 
+        if ($isLiveFolder) {
+            $geoService = app(\App\Modules\Inbox\Services\WebchatGeoService::class);
+            $conversations->getCollection()->transform(function (Conversation $conv) use ($geoService) {
+                $contact = $conv->contact;
+                if ($contact) {
+                    $cf = $contact->custom_fields ?? [];
+                    $ip = $cf['webchat_last_ip'] ?? null;
+                    if ($ip && (empty($cf['webchat_country']) || empty($cf['webchat_lat']))) {
+                        $geo = $geoService->resolve($ip);
+                        if (! empty($geo['country'])) {
+                            $cf = array_merge($cf, [
+                                'webchat_country' => $geo['country'],
+                                'webchat_country_code' => $geo['country_code'],
+                                'webchat_city' => $geo['city'],
+                                'webchat_region' => $geo['region'],
+                                'webchat_lat' => $geo['lat'],
+                                'webchat_lon' => $geo['lon'],
+                                'webchat_timezone' => $geo['timezone'],
+                                'webchat_resolved_ip' => $ip,
+                            ]);
+                            $contact->update(['custom_fields' => $cf]);
+                            $contact->custom_fields = $cf;
+                        }
+                    }
+                }
+
+                return $conv;
+            });
+        }
+
         return response()->json([
             'data' => $conversations->map(fn ($c) => $this->formatConversation($c)),
             'meta' => [
@@ -637,6 +667,20 @@ class MobileConversationController extends WorkspaceScopedController
                 'phone' => Demo::phone($c->contact->phone_e164),
                 'email' => Demo::email($c->contact->email),
                 'avatar' => Demo::active() ? null : $c->contact->avatar_url,
+                'location' => [
+                    'country' => $c->contact->custom_fields['webchat_country'] ?? null,
+                    'country_code' => $c->contact->custom_fields['webchat_country_code'] ?? null,
+                    'city' => $c->contact->custom_fields['webchat_city'] ?? null,
+                    'region' => $c->contact->custom_fields['webchat_region'] ?? null,
+                    'lat' => $c->contact->custom_fields['webchat_lat'] ?? null,
+                    'lon' => $c->contact->custom_fields['webchat_lon'] ?? null,
+                    'page_title' => $c->contact->custom_fields['webchat_page_title'] ?? null,
+                    'page_url' => $c->contact->custom_fields['webchat_page_url'] ?? null,
+                    'ip' => $c->contact->custom_fields['webchat_last_ip'] ?? null,
+                ],
+                'custom_fields' => Demo::active()
+                    ? Demo::maskArrayValues($c->contact->custom_fields ?? [])
+                    : ($c->contact->custom_fields ?? []),
             ] : null,
             'channel_account' => $c->channelAccount ? [
                 'id' => $c->channelAccount->id,

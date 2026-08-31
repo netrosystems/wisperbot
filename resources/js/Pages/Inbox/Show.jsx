@@ -13,6 +13,7 @@ import {
 import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
 import { formatTimeTz, formatInTz } from '@/Utils/datetime';
 import { playInboundSound, getSoundPrefs, setChannelSoundEnabled, SOUND_CHANNELS } from '@/Utils/notificationSound';
+import { getCountryFlagEmoji } from '@/Components/Inbox/LiveVisitorsMap';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
@@ -2149,10 +2150,19 @@ export default function InboxShow({
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 truncate">{contactName}</p>
-                            <p className="text-xs text-neutral-400 flex items-center gap-1.5">
+                            <p className="text-xs text-neutral-400 flex items-center gap-1.5 flex-wrap">
                                 <ChannelBrandIcon channel={channel} className="h-3 w-3 shrink-0" />
                                 <span>{CHANNEL_LABELS[channel] ?? channel}</span>
                                 {conversation.channel_account?.name && <><span className="text-neutral-300 dark:text-neutral-600">·</span><span>{conversation.channel_account.name}</span></>}
+                                {conversation.contact?.custom_fields?.webchat_country_code && (
+                                    <>
+                                        <span className="text-neutral-300 dark:text-neutral-600">·</span>
+                                        <span className="flex items-center gap-1">
+                                            <span>{getCountryFlagEmoji(conversation.contact.custom_fields.webchat_country_code)}</span>
+                                            <span>{[conversation.contact.custom_fields.webchat_city, conversation.contact.custom_fields.webchat_country].filter(Boolean).join(', ')}</span>
+                                        </span>
+                                    </>
+                                )}
                             </p>
                         </div>
 
