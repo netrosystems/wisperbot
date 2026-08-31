@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\TypingPresence;
+use App\Modules\Inbox\Services\WebchatGeoService;
 use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
