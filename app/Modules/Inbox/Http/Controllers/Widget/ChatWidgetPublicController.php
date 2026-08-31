@@ -53,6 +53,8 @@ class ChatWidgetPublicController extends Controller
             'push' => ['nullable', 'array'],
             'push.token' => ['nullable', 'string', 'max:255'],
             'active' => ['nullable', 'boolean'],
+            'page_url' => ['nullable', 'string', 'max:1000'],
+            'page_title' => ['nullable', 'string', 'max:255'],
         ]);
 
         $widget = $this->resolveWidget($data['key']);
@@ -87,7 +89,12 @@ class ChatWidgetPublicController extends Controller
             $conversation = $this->driver->resolveConversation($widget, $visitorId, $identity);
         }
         if ((bool) ($data['active'] ?? false)) {
-            $this->presence->touch($conversation, $request->ip());
+            $this->presence->touch(
+                $conversation,
+                $request->ip(),
+                $data['page_url'] ?? null,
+                $data['page_title'] ?? null,
+            );
         }
         $this->visitorPush->register($widget, $conversation, $visitorId, $data['push']['token'] ?? null);
         $token = WebchatVisitorToken::issue($conversation->id, $widget->widget_key, $visitorId);
@@ -115,6 +122,8 @@ class ChatWidgetPublicController extends Controller
                 'mimes:'.AttachmentService::ALLOWED_MIMES,
             ],
             'client_message_id' => ['nullable', 'string', 'max:64'],
+            'page_url' => ['nullable', 'string', 'max:1000'],
+            'page_title' => ['nullable', 'string', 'max:255'],
         ]);
 
         $widget = $this->resolveWidget($data['key']);
@@ -127,7 +136,12 @@ class ChatWidgetPublicController extends Controller
             ->where('workspace_id', $widget->workspace_id)
             ->first();
         abort_if($conversation === null, 404, 'Conversation not found.');
-        $this->presence->touch($conversation, $request->ip());
+        $this->presence->touch(
+            $conversation,
+            $request->ip(),
+            $data['page_url'] ?? null,
+            $data['page_title'] ?? null,
+        );
 
         $type = $data['type'] ?? 'text';
         $body = trim((string) ($data['message'] ?? ''));

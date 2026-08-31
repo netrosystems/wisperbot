@@ -383,7 +383,9 @@
     var body = {
       key: KEY,
       visitor_id: visitorId || undefined,
-      active: pageCanReportPresence()
+      active: pageCanReportPresence(),
+      page_url: typeof window !== 'undefined' ? window.location.href : undefined,
+      page_title: typeof document !== 'undefined' ? document.title : undefined
     };
     var id = identityPayload(prechatData);
     for (var k in id) { if (id[k] !== undefined) body[k] = id[k]; }
