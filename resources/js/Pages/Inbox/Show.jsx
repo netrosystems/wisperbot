@@ -2037,6 +2037,10 @@ export default function InboxShow({
     const handleStatus = (status) => router.post(route('client.inbox.status', conversation.uuid), { status }, { preserveScroll: true });
 
     const navigateList = (params) => {
+        if (params.folder === 'live') {
+            router.visit(route('client.inbox.index', { folder: 'live' }));
+            return;
+        }
         setListLoading(true);
         router.get(route('client.inbox.show', conversation.uuid), { ...filters, ...params }, { preserveState: true, replace: true });
     };
