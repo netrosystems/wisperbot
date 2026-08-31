@@ -337,6 +337,48 @@ class ChatWidgetPublicController extends Controller
         return response()->json(json_decode($pusher->authorizeChannel($channelName, (string) $data['socket_id']), true));
     }
 
+    /** GET /widget/v1/pusher-config — retrieve Pusher realtime configuration for widget. */
+    public function pusherConfig(Request $request): JsonResponse
+    {
+        $widgetKey = (string) $request->query('key', '');
+        $widget = $this->resolveWidget($widgetKey);
+        $this->assertDomainAllowed($widget, $request);
+
+        $cfg = app(\App\Services\PusherPublicConfig::class)->widget();
+
+        return response()->json([
+            'key' => $cfg['key'] ?? '',
+            'cluster' => $cfg['cluster'] ?? 'mt1',
+            'authEndpoint' => url('/widget/v1/broadcasting/auth'),
+        ]);
+    }
+
+    /** POST /widget/v1/delivered — visitor acknowledges message delivery in background. */
+    public function delivered(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string'],
+            'message_id' => ['nullable', 'integer'],
+        ]);
+
+        $widget = $this->resolveWidget($data['key']);
+        $this->assertDomainAllowed($widget, $request);
+        $payload = $this->authVisitor($request, $widget);
+
+        if (! empty($payload['c'])) {
+            $conversation = Conversation::whereKey((int) $payload['c'])
+                ->where('workspace_id', $widget->workspace_id)
+                ->first();
+
+            if ($conversation) {
+                $this->acknowledgeOutboundMessages($conversation, false);
+                $this->presence->touch($conversation, $request->ip());
+            }
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     /** POST /widget/v1/handoff — visitor asks to continue with a person. */
     public function handoff(Request $request): JsonResponse
     {

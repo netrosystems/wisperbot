@@ -132,7 +132,7 @@ class OneSignalService
         ))));
 
         if (! $this->isConfigured() || $subscriptionIds === []) {
-            return;
+            return false;
         }
 
         $config = $this->configuration();
@@ -169,7 +169,11 @@ class OneSignalService
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
+
+            return false;
         }
+
+        return true;
     }
 
     /**
