@@ -82,6 +82,36 @@ class InboxController extends Controller
             ->paginate(30)
             ->withQueryString();
 
+        if ($isLiveFolder) {
+            $geoService = app(WebchatGeoService::class);
+            $conversations->getCollection()->transform(function (Conversation $conv) use ($geoService) {
+                $contact = $conv->contact;
+                if ($contact) {
+                    $cf = $contact->custom_fields ?? [];
+                    $ip = $cf['webchat_last_ip'] ?? null;
+                    if ($ip && (empty($cf['webchat_country']) || empty($cf['webchat_lat']))) {
+                        $geo = $geoService->resolve($ip);
+                        if (! empty($geo['country'])) {
+                            $cf = array_merge($cf, [
+                                'webchat_country' => $geo['country'],
+                                'webchat_country_code' => $geo['country_code'],
+                                'webchat_city' => $geo['city'],
+                                'webchat_region' => $geo['region'],
+                                'webchat_lat' => $geo['lat'],
+                                'webchat_lon' => $geo['lon'],
+                                'webchat_timezone' => $geo['timezone'],
+                                'webchat_resolved_ip' => $ip,
+                            ]);
+                            $contact->update(['custom_fields' => $cf]);
+                            $contact->custom_fields = $cf;
+                        }
+                    }
+                }
+
+                return $conv;
+            });
+        }
+
         $labels = InboxLabel::where('workspace_id', $workspaceId)->orderBy('name')->get(['id', 'name', 'color']);
         $channelAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('status', 'active')
@@ -191,7 +221,9 @@ class InboxController extends Controller
             ->when(($filters['folder'] ?? null) === 'live', fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', app(WebchatPresence::class)->onlineSince()))
-            ->when(($filters['folder'] ?? null) !== 'live', fn ($q) => $q->whereHas('messages'))
+            ->when(($filters['folder'] ?? null) !== 'live', fn ($q) => $q->where(function ($sub) use ($conversation) {
+                $sub->whereHas('messages')->orWhere('id', $conversation->id);
+            }))
             ->when(($filters['folder'] ?? null) === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when(($filters['folder'] ?? null) === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($filters['channel'] ?? null, fn ($q, $ch) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $ch)))
