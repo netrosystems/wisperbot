@@ -865,17 +865,26 @@
         realtimeConnected = true;
         poll().catch(function () {});
       });
-      pusherChannel.bind('pusher:subscription_error', function () {
-        realtimeDisabled = true;
-        disconnectRealtime();
-      });
-      pusherChannel.bind('WidgetMessageCreated', function (data) {
-        var message = data && data.message;
+      var handleNewMessage = function (data) {
+        var message = (data && data.message) ? data.message : data;
         if (message && addMessage(message) && message.role === 'agent') {
           notifyAboutAgentMessages(1);
+          if (open) {
+            post('/widget/v1/read', { key: KEY }).catch(function () {});
+          } else {
+            post('/widget/v1/delivered', { key: KEY, message_id: message.id }).catch(function () {});
+          }
         }
-      });
+      };
+      pusherChannel.bind('WidgetMessageCreated', handleNewMessage);
+      pusherChannel.bind('.WidgetMessageCreated', handleNewMessage);
+      pusherChannel.bind('MessageReceived', handleNewMessage);
+      pusherChannel.bind('.MessageReceived', handleNewMessage);
+
       pusherChannel.bind('WidgetTypingChanged', function (data) {
+        renderAgentTyping(data && data.agent_typing);
+      });
+      pusherChannel.bind('TypingChanged', function (data) {
         renderAgentTyping(data && data.agent_typing);
       });
       pusherChannel.bind('WidgetHandoffUpdated', function (data) {
@@ -885,6 +894,9 @@
         applyCommand(data && data.command);
       });
       pusherChannel.bind('MessageStatusUpdated', function (data) {
+        if (data && data.id) updateVisitorMessageStatus(data.id, data.status);
+      });
+      pusherChannel.bind('.MessageStatusUpdated', function (data) {
         if (data && data.id) updateVisitorMessageStatus(data.id, data.status);
       });
     }).catch(function () {
