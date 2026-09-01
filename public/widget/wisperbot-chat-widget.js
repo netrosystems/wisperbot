@@ -155,7 +155,7 @@
   thread.forEach(function (m) {
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size);
+    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.status, m.id);
   });
   updateStatus();
   if (prechatNeeded) { prechat.style.display = 'block'; form.style.display = 'none'; }
@@ -367,7 +367,7 @@
     thread.forEach(function (m) {
       rendered[m.id] = true;
       if (m.id > lastId) lastId = m.id;
-      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type);
+      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.status, m.id);
     });
     prechat.style.display = prechatNeeded ? 'block' : 'none';
     form.style.display = prechatNeeded ? 'none' : 'flex';
@@ -956,23 +956,42 @@
     if (!m) return false;
     removeMatchingPendingVisitorMessage(m);
     if (m.role === 'agent') renderAgentTyping(null);
-    if (rendered[m.id]) return false;
+    if (rendered[m.id]) {
+      if (m.status) updateVisitorMessageStatus(m.id, m.status);
+      return false;
+    }
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    thread.push({ id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status });
+    var existingIdx = -1;
+    for (var i = 0; i < thread.length; i++) {
+      if (thread[i].id === m.id) { existingIdx = i; break; }
+    }
+    var msgObj = { id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status };
+    if (existingIdx >= 0) thread[existingIdx] = msgObj;
+    else thread.push(msgObj);
     saveThread();
     addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.status, m.id);
     return true;
   }
 
   function updateVisitorMessageStatus(msgId, status) {
-    if (!body || !msgId) return;
-    var el = body.querySelector('[data-wb-status-id="' + String(msgId) + '"]');
-    if (!el) return;
-    var glyph = status === 'read' ? '✓✓' : (status === 'delivered' ? '✓✓' : (status === 'sent' ? '✓' : '⋯'));
-    el.textContent = glyph;
-    if (status === 'read') el.classList.add('wb-status-read');
-    else el.classList.remove('wb-status-read');
+    if (!msgId) return;
+    if (body) {
+      var el = body.querySelector('[data-wb-status-id="' + String(msgId) + '"]');
+      if (el) {
+        var glyph = status === 'read' ? '✓✓' : (status === 'delivered' ? '✓✓' : (status === 'sent' ? '✓' : '⋯'));
+        el.textContent = glyph;
+        if (status === 'read') el.classList.add('wb-status-read');
+        else el.classList.remove('wb-status-read');
+      }
+    }
+    for (var i = 0; i < thread.length; i++) {
+      if (thread[i].id === msgId) {
+        thread[i].status = status;
+        saveThread();
+        break;
+      }
+    }
   }
 
   function removeMatchingPendingVisitorMessage(m) {
