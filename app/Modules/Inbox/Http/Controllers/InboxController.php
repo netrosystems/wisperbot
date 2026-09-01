@@ -409,6 +409,7 @@ class InboxController extends Controller
             $previewUrl = $this->browserSafePublicUrl($upload['url'], $request);
 
             $attachmentPayload = [
+                'path' => $upload['path'],
                 'preview_url' => $previewUrl,
                 'caption' => $validated['body'] ?? null,
                 'filename' => $upload['filename'],
