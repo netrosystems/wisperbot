@@ -134,6 +134,29 @@ class InboxController extends Controller
     {
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
         $folder = (string) $request->query('folder', 'inbox');
+        $selected = null;
+        $messages = collect();
+
+        if ($request->filled('conversation')) {
+            $selected = Conversation::where('workspace_id', $workspaceId)
+                ->where('uuid', $request->string('conversation')->toString())
+                ->whereHas('channelAccount', fn ($query) => $query->where('channel', 'email'))
+                ->with(['contact', 'channelAccount', 'labels', 'latestInboundMessage', 'lastHumanReply.sender'])
+                ->first();
+            if ($selected) {
+                $messages = $selected->messages()
+                    ->with('sender')
+                    ->latest('sent_at')
+                    ->limit(200)
+                    ->get()
+                    ->reverse()
+                    ->values();
+                $messages->each(fn (Message $message) => $this->normaliseMessageMediaUrl($message, $request));
+                if ($selected->unread_count > 0) {
+                    $selected->update(['unread_count' => 0]);
+                }
+            }
+        }
 
         $base = Conversation::where('workspace_id', $workspaceId)
             ->whereHas('channelAccount', fn ($query) => $query->where('channel', 'email'));
@@ -166,7 +189,7 @@ class InboxController extends Controller
         return Inertia::render('Inbox/EmailMasterBox', [
             'conversations' => $conversations,
             'accounts' => $accounts,
-            'filters' => ['folder' => $folder, 'account_id' => $request->query('account_id')],
+            'filters' => ['folder' => $folder, 'account_id' => $request->query('account_id'), 'conversation' => $request->query('conversation')],
             'counts' => [
                 'inbox' => (clone $accountBase)->where('status', '!=', 'resolved')->count(),
                 'unread' => (clone $accountBase)->where('unread_count', '>', 0)->count(),
@@ -175,6 +198,8 @@ class InboxController extends Controller
                 'all' => (clone $accountBase)->count(),
                 'mailboxes' => $accounts->count(),
             ],
+            'selectedConversation' => $selected,
+            'messages' => $messages,
         ]);
     }
 
