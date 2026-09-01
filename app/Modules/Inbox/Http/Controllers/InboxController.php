@@ -135,13 +135,17 @@ class InboxController extends Controller
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
         $folder = (string) $request->query('folder', 'inbox');
 
-        $conversations = Conversation::where('workspace_id', $workspaceId)
-            ->whereHas('channelAccount', fn ($query) => $query->where('channel', 'email'))
+        $base = Conversation::where('workspace_id', $workspaceId)
+            ->whereHas('channelAccount', fn ($query) => $query->where('channel', 'email'));
+        $accountBase = (clone $base)
+            ->when($request->account_id, fn ($query, $accountId) => $query->where('channel_account_id', $accountId));
+
+        $conversations = (clone $accountBase)
             ->with(['contact', 'channelAccount', 'lastMessage.sender'])
+            ->when($folder === 'inbox', fn ($query) => $query->where('status', '!=', 'resolved'))
             ->when($folder === 'unread', fn ($query) => $query->where('unread_count', '>', 0))
             ->when($folder === 'sent', fn ($query) => $query->whereHas('messages', fn ($messages) => $messages->where('direction', 'out')))
             ->when($folder === 'resolved', fn ($query) => $query->where('status', 'resolved'))
-            ->when($request->account_id, fn ($query, $accountId) => $query->where('channel_account_id', $accountId))
             ->orderByDesc('last_message_at')
             ->paginate(30)
             ->withQueryString();
@@ -164,9 +168,11 @@ class InboxController extends Controller
             'accounts' => $accounts,
             'filters' => ['folder' => $folder, 'account_id' => $request->query('account_id')],
             'counts' => [
-                'unread' => Conversation::where('workspace_id', $workspaceId)
-                    ->whereHas('channelAccount', fn ($query) => $query->where('channel', 'email'))
-                    ->where('unread_count', '>', 0)->count(),
+                'inbox' => (clone $accountBase)->where('status', '!=', 'resolved')->count(),
+                'unread' => (clone $accountBase)->where('unread_count', '>', 0)->count(),
+                'sent' => (clone $accountBase)->whereHas('messages', fn ($messages) => $messages->where('direction', 'out'))->count(),
+                'resolved' => (clone $accountBase)->where('status', 'resolved')->count(),
+                'all' => (clone $accountBase)->count(),
                 'mailboxes' => $accounts->count(),
             ],
         ]);
