@@ -56,11 +56,19 @@ class GenericMailboxClient
         return $messages;
     }
 
-    public function send(ChannelAccount $account, string $to, string $subject, string $body, ?string $inReplyTo = null, array $cc = [], array $bcc = []): string
-    {
+    public function send(
+        ChannelAccount $account,
+        string $to,
+        string $subject,
+        string $body,
+        ?string $inReplyTo = null,
+        array $cc = [],
+        array $bcc = [],
+        array $attachments = []
+    ): string {
         $credentials = $account->credentials ?? [];
         $mailer = $this->mailer($account);
-        $sent = $mailer->html(nl2br(e($body)), function ($message) use ($credentials, $to, $subject, $inReplyTo, $cc, $bcc): void {
+        $sent = $mailer->html(nl2br(e($body)), function ($message) use ($credentials, $to, $subject, $inReplyTo, $cc, $bcc, $attachments): void {
             $message->to($to)->subject($subject)->from($credentials['username'], $credentials['from_name'] ?? null);
             if ($cc !== []) {
                 $message->cc($cc);
@@ -71,6 +79,18 @@ class GenericMailboxClient
             if ($inReplyTo) {
                 $message->getHeaders()->addTextHeader('In-Reply-To', '<'.trim($inReplyTo, '<>').'>');
                 $message->getHeaders()->addTextHeader('References', '<'.trim($inReplyTo, '<>').'>');
+            }
+            foreach ($attachments as $att) {
+                if (! empty($att['raw_bytes'])) {
+                    $message->attachData($att['raw_bytes'], $att['filename'] ?? 'attachment', [
+                        'mime' => $att['mime_type'] ?? 'application/octet-stream',
+                    ]);
+                } elseif (! empty($att['path']) && file_exists($att['path'])) {
+                    $message->attach($att['path'], [
+                        'as' => $att['filename'] ?? basename($att['path']),
+                        'mime' => $att['mime_type'] ?? 'application/octet-stream',
+                    ]);
+                }
             }
         });
 

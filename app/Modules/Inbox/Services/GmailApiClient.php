@@ -90,14 +90,14 @@ class GmailApiClient
         return $messages;
     }
 
-    public function sendMessage(ChannelAccount $account, string $to, string $subject, string $body, array $cc = [], array $bcc = []): string
+    public function sendMessage(ChannelAccount $account, string $to, string $subject, string $body, array $cc = [], array $bcc = [], array $attachments = []): string
     {
-        return $this->send($account, $to, $subject, $body, null, null, $cc, $bcc);
+        return $this->send($account, $to, $subject, $body, null, null, $cc, $bcc, $attachments);
     }
 
-    public function sendReply(ChannelAccount $account, string $to, string $subject, string $body, ?string $inReplyTo, ?string $threadId): string
+    public function sendReply(ChannelAccount $account, string $to, string $subject, string $body, ?string $inReplyTo, ?string $threadId, array $attachments = []): string
     {
-        return $this->send($account, $to, $subject, $body, $inReplyTo, $threadId);
+        return $this->send($account, $to, $subject, $body, $inReplyTo, $threadId, [], [], $attachments);
     }
 
     public function verify(ChannelAccount $account): bool
@@ -105,7 +105,7 @@ class GmailApiClient
         return $this->request($account)->get('https://gmail.googleapis.com/gmail/v1/users/me/profile')->successful();
     }
 
-    private function send(ChannelAccount $account, string $to, string $subject, string $body, ?string $inReplyTo = null, ?string $threadId = null, array $cc = [], array $bcc = []): string
+    private function send(ChannelAccount $account, string $to, string $subject, string $body, ?string $inReplyTo = null, ?string $threadId = null, array $cc = [], array $bcc = [], array $attachments = []): string
     {
         $from = (string) ($account->meta_json['email'] ?? '');
         $headers = [
@@ -113,7 +113,6 @@ class GmailApiClient
             'To: '.$to,
             'Subject: '.$this->header($subject),
             'MIME-Version: 1.0',
-            'Content-Type: text/html; charset=UTF-8',
         ];
         if ($cc !== []) {
             $headers[] = 'Cc: '.implode(', ', $cc);
@@ -126,7 +125,41 @@ class GmailApiClient
             $headers[] = 'In-Reply-To: '.$messageId;
             $headers[] = 'References: '.$messageId;
         }
-        $payload = ['raw' => $this->base64Url(implode("\r\n", $headers)."\r\n\r\n".nl2br(e($body)))];
+
+        if (empty($attachments)) {
+            $headers[] = 'Content-Type: text/html; charset=UTF-8';
+            $headers[] = 'Content-Transfer-Encoding: quoted-printable';
+            $raw = implode("\r\n", $headers)."\r\n\r\n".quoted_printable_encode(nl2br(e($body)));
+        } else {
+            $boundary = '=_mail_'.md5(uniqid((string) mt_rand(), true));
+            $headers[] = 'Content-Type: multipart/mixed; boundary="'.$boundary.'"';
+
+            $bodyPart = "--{$boundary}\r\n"
+                ."Content-Type: text/html; charset=UTF-8\r\n"
+                ."Content-Transfer-Encoding: quoted-printable\r\n\r\n"
+                .quoted_printable_encode(nl2br(e($body)))."\r\n";
+
+            $attParts = '';
+            foreach ($attachments as $att) {
+                $rawBytes = $att['raw_bytes'] ?? (file_exists($att['path'] ?? '') ? file_get_contents($att['path']) : null);
+                if ($rawBytes === null) {
+                    continue;
+                }
+                $filename = $att['filename'] ?? 'attachment';
+                $mimeType = $att['mime_type'] ?? 'application/octet-stream';
+                $encodedFile = chunk_split(base64_encode($rawBytes), 76, "\r\n");
+
+                $attParts .= "--{$boundary}\r\n"
+                    ."Content-Type: {$mimeType}; name=\"".addslashes($filename)."\"\r\n"
+                    ."Content-Transfer-Encoding: base64\r\n"
+                    ."Content-Disposition: attachment; filename=\"".addslashes($filename)."\"\r\n\r\n"
+                    .$encodedFile;
+            }
+
+            $raw = implode("\r\n", $headers)."\r\n\r\n".$bodyPart.$attParts."--{$boundary}--\r\n";
+        }
+
+        $payload = ['raw' => $this->base64Url($raw)];
         if ($threadId) {
             $payload['threadId'] = $threadId;
         }
