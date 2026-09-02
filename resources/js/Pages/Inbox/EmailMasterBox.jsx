@@ -6,7 +6,7 @@ import {
     Paperclip, PenLine, Plus, RefreshCw, Search, Send, Settings2, X,
 } from 'lucide-react';
 import axios from 'axios';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatTimeTz } from '@/Utils/datetime';
 
 const FOLDERS = [
@@ -361,6 +361,9 @@ export default function EmailMasterBox({
     const replyFileRef = useRef(null);
     const replyImageRef = useRef(null);
     const bottomRef = useRef(null);
+    const threadScrollRef = useRef(null);
+    const prevConversationId = useRef(null);
+    const prevMessagesCount = useRef(0);
 
     // Reset local sent messages when selecting a different conversation
     if (selectedConversation?.id !== prevConvId) {
@@ -374,11 +377,30 @@ export default function EmailMasterBox({
         return [...initialMessages, ...sentMessages.filter(m => !initialIds.has(m.id))];
     }, [initialMessages, sentMessages]);
 
-    useEffect(() => {
-        if (selectedConversation && bottomRef.current) {
-            bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    useLayoutEffect(() => {
+        if (!selectedConversation) return;
+
+        const isNewConv = prevConversationId.current !== selectedConversation.id;
+        prevConversationId.current = selectedConversation.id;
+
+        if (isNewConv) {
+            if (threadScrollRef.current) {
+                threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight;
+            }
+            bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
+            prevMessagesCount.current = messages.length;
+            requestAnimationFrame(() => {
+                if (threadScrollRef.current) {
+                    threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight;
+                }
+            });
+        } else if (messages.length > prevMessagesCount.current) {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            prevMessagesCount.current = messages.length;
+        } else {
+            prevMessagesCount.current = messages.length;
         }
-    }, [selectedConversation?.id, messages.length]);
+    }, [selectedConversation?.id, messages]);
 
     const conversationsData = conversations?.data ?? [];
     const filtered = useMemo(() => {
@@ -709,7 +731,7 @@ export default function EmailMasterBox({
                                 </div>
                             </header>
 
-                            <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-100/70 p-4 space-y-4 dark:bg-neutral-950 sm:p-6">
+                            <div ref={threadScrollRef} className="min-h-0 flex-1 overflow-y-auto bg-neutral-100/70 p-4 space-y-4 dark:bg-neutral-950 sm:p-6">
                                 {messages.map(message => (
                                     <MessageBlock
                                         key={message.id}
