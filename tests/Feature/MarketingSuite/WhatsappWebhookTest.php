@@ -2,11 +2,17 @@
 
 namespace Tests\Feature\MarketingSuite;
 
+use App\Events\MessageReceived;
+use App\Events\MessageSent;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\Shared\Models\ChannelAccount;
+use App\Modules\Shared\Models\Conversation;
+use App\Modules\Shared\Models\Message;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
+use App\Modules\Whatsapp\Services\WhatsappDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -108,5 +114,95 @@ class WhatsappWebhookTest extends TestCase
             'workspace_id' => $waba->workspace_id,
         ]);
         $this->assertDatabaseHas('messages', ['provider_message_id' => 'wamid.TEST123']);
+    }
+
+    #[Test]
+    public function it_imports_coexistence_history_without_triggering_inbound_automations(): void
+    {
+        $waba = $this->makeWaba();
+        Event::fake([MessageReceived::class, MessageSent::class]);
+
+        $payload = [
+            'entry' => [[
+                'id' => $waba->waba_id,
+                'changes' => [[
+                    'field' => 'history',
+                    'value' => [
+                        'metadata' => ['phone_number_id' => $this->phoneNumberId],
+                        'history' => [[
+                            'threads' => [[
+                                'messages' => [
+                                    [
+                                        'from' => '8801900000001',
+                                        'id' => 'wamid.HISTORY_IN',
+                                        'timestamp' => now()->subMinutes(2)->timestamp,
+                                        'text' => ['body' => 'Sent before connecting'],
+                                        'type' => 'text',
+                                    ],
+                                    [
+                                        'from' => '1555000000',
+                                        'to' => '8801900000001',
+                                        'id' => 'wamid.HISTORY_OUT',
+                                        'timestamp' => now()->subMinute()->timestamp,
+                                        'text' => ['body' => 'Business app reply'],
+                                        'type' => 'text',
+                                        'history_context' => ['status' => 'read'],
+                                    ],
+                                ],
+                            ]],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        app(WhatsappDriver::class)->processWebhookPayload($payload);
+
+        $this->assertDatabaseHas('messages', [
+            'provider_message_id' => 'wamid.HISTORY_IN',
+            'direction' => 'in',
+            'status' => 'delivered',
+        ]);
+        $this->assertDatabaseHas('messages', [
+            'provider_message_id' => 'wamid.HISTORY_OUT',
+            'direction' => 'out',
+            'status' => 'read',
+        ]);
+        $this->assertSame(0, Conversation::firstOrFail()->unread_count);
+        Event::assertNotDispatched(MessageReceived::class);
+        Event::assertNotDispatched(MessageSent::class);
+    }
+
+    #[Test]
+    public function it_displays_business_app_message_echoes_without_triggering_ai(): void
+    {
+        $waba = $this->makeWaba();
+        Event::fake([MessageReceived::class, MessageSent::class]);
+
+        app(WhatsappDriver::class)->processWebhookPayload([
+            'entry' => [[
+                'id' => $waba->waba_id,
+                'changes' => [[
+                    'field' => 'smb_message_echoes',
+                    'value' => [
+                        'metadata' => ['phone_number_id' => $this->phoneNumberId],
+                        'message_echoes' => [[
+                            'from' => '1555000000',
+                            'to' => '8801900000001',
+                            'id' => 'wamid.APP_ECHO',
+                            'timestamp' => now()->timestamp,
+                            'text' => ['body' => 'Reply from the phone app'],
+                            'type' => 'text',
+                        ]],
+                    ],
+                ]],
+            ]],
+        ]);
+
+        $message = Message::where('provider_message_id', 'wamid.APP_ECHO')->firstOrFail();
+        $this->assertSame('out', $message->direction);
+        $this->assertSame('Reply from the phone app', $message->body);
+        Event::assertDispatched(MessageSent::class, fn (MessageSent $event) => $event->message->is($message));
+        Event::assertNotDispatched(MessageReceived::class);
     }
 }

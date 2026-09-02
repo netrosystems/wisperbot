@@ -1,6 +1,6 @@
 # Architecture
 
-Last verified against code: 2026-08-21.
+Last verified against code: 2026-09-03.
 
 ## System shape
 
@@ -68,6 +68,14 @@ Meta Messenger and Instagram webhook processing currently uses the `whatsapp` qu
 3. Send, poll, typing, and human-handoff endpoints operate on that private identity.
 4. Signed user identity is accepted only when its server-generated HMAC verifies; otherwise the visitor remains anonymous.
 5. The resulting conversation appears as `webchat` in the Omni Channel Inbox and is broadcast to workspace agents.
+
+### WhatsApp Coexistence
+
+1. The client chooses the existing WhatsApp Business app path; the browser starts Meta Embedded Signup with the Coexistence feature type.
+2. The callback stores the workspace-scoped WABA/phone token, subscribes Coexistence webhook fields, deliberately skips Cloud API phone registration, and requests contact then history sync.
+3. The global WhatsApp webhook verifies and queues all payloads on `whatsapp`.
+4. `WhatsappDriver` imports `history` without emitting `MessageReceived`, so historical content cannot trigger AI/automations or unread counts.
+5. `smb_message_echoes` are persisted as outbound human messages and emit `MessageSent` for realtime inbox display. All lookups remain scoped through the matching phone `ChannelAccount` and its workspace.
 
 ### AI knowledge base
 

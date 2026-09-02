@@ -3,6 +3,7 @@
 namespace App\Modules\Whatsapp\Services;
 
 use App\Events\MessageReceived;
+use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Modules\Broadcasting\Models\CampaignRecipient;
 use App\Modules\Shared\Contracts\ChannelDriverInterface;
@@ -91,6 +92,40 @@ class WhatsappDriver implements ChannelDriverInterface
 
                 if (in_array($field, ['phone_number_quality_update', 'phone_number_name_update', 'account_update'], true)) {
                     $this->processPhoneNumberUpdate($value);
+
+                    continue;
+                }
+
+                if ($field === 'smb_message_echoes') {
+                    foreach ($value['message_echoes'] ?? [] as $msg) {
+                        try {
+                            $processed[] = $this->processCoexistenceMessage($value, $msg, false);
+                        } catch (\Throwable $e) {
+                            Log::error('WhatsApp Business app echo processing failed', ['error' => $e->getMessage(), 'msg' => $msg]);
+                        }
+                    }
+
+                    continue;
+                }
+
+                if ($field === 'history') {
+                    foreach ($value['history'] ?? [] as $history) {
+                        foreach ($history['threads'] ?? [] as $thread) {
+                            foreach ($thread['messages'] ?? [] as $msg) {
+                                try {
+                                    $processed[] = $this->processCoexistenceMessage($value, $msg, true);
+                                } catch (\Throwable $e) {
+                                    Log::error('WhatsApp Business app history processing failed', ['error' => $e->getMessage(), 'msg' => $msg]);
+                                }
+                            }
+                        }
+                    }
+
+                    continue;
+                }
+
+                if ($field === 'smb_app_state_sync') {
+                    $this->processBusinessAppStateSync($value);
 
                     continue;
                 }
@@ -254,11 +289,166 @@ class WhatsappDriver implements ChannelDriverInterface
             ['status' => 'open', 'external_thread_id' => $fromPhone]
         );
 
-        $type = $msg['type'] ?? 'text';
+        [$type, $body] = $this->messagePresentation($msg);
+
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'in',
+            'channel' => 'whatsapp',
+            'type' => $type,
+            'payload' => $msg,
+            'body' => $body,
+            'status' => 'delivered',
+            'provider_message_id' => $msg['id'] ?? null,
+            'sent_by' => 'human',
+            'sent_at' => now()->createFromTimestamp($msg['timestamp'] ?? time()),
+        ]);
+
+        $conversation->update([
+            'last_message_at' => $message->sent_at,
+            'status' => 'open',
+            'unread_count' => $conversation->unread_count + 1,
+            'last_inbound_at' => $message->sent_at,
+            // If contact replies after we responded, reset first_response_at for next cycle
+            'first_response_at' => $conversation->first_response_at && $conversation->last_inbound_at
+                ? ($message->sent_at > $conversation->first_response_at ? null : $conversation->first_response_at)
+                : $conversation->first_response_at,
+        ]);
+
+        // Fire typed event for automations / AI
+        MessageReceived::dispatch($message);
+
+        return $message;
+    }
+
+    /**
+     * Store messages that were sent or previously received in the linked
+     * WhatsApp Business app without triggering inbound automations.
+     */
+    private function processCoexistenceMessage(array $value, array $msg, bool $historical): Message
+    {
+        $msgId = $msg['id'] ?? null;
+        if ($msgId && ! app(WebhookIdempotencyService::class)->isNewEvent('whatsapp_msg', $msgId)) {
+            $existing = Message::where('provider_message_id', $msgId)->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            throw new \RuntimeException("Duplicate webhook skipped (concurrent): {$msgId}");
+        }
+
+        $phoneId = (string) ($value['metadata']['phone_number_id'] ?? '');
+        $direction = isset($msg['to']) ? 'out' : 'in';
+        $contactPhone = (string) ($direction === 'out' ? ($msg['to'] ?? '') : ($msg['from'] ?? ''));
+        $contactPhone = ltrim($contactPhone, '+');
+
+        $channelAccount = ChannelAccount::where('phone_number_id', $phoneId)
+            ->where('channel', 'whatsapp')
+            ->first();
+
+        if (! $channelAccount || $contactPhone === '') {
+            throw new \RuntimeException('Coexistence message is missing a matching phone number or channel account.');
+        }
+
+        $workspaceId = (int) $channelAccount->workspace_id;
+        $contact = $this->contactService->upsert($workspaceId, [
+            'phone_e164' => '+'.$contactPhone,
+            'opt_in_whatsapp' => true,
+            'source' => $historical ? 'whatsapp_history' : 'whatsapp_business_app',
+        ], false);
+        $conversation = Conversation::firstOrCreate(
+            ['workspace_id' => $workspaceId, 'contact_id' => $contact->id, 'channel_account_id' => $channelAccount->id],
+            ['status' => 'open', 'external_thread_id' => $contactPhone]
+        );
+
+        [$type, $body] = $this->messagePresentation($msg);
+        $historyStatus = strtolower((string) ($msg['history_context']['status'] ?? ''));
+        $status = in_array($historyStatus, ['sent', 'delivered', 'read', 'failed'], true)
+            ? $historyStatus
+            : ($direction === 'out' ? 'sent' : 'delivered');
+        $sentAt = now()->createFromTimestamp((int) ($msg['timestamp'] ?? time()));
+
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => $direction,
+            'channel' => 'whatsapp',
+            'type' => $type,
+            'payload' => array_merge($msg, [
+                '_coexistence' => [
+                    'source' => $historical ? 'history' : 'message_echo',
+                ],
+            ]),
+            'body' => $body,
+            'status' => $status,
+            'provider_message_id' => $msgId,
+            'sent_by' => 'human',
+            'sent_at' => $sentAt,
+        ]);
+
+        $updates = ['status' => 'open'];
+        if (! $conversation->last_message_at || $sentAt->greaterThan($conversation->last_message_at)) {
+            $updates['last_message_at'] = $sentAt;
+        }
+        if ($direction === 'in' && (! $conversation->last_inbound_at || $sentAt->greaterThan($conversation->last_inbound_at))) {
+            $updates['last_inbound_at'] = $sentAt;
+        }
+        $conversation->update($updates);
+
+        // History is a silent backfill. Only a live echo should update open
+        // dashboards immediately, and it must never trigger AI auto-replies.
+        if (! $historical) {
+            MessageSent::dispatch($message);
+        }
+
+        return $message;
+    }
+
+    /**
+     * Import contact names shared by the WhatsApp Business app state sync.
+     * Deletions are deliberately non-destructive because a contact may still
+     * own inbox history or exist through another channel.
+     */
+    private function processBusinessAppStateSync(array $value): void
+    {
+        $phoneId = (string) ($value['metadata']['phone_number_id'] ?? '');
+        $channelAccount = ChannelAccount::where('phone_number_id', $phoneId)
+            ->where('channel', 'whatsapp')
+            ->first();
+
+        if (! $channelAccount) {
+            Log::warning('WhatsApp Business app state sync dropped — no channel_account match', [
+                'phone_number_id' => $phoneId,
+            ]);
+
+            return;
+        }
+
+        foreach ($value['state_sync'] ?? $value['contacts'] ?? [] as $item) {
+            $contactData = is_array($item['contact'] ?? null) ? $item['contact'] : $item;
+            $phone = (string) ($contactData['wa_id'] ?? $contactData['phone_number'] ?? $contactData['phone'] ?? '');
+            $phone = ltrim($phone, '+');
+            if ($phone === '') {
+                continue;
+            }
+
+            $name = trim((string) ($contactData['name'] ?? $contactData['profile']['name'] ?? ''));
+            $parts = $name !== '' ? (preg_split('/\s+/u', $name, 2) ?: []) : [];
+            $this->contactService->upsert((int) $channelAccount->workspace_id, array_filter([
+                'phone_e164' => '+'.$phone,
+                'first_name' => $parts[0] ?? null,
+                'last_name' => $parts[1] ?? null,
+                'opt_in_whatsapp' => true,
+                'source' => 'whatsapp_business_app_sync',
+            ], fn ($itemValue) => $itemValue !== null && $itemValue !== ''), false);
+        }
+    }
+
+    /** @return array{0: string, 1: string} */
+    private function messagePresentation(array $msg): array
+    {
+        $type = (string) ($msg['type'] ?? 'text');
         $interactive = is_array($msg['interactive'] ?? null) ? $msg['interactive'] : [];
         $textBlock = is_array($msg['text'] ?? null) ? $msg['text'] : [];
-
-        // Extract a human-readable body for every message type
         $body = ($textBlock['body'] ?? null)
             ?? (($msg['button'] ?? [])['text'] ?? null)
             ?? (($interactive['button_reply'] ?? [])['title'] ?? null)
@@ -267,7 +457,6 @@ class WhatsappDriver implements ChannelDriverInterface
             ?? ($msg['caption'] ?? null)
             ?? ($msg['errors'][0]['title'] ?? null);
 
-        // Type-specific body fallbacks so conversation preview is meaningful
         if ($body === null || $body === '') {
             $body = match ($type) {
                 'location' => implode(', ', array_filter([
@@ -295,34 +484,7 @@ class WhatsappDriver implements ChannelDriverInterface
         $allowedTypes = ['text', 'template', 'media', 'interactive', 'reaction', 'image', 'video',
             'document', 'audio', 'location', 'contacts', 'sticker', 'order', 'poll', 'event', 'unsupported'];
 
-        $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'direction' => 'in',
-            'channel' => 'whatsapp',
-            'type' => in_array($type, $allowedTypes, true) ? $type : 'unsupported',
-            'payload' => $msg,
-            'body' => $body,
-            'status' => 'delivered',
-            'provider_message_id' => $msg['id'] ?? null,
-            'sent_by' => 'human',
-            'sent_at' => now()->createFromTimestamp($msg['timestamp'] ?? time()),
-        ]);
-
-        $conversation->update([
-            'last_message_at' => $message->sent_at,
-            'status' => 'open',
-            'unread_count' => $conversation->unread_count + 1,
-            'last_inbound_at' => $message->sent_at,
-            // If contact replies after we responded, reset first_response_at for next cycle
-            'first_response_at' => $conversation->first_response_at && $conversation->last_inbound_at
-                ? ($message->sent_at > $conversation->first_response_at ? null : $conversation->first_response_at)
-                : $conversation->first_response_at,
-        ]);
-
-        // Fire typed event for automations / AI
-        MessageReceived::dispatch($message);
-
-        return $message;
+        return [in_array($type, $allowedTypes, true) ? $type : 'unsupported', (string) $body];
     }
 
     private function processStatusUpdate(array $status): void

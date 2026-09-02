@@ -1,6 +1,6 @@
 # Product decisions
 
-Last reviewed: 2026-08-21. This file records intentional behavior so future work does not accidentally reverse product choices.
+Last reviewed: 2026-09-03. This file records intentional behavior so future work does not accidentally reverse product choices.
 
 ## Positioning
 
@@ -56,6 +56,14 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 
 - Campaign broadcasting is SMS-focused; email campaigns/email-server campaign setup are not product features.
 - Visible SMS providers are SMSBD, REVE SMS, BulkSMS BD, MessageBird, Twilio, ProSMS (Alaris), and Amazon SNS.
+
+## WhatsApp onboarding
+
+- Channel Setup must clearly separate **Connect existing WhatsApp Business app** (Coexistence) from **Set up a Cloud API number**.
+- Meta onboarding requests a compact provider popup and is accompanied by an in-page WisperBot progress dialog. Do not iframe Meta login; if a browser converts the popup to a tab, clearly tell the customer to keep WisperBot open and return after completing Meta.
+- Coexistence preserves use of the phone app. Synced history is a silent backfill and must not trigger AI, automations, notifications, or unread inflation.
+- Messages sent from the linked phone app appear in WisperBot as outbound human messages.
+- The Meta-app owner's own WABA is an operator-managed first-party exception; the platform system-user token must never be offered to client workspaces.
 
 ## Social publishing capabilities
 

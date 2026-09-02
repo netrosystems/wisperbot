@@ -2,13 +2,15 @@
 
 namespace Tests\Feature\ProductionHardening;
 
-use App\Modules\Whatsapp\Http\Controllers\WhatsappEmbeddedSignupController;
-use App\Modules\Whatsapp\Http\Controllers\WhatsappSetupController;
 use App\Modules\Inbox\Http\Controllers\InboxSetupController;
 use App\Modules\Integrations\Services\Credentials\MetaCredentials;
+use App\Modules\Integrations\Services\MetaPageDiscoveryService;
 use App\Modules\Shared\Models\ChannelAccount;
+use App\Modules\Whatsapp\Http\Controllers\WhatsappEmbeddedSignupController;
+use App\Modules\Whatsapp\Http\Controllers\WhatsappSetupController;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
 use App\Modules\Whatsapp\Models\WhatsappPhoneNumber;
+use App\Modules\Whatsapp\Services\CloudApiClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -185,6 +187,102 @@ class WhatsappEmbeddedSignupTest extends TestCase
         $this->assertDatabaseMissing('channel_accounts', ['phone_number_id' => 'PHONE_OLD']);
     }
 
+    public function test_coexistence_sync_attaches_phone_without_registering_it_again(): void
+    {
+        $waba = WhatsappBusinessAccount::factory()->create([
+            'workspace_id' => 7,
+            'waba_id' => 'WABA_COEXIST',
+            'credentials' => ['system_user_token' => 'TOKEN'],
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/v25.0/WABA_COEXIST/phone_numbers*' => Http::response([
+                'data' => [[
+                    'id' => 'PHONE_COEXIST',
+                    'display_phone_number' => '+44 7360 251473',
+                    'verified_name' => 'Netro Systems',
+                ]],
+            ]),
+            'graph.facebook.com/v25.0/PHONE_COEXIST*' => Http::response([
+                'id' => 'PHONE_COEXIST',
+                'display_phone_number' => '+44 7360 251473',
+                'verified_name' => 'Netro Systems',
+                'account_mode' => 'LIVE',
+            ]),
+        ]);
+
+        $method = new \ReflectionMethod(WhatsappEmbeddedSignupController::class, 'syncPhoneNumbers');
+        $method->setAccessible(true);
+
+        $count = $method->invoke(
+            new WhatsappEmbeddedSignupController,
+            $waba,
+            'TOKEN',
+            new MetaCredentials(['app_id' => 'APP_ID', 'app_secret' => 'APP_SECRET']),
+            null,
+            false,
+        );
+
+        $this->assertSame(1, $count);
+        $this->assertDatabaseHas('whatsapp_phone_numbers', ['phone_number_id' => 'PHONE_COEXIST']);
+        $this->assertDatabaseHas('channel_accounts', [
+            'workspace_id' => 7,
+            'channel' => 'whatsapp',
+            'phone_number_id' => 'PHONE_COEXIST',
+            'status' => 'active',
+        ]);
+        Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/register'));
+    }
+
+    public function test_coexistence_data_sync_uses_the_business_app_endpoint(): void
+    {
+        Http::fake([
+            'graph.facebook.com/v25.0/PHONE_123/smb_app_data' => Http::response([
+                'messaging_product' => 'whatsapp',
+                'request_id' => 'SYNC_123',
+            ]),
+        ]);
+
+        $result = CloudApiClient::requestBusinessAppSync('PHONE_123', 'TOKEN', 'history');
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('SYNC_123', $result['response']['request_id']);
+        Http::assertSent(fn ($request) => $request->url() === 'https://graph.facebook.com/v25.0/PHONE_123/smb_app_data'
+            && $request['messaging_product'] === 'whatsapp'
+            && $request['sync_type'] === 'history');
+    }
+
+    public function test_coexistence_webhook_registration_includes_business_app_fields(): void
+    {
+        Http::fake([
+            'graph.facebook.com/v25.0/*' => Http::response(['success' => true]),
+        ]);
+
+        $method = new \ReflectionMethod(WhatsappEmbeddedSignupController::class, 'subscribeWabaWebhooks');
+        $method->setAccessible(true);
+        $error = $method->invoke(
+            new WhatsappEmbeddedSignupController,
+            'WABA_COEXIST',
+            'USER_TOKEN',
+            'VERIFY_TOKEN',
+            new MetaCredentials(['app_id' => 'APP_ID', 'app_secret' => 'APP_SECRET']),
+            true,
+        );
+
+        $this->assertNull($error);
+        Http::assertSent(function ($request): bool {
+            if ($request->url() !== 'https://graph.facebook.com/v25.0/APP_ID/subscriptions') {
+                return false;
+            }
+
+            $fields = explode(',', (string) $request['fields']);
+
+            return in_array('history', $fields, true)
+                && in_array('smb_app_state_sync', $fields, true)
+                && in_array('smb_message_echoes', $fields, true);
+        });
+    }
+
     public function test_social_page_filter_keeps_only_meta_selected_assets(): void
     {
         $pages = [
@@ -196,7 +294,7 @@ class WhatsappEmbeddedSignupTest extends TestCase
         $method = new \ReflectionMethod(InboxSetupController::class, 'filterPagesToSelectedTargets');
         $method->setAccessible(true);
 
-        $filtered = $method->invoke(new InboxSetupController(app(\App\Modules\Integrations\Services\MetaPageDiscoveryService::class)), $pages, ['PAGE_B'], ['IG_C']);
+        $filtered = $method->invoke(new InboxSetupController(app(MetaPageDiscoveryService::class)), $pages, ['PAGE_B'], ['IG_C']);
 
         $this->assertSame(['PAGE_B', 'PAGE_C'], array_column($filtered, 'id'));
     }

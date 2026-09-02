@@ -1,6 +1,6 @@
 # Current handoff
 
-Snapshot date: 2026-08-21.
+Snapshot date: 2026-09-03.
 
 ## Repository state at documentation creation
 
@@ -22,6 +22,8 @@ Recent work has concentrated on multi-format attachment support (PDFs, Docs, Spr
 - correct OAuth redirects/scopes and publishing controls;
 
 Before changing these flows, read `docs/PRODUCT_DECISIONS.md`, `docs/INTEGRATIONS.md`, the Social controllers/jobs/drivers, and their feature tests.
+
+The current uncommitted work adds WhatsApp Business app Coexistence alongside the existing Cloud API flow. Local tests verify the signup payload, registration skip, sync requests, silent history import, and outbound phone-app echoes. Provider-side verification still requires deploying the matching backend/Vite bundle and completing Embedded Signup with a customer-owned WABA. The Business Portfolio that owns the WisperBot Meta app is not selectable through its own customer Embedded Signup and remains a system-user/operator connection path.
 
 ## Immediate technical follow-up
 

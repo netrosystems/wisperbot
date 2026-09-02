@@ -194,6 +194,32 @@ class CloudApiClient
         ];
     }
 
+    /**
+     * Request the one-time WhatsApp Business app contact/history sync used by
+     * Coexistence onboarding.
+     *
+     * @return array{success: bool, status: int, response: array<string, mixed>}
+     */
+    public static function requestBusinessAppSync(string $phoneNumberId, string $accessToken, string $syncType): array
+    {
+        if (! in_array($syncType, ['smb_app_state_sync', 'history'], true)) {
+            throw new \InvalidArgumentException('Unsupported WhatsApp Business app sync type.');
+        }
+
+        $resp = Http::withToken($accessToken)
+            ->timeout(30)
+            ->post(self::BASE."/{$phoneNumberId}/smb_app_data", [
+                'messaging_product' => 'whatsapp',
+                'sync_type' => $syncType,
+            ]);
+
+        return [
+            'success' => $resp->successful(),
+            'status' => $resp->status(),
+            'response' => $resp->json() ?? [],
+        ];
+    }
+
     /** Fetch templates from Meta. */
     public function fetchTemplates(string $wabaId): array
     {

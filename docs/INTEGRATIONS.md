@@ -1,6 +1,6 @@
 # Integrations
 
-Last verified against code: 2026-08-21.
+Last verified against code: 2026-09-03.
 
 All application secrets belong in encrypted database configuration or environment variables. Never place credentials in this document.
 
@@ -12,7 +12,7 @@ Super Admin configures platform-level applications/gateways. A client then autho
 | --- | --- | --- | --- |
 | Meta Messenger | Meta app/configuration, OAuth redirects, permissions, webhook | Select/authorize Page | Page messages into inbox; agent replies; Page post publishing via Social module. |
 | Instagram | Same Meta app plus Instagram permissions | Select linked professional account/Page | DMs into inbox; content publishing; provider capability limitations apply. |
-| WhatsApp Cloud API | Meta app, Embedded Signup configuration, webhook | Authorize WABA and phone numbers | Inbound/outbound messaging, templates, auto replies. |
+| WhatsApp Cloud API / Coexistence | Meta app, Embedded Signup configuration, webhook fields | Choose a Cloud API-only number or connect an existing WhatsApp Business app number | Inbound/outbound messaging, templates, auto replies; Coexistence additionally syncs app contacts/history and phone-app message echoes. |
 | Telegram Business | Integration configuration/webhook | Connect supported Telegram business/bot authorization | Queued inbound updates and agent replies. |
 | Email | Google/Microsoft OAuth apps; server PHP IMAP for generic accounts | Connect multiple Gmail/Microsoft/IMAP-SMTP mailboxes | Email MasterBox sync/compose, separate from Omni Channel Inbox. |
 | eBay | Developer keyset, RuName, scopes/environment | Seller OAuth | Poll/sync seller messages and reply; see provider guide. |
@@ -59,6 +59,19 @@ Meta renames/deprecates products and permissions. Confirm the current names in M
 - Messenger/Instagram: `/webhooks/meta/{token}`.
 - Controller verification and inbound idempotency are mandatory.
 - Messenger/Instagram processing is dispatched on `whatsapp`; keep that worker active.
+
+### WhatsApp Embedded Signup modes
+
+WisperBot intentionally exposes two distinct WhatsApp setup choices:
+
+- **Existing WhatsApp Business app (Coexistence):** the Facebook SDK login payload sets `extras.featureType` to `whatsapp_business_app_onboarding` and `sessionInfoVersion` to `3`. Meta may finish with `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`. WisperBot must not call `/{PHONE_NUMBER_ID}/register`, because the number is already registered to the Business app.
+- **Cloud API-only:** uses the normal Embedded Signup flow and registers the selected phone number when required.
+
+Embedded Signup requests Meta's `popup` presentation and WisperBot displays an in-page progress dialog until Meta returns control. Meta authentication cannot be embedded in an iframe inside WisperBot; browser popup policy may still present the provider-controlled window as a tab, especially on mobile or when the user's popup preference requires it. The originating WisperBot page must remain open so the Facebook SDK callback can complete.
+
+For Coexistence, WisperBot subscribes the WABA to `messages`, template/account/phone updates, `history`, `smb_app_state_sync`, and `smb_message_echoes`. After connection it requests `smb_app_state_sync` followed by `history` through `/{PHONE_NUMBER_ID}/smb_app_data`. History is imported silently, without firing inbound AI/automation events or creating unread counts. Live phone-app echoes are stored as outbound human messages and broadcast to open agent dashboards.
+
+Meta currently prevents a Business Portfolio that owns the Meta app from selecting its own WABA inside that app's customer Embedded Signup flow. This is a provider ownership rule, not a missing WisperBot selection. The platform owner's WABA must be connected operationally with an approved system-user token and explicit asset assignment; customer WABAs continue through Embedded Signup. Never expose that platform token in the client UI.
 
 ### Review evidence
 

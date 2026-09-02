@@ -9,6 +9,12 @@ import {
 import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import {
+    embeddedSignupLoginOptions,
+    isWhatsappEmbeddedSignupFinish,
+    WHATSAPP_ONBOARDING_CLOUD_API,
+    WHATSAPP_ONBOARDING_COEXISTENCE,
+} from '@/Utils/metaEmbeddedSignup';
 
 /* brand logos (accurate official paths) */
 
@@ -581,7 +587,7 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
     const [waApiError, setWaApiError] = useState(null);
     const [waSubmitting, setWaSubmitting] = useState(false);
 
-    const handleWaEmbeddedCode = useCallback(async (code, wabaId, phoneNumberId = null) => {
+    const handleWaEmbeddedCode = useCallback(async (code, wabaId, phoneNumberId = null, onboardingType = WHATSAPP_ONBOARDING_CLOUD_API) => {
         setWaApiError(null);
         setWaSubmitting(true);
         try {
@@ -592,7 +598,7 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({ code, waba_id: wabaId, phone_number_id: phoneNumberId }),
+                body: JSON.stringify({ code, waba_id: wabaId, phone_number_id: phoneNumberId, onboarding_type: onboardingType }),
             });
             const json = await res.json();
             if (!res.ok) {
@@ -648,14 +654,29 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
                             <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                                 {t('inbox.authorize_whatsapp_help')}
                             </p>
-                            <EmbeddedSignupButton
-                                configId={metaConfigIdWhatsapp}
-                                appId={metaAppId}
-                                channel="whatsapp"
-                                label={t('inbox.continue_meta_whatsapp')}
-                                color="green"
-                                onCode={handleWaEmbeddedCode}
-                            />
+                            <div className="space-y-2">
+                                <EmbeddedSignupButton
+                                    configId={metaConfigIdWhatsapp}
+                                    appId={metaAppId}
+                                    channel="whatsapp"
+                                    whatsappOnboarding={WHATSAPP_ONBOARDING_COEXISTENCE}
+                                    label={t('inbox.connect_whatsapp_business_app', { defaultValue: 'Connect existing WhatsApp Business app' })}
+                                    color="green"
+                                    onCode={handleWaEmbeddedCode}
+                                />
+                                <p className="text-[11px] leading-relaxed text-neutral-400 dark:text-neutral-500">
+                                    {t('inbox.whatsapp_coexistence_help', { defaultValue: 'Keep using the WhatsApp Business mobile app while WisperBot receives and sends messages through Cloud API.' })}
+                                </p>
+                                <EmbeddedSignupButton
+                                    configId={metaConfigIdWhatsapp}
+                                    appId={metaAppId}
+                                    channel="whatsapp"
+                                    whatsappOnboarding={WHATSAPP_ONBOARDING_CLOUD_API}
+                                    label={t('inbox.connect_whatsapp_cloud_api', { defaultValue: 'Set up a Cloud API number' })}
+                                    color="neutral"
+                                    onCode={handleWaEmbeddedCode}
+                                />
+                            </div>
                             {waSubmitting && <p className="text-xs text-neutral-400">{t('inbox.connecting_whatsapp')}</p>}
                             {waApiError && (
                                 <p className="text-xs text-red-500 flex items-start gap-1.5">
@@ -961,7 +982,7 @@ function waitForWabaSessionInfo(timeout = 15000) {
                         return;
                     }
 
-                    if (parsed.event && parsed.event !== 'FINISH') return;
+                    if (!isWhatsappEmbeddedSignupFinish(parsed.event)) return;
 
                     clearTimeout(timer);
                     window.removeEventListener('message', handler);
@@ -1075,12 +1096,13 @@ function loadFbSdk(appId) {
     return window.__fbSdkPromise;
 }
 
-function EmbeddedSignupButton({ configId, appId, channel, label, color, onCode, children }) {
+function EmbeddedSignupButton({ configId, appId, channel, whatsappOnboarding = WHATSAPP_ONBOARDING_CLOUD_API, label, color, onCode, children }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const resolvedAppId = appId || props.metaAppId;
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState(null);
+    const [showMetaGuide, setShowMetaGuide] = useState(false);
 
     const launch = useCallback(async () => {
         setError(null);
@@ -1091,11 +1113,13 @@ function EmbeddedSignupButton({ configId, appId, channel, label, color, onCode, 
         }
 
         setLoading(true);
+        setShowMetaGuide(true);
 
         try {
             await loadFbSdk(resolvedAppId);
         } catch (e) {
             setLoading(false);
+            setShowMetaGuide(false);
             setError(e?.message ?? t('inbox.could_not_load_fb_sdk'));
             return;
         }
@@ -1103,23 +1127,18 @@ function EmbeddedSignupButton({ configId, appId, channel, label, color, onCode, 
         const isWhatsapp = channel === 'whatsapp';
         const sessionInfoPromise = isWhatsapp ? waitForWabaSessionInfo() : Promise.resolve(null);
 
-        const extrasMap = {
-            whatsapp:  { setup: {}, featureType: '', sessionInfoVersion: '3' },
-            instagram: { feature_type: 'instagram_management' },
-            messenger: { feature_type: 'messenger_chat' },
-        };
-
         window.FB.login(
             (response) => {
+                setShowMetaGuide(false);
                 if (response.authResponse && response.authResponse.code) {
                     const code = response.authResponse.code;
                     if (isWhatsapp) {
                         sessionInfoPromise
                             .then((info) => {
                                 setLoading(false);
-                                onCode(code, info?.waba_id ?? null, info?.phone_number_id ?? null);
+                                onCode(code, info?.waba_id ?? null, info?.phone_number_id ?? null, whatsappOnboarding);
                             })
-                            .catch(() => { setLoading(false); onCode(code, null, null); });
+                            .catch(() => { setLoading(false); onCode(code, null, null, whatsappOnboarding); });
                     } else {
                         setLoading(false);
                         onCode(code);
@@ -1131,17 +1150,13 @@ function EmbeddedSignupButton({ configId, appId, channel, label, color, onCode, 
                     }
                 }
             },
-            {
-                config_id: configId,
-                response_type: 'code',
-                override_default_response_type: true,
-                extras: extrasMap[channel] ?? {},
-            },
+            embeddedSignupLoginOptions(configId, channel, whatsappOnboarding),
         );
-    }, [configId, resolvedAppId, channel, onCode, t]);
+    }, [configId, resolvedAppId, channel, onCode, t, whatsappOnboarding]);
 
     const colors = {
         green:  'bg-[#25D366] hover:bg-[#1ebe5d] text-white',
+        neutral: 'border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 shadow-none',
         blue:   'bg-[#0866FF] hover:bg-[#0759e0] text-white',
         purple: 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white',
     };
@@ -1166,6 +1181,60 @@ function EmbeddedSignupButton({ configId, appId, channel, label, color, onCode, 
                 </p>
             )}
             {children}
+            {showMetaGuide && (
+                <MetaOnboardingGuide
+                    channel={channel}
+                    onClose={() => setShowMetaGuide(false)}
+                />
+            )}
+        </div>
+    );
+}
+
+function MetaOnboardingGuide({ onClose, channel }) {
+    const { t } = useTranslation();
+
+    return (
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="meta-onboarding-title"
+        >
+            <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl dark:border-neutral-700 dark:bg-neutral-900">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0866FF]/10 text-[#0866FF]">
+                            <ExternalLink className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h2 id="meta-onboarding-title" className="text-base font-semibold text-neutral-900 dark:text-white">
+                                {t('inbox.complete_setup_with_meta')}
+                            </h2>
+                            <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                {channel === 'whatsapp'
+                                    ? t('inbox.secure_whatsapp_onboarding')
+                                    : t('inbox.secure_meta_onboarding')}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                        aria-label={t('common.close')}
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+                <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
+                    {t('inbox.meta_popup_guidance')}
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    {t('inbox.waiting_for_meta')}
+                </div>
+            </div>
         </div>
     );
 }

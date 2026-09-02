@@ -1,6 +1,6 @@
 # Known issues and limitations
 
-Status snapshot: 2026-08-21. Remove an item only when the fix is verified and recorded in `CHANGELOG.md`.
+Status snapshot: 2026-09-03. Remove an item only when the fix is verified and recorded in `CHANGELOG.md`.
 
 ## Queue name mismatch
 
@@ -9,6 +9,10 @@ Status snapshot: 2026-08-21. Remove an item only when the fix is verified and re
 ## Meta review and evolving permissions
 
 Meta permission names/products and App Review state are external dependencies. The system may contain working admin/test flows while general users remain blocked until permission approval. Re-verify scopes against current official Meta documentation before each review submission.
+
+## Meta app-owner WABA onboarding
+
+Meta disables the Meta-app owner's own Business Portfolio in the app's customer Embedded Signup asset selector. That WABA cannot be used to validate the normal customer Coexistence selector. Connect it through the approved platform system user and explicit WABA/phone asset assignment, or test customer onboarding with a separately owned Business Portfolio. This is provider-side and must not be bypassed by sharing a platform token with clients.
 
 ## Meta inbound queue naming
 

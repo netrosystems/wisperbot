@@ -8,6 +8,9 @@ This is a documentation-level changelog for user-visible and operationally signi
 - Added automatic Apple HEIC/HEIF photo conversion to high-compatibility JPEG upon upload (with graceful document fallback if server ImageMagick HEIC delegate is absent).
 - Enhanced Live Chat Widget UI with unified paperclip attachment button, pre-send document/thumbnail preview card, and rich `.wb-media-doc-card` in chat transcripts.
 - Added Instagram Graph API guard preventing document dispatch on Instagram conversations across Web Inbox and Mobile API.
+- Added separate WhatsApp Business app Coexistence and Cloud API onboarding choices, including the documented Meta signup mode, no re-registration of existing app numbers, contact/history sync, and live phone-app message echoes.
+- Improved Meta onboarding UX with an explicit compact-popup request and an in-page progress dialog that guides customers back to WisperBot when browser policy presents Meta as a tab.
+- Made Coexistence history import automation-safe: historical messages do not trigger AI replies, notifications, or unread-count inflation.
 - Added the maintained project documentation system and repository-wide documentation impact policy.
 - Fixed Meta social OAuth so only the Facebook Page or Instagram account explicitly selected by the client is connected; other Pages discovered through the same Business Portfolio are ignored.
 - Prioritized Meta publishing-scope `target_ids` over broader retained discovery/read selections so reconnecting one Page cannot implicitly add another Page.
