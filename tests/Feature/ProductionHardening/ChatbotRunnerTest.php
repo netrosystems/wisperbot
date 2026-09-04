@@ -121,6 +121,8 @@ class ChatbotRunnerTest extends TestCase
             'default_model_chat' => 'gpt-4o-mini',
             'default_model_embed' => 'text-embedding-3-small',
             'enabled' => true,
+            'last_tested_at' => now(),
+            'last_test_succeeded_at' => now(),
         ]);
 
         $runner = app(ChatbotRunner::class);
