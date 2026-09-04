@@ -3,6 +3,7 @@
 namespace App\Modules\Automation\Services;
 
 use App\Modules\AI\Services\LlmGateway;
+use Illuminate\Support\Str;
 
 /**
  * Turns a natural-language description into a complete, ready-to-run automation graph
@@ -37,14 +38,18 @@ class WorkflowGenerator
      *
      * @throws \RuntimeException when the provider fails or returns unusable output
      */
-    public function generate(int $workspaceId, string $prompt): array
+    public function generate(int $workspaceId, string $prompt, ?string $idempotencyKey = null): array
     {
         $messages = [
             ['role' => 'system', 'content' => $this->systemPrompt()],
             ['role' => 'user', 'content' => 'Build an automation for this request:'."\n\n".trim($prompt)],
         ];
 
-        $response = $this->llmGateway->chat($workspaceId, $messages, ['max_tokens' => 3000]);
+        $response = $this->llmGateway->chat($workspaceId, $messages, [
+            'max_tokens' => 3000,
+            'feature' => 'workflow_generate',
+            'idempotency_key' => $idempotencyKey ?? 'workflow:'.(string) Str::uuid(),
+        ]);
 
         $spec = $this->decode($response->content);
         if (! is_array($spec)) {

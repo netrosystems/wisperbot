@@ -11,7 +11,7 @@ const LIMIT_KEYS = [
     'sms_per_month',
     'emails_per_month',
     'inbox_agents',
-    'ai_tokens_per_month',
+    'ai_credits_per_month',
     'knowledge_bases',
     'chatbots',
     'social_accounts',
@@ -29,7 +29,7 @@ const LABELS = {
     sms_per_month: 'SMS Messages / mo',
     emails_per_month: 'Emails / mo',
     inbox_agents: 'Inbox Agents',
-    ai_tokens_per_month: 'AI Tokens / mo',
+    ai_credits_per_month: 'WisperBot AI Credits / mo',
     knowledge_bases: 'Knowledge Bases',
     chatbots: 'Chatbots',
     social_accounts: 'Social Accounts',
@@ -49,7 +49,7 @@ export default function PlanLimits({ limits = {}, onChange }) {
     };
 
     const setAllUnlimited = () => {
-        onChange(Object.fromEntries(LIMIT_KEYS.map((k) => [k, null])));
+        onChange(Object.fromEntries(LIMIT_KEYS.map((k) => [k, k === 'ai_credits_per_month' ? 0 : null])));
     };
 
     return (
@@ -70,6 +70,7 @@ export default function PlanLimits({ limits = {}, onChange }) {
                         value={value[key] ?? ''}
                         onChange={(e) => update(key, e.target.value ? e.target.value : null)}
                         placeholder={t('admin.unlimited_placeholder')}
+                        required={key === 'ai_credits_per_month'}
                     />
                 ))}
             </div>

@@ -4,7 +4,9 @@ namespace App\Modules\Automation\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\AI\Exceptions\AiCreditsException;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\Automation\Jobs\ExecuteAutomationRunJob;
 use App\Modules\Automation\Models\Automation;
 use App\Modules\Automation\Models\AutomationRun;
 use App\Modules\Automation\Services\AutomationEngine;
@@ -135,6 +137,18 @@ class AutomationController extends Controller
         return Inertia::render('Automation/Runs', ['automation' => $automation, 'runs' => $runs]);
     }
 
+    public function retryRun(Request $request, Automation $automation, AutomationRun $run): RedirectResponse
+    {
+        $this->authorise($request, $automation);
+        abort_unless($run->automation_id === $automation->id, 404);
+        abort_unless($run->status === 'paused', 409, 'Only paused automation runs can be retried.');
+
+        $run->update(['status' => 'pending', 'error' => null]);
+        dispatch(new ExecuteAutomationRunJob($run->id))->onQueue('automation');
+
+        return back()->with('success', 'Automation run queued for retry.');
+    }
+
     public function generateToken(Request $request, Automation $automation): JsonResponse
     {
         $this->authorise($request, $automation);
@@ -187,7 +201,9 @@ class AutomationController extends Controller
         ]);
 
         try {
-            $graph = app(WorkflowGenerator::class)->generate($wid, $validated['prompt']);
+            $graph = app(WorkflowGenerator::class)->generate($wid, $validated['prompt'], $request->header('Idempotency-Key'));
+        } catch (AiCreditsException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         }

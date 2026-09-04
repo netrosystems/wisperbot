@@ -8,6 +8,7 @@ use App\Models\Locale;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Modules\AI\Services\AiCreditService;
 use App\Modules\Broadcasting\Models\UsageMeter;
 use App\Modules\Integrations\Services\CredentialResolver;
 use App\Services\AddonEntitlementService;
@@ -98,6 +99,7 @@ class HandleInertiaRequests extends Middleware
                 'app_version' => $this->appVersion(),
                 'onboardingSummary' => null,
                 'entitlements' => ['developer_tools' => false],
+                'aiCredits' => null,
             ];
         }
 
@@ -325,6 +327,7 @@ class HandleInertiaRequests extends Middleware
         $unreadNotificationsCount = $user ? $user->unreadNotifications()->count() : 0;
 
         $onboardingSummary = null;
+        $aiCredits = null;
         if ($user && ! $isAdminRoute && ($request->routeIs('client.*') || $request->routeIs('reports.exports.*'))) {
             try {
                 $progress = app(OnboardingService::class)->getProgress($user);
@@ -336,6 +339,13 @@ class HandleInertiaRequests extends Middleware
                 ];
             } catch (\Throwable) {
                 $onboardingSummary = null;
+            }
+            if ($workspaceId) {
+                try {
+                    $aiCredits = app(AiCreditService::class)->usage((int) $workspaceId);
+                } catch (\Throwable) {
+                    $aiCredits = null;
+                }
             }
         }
 
@@ -375,6 +385,7 @@ class HandleInertiaRequests extends Middleware
             'current_workspace_usage' => $this->workspaceUsage($workspaceId ?? null, $plan ?? null),
             'app_version' => $this->appVersion(),
             'onboardingSummary' => $onboardingSummary,
+            'aiCredits' => $aiCredits,
             'landingPageEnabled' => SystemSetting::get('landing.page_enabled', '1') === '1',
             'branding' => $this->brandingShare(),
             'pusher' => $this->pusherPublicConfig(),

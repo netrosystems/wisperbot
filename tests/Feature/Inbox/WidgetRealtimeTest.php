@@ -11,6 +11,7 @@ use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
+use App\Support\WebchatVisitorToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -141,6 +142,16 @@ class WidgetRealtimeTest extends TestCase
             'channel' => 'webchat',
             'type' => 'text',
             'body' => 'Bot reply',
+            'payload' => ['resources' => [[
+                'version' => 1,
+                'kind' => 'video',
+                'provider' => 'youtube',
+                'video_id' => 'dQw4w9WgXcQ',
+                'title' => 'Setup guide',
+                'canonical_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                'playback_url' => 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+                'transcript' => 'must not be exposed',
+            ]]],
             'status' => 'sent',
             'sent_by' => 'bot',
             'sent_at' => now(),
@@ -151,6 +162,8 @@ class WidgetRealtimeTest extends TestCase
         Event::assertDispatched(WidgetMessageCreated::class, function (WidgetMessageCreated $event) use ($conversation, $widget) {
             return $event->conversationId === $conversation->id
                 && $event->message['body'] === 'Bot reply'
+                && $event->message['resources'][0]['provider'] === 'youtube'
+                && ! array_key_exists('transcript', $event->message['resources'][0])
                 && $event->message['agent_name'] === ($widget->agent_name ?: 'Support');
         });
     }
@@ -254,7 +267,7 @@ class WidgetRealtimeTest extends TestCase
         ])->assertOk();
 
         // Bind conversation to session
-        $token = \App\Support\WebchatVisitorToken::issue(
+        $token = WebchatVisitorToken::issue(
             (int) $conversation->id,
             $widget->widget_key,
             (string) $session->json('visitor_id')
@@ -290,7 +303,7 @@ class WidgetRealtimeTest extends TestCase
             'sent_at' => now(),
         ]);
 
-        $token = \App\Support\WebchatVisitorToken::issue(
+        $token = WebchatVisitorToken::issue(
             (int) $conversation->id,
             $widget->widget_key,
             'visitor-123'

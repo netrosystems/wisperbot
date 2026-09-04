@@ -7,6 +7,7 @@ use App\Events\MessageSent;
 use App\Events\TypingChanged;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\WebchatGeoService;
@@ -51,6 +52,7 @@ class InboxController extends Controller
         private ChannelManager $channelManager,
         private StorageManager $storageManager,
         private AttachmentService $attachmentService,
+        private VideoResourceService $videos,
     ) {}
 
     public function index(Request $request): Response
@@ -868,11 +870,16 @@ class InboxController extends Controller
      */
     private function normalisedMessagePayload(?array $payload, Request $request): ?array
     {
-        if (! $payload || empty($payload['preview_url'])) {
+        if (! $payload) {
             return $payload;
         }
 
-        $payload['preview_url'] = $this->browserSafePublicUrl((string) $payload['preview_url'], $request);
+        if (! empty($payload['preview_url'])) {
+            $payload['preview_url'] = $this->browserSafePublicUrl((string) $payload['preview_url'], $request);
+        }
+        if (array_key_exists('resources', $payload)) {
+            $payload['resources'] = $this->videos->sanitisePublicList($payload['resources']);
+        }
 
         return $payload;
     }

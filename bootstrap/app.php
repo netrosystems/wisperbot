@@ -21,6 +21,7 @@ use App\Http\Middleware\RequestIdMiddleware;
 use App\Http\Middleware\RequirePermission;
 use App\Http\Middleware\SecureHeaders;
 use App\Http\Middleware\SetLocale;
+use App\Modules\AI\Exceptions\AiCreditsException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -163,6 +164,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        $exceptions->renderable(function (AiCreditsException $e, Request $request) {
+            $payload = ['message' => $e->getMessage(), 'error' => $e->getMessage(), 'error_code' => $e->errorCode];
+
+            return $request->expectsJson()
+                ? response()->json($payload, $e->httpStatus)
+                : back()->with('error', $e->getMessage());
+        });
         $exceptions->reportable(function (Throwable $e) {
             Log::channel('errors')->error($e->getMessage(), [
                 'exception' => get_class($e),

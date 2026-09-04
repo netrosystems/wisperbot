@@ -33,7 +33,11 @@ class AiChatbot extends Model
 
     protected $table = 'ai_chatbots';
 
-    protected $fillable = ['workspace_id', 'name', 'ai_kb_id', 'system_prompt', 'tone', 'max_context_chunks', 'fallback_reply', 'channels', 'enabled'];
+    protected $fillable = [
+        'workspace_id', 'name', 'ai_kb_id', 'system_prompt', 'tone', 'max_context_chunks',
+        'retrieval_match_threshold', 'max_context_tokens', 'video_match_threshold',
+        'unsupported_answer_action', 'fallback_reply', 'channels', 'enabled',
+    ];
 
     protected function casts(): array
     {
@@ -41,6 +45,9 @@ class AiChatbot extends Model
             'channels' => 'array',
             'enabled' => 'boolean',
             'max_context_chunks' => 'integer',
+            'retrieval_match_threshold' => 'float',
+            'max_context_tokens' => 'integer',
+            'video_match_threshold' => 'float',
         ];
     }
 

@@ -1,7 +1,7 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import EmptyState from '@/Components/EmptyState';
-import { Plus, BookOpen, FileText, Database, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, BookOpen, FileText, Database, Pencil, Trash2, X, ShieldCheck, AlertTriangle, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -12,8 +12,8 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
     const [showCreate, setShowCreate] = useState(false);
     const [editingKb, setEditingKb] = useState(null);
 
-    const createForm = useForm({ name: '' });
-    const editForm = useForm({ name: '' });
+    const createForm = useForm({ name: '', purpose: '', language: 'en', brand: '', audience: '' });
+    const editForm = useForm({ name: '', purpose: '', language: 'en', brand: '', audience: '' });
 
     const handleCreate = (e) => {
         e.preventDefault();
@@ -27,7 +27,7 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
 
     const openEdit = (kb) => {
         editForm.clearErrors();
-        editForm.setData('name', kb.name);
+        editForm.setData({ name: kb.name, purpose: kb.purpose ?? '', language: kb.language ?? 'en', brand: kb.brand ?? '', audience: kb.audience ?? '' });
         setEditingKb(kb);
     };
 
@@ -141,9 +141,20 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
                             </div>
                             <Link href={route('client.ai.knowledge-bases.show', kb.uuid)} className="block">
                                 <h3 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 mb-1 truncate">{kb.name}</h3>
+                                <p className="line-clamp-2 min-h-10 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{kb.purpose || 'Define what this Knowledge Base should help customers with.'}</p>
                                 <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
                                     <FileText className="h-3.5 w-3.5 shrink-0" />
                                     <span>{t('ai.document_count', { count: kb.documents_count ?? 0 })}</span>
+                                    <span>· {String(kb.language || 'en').toUpperCase()}</span>
+                                </div>
+                                <div className="mt-4">
+                                    <div className="mb-1 flex items-center justify-between text-[11px] text-neutral-500"><span>Readiness</span><span>{kb.health?.readiness ?? 0}%</span></div>
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800"><div className="h-full rounded-full bg-brand-500" style={{ width: `${kb.health?.readiness ?? 0}%` }} /></div>
+                                    <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+                                        <span className="rounded-full bg-green-50 px-2 py-1 text-green-700 dark:bg-green-900/30 dark:text-green-300"><ShieldCheck className="mr-1 inline h-3 w-3" />{kb.health?.ready ?? 0} ready</span>
+                                        {(kb.health?.warning ?? 0) > 0 && <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"><AlertTriangle className="mr-1 inline h-3 w-3" />{kb.health.warning} review</span>}
+                                    </div>
+                                    <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-brand-600">{kb.health?.blocked ? 'Resolve blocked sources' : kb.published_revision_id ? 'Manage Knowledge Base' : 'Continue setup'} <ArrowRight className="h-3 w-3" /></span>
                                 </div>
                             </Link>
                         </div>
@@ -165,14 +176,15 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
             {/* Create Modal */}
             {showCreate && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-neutral-900 shadow-2xl">
+                    <div className="w-full max-w-xl rounded-2xl bg-white dark:bg-neutral-900 shadow-2xl">
                         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-neutral-100 dark:border-neutral-800">
                             <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.new_kb')}</h3>
                             <button onClick={() => setShowCreate(false)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition">
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
-                        <form onSubmit={handleCreate} className="px-6 py-4 space-y-4">
+                        <form onSubmit={handleCreate} className="max-h-[80vh] overflow-y-auto px-6 py-4 space-y-4">
+                            <div className="rounded-xl border border-brand-100 bg-brand-50/70 p-3 text-xs leading-5 text-brand-900 dark:border-brand-900/50 dark:bg-brand-900/20 dark:text-brand-100">Start with one focused topic, such as product setup, returns, or account support. You can safely add and review sources before anything reaches customers.</div>
                             <div>
                                 <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('common.name')}</label>
                                 <input
@@ -186,6 +198,12 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
                                 />
                                 {createForm.errors.name && <p className="mt-1 text-xs text-red-500">{createForm.errors.name}</p>}
                             </div>
+                            <div><label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Purpose</label><textarea required rows={3} value={createForm.data.purpose} onChange={e => createForm.setData('purpose', e.target.value)} placeholder="Help customers choose, configure, and troubleshoot our product." className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800" />{createForm.errors.purpose && <p className="mt-1 text-xs text-red-500">{createForm.errors.purpose}</p>}</div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div><label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Primary language</label><select value={createForm.data.language} onChange={e => createForm.setData('language', e.target.value)} className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"><option value="en">English</option><option value="bn">Bangla</option><option value="ar">Arabic</option><option value="es">Spanish</option><option value="fr">French</option></select></div>
+                                <div><label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Brand or product</label><input value={createForm.data.brand} onChange={e => createForm.setData('brand', e.target.value)} placeholder="WisperBot" className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800" /></div>
+                            </div>
+                            <div><label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Intended customers</label><input value={createForm.data.audience} onChange={e => createForm.setData('audience', e.target.value)} placeholder="New and existing customers" className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800" /></div>
                             <div className="flex gap-2 pt-1 pb-2">
                                 <button
                                     type="submit"

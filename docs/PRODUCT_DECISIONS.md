@@ -12,7 +12,7 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 - Email is separate as **Email MasterBox**; email and SMS must not appear as channels inside the Omni Channel Inbox.
 - Channel connection is **Inbox Channel Setup**.
 - Website chat management is grouped as **Chatbot Widget**, with Widgets, Appearance, and Integrations.
-- Social items use Post Composer, Post Automation, Calendar View, and Connected Social Media.
+- Social publishing uses one client destination named **Social Media Automation**. Account connection is the compact first section, post management defaults to Upcoming, and List/Calendar are views of the same workspace. The focused composer opens from **Schedule Post** and requires an explicit Schedule for later or Publish now choice.
 - AI is presented as **AI Automations** and chatbots as **Smart Bots**.
 - Media Library remains a normal content/group asset because campaigns, posts, automation, email, and chat reuse uploads.
 
@@ -39,6 +39,17 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 - Do not invent business-specific facts. When confidence is insufficient, give a short honest response and offer human help.
 - Render suggested URLs as hyperlinks.
 - MySQL is always-available vector storage; Qdrant is optional for larger installations.
+- Subscription AI usage is sold as completed-action credits, not raw tokens. Credits pool at the Client organization (or standalone billing owner), reset monthly without rollover, and have no automatic overage billing.
+- Workspaces choose WisperBot-managed AI, their own provider, or automatic fallback. New and unset workspaces default to **Credits, then my provider** (`auto_fallback`): managed credits are used first, and customer-provider fallback is attempted only with an enabled provider that passed connection testing. Explicitly saved modes are preserved. BYOK calls consume no managed credits.
+- Managed routing is internal: routine/RAG work uses the configured nano model and complex email/social/workflow generation uses the configured mini model. DeepSeek is available only to Super Admins under Integrations → AI / LLM; clients cannot view, save, test, or use it as BYOK or automatic fallback.
+- Knowledge Base changes are drafts until quality and regression gates pass. Warnings require client review, blockers cannot publish, factual suggestions are never silently accepted, and the last healthy revision remains live.
+- One focused Knowledge Base is assigned to a chatbot. Exact approved FAQs may bypass generation; safe non-personalized answers may cache per published revision. Company-specific facts require published evidence above the retrieval threshold, otherwise the bot clarifies once or offers human handoff.
+- New Knowledge Base authoring exposes only URL, File, and Sitemap sources. Supported video links discovered in their extracted content are normalized server-side and can render as click-to-play resources; legacy Text, FAQ, and Video records remain readable for backward compatibility.
+- New Knowledge Base file uploads accept PDF, DOCX, TXT, and Markdown—the formats with the most reliable customer-facing extraction. Existing CSV, XLSX, and JSON sources remain readable for backward compatibility but are no longer offered for new client uploads. The upload UI explicitly recommends adding supported video URLs when visual guidance can improve the answer.
+- Knowledge Base onboarding is a gated, single-pane flow: Define, Sources, Review, Test, and Publish. Monitoring becomes available after the first publication. Clean indexing never auto-publishes unless the client has saved regression tests; otherwise explicit testing and publication are required. Published Knowledge Bases reopen in management mode, and source changes create a safe draft without disturbing the live revision.
+- Channel connection drawers are onboarding-only. They close after a successful connection and never duplicate webhook, sync, template, phone-number, chatbot-assignment, rename, or disconnect controls; connected-channel management belongs exclusively to Channel Setup cards. This rule applies consistently to WhatsApp, Instagram, and Messenger.
+- Channel Setup presents every connection action once in its primary setup area. The account grid renders connected channels only; empty WhatsApp, Instagram, Messenger, Telegram, eBay, and Amazon cards must not repeat connection calls to action farther down the page. The former Getting Started, webhook, and external-resource footer is intentionally omitted because it duplicates the guided setup surface.
+- Client UI says sources, passages, readiness, and review—not vectors or embeddings—unless the user opens advanced diagnostics.
 
 ## Developer features
 

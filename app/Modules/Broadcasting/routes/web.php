@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Broadcasting\Http\Controllers\CampaignController;
+use App\Modules\Broadcasting\Http\Controllers\EmailAiController;
 use App\Modules\Broadcasting\Http\Controllers\SmsProviderController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +18,8 @@ Route::middleware(['web', 'client-app'])->prefix('app/broadcasts')->name('client
     Route::post('/campaigns/{campaign}/launch', [CampaignController::class, 'launch'])->name('campaigns.launch')->middleware('limit:campaigns_per_month,campaigns');
     Route::post('/campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->name('campaigns.pause');
     Route::delete('/campaigns/{campaign}', [CampaignController::class, 'destroy'])->name('campaigns.destroy');
+    Route::post('/campaigns/ai/generate-email', [EmailAiController::class, 'generate'])->name('campaigns.generate-email');
+    Route::post('/campaigns/ai/improve-subject', [EmailAiController::class, 'improveSubject'])->name('campaigns.improve-subject');
 
     Route::get('/sms-gateways', [SmsProviderController::class, 'index'])->name('sms-gateways.index');
     Route::put('/sms-gateways/{provider}', [SmsProviderController::class, 'update'])->name('sms-gateways.update');

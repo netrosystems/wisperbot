@@ -115,18 +115,22 @@ class AutoReplyListener
         }
 
         try {
-            $reply = $this->runner->run($chatbot, $message);
+            $result = $this->runner->run($chatbot, $message);
+            $reply = $result['reply'] ?? null;
             if ($reply === null) {
                 return;
             }
+
+            $resources = $result['resources'] ?? [];
+            $providerBody = $this->providerBodyWithResourceLinks($reply, $resources, $message->channel);
 
             $botMessage = Message::create([
                 'conversation_id' => $conversation->id,
                 'direction' => 'out',
                 'channel' => $message->channel,
                 'type' => 'text',
-                'body' => $reply,
-                'payload' => [],
+                'body' => $providerBody,
+                'payload' => ['resources' => $resources],
                 'status' => 'queued',
                 'sent_by' => 'bot',
                 'sent_at' => now(),
@@ -155,6 +159,17 @@ class AutoReplyListener
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function providerBodyWithResourceLinks(string $reply, array $resources, string $channel): string
+    {
+        if ($channel === 'webchat' || $resources === []) {
+            return $reply;
+        }
+
+        $url = $resources[0]['canonical_url'] ?? null;
+
+        return $url && ! str_contains($reply, $url) ? rtrim($reply)."\n\nWatch video: {$url}" : $reply;
     }
 
     private function findMatchingAutoReply(

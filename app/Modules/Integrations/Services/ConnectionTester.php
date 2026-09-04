@@ -2,6 +2,7 @@
 
 namespace App\Modules\Integrations\Services;
 
+use App\Modules\AI\Services\Llm\QwenProvider;
 use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Services\StorageManager;
@@ -308,6 +309,37 @@ class ConnectionTester
             }
 
             return ['ok' => true, 'message' => 'Gemini chat and Knowledge Base embeddings connected successfully.'];
+        }
+
+        if (str_contains($config->provider, 'deepseek')) {
+            $resp = HttpFacade::timeout(15)
+                ->withToken($apiKey)
+                ->post('https://api.deepseek.com/chat/completions', [
+                    'model' => 'deepseek-chat',
+                    'messages' => [['role' => 'user', 'content' => 'hi']],
+                    'max_tokens' => 1,
+                ]);
+
+            return $resp->successful()
+                ? ['ok' => true, 'message' => 'DeepSeek system chat connected. Knowledge Bases still require the enabled OpenAI or Gemini system integration for embeddings.']
+                : $this->llmFailure('DeepSeek chat test failed.', $resp);
+        }
+
+        if (str_contains($config->provider, 'qwen')) {
+            $provider = new QwenProvider(
+                $apiKey,
+                (string) ($creds['region'] ?? ''),
+                (string) ($creds['workspace_id'] ?? ''),
+            );
+            $provider->chat(
+                [['role' => 'user', 'content' => 'Reply with OK.']],
+                ['max_tokens' => 8, 'temperature' => 0],
+            );
+
+            return [
+                'ok' => true,
+                'message' => 'Qwen 3.7 Flash connected. Knowledge Bases still require an enabled OpenAI or Gemini system integration for embeddings.',
+            ];
         }
 
         return ['ok' => false, 'message' => 'Unknown LLM provider.'];

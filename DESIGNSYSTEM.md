@@ -139,3 +139,14 @@ Brand Orange:    #FF762E   Accent Amber:   #FFBF00   Highlight:    #FFF78D   Cor
 2. **Focus Visibility**: Visible focus rings on all interactive elements (`focus:ring-2 focus:ring-brand-500/30 focus:ring-offset-1`).
 3. **Screen Reader Support**: All icon-only buttons require an `aria-label` attribute (e.g. `aria-label={t('common.close')}`).
 4. **Internationalization (i18n)**: All UI strings must be resolved via `useTranslation()` (`t('nav.inbox')`, `t('common.save')`) to support multi-language localizations.
+# Knowledge video cards
+
+Conversation video resources use a responsive 16:9 dark media surface, a centered WisperBot Orange play control, a one-line title, and an always-visible “Open video” fallback. Third-party players are created only after user interaction. Cards must remain keyboard accessible and usable at a minimum 200px player viewport.
+
+## Guided Knowledge Base workflow
+
+The default client surface uses plain-language five-step progress: Define, Add sources, Review quality, Test answers, Publish. Ready uses success green, review uses amber, and blockers/failures use danger red; color is always paired with text and an icon. Technical vector/embedding details remain in advanced diagnostics. An empty Sources step presents three direct choices—Entire website, Specific web page, and Upload files—and hides management-only search, filtering, duplicate add buttons, and unavailable forward actions until a source exists. File guidance prioritizes PDF, DOCX, TXT, and Markdown and uses a bordered brand callout to explain that supported video URLs may become playable customer-chat guidance. Source dialogs explain appropriate usage and limits before selection, display extracted passages and stable findings, and keep factual corrections subject to explicit client approval. Dialogs must trap focus and support Escape/backdrop dismissal when migrated to the shared `Modal` primitive.
+
+## Social Media Automation workspace
+
+Social publishing uses one standard page with a compact connected-account strip above a scan-friendly posts list. Provider cards show no more than two identities until expanded; account reconnect/disconnect and post lifecycle actions use keyboard-accessible Headless UI menus. The page has one orange primary action, **Schedule Post**, while AI planning is secondary. When there are no accounts or posts, use compact explanatory rows rather than tall illustrated panels, avoid duplicate calls to action, and hide tabs and filters that have nothing to operate on. Post status tabs default to Upcoming once posts exist, and List/Calendar use a segmented view control rather than separate navigation destinations. Desktop post rows become compact mobile cards below the table breakpoint. New translation keys must include readable English fallbacks at critical navigation and page-heading boundaries, and locale-file changes must invalidate the server dictionary cache automatically.

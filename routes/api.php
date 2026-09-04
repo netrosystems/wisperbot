@@ -198,6 +198,14 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group
             ->middleware('api.ability:ai:write');
         Route::delete('/ai/knowledge-bases/{kbId}/documents/{docId}', [AiKnowledgeBaseApiController::class, 'destroyDocument'])
             ->middleware('api.ability:ai:write');
+        Route::post('/ai/knowledge-bases/{kbId}/documents/{docId}/approve', [AiKnowledgeBaseApiController::class, 'approveDocument'])
+            ->middleware('api.ability:ai:write');
+        Route::post('/ai/knowledge-bases/{kbId}/documents/{docId}/toggle', [AiKnowledgeBaseApiController::class, 'toggleDocument'])
+            ->middleware('api.ability:ai:write');
+        Route::post('/ai/knowledge-bases/{id}/publish', [AiKnowledgeBaseApiController::class, 'publish'])
+            ->middleware('api.ability:ai:write');
+        Route::post('/ai/knowledge-bases/{id}/test', [AiKnowledgeBaseApiController::class, 'testQuery'])
+            ->middleware('api.ability:ai:read');
 
         // ─── Automations (automations:write) ──────────────────────────────────────
         Route::get('/automations', [AutomationApiController::class, 'index'])

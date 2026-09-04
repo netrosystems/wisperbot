@@ -39,16 +39,29 @@ class ChatbotRunnerTest extends TestCase
         ]);
         $doc = AiKbDocument::create([
             'kb_id' => $kb->id,
-            'title' => 'FAQ',
-            'source_type' => 'text',
-            'source_ref' => 'Our refund policy is 30 days.',
+            'title' => 'Refund walkthrough',
+            'source_type' => 'file',
+            'source_ref' => 'kb-docs/refund-guide.md',
+            'resource_json' => [
+                'version' => 1,
+                'kind' => 'video_collection',
+                'videos' => [[
+                    'version' => 1,
+                    'kind' => 'video',
+                    'provider' => 'youtube',
+                    'video_id' => 'dQw4w9WgXcQ',
+                    'title' => 'Refund walkthrough',
+                    'canonical_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                    'playback_url' => 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+                ]],
+            ],
             'status' => 'indexed',
         ]);
         $chunk = AiKbChunk::create([
             'kb_id' => $kb->id,
             'document_id' => $doc->id,
             'ord' => 0,
-            'content' => 'Our refund policy is 30 days.',
+            'content' => 'Our refund policy is 30 days. Watch https://youtu.be/dQw4w9WgXcQ for the walkthrough.',
             'tokens' => 8,
             'embedding' => null,
         ]);
@@ -111,16 +124,19 @@ class ChatbotRunnerTest extends TestCase
         ]);
 
         $runner = app(ChatbotRunner::class);
-        $reply = $runner->run($chatbot, $message);
+        $result = $runner->run($chatbot, $message);
+        $reply = $result['reply'];
 
         $this->assertNotNull($reply, 'ChatbotRunner should return a reply');
         $this->assertStringContainsString('refund', strtolower($reply));
+        $this->assertCount(1, $result['resources']);
+        $this->assertSame('youtube', $result['resources'][0]['provider']);
         // Assert that context chunks were included in the system prompt sent to OpenAI
         $this->assertNotNull($capturedSystemPrompt, 'System prompt should have been captured');
         $this->assertStringContainsString('refund policy is 30 days', $capturedSystemPrompt);
         $this->assertStringContainsString('at most 60 words', $capturedSystemPrompt);
         $this->assertStringContainsString('Reply in the customer\'s language', $capturedSystemPrompt);
-        $this->assertStringContainsString('safe general knowledge', $capturedSystemPrompt);
+        $this->assertStringContainsString('Never substitute general knowledge for business facts', $capturedSystemPrompt);
         $this->assertStringContainsString('Markdown link', $capturedSystemPrompt);
         $this->assertSame(160, $capturedMaxTokens);
     }

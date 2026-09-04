@@ -1,7 +1,7 @@
 ﻿import { Head, router, usePage, Link } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import {
-    Check, Copy, Link2, AlertTriangle,
+    Check, Copy, AlertTriangle,
     Phone, Inbox, Webhook, FileText,
     Trash2, RefreshCw, Bot, ChevronDown, ExternalLink,
     Edit3, Clock, ShieldCheck, ShieldAlert, Wifi, WifiOff, X,
@@ -582,7 +582,7 @@ function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots }) {
     );
 }
 
-function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatbots, showForm, setShowForm, metaConfigIdWhatsapp, metaAppId, className = '' }) {
+function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatbots, showForm, setShowForm, metaConfigIdWhatsapp, metaAppId, className = '', onboardingOnly = false }) {
     const { t } = useTranslation();
     const [waApiError, setWaApiError] = useState(null);
     const [waSubmitting, setWaSubmitting] = useState(false);
@@ -616,39 +616,8 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
         }
     }, [setShowForm, t]);
 
-    return (
-        <ChannelCard
-            icon={WhatsAppLogo}
-            iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
-            title={t('inbox.whatsapp_business')}
-            count={wabas.length}
-            className={className}
-        >
-            {wabas.length > 0 && (
-                <div className="space-y-3">
-                    {wabas.map(waba => (
-                        <WabaCard
-                            key={waba.id}
-                            waba={waba}
-                            webhookGlobalUrl={webhookGlobalUrl}
-                            channelAccounts={channelAccountsByWaba?.[waba.id] ?? []}
-                            chatbots={chatbots}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {!showForm && wabas.length === 0 && (
-                <div className="text-center py-8">
-                    <div className="mx-auto mb-3 rounded-2xl w-12 h-12 flex items-center justify-center bg-green-100 dark:bg-green-900/30 opacity-60">
-                        <WhatsAppLogo className="h-6 w-6" />
-                    </div>
-                    <p className="text-sm text-neutral-400 dark:text-neutral-500">{t('inbox.no_whatsapp_accounts')}</p>
-                </div>
-            )}
-
-            {showForm && (
-                <div className={`${wabas.length > 0 ? 'mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800' : ''} space-y-3`}>
+    const onboardingForm = showForm ? (
+        <div className={`${!onboardingOnly && wabas.length > 0 ? 'mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800' : ''} space-y-3`}>
                     {metaConfigIdWhatsapp ? (
                         <>
                             <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
@@ -694,8 +663,45 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
                         className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition">
                         {t('common.cancel')}
                     </button>
+        </div>
+    ) : null;
+
+    if (onboardingOnly) {
+        return onboardingForm;
+    }
+
+    return (
+        <ChannelCard
+            icon={WhatsAppLogo}
+            iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
+            title={t('inbox.whatsapp_business')}
+            count={wabas.length}
+            className={className}
+        >
+            {wabas.length > 0 && (
+                <div className="space-y-3">
+                    {wabas.map(waba => (
+                        <WabaCard
+                            key={waba.id}
+                            waba={waba}
+                            webhookGlobalUrl={webhookGlobalUrl}
+                            channelAccounts={channelAccountsByWaba?.[waba.id] ?? []}
+                            chatbots={chatbots}
+                        />
+                    ))}
                 </div>
             )}
+
+            {!showForm && wabas.length === 0 && (
+                <div className="text-center py-8">
+                    <div className="mx-auto mb-3 rounded-2xl w-12 h-12 flex items-center justify-center bg-green-100 dark:bg-green-900/30 opacity-60">
+                        <WhatsAppLogo className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm text-neutral-400 dark:text-neutral-500">{t('inbox.no_whatsapp_accounts')}</p>
+                </div>
+            )}
+
+            {onboardingForm}
         </ChannelCard>
     );
 }
@@ -1495,29 +1501,31 @@ function ConnectDrawer({ open, onClose, title, icon: Icon, iconBg, children }) {
 
 export default function ChannelSetup({
     wabas, whatsappWebhookGlobalUrl,
-    channelAccountsByWaba, instagramAccounts, messengerAccounts, metaWebhookUrl,
+    channelAccountsByWaba, instagramAccounts, messengerAccounts,
     ebayAccounts = [],
     amazonAccounts = [],
     telegramAccounts = [],
     telegramConfigured = false,
-    telegramWebhookUrl = null,
     metaAppId = null, metaConfigIdWhatsapp = null, metaConfigIdSocial = null,
     chatbots = [],
 }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
+    const hasConnectedChannels = wabas.length > 0
+        || instagramAccounts.length > 0
+        || messengerAccounts.length > 0
+        || telegramAccounts.length > 0
+        || ebayAccounts.length > 0
+        || amazonAccounts.length > 0;
 
     const [drawer, setDrawer] = useState(null);
-    const [showWabaForm, setShowWabaForm] = useState(false);
 
     const openDrawer = (key) => {
         setDrawer(key);
-        if (key === 'whatsapp') setShowWabaForm(true);
     };
     const closeDrawer = () => {
         setDrawer(null);
-        setShowWabaForm(false);
     };
 
     return (
@@ -1589,10 +1597,12 @@ export default function ChannelSetup({
                 </div>
             )}
 
-            {/* Balanced desktop layout: three Meta channels, then two seller channels. */}
+            {/* Connected account management. Empty channels use the setup CTAs above. */}
+            {hasConnectedChannels && (
             <div className="grid grid-cols-1 gap-4 mb-6 md:grid-cols-2 xl:grid-cols-6">
 
                 {/* WhatsApp */}
+                {wabas.length > 0 && (
                 <WhatsAppSection
                     wabas={wabas}
                     webhookGlobalUrl={whatsappWebhookGlobalUrl}
@@ -1604,8 +1614,10 @@ export default function ChannelSetup({
                     metaAppId={metaAppId}
                     className="xl:col-span-2"
                 />
+                )}
 
                 {/* Instagram */}
+                {instagramAccounts.length > 0 && (
                 <ChannelCard
                     icon={InstagramLogo}
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
@@ -1613,25 +1625,14 @@ export default function ChannelSetup({
                     count={instagramAccounts.length}
                     className="xl:col-span-2"
                 >
-                    {instagramAccounts.length > 0 ? (
-                        <div className="space-y-2">
-                            {instagramAccounts.map(a => <AccountRow key={a.id} account={a} channel="instagram" chatbots={chatbots} />)}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8">
-                            <div className="mx-auto mb-3 rounded-2xl w-12 h-12 flex items-center justify-center bg-gradient-to-br from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 opacity-60">
-                                <InstagramLogo className="h-6 w-6" />
-                            </div>
-                            <p className="text-sm text-neutral-400 dark:text-neutral-500 mb-3">{t('inbox.no_instagram_accounts')}</p>
-                            <button onClick={() => openDrawer('instagram')}
-                                className="text-xs font-medium text-pink-600 dark:text-pink-400 hover:underline">
-                                {t('inbox.plus_connect_instagram')}
-                            </button>
-                        </div>
-                    )}
+                    <div className="space-y-2">
+                        {instagramAccounts.map(a => <AccountRow key={a.id} account={a} channel="instagram" chatbots={chatbots} />)}
+                    </div>
                 </ChannelCard>
+                )}
 
                 {/* Messenger */}
+                {messengerAccounts.length > 0 && (
                 <ChannelCard
                     icon={MessengerLogo}
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
@@ -1639,25 +1640,14 @@ export default function ChannelSetup({
                     count={messengerAccounts.length}
                     className="xl:col-span-2"
                 >
-                    {messengerAccounts.length > 0 ? (
-                        <div className="space-y-2">
-                            {messengerAccounts.map(a => <AccountRow key={a.id} account={a} channel="messenger" chatbots={chatbots} />)}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8">
-                            <div className="mx-auto mb-3 rounded-2xl w-12 h-12 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 opacity-60">
-                                <MessengerLogo className="h-6 w-6" />
-                            </div>
-                            <p className="text-sm text-neutral-400 dark:text-neutral-500 mb-3">{t('inbox.no_messenger_accounts')}</p>
-                            <button onClick={() => openDrawer('messenger')}
-                                className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
-                                {t('inbox.plus_connect_messenger')}
-                            </button>
-                        </div>
-                    )}
+                    <div className="space-y-2">
+                        {messengerAccounts.map(a => <AccountRow key={a.id} account={a} channel="messenger" chatbots={chatbots} />)}
+                    </div>
                 </ChannelCard>
+                )}
 
                 {/* Telegram Business connected-bot inbox */}
+                {telegramAccounts.length > 0 && (
                 <ChannelCard
                     icon={TelegramLogo}
                     iconBg="bg-white shadow-sm ring-1 ring-neutral-100 dark:bg-neutral-800 dark:ring-neutral-700"
@@ -1665,23 +1655,14 @@ export default function ChannelSetup({
                     count={telegramAccounts.filter(account => account.status === 'active').length}
                     className="xl:col-span-2"
                 >
-                    {telegramAccounts.length > 0 ? (
-                        <div className="space-y-2">
-                            {telegramAccounts.map(account => <TelegramAccountRow key={account.id} account={account} chatbots={chatbots} />)}
-                        </div>
-                    ) : (
-                        <div className="py-8 text-center">
-                            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 dark:bg-sky-950/30"><TelegramLogo className="h-7 w-7" /></div>
-                            <p className="mb-3 text-sm text-neutral-400">No Telegram Business account connected.</p>
-                            <a href={telegramConfigured ? route('client.inbox.setup.telegram.connect') : '#'}
-                                onClick={(event) => { if (!telegramConfigured) { event.preventDefault(); toast.error('Telegram Business is not configured by the Super Admin.'); } }}
-                                className="text-xs font-semibold text-sky-600 hover:underline dark:text-sky-400">+ Connect Telegram Business</a>
-                            {telegramWebhookUrl && <p className="mt-3 break-all text-[10px] text-neutral-400">Webhook: {telegramWebhookUrl}</p>}
-                        </div>
-                    )}
+                    <div className="space-y-2">
+                        {telegramAccounts.map(account => <TelegramAccountRow key={account.id} account={account} chatbots={chatbots} />)}
+                    </div>
                 </ChannelCard>
+                )}
 
                 {/* eBay seller inbox */}
+                {ebayAccounts.length > 0 && (
                 <ChannelCard
                     icon={EbayLogo}
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
@@ -1689,24 +1670,14 @@ export default function ChannelSetup({
                     count={ebayAccounts.length}
                     className="xl:col-span-2"
                 >
-                    {ebayAccounts.length > 0 ? (
-                        <div className="space-y-2">
-                            {ebayAccounts.map(account => <EbayAccountRow key={account.id} account={account} chatbots={chatbots} />)}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8">
-                            <div className="mx-auto mb-3 rounded-2xl w-14 h-12 flex items-center justify-center bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700">
-                                <EbayLogo className="h-6 w-12" />
-                            </div>
-                            <p className="text-sm text-neutral-400 dark:text-neutral-500 mb-3">No eBay seller account connected.</p>
-                            <a href={route('client.inbox.setup.ebay.connect')} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
-                                + Connect eBay seller
-                            </a>
-                        </div>
-                    )}
+                    <div className="space-y-2">
+                        {ebayAccounts.map(account => <EbayAccountRow key={account.id} account={account} chatbots={chatbots} />)}
+                    </div>
                 </ChannelCard>
+                )}
 
                 {/* Amazon Seller Central */}
+                {amazonAccounts.length > 0 && (
                 <ChannelCard
                     icon={AmazonLogo}
                     iconBg="bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700"
@@ -1714,79 +1685,11 @@ export default function ChannelSetup({
                     count={amazonAccounts.length}
                     className="xl:col-span-2"
                 >
-                    {amazonAccounts.length > 0 ? (
-                        <div className="space-y-2">
-                            {amazonAccounts.map(account => <AmazonAccountRow key={account.id} account={account} />)}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8">
-                            <div className="mx-auto mb-3 rounded-2xl w-14 h-12 flex items-center justify-center bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700">
-                                <AmazonLogo className="h-6 w-12 text-neutral-900 dark:text-white" />
-                            </div>
-                            <p className="text-sm text-neutral-400 dark:text-neutral-500 mb-3">No Amazon seller connected.</p>
-                            <a href={route('client.inbox.setup.amazon.connect')} className="text-xs font-medium text-amber-700 dark:text-amber-400 hover:underline">
-                                + Connect Amazon seller
-                            </a>
-                        </div>
-                    )}
+                    <div className="space-y-2">
+                        {amazonAccounts.map(account => <AmazonAccountRow key={account.id} account={account} />)}
+                    </div>
                 </ChannelCard>
-            </div>
-
-            {/* Row 2 — guide + resources (only shown when no channels connected) */}
-            {(wabas.length === 0 && instagramAccounts.length === 0 && messengerAccounts.length === 0 && telegramAccounts.length === 0 && ebayAccounts.length === 0 && amazonAccounts.length === 0) && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Setup guide */}
-                <div className="md:col-span-2 rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
-                        <h4 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">{t('inbox.getting_started')}</h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{t('inbox.getting_started_subtitle')}</p>
-                    </div>
-                    <div className="p-5 grid grid-cols-3 gap-4">
-                        {[
-                            { step: 1, title: t('inbox.step1_title'), desc: t('inbox.step1_desc') },
-                            { step: 2, title: t('inbox.step2_title'), desc: t('inbox.step2_desc') },
-                            { step: 3, title: t('inbox.step3_title'), desc: t('inbox.step3_desc') },
-                        ].map(({ step, title, desc }) => (
-                            <div key={step} className="flex flex-col gap-2">
-                                <div className="w-7 h-7 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{step}</div>
-                                <div>
-                                    <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">{title}</p>
-                                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 leading-relaxed">{desc}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Sidebar: webhook + resources */}
-                <div className="space-y-4">
-                    {metaWebhookUrl && (
-                        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm p-4 space-y-3">
-                            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
-                                <Webhook className="h-3 w-3" /> {t('inbox.meta_webhook')}
-                            </p>
-                            <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                                {t('inbox.meta_webhook_help')}
-                            </p>
-                            <CodeField label={t('inbox.webhook_url')} value={metaWebhookUrl} icon={Link2} />
-                        </div>
-                    )}
-                    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm p-4">
-                        <h4 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3">{t('inbox.resources')}</h4>
-                        <div className="space-y-2">
-                            {[
-                                { label: 'WhatsApp Business API', href: 'https://developers.facebook.com/docs/whatsapp' },
-                                { label: 'Meta Webhooks guide', href: 'https://developers.facebook.com/docs/graph-api/webhooks' },
-                                { label: 'Instagram Messaging API', href: 'https://developers.facebook.com/docs/messenger-platform/instagram' },
-                            ].map(({ label, href }) => (
-                                <a key={label} href={href} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-2 text-xs text-brand-600 dark:text-brand-400 hover:underline">
-                                    <ExternalLink className="h-3 w-3 shrink-0" /> {label}
-                                </a>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                )}
             </div>
             )}
 
@@ -1800,10 +1703,11 @@ export default function ChannelSetup({
                     webhookGlobalUrl={whatsappWebhookGlobalUrl}
                     channelAccountsByWaba={channelAccountsByWaba ?? {}}
                     chatbots={chatbots}
-                    showForm={showWabaForm}
-                    setShowForm={setShowWabaForm}
+                    showForm
+                    setShowForm={(show) => { if (!show) closeDrawer(); }}
                     metaConfigIdWhatsapp={metaConfigIdWhatsapp}
                     metaAppId={metaAppId}
+                    onboardingOnly
                 />
             </ConnectDrawer>
 

@@ -31,6 +31,8 @@ class I18nController extends Controller
 
         $dictionary = $this->i18nFiles->getFlatDictionary($locale);
 
-        return response()->json(['translation' => $dictionary]);
+        return response()
+            ->json(['translation' => $dictionary])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 }

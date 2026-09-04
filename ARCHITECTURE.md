@@ -207,7 +207,11 @@ WisperBot integrates with multiple third-party providers with resilient fallback
 | **Meta (FB & IG)** | Graph API / OAuth 2.0 | Page inbox, Instagram DM, Post publishing | Granular `target_ids` used for asset binding. Post deletion respects provider capability. |
 | **Telegram Business** | Bot API / Webhooks | Inbound updates & agent replies | Webhook secret token verified on arrival. |
 | **Email (Gmail/M365/IMAP)** | OAuth 2.0 / IMAP & SMTP | Master Email Inbox synchronization | Sync worker runs every minute; multi-mailbox support per workspace. |
-| **AI Providers** | REST / SSE Streaming | Knowledge retrieval, smart bot generation | Supports OpenAI, Anthropic, Gemini, DeepSeek. MySQL fallback for vectors; optional Qdrant. |
+| **AI Providers** | REST / SSE Streaming | Knowledge retrieval, smart bot generation | Client BYOK supports OpenAI, Anthropic, and Gemini; DeepSeek and Qwen 3.7 Flash are Super Admin system-only. One tested system provider powers managed generation. MySQL fallback for vectors; optional Qdrant. |
+
+Knowledge video resources are stored as validated metadata on `ai_kb_documents`, while their descriptions/transcripts are chunked through the normal `ai` indexing queue. `ChatbotRunner` returns `{reply, tokens_used, resources}`; outbound messages remain type `text` and carry an additive `payload.resources` array so provider and older-client compatibility is preserved.
+
+Managed AI usage is enforced at `LlmGateway`, not in individual controllers. `ai_credit_periods` pools a finite monthly allowance by Client organization or standalone workspace owner; `ai_credit_ledgers` records immutable reservations, completions, refunds, BYOK calls, token counts, micro-USD cost estimates, and audited adjustments. `ai_workspace_settings.provider_mode` selects `managed`, `byok`, or `auto_fallback`. A unique account-scoped idempotency hash prevents browser, queue, and webhook retries from charging twice. Provider tests and embeddings bypass credit charging; customer OpenAI/Gemini embeddings take precedence before the managed embedding provider.
 | **SMS Gateways** | REST / HTTP Callbacks | Bulk SMS campaigns | Pluggable gateway adapters (Twilio, MessageBird, SMSBD, REVE, BulkSMS, ProSMS, SNS). |
 | **Payment Gateways** | Webhooks / SDKs | Subscriptions, add-ons, invoices | Stripe, PayPal, and Paddle supported with signature validation. |
 
@@ -283,6 +287,12 @@ WisperBot includes health and readiness endpoints protected by `HEALTHZ_TOKEN`:
 ---
 
 ## 9. Change Management Checklists
+
+## Guarded Knowledge Base lifecycle
+
+`ai_knowledge_bases` points to one live `published_revision_id` and optionally one editable `draft_revision_id`. `ai_kb_revisions` are immutable snapshots linked through `ai_kb_revision_documents`; a failed draft never replaces the live revision. Adding or removing a source changes only the draft membership. Reindexing, editing, or toggling a source inherited from a published revision uses copy-on-write: the draft receives a new document identity while the published document and its chunks remain untouched. `IndexDocumentJob` runs extraction → deterministic validation → section-aware chunking → changed-chunk embedding on the existing `ai` queue. Runtime retrieval passes the published revision ID to `EmbeddingStore` and additionally requires workspace ownership, enabled/approved/indexed documents, and ready embeddings.
+
+Answer and query-embedding caches are revision/model keyed. Publishing or rollback invalidates answer caches. Retrieval diagnostics store IDs, scores, decisions, and token categories but not customer text; repeated unsupported questions are recorded as bounded knowledge-gap samples.
 
 ### Adding a New Integration Channel
 - [ ] Implement channel driver under `app/Modules/<Module>/Services/`.

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\CronSetupController;
+use App\Modules\AI\Services\AiCreditService;
 use App\Modules\Broadcasting\Jobs\LaunchScheduledCampaignsJob;
 use App\Modules\Broadcasting\Models\UsageMeter;
 use App\Modules\Inbox\Jobs\SyncEbayAccountJob;
@@ -76,6 +77,14 @@ Schedule::call(function () {
     // Meters older than 2 months are pruned; current month is always kept
     UsageMeter::where('period', '<', (int) now()->subMonths(2)->format('Ym'))->delete();
 })->monthlyOn(1, '00:05')->name('reset-usage-meters');
+
+// Provider/network failures can strand a reservation if a worker is killed.
+// Reconcile after the ten-minute safety window; finalized calls are never refunded.
+Schedule::call(fn () => app(AiCreditService::class)->reconcileStaleReservations())
+    ->everyFiveMinutes()
+    ->name('reconcile-ai-credit-reservations')
+    ->withoutOverlapping()
+    ->onOneServer();
 
 // Prune inbound webhook idempotency records older than 30 days
 Schedule::call(function () {

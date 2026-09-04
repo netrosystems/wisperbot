@@ -151,11 +151,11 @@
   var agentTypingEl = root.querySelector('.wb-agent-typing');
 
   // Greeting bubble, then the cached history from this device.
-  if (CFG.welcome_message) addBubble('agent', CFG.welcome_message, CFG.agent_name);
+  if (CFG.welcome_message) addBubble({ role: 'agent', body: CFG.welcome_message, agent_name: CFG.agent_name });
   thread.forEach(function (m) {
     rendered[m.id] = true;
     if (m.id > lastId) lastId = m.id;
-    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.status, m.id);
+    addBubble(m);
   });
   updateStatus();
   if (prechatNeeded) { prechat.style.display = 'block'; form.style.display = 'none'; }
@@ -363,11 +363,11 @@
     prechatNeeded = isPrechatNeeded();
 
     body.innerHTML = '';
-    if (CFG.welcome_message) addBubble('agent', CFG.welcome_message, CFG.agent_name);
+    if (CFG.welcome_message) addBubble({ role: 'agent', body: CFG.welcome_message, agent_name: CFG.agent_name });
     thread.forEach(function (m) {
       rendered[m.id] = true;
       if (m.id > lastId) lastId = m.id;
-      addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.status, m.id);
+      addBubble(m);
     });
     prechat.style.display = prechatNeeded ? 'block' : 'none';
     form.style.display = prechatNeeded ? 'none' : 'flex';
@@ -421,7 +421,7 @@
     var clientMessageId = makeClientMessageId();
     // Render immediately; a slow network must never make a submitted message
     // look lost. Replace this temporary bubble with the canonical server echo.
-    var optimisticRow = addBubble('visitor', text);
+    var optimisticRow = addBubble({ role: 'visitor', body: text });
     if (optimisticRow) {
       optimisticRow.classList.add('wb-pending');
       optimisticRow.setAttribute('data-wb-pending-body', text);
@@ -966,11 +966,11 @@
     for (var i = 0; i < thread.length; i++) {
       if (thread[i].id === m.id) { existingIdx = i; break; }
     }
-    var msgObj = { id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status };
+    var msgObj = { id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status, resources: m.resources || [] };
     if (existingIdx >= 0) thread[existingIdx] = msgObj;
     else thread.push(msgObj);
     saveThread();
-    addBubble(m.role, m.body, m.agent_name, m.attachment_url, m.type, m.filename, m.mime_type, m.file_size, m.status, m.id);
+    addBubble(m);
     return true;
   }
 
@@ -1050,7 +1050,18 @@
     if (!activelyComposing) playNotificationSound();
   }
 
-  function addBubble(role, text, name, attachmentUrl, type, filename, mimeType, fileSize, status, id) {
+  function addBubble(message) {
+    message = message || {};
+    var role = message.role;
+    var text = message.body;
+    var name = message.agent_name;
+    var attachmentUrl = message.attachment_url;
+    var type = message.type;
+    var filename = message.filename;
+    var mimeType = message.mime_type;
+    var fileSize = message.file_size;
+    var status = message.status;
+    var id = message.id;
     var row = document.createElement('div');
     row.className = 'wb-row wb-' + (role === 'visitor' ? 'out' : 'in');
     var av = '';
@@ -1098,10 +1109,54 @@
       var statusClass = 'wb-status-glyph' + (status === 'read' ? ' wb-status-read' : '');
       statusMarkup = '<span class="' + statusClass + '" data-wb-status-id="' + escAttr(id || '') + '">' + glyph + '</span>';
     }
-    row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + statusMarkup + '</div>';
+    var resources = Array.isArray(message.resources) ? message.resources : [];
+    var video = resources.find(function (resource) { return resource && resource.kind === 'video' && resource.canonical_url; });
+    var resourceMarkup = video ? videoCardMarkup(video) : '';
+    row.innerHTML = av + '<div class="wb-bubble">' + resourceMarkup + attachment + caption + statusMarkup + '</div>';
     body.appendChild(row);
+    var playButton = row.querySelector('.wb-video-play');
+    if (playButton && video) playButton.addEventListener('click', function () { activateVideoCard(row, video); });
     scrollDown();
     return row;
+  }
+
+  function videoCardMarkup(resource) {
+    var poster = resource.thumbnail_url
+      ? '<img src="' + escAttr(resource.thumbnail_url) + '" alt="">'
+      : '';
+    return '<section class="wb-video-card"><div class="wb-video-stage">' + poster +
+      '<button type="button" class="wb-video-play" aria-label="Play ' + escAttr(resource.title || 'video') + '"><span>▶</span></button>' +
+      '</div><div class="wb-video-meta"><strong>' + esc(resource.title || 'Video') + '</strong>' +
+      '<a href="' + escAttr(resource.canonical_url) + '" target="_blank" rel="noopener noreferrer">Open video</a></div></section>';
+  }
+
+  function activateVideoCard(row, resource) {
+    var stage = row.querySelector('.wb-video-stage');
+    if (!stage || !resource.playback_url) return;
+    stage.innerHTML = '';
+    if (resource.provider === 'direct') {
+      var video = document.createElement('video');
+      video.src = resource.playback_url;
+      video.controls = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.addEventListener('error', function () { showVideoError(stage, resource); });
+      stage.appendChild(video);
+      return;
+    }
+    var frame = document.createElement('iframe');
+    var src = resource.playback_url;
+    if (resource.provider === 'youtube') src += (src.indexOf('?') === -1 ? '?' : '&') + 'origin=' + encodeURIComponent(window.location.origin) + '&playsinline=1';
+    frame.src = src;
+    frame.title = resource.title || 'Video';
+    frame.allow = 'autoplay; encrypted-media; picture-in-picture';
+    frame.allowFullscreen = true;
+    frame.addEventListener('error', function () { showVideoError(stage, resource); });
+    stage.appendChild(frame);
+  }
+
+  function showVideoError(stage, resource) {
+    stage.innerHTML = '<div class="wb-video-error">Preview unavailable. <a href="' + escAttr(resource.canonical_url) + '" target="_blank" rel="noopener noreferrer">Open video</a></div>';
   }
 
   function docIconSvg(ext) {
@@ -1453,6 +1508,7 @@
       '.wb-status-glyph{font-size:10px;margin-left:5px;opacity:.75;display:inline-block;vertical-align:bottom;letter-spacing:-1px}',
       '.wb-status-glyph.wb-status-read{opacity:1;color:#67e8f9}',
       '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-media-audio{display:block;width:220px;max-width:100%;height:38px;margin-bottom:6px}.wb-caption:empty{display:none}',
+      '.wb-video-card{width:min(280px,70vw);margin:-3px -7px 8px;overflow:hidden;border-radius:12px;background:#111827;color:#fff}.wb-video-stage{position:relative;aspect-ratio:16/9;min-height:200px;background:#030712;display:grid;place-items:center}.wb-video-stage>img,.wb-video-stage>iframe,.wb-video-stage>video{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:contain}.wb-video-stage>img{object-fit:cover;opacity:.82}.wb-video-play{position:relative;z-index:1;width:52px;height:52px;border:0;border-radius:50%;background:' + COLOR + ';color:#fff;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:20px}.wb-video-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;font-size:12px}.wb-video-meta strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wb-video-meta a,.wb-video-error a{color:#fdba74;white-space:nowrap}.wb-video-error{padding:16px;text-align:center;font-size:12px;color:#d1d5db}',
       '.wb-media-doc-card{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:12px;text-decoration:none;transition:background .15s;max-width:100%}',
       '.wb-in .wb-media-doc-card{background:#f1f5f9;color:#0f172a}',
       '.wb-out .wb-media-doc-card{background:rgba(255,255,255,.2);color:#fff}',

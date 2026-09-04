@@ -20,6 +20,8 @@ class IntegrationConfig extends Model
         'llm_openai_default',
         'llm_anthropic_default',
         'llm_gemini_default',
+        'llm_deepseek_default',
+        'llm_qwen_default',
         'google_workspace',
         'oauth_google_mail',
         'oauth_microsoft_365',
@@ -33,6 +35,15 @@ class IntegrationConfig extends Model
 
     /** The single provider slug that is the active storage backend. */
     public const STORAGE_PROVIDERS = ['storage_local', 'storage_s3', 'storage_do', 'storage_wasabi'];
+
+    /** System providers eligible to generate managed WisperBot AI responses. */
+    public const LLM_PROVIDERS = [
+        'llm_openai_default',
+        'llm_anthropic_default',
+        'llm_gemini_default',
+        'llm_deepseek_default',
+        'llm_qwen_default',
+    ];
 
     /** Maps provider slug → Laravel disk name. */
     public const STORAGE_DISK_MAP = [
@@ -53,9 +64,11 @@ class IntegrationConfig extends Model
         'oauth_ebay' => 'eBay Seller Messaging (OAuth)',
         'oauth_amazon_spapi' => 'Amazon Seller Messaging (SP-API)',
         'telegram_business' => 'Telegram Business Inbox',
-        'llm_openai_default' => 'OpenAI (Default)',
-        'llm_anthropic_default' => 'Anthropic Claude (Default)',
-        'llm_gemini_default' => 'Google Gemini (Default)',
+        'llm_openai_default' => 'OpenAI',
+        'llm_anthropic_default' => 'Anthropic Claude',
+        'llm_gemini_default' => 'Google Gemini',
+        'llm_deepseek_default' => 'DeepSeek (System)',
+        'llm_qwen_default' => 'Alibaba Qwen 3.7 Flash (System)',
         'google_workspace' => 'Google Workspace (Sheets / Docs / Calendar / Meet)',
         'oauth_google_mail' => 'Google Mail OAuth (Gmail / Workspace)',
         'oauth_microsoft_365' => 'Microsoft 365 Mail OAuth',
@@ -81,6 +94,8 @@ class IntegrationConfig extends Model
         'llm_openai_default' => 'AI / LLM',
         'llm_anthropic_default' => 'AI / LLM',
         'llm_gemini_default' => 'AI / LLM',
+        'llm_deepseek_default' => 'AI / LLM',
+        'llm_qwen_default' => 'AI / LLM',
         'google_workspace' => 'Google Workspace',
         'oauth_google_mail' => 'Email OAuth',
         'oauth_microsoft_365' => 'Email OAuth',
@@ -161,6 +176,21 @@ class IntegrationConfig extends Model
         ],
         'llm_gemini_default' => [
             ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true],
+        ],
+        'llm_deepseek_default' => [
+            ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true],
+        ],
+        'llm_qwen_default' => [
+            ['key' => 'api_key', 'label' => 'API Key', 'type' => 'password', 'required' => true, 'hint' => 'Create a Model Studio API key in the same region as the selected workspace.'],
+            ['key' => 'region', 'label' => 'Alibaba Cloud region', 'type' => 'select', 'required' => true, 'options' => [
+                ['value' => 'ap-southeast-1', 'label' => 'Singapore'],
+                ['value' => 'us-east-1', 'label' => 'US East (Virginia)'],
+                ['value' => 'eu-central-1', 'label' => 'Germany (Frankfurt)'],
+                ['value' => 'ap-northeast-1', 'label' => 'Japan (Tokyo)'],
+                ['value' => 'cn-beijing', 'label' => 'China (Beijing)'],
+                ['value' => 'cn-hongkong', 'label' => 'China (Hong Kong)'],
+            ], 'hint' => 'API keys and workspaces are region-bound. Choose the region where both were created.'],
+            ['key' => 'workspace_id', 'label' => 'Model Studio Workspace ID', 'type' => 'password', 'required' => true, 'hint' => 'Used only to derive the allowlisted Model Studio endpoint; arbitrary endpoint URLs are not accepted.'],
         ],
         'google_workspace' => [
             ['key' => 'client_id',     'label' => 'OAuth Client ID',     'type' => 'text',     'required' => true,  'hint' => 'Google Cloud Console → APIs & Services → Credentials → OAuth client (Web).'],

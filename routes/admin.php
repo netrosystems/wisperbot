@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminSearchController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AiCreditAdminController;
 use App\Http\Controllers\Admin\AiDashboardController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\BlogPostController;
@@ -69,6 +70,8 @@ Route::get('/subscriptions', [SubscriptionController::class, 'index'])->name('su
 Route::get('/subscriptions/export', [SubscriptionController::class, 'export'])->name('subscriptions.export')->middleware('permission:view_subscriptions');
 Route::get('/subscriptions/user-search', [SubscriptionController::class, 'userSearch'])->name('subscriptions.user-search')->middleware('permission:manage_subscriptions');
 Route::post('/subscriptions', [SubscriptionController::class, 'store'])->name('subscriptions.store')->middleware('permission:manage_subscriptions');
+Route::get('/ai-credits/report', [AiCreditAdminController::class, 'index'])->name('ai-credits.report')->middleware('permission:view_subscriptions');
+Route::post('/ai-credits/periods/{period}/adjust', [AiCreditAdminController::class, 'adjust'])->name('ai-credits.adjust')->middleware('permission:manage_subscriptions');
 Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index')->middleware('permission:view_payment_gateways');
 Route::post('/payments/{transaction}/refund', [TransactionController::class, 'refund'])->name('payments.refund')->middleware('permission:view_payment_gateways');
 Route::get('/payment-gateways', [PaymentGatewayConfigController::class, 'index'])->name('payment-gateways.index')->middleware('permission:view_payment_gateways');

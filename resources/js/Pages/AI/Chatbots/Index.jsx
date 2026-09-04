@@ -29,11 +29,12 @@ function ToggleSwitch({ checked, onChange }) {
     );
 }
 
-function PlaygroundPanel({ chatbot }) {
+function PlaygroundPanel({ chatbot, aiCredits }) {
     const { t } = useTranslation();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [remainingCredits, setRemainingCredits] = useState(aiCredits?.remaining ?? 0);
     const bottomRef = useRef(null);
 
     useEffect(() => {
@@ -42,7 +43,8 @@ function PlaygroundPanel({ chatbot }) {
 
     const send = async () => {
         if (!input.trim() || loading) return;
-        const userMsg = { role: 'user', content: input };
+        const requestId = window.crypto.randomUUID();
+        const userMsg = { role: 'user', content: input, requestId };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
@@ -53,13 +55,19 @@ function PlaygroundPanel({ chatbot }) {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content,
+                    'Idempotency-Key': `chatbot-playground:${chatbot.id}:${requestId}`,
                 },
                 body: JSON.stringify({ message: userMsg.content, history: messages }),
             });
             const data = await res.json();
+            if (data.ai_credits) setRemainingCredits(data.ai_credits.remaining ?? 0);
+            if (!res.ok && ['ai_credits_exhausted', 'ai_credits_unavailable'].includes(data.error_code)) {
+                setInput(userMsg.content);
+            }
             setMessages(prev => [...prev, {
                 role: res.ok ? 'assistant' : 'error',
                 content: data.reply ?? data.error ?? t('ai.playground_error'),
+                resources: data.resources ?? [],
             }]);
         } catch {
             setMessages(prev => [...prev, { role: 'error', content: t('ai.playground_error') }]);
@@ -100,6 +108,7 @@ function PlaygroundPanel({ chatbot }) {
                             </div>
                             <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${isUser ? 'max-w-[75%] bg-brand-600 text-white rounded-tr-sm whitespace-pre-wrap break-words' : isError ? 'max-w-[85%] border border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-200 rounded-tl-sm whitespace-pre-wrap break-words' : 'max-w-[85%] bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-sm rounded-tl-sm'}`}>
                                 {isUser || isError ? m.content : <MarkdownLite content={m.content} />}
+                                {!isUser && !isError && m.resources?.map((resource, resourceIndex) => <a key={resourceIndex} href={resource.canonical_url} target="_blank" rel="noreferrer" className="mt-2 block text-xs font-medium text-brand-600 hover:underline">▶ {resource.title || t('ai.preview_video')}</a>)}
                             </div>
                         </div>
                     );
@@ -137,12 +146,13 @@ function PlaygroundPanel({ chatbot }) {
                         <Send className="h-3.5 w-3.5 text-white" />
                     </button>
                 </div>
+                <p className="mt-1 px-1 text-[11px] text-neutral-400">1 credit · {remainingCredits} remaining</p>
             </div>
         </div>
     );
 }
 
-function ChatbotCard({ chatbot, knowledgeBases }) {
+function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
     const { t } = useTranslation();
     const [tab, setTab] = useState(null); // null | 'settings' | 'playground'
 
@@ -150,7 +160,11 @@ function ChatbotCard({ chatbot, knowledgeBases }) {
         name: chatbot.name,
         system_prompt: chatbot.system_prompt ?? '',
         tone: chatbot.tone ?? 'professional',
-        max_context_chunks: chatbot.max_context_chunks ?? 5,
+        max_context_chunks: chatbot.max_context_chunks ?? 3,
+        retrieval_match_threshold: chatbot.retrieval_match_threshold ?? 0.60,
+        max_context_tokens: chatbot.max_context_tokens ?? 1200,
+        unsupported_answer_action: chatbot.unsupported_answer_action ?? 'clarify_then_handoff',
+        video_match_threshold: chatbot.video_match_threshold ?? 0.72,
         fallback_reply: chatbot.fallback_reply ?? '',
         ai_kb_id: chatbot.ai_kb_id ?? '',
         enabled: chatbot.enabled,
@@ -227,7 +241,7 @@ function ChatbotCard({ chatbot, knowledgeBases }) {
             {/* Expandable Panels */}
             {tab === 'playground' && (
                 <div className="border-t border-neutral-100 dark:border-neutral-800 px-5 pb-5 pt-4">
-                    <PlaygroundPanel chatbot={chatbot} />
+                    <PlaygroundPanel chatbot={chatbot} aiCredits={aiCredits} />
                 </div>
             )}
 
@@ -303,11 +317,18 @@ function ChatbotCard({ chatbot, knowledgeBases }) {
                                     className="w-20 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition"
                                 />
                             </div>
+                            <div className="space-y-1"><label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Answer confidence</label><input type="number" min={0} max={1} step={0.01} value={data.retrieval_match_threshold} onChange={e => setData('retrieval_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" /></div>
+                            <div className="space-y-1"><label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Context budget</label><input type="number" min={200} max={4000} step={100} value={data.max_context_tokens} onChange={e => setData('max_context_tokens', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" /></div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('ai.video_match_threshold')}</label>
+                                <input type="number" min={0} max={1} step={0.01} value={data.video_match_threshold} onChange={e => setData('video_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100" />
+                            </div>
                             <div className="flex items-center gap-3 pt-5">
                                 <ToggleSwitch checked={data.enabled} onChange={v => setData('enabled', v)} />
                                 <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('common.active')}</span>
                             </div>
                         </div>
+                        <div className="space-y-1"><label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">When no verified answer exists</label><select value={data.unsupported_answer_action} onChange={e => setData('unsupported_answer_action', e.target.value)} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"><option value="clarify_then_handoff">Ask one detail, then offer human help</option><option value="handoff">Offer human help immediately</option><option value="general">General help (never invent business facts)</option></select></div>
 
                         <div className="flex gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
                             <button
@@ -332,7 +353,7 @@ function ChatbotCard({ chatbot, knowledgeBases }) {
     );
 }
 
-export default function AiChatbotsIndex({ chatbots, knowledgeBases }) {
+export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
@@ -396,7 +417,7 @@ export default function AiChatbotsIndex({ chatbots, knowledgeBases }) {
                 {/* Chatbot list */}
                 <div className="space-y-3">
                     {chatbots.map(cb => (
-                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} />
+                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} />
                     ))}
                     {chatbots.length === 0 && (
                         <EmptyState

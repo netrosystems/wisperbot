@@ -341,6 +341,30 @@ const SETUP_GUIDES = {
         link: 'https://aistudio.google.com/app/apikey',
         linkLabel: 'Open Google AI Studio',
     },
+    llm_deepseek_default: {
+        title: 'DeepSeek API Setup',
+        steps: [
+            'Sign up or log in at platform.deepseek.com.',
+            'Open API Keys and create a new secret key.',
+            'Copy the key immediately and store it securely.',
+            'Review DeepSeek data processing, retention, training, and data-location terms before enabling it.',
+            'Paste the key here and run the connection test.',
+        ],
+        link: 'https://platform.deepseek.com/api_keys',
+        linkLabel: 'Open DeepSeek Platform',
+    },
+    llm_qwen_default: {
+        title: 'Alibaba Qwen 3.7 Flash Setup',
+        steps: [
+            'Open Alibaba Cloud Model Studio and choose the region where you will run Qwen.',
+            'Create an API key and copy the Workspace ID from that same region.',
+            'Enter both values and select the matching region below.',
+            'Save and enable the integration before testing it.',
+            'Return to the integrations list and choose “Use as managed AI” after the test succeeds.',
+        ],
+        link: 'https://modelstudio.console.alibabacloud.com/',
+        linkLabel: 'Open Alibaba Cloud Model Studio',
+    },
     sms_twilio_default: {
         title: 'Twilio SMS Setup',
         steps: [
@@ -545,6 +569,8 @@ const BRAND = {
     llm_anthropic_default:   { bg: 'bg-orange-100 dark:bg-orange-900/30', color: '#d4793b', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2.5L3.5 17h3.2l1.1-2.8h4.4l1.1 2.8h3.2L10 2.5zm0 4.3l1.6 4.2H8.4L10 6.8z" /></svg> },
     onesignal:               { bg: 'bg-red-100 dark:bg-red-900/30', color: '#e54b4d', icon: <span className="text-sm font-bold">1</span> },
     llm_gemini_default:      { bg: 'bg-blue-100 dark:bg-blue-900/30', color: '#4285F4', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2l2 6h6l-5 3.6 1.9 5.9L10 14l-4.9 3.5L7 11.6 2 8h6l2-6z" /></svg> },
+    llm_deepseek_default:    { bg: 'bg-neutral-100 dark:bg-neutral-800', color: '#4D6BFE', icon: <span className="text-[10px] font-bold">DS</span> },
+    llm_qwen_default:        { bg: 'bg-violet-100 dark:bg-violet-900/30', color: '#615CED', icon: <span className="text-[10px] font-bold">QW</span> },
     sms_twilio_default:      { bg: 'bg-red-100 dark:bg-red-900/30', color: '#F22F46', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm-2.5 4.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm5 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-5 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm5 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" /></svg> },
     sms_nexmo_default:       { bg: 'bg-purple-100 dark:bg-purple-900/30', color: '#6E3697', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M3.5 3h3.3L10 9.5 13.2 3h3.3L10 17 3.5 3z" /></svg> },
     sms_messagebird_default: { bg: 'bg-blue-100 dark:bg-blue-900/30', color: '#2481CC', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5"><path d="M18 9c0-3.31-3.58-6-8-6S2 5.69 2 9c0 2.12 1.32 4 3.38 5.14-.1.48-.46 1.74-.88 2.36 0 0 2.04-.42 3.52-1.56.64.1 1.3.16 1.98.16 4.42 0 8-2.69 8-6zM6 8.5a1 1 0 110 2 1 1 0 010-2zm4 0a1 1 0 110 2 1 1 0 010-2zm4 0a1 1 0 110 2 1 1 0 010-2z" /></svg> },
@@ -596,6 +622,30 @@ function PlainField({ label, fieldKey, value, onChange, required, hint }) {
                 onChange={e => onChange(fieldKey, e.target.value)}
                 className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
+            {hint && <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">{hint}</p>}
+        </div>
+    );
+}
+
+function SelectField({ label, fieldKey, value, onChange, required, hint, options = [] }) {
+    const isMasked = value && /^•+/.test(value);
+
+    return (
+        <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                {label} {required && <span className="text-red-500">*</span>}
+            </label>
+            <select
+                value={value}
+                onChange={e => onChange(fieldKey, e.target.value)}
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+                <option value="">Select an option</option>
+                {isMasked && <option value={value}>Keep current selection</option>}
+                {options.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+            </select>
             {hint && <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">{hint}</p>}
         </div>
     );
@@ -767,6 +817,17 @@ export default function IntegrationsEdit({ provider, label, category, fields, co
                                             required={f.required}
                                             hint={f.hint}
                                         />
+                                        : f.type === 'select'
+                                            ? <SelectField
+                                                key={f.key}
+                                                label={f.label}
+                                                fieldKey={f.key}
+                                                value={data.credentials[f.key] ?? ''}
+                                                onChange={setCredential}
+                                                required={f.required}
+                                                hint={f.hint}
+                                                options={f.options}
+                                            />
                                         : <PlainField
                                             key={f.key}
                                             label={f.label}

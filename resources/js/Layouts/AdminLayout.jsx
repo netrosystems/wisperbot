@@ -28,6 +28,7 @@ import {
     KeyRound,
     LogOut,
     Newspaper,
+    Coins,
 } from 'lucide-react';
 
 /** Nav item: { labelKey, route, href, icon, permission } - show only if user has permission (or no permission required). Order follows typical admin usage frequency. */
@@ -35,6 +36,7 @@ const ADMIN_NAV_ITEMS = [
     { labelKey: 'admin.dashboard', route: 'admin.dashboard', href: () => route('admin.dashboard'), icon: LayoutDashboard },
     { labelKey: 'admin.client_management', route: 'admin.clients.index', href: () => route('admin.clients.index'), icon: Users, permission: 'view_clients' },
     { labelKey: 'admin.nav.subscriptions', route: 'admin.subscriptions.index', href: () => route('admin.subscriptions.index'), icon: CreditCard, permission: 'view_subscriptions' },
+    { label: 'AI Credits', route: 'admin.ai-credits.report', href: () => route('admin.ai-credits.report'), icon: Coins, permission: 'view_subscriptions' },
     { labelKey: 'admin.nav.support', route: 'admin.support.index', href: () => route('admin.support.index'), icon: LifeBuoy, permission: 'view_settings' },
     { labelKey: 'admin.nav.payments', route: 'admin.payments.index', href: () => route('admin.payments.index'), icon: Receipt, permission: 'view_payment_gateways' },
     { labelKey: 'admin.nav.plans', route: 'admin.plans.index', href: () => route('admin.plans.index'), icon: Package, permission: 'view_plans' },
@@ -63,10 +65,10 @@ const ADMIN_NAV_ITEMS = [
 function useAdminNav() {
     const { t } = useTranslation();
     const { auth } = usePage().props;
-    const permissions = auth?.permissions ?? [];
-    const hasPermission = (key) => permissions.includes(key);
+    const permissions = auth?.permissions;
 
     return useMemo(() => {
+        const hasPermission = (key) => (permissions ?? []).includes(key);
         return ADMIN_NAV_ITEMS.filter((item) => {
             const perm = item.permission;
             const alt = item.permissionAlt;

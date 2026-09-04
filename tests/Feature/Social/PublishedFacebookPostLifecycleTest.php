@@ -33,7 +33,7 @@ class PublishedFacebookPostLifecycleTest extends TestCase
                 'scheduled_at' => now()->addHour()->toIso8601String(),
                 'timezone' => 'UTC',
             ])
-            ->assertRedirect(route('client.social.posts.index'))
+            ->assertRedirect(route('client.social.automation.index', ['tab' => 'upcoming']))
             ->assertSessionHas('success', 'Post scheduled.');
 
         $post = SocialPost::query()->latest('id')->firstOrFail();
@@ -170,7 +170,7 @@ class PublishedFacebookPostLifecycleTest extends TestCase
             ->put(route('client.social.posts.update', $post), $this->updatePayload($post, [
                 'body' => 'Updated on Facebook',
             ]))
-            ->assertRedirect(route('client.social.posts.index'))
+            ->assertRedirect(route('client.social.automation.index'))
             ->assertSessionHas('success', 'Facebook Page post updated successfully.');
 
         $this->assertDatabaseHas('social_media_posts', [
@@ -203,7 +203,7 @@ class PublishedFacebookPostLifecycleTest extends TestCase
                 'body' => 'Historical schedule no longer blocks edits',
                 'scheduled_at' => $post->scheduled_at->toIso8601String(),
             ]))
-            ->assertRedirect(route('client.social.posts.index'))
+            ->assertRedirect(route('client.social.automation.index'))
             ->assertSessionHasNoErrors()
             ->assertSessionHas('success', 'Facebook Page post updated successfully.');
 

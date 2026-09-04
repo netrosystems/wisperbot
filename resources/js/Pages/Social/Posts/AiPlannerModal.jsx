@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { router } from '@inertiajs/react';
+import { usePage } from '@inertiajs/react';
 import { Sparkles, Loader2, ChevronLeft, Calendar, CheckSquare, Square, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SocialBrandIcon } from '@/Components/BrandIcons';
@@ -16,11 +16,6 @@ const TONES = [
 ];
 
 const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000 };
-
-const NETWORK_LABELS = {
-    facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn',
-    youtube: 'YouTube', tiktok: 'TikTok',
-};
 
 function utcToLocalInput(utcIso) {
     if (!utcIso) return '';
@@ -43,7 +38,7 @@ function addDays(dateStr, days) {
 
 // ─── Brief Step ──────────────────────────────────────────────────────────────
 
-function BriefStep({ brief, setBrief, accounts, onGenerate, loading, error }) {
+function BriefStep({ brief, setBrief, accounts, onGenerate, loading, error, creditRemaining }) {
     const { t } = useTranslation();
     const toggleAccount = (id) => {
         setBrief(prev => {
@@ -174,7 +169,7 @@ function BriefStep({ brief, setBrief, accounts, onGenerate, loading, error }) {
                 disabled={loading || !brief.topic.trim() || !brief.start_date || !brief.end_date || brief.target_accounts.length === 0}
                 className="ai-glow w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-                {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('social.generating_plan')}</> : <><Sparkles className="h-4 w-4" /> {t('social.generate_plan')}</>}
+                {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('social.generating_plan')}</> : <><Sparkles className="h-4 w-4" /> {t('social.generate_plan')} · 5 credits{creditRemaining !== null ? ` · ${creditRemaining} left` : ''}</>}
             </button>
         </div>
     );
@@ -295,6 +290,7 @@ function ReviewStep({ editedPosts, setEditedPosts, approved, setApproved, select
 
 export default function AiPlannerModal({ show, onClose, accounts, onSuccess }) {
     const { t } = useTranslation();
+    const creditRemaining = usePage().props.aiCredits?.remaining ?? null;
     const userTz = browserTz() || 'UTC';
     const today = todayDate();
 
@@ -326,12 +322,13 @@ export default function AiPlannerModal({ show, onClose, accounts, onSuccess }) {
     const selectedAccounts = accounts.filter(a => brief.target_accounts.includes(a.id));
 
     const handleGenerate = async () => {
+        const requestId = window.crypto.randomUUID();
         setError('');
         setLoading(true);
         try {
             const res = await fetch(route('client.social.ai-plan'), {
                 method: 'POST',
-                headers,
+                headers: { ...headers, 'Idempotency-Key': `social-plan:${requestId}` },
                 body: JSON.stringify(brief),
             });
             const json = await res.json();
@@ -441,6 +438,7 @@ export default function AiPlannerModal({ show, onClose, accounts, onSuccess }) {
                             onGenerate={handleGenerate}
                             loading={loading}
                             error={error}
+                            creditRemaining={creditRemaining}
                         />
                     )}
                     {step === 'review' && (

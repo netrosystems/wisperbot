@@ -7,7 +7,9 @@ use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Events\TypingChanged;
 use App\Models\User;
+use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\InboxLabel;
+use App\Modules\Inbox\Services\WebchatGeoService;
 use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -20,6 +22,7 @@ use App\Services\StorageManager;
 use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -29,6 +32,7 @@ class MobileConversationController extends WorkspaceScopedController
         private ChannelManager $channelManager,
         private StorageManager $storageManager,
         private AttachmentService $attachmentService,
+        private VideoResourceService $videos,
     ) {}
 
     /**
@@ -70,7 +74,7 @@ class MobileConversationController extends WorkspaceScopedController
             ->paginate(30);
 
         if ($isLiveFolder) {
-            $geoService = app(\App\Modules\Inbox\Services\WebchatGeoService::class);
+            $geoService = app(WebchatGeoService::class);
             $conversations->getCollection()->transform(function (Conversation $conv) use ($geoService) {
                 $contact = $conv->contact;
                 if ($contact) {
@@ -630,7 +634,7 @@ class MobileConversationController extends WorkspaceScopedController
         return response()->json(['ok' => true, 'unread_count' => 0]);
     }
 
-    private function liveUsersQuery(int $workspaceId, \Illuminate\Support\Carbon $liveSince)
+    private function liveUsersQuery(int $workspaceId, Carbon $liveSince)
     {
         return Conversation::query()
             ->where('workspace_id', $workspaceId)
@@ -715,11 +719,23 @@ class MobileConversationController extends WorkspaceScopedController
             'channel' => $m->channel,
             'type' => $m->type,
             'body' => Demo::text($m->body),
-            'payload' => $m->payload,
+            'payload' => $this->safeMessagePayload($m->payload),
             'status' => $m->status,
             'sent_by' => $m->sent_by,
             'sent_at' => $m->sent_at?->toIso8601String(),
             'created_at' => $m->created_at->toIso8601String(),
         ];
+    }
+
+    private function safeMessagePayload(?array $payload): ?array
+    {
+        if (! $payload) {
+            return $payload;
+        }
+        if (array_key_exists('resources', $payload)) {
+            $payload['resources'] = $this->videos->sanitisePublicList($payload['resources']);
+        }
+
+        return $payload;
     }
 }

@@ -40,6 +40,16 @@ Modules are auto-discovered by `App\Providers\ModuleServiceProvider` from `app/M
 
 Cross-cutting application code in `app/` owns accounts, workspaces, billing, licensing, admin, mobile APIs, notifications, audit logs, media, CMS/blog, and deployment commands.
 
+### Managed AI credits
+
+All production text generation routes through `App\Modules\AI\Services\LlmGateway`. The gateway requires a known feature key from `config/ai_credits.php`, chooses the workspace's managed/BYOK/automatic mode, and creates an account-scoped idempotent ledger reservation before a managed provider call. Success moves reserved credits to used; provider failure, timeout, moderation/malformed-output rejection, and stale ten-minute reservations refund them. BYOK calls are recorded at zero managed credits. Embeddings remain zero-credit infrastructure.
+
+Managed generation resolves the tested, enabled Super Admin AI / LLM integration marked as default. Alibaba Qwen 3.7 Flash is a Super Admin-only generation provider with a server-derived, region-specific Model Studio endpoint; it is not accepted through workspace BYOK. OpenAI or Gemini remains required for Knowledge Base embeddings.
+
+`ai_credit_periods` are owned by the Client organization when a workspace belongs to a Client, otherwise by the workspace owner. The current subscription controls the finite `limits.ai_credits_per_month` allowance. Periods follow monthly subscription-anniversary boundaries even on annual billing; upgrades may raise an open allowance, downgrades do not shrink it until the next period, and unused credits never roll forward.
+
+Crossing 80% and 100% stores one threshold timestamp per period before dispatching database, realtime, and email notifications, so concurrent completions cannot duplicate alerts. An AI-dependent automation that cannot reserve credits is stored as `paused`, keeps its current node cursor, and may be explicitly retried from its run history after credits or a tested BYOK provider become available.
+
 ## Tenancy and ownership
 
 - A client may have multiple workspaces and team members.
@@ -79,18 +89,22 @@ Meta Messenger and Instagram webhook processing currently uses the `whatsapp` qu
 
 ### AI knowledge base
 
-1. A client creates a knowledge base and adds text, URL, sitemap, or file content.
+Knowledge Base client authoring exposes URL, file, and sitemap ingestion. Text, FAQ, and dedicated `video` source types remain API/data compatible for existing clients. During extraction, validated YouTube, Vimeo, and public HTTPS MP4 links found in pages or files are normalized into trusted metadata. The surrounding guidance is embedded normally, and the reranker may attach at most one video only when the passage containing that link clears the chatbot's `video_match_threshold`. Widget, web inbox, AI chat API, and mobile message serializers use the same versioned `resources` payload. WhatsApp, Messenger, and Instagram receive a canonical link appended to the text response.
+
+1. A client creates a knowledge base and adds a focused URL, reviewed file, or sitemap. Compatible older records may still use text, FAQ, or dedicated-video types.
+   The client-facing Website option accepts either a homepage or sitemap: indexing resolves safe redirects, HTML declarations, `robots.txt`, and common sitemap paths before falling back to same-host links. All candidates pass DNS/IP SSRF checks and the configured page cap.
 2. `IndexDocumentJob` runs on the `ai` queue, extracts/chunks text, requests embeddings, and stores vectors.
 3. MySQL vector-like storage is the functional fallback; Qdrant is optional for scale.
 4. Smart bots retrieve workspace/knowledge-base scoped context before generating a concise answer.
 
 ### Social publishing
 
-1. Client selects one or more connected social accounts and composes media/content.
-2. A post and per-account mappings are stored.
-3. Immediate/delayed `PublishSocialPostJob` runs on `social`; the scheduler is a safety net.
-4. Provider results store remote IDs and capability information used to show valid edit/delete actions.
-5. `DELETE /app/social/posts/{post}` performs capability-checked provider deletion before local deletion. `DELETE /app/social/posts/{post}/local` is a workspace-scoped recovery route available only for orphaned published mappings whose connected account is unavailable; it never calls the provider.
+1. `GET /app/social/automation` supplies the workspace-scoped account summary, post tabs/counts, filters, and on-demand calendar data without serializing provider credentials. Legacy list/account/calendar URLs redirect to this canonical workflow.
+2. Client selects connected accounts and composes content at `/app/social/automation/schedule`, explicitly choosing scheduled or immediate delivery.
+3. A post and per-account mappings are stored.
+4. Immediate/delayed `PublishSocialPostJob` runs on `social`; the scheduler is a safety net.
+5. Provider results store remote IDs and capability information used to show valid edit/delete actions.
+6. `DELETE /app/social/posts/{post}` performs capability-checked provider deletion before local deletion. `DELETE /app/social/posts/{post}/local` is a workspace-scoped recovery route available only for orphaned published mappings whose connected account is unavailable; it never calls the provider.
 
 ## Route organization
 
@@ -127,3 +141,8 @@ There is one inconsistency to avoid extending: one API controller dispatches to 
 ## Realtime
 
 Pusher settings can be stored in the database by Super Admin and override environment configuration at boot. Private channels include `workspace.{workspaceId}`, `conversation.{conversationId}`, and `presence-conversation.{conversationId}`. Mobile clients authenticate channel subscriptions with Sanctum at `/api/v1/broadcasting/auth`; browser clients use `/broadcasting/auth` with session/CSRF.
+# Guarded Knowledge Base pipeline (2026-09-04)
+
+When `KB_GUARDED_PUBLISHING=true`, Knowledge Base writes create or modify a draft revision. Add/remove operations change only draft membership; editing, reindexing, or toggling a source inherited from a published revision creates a draft document copy before mutation. `IndexDocumentJob` uses the `ai` queue for extraction, deterministic quality checks, section-aware chunks, embedding reuse, and regression gating. Only `published_revision_id` is passed into chatbot retrieval. The relational revision-document link—not a mutable document flag alone—is the authority for revision membership, including Qdrant results that are post-filtered against MySQL.
+
+Exact approved FAQ answers and safe revision-keyed cache hits return without generation. Query embeddings are model-keyed and reused for seven days. Unsupported business queries record score-only diagnostics plus a hashed knowledge-gap key and follow the configured clarify/handoff action.

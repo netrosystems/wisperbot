@@ -4,6 +4,7 @@ namespace App\Modules\AI\Services;
 
 use App\Modules\AI\Models\AiKbChunk;
 use App\Modules\Integrations\Services\CredentialResolver;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -65,17 +66,17 @@ class EmbeddingStore
     }
 
     /** Find top-k most similar chunks to the query embedding. */
-    public function search(int $kbId, array $queryEmbedding, int $topK = 5): array
+    public function search(int $kbId, array $queryEmbedding, int $topK = 5, ?int $revisionId = null): array
     {
         if ($this->qdrantEnabled()) {
-            $results = $this->qdrantSearch($kbId, $queryEmbedding, $topK);
+            $results = $this->qdrantSearch($kbId, $queryEmbedding, $topK, $revisionId);
             if (! empty($results)) {
                 return $results;
             }
             // Fall through to MySQL if Qdrant returns nothing (e.g. collection empty)
         }
 
-        return $this->mysqlSearch($kbId, $queryEmbedding, $topK);
+        return $this->mysqlSearch($kbId, $queryEmbedding, $topK, $revisionId);
     }
 
     // -------------------------------------------------------------------------
@@ -87,7 +88,7 @@ class EmbeddingStore
         return $this->qdrantCredentials() !== null;
     }
 
-    private function qdrantClient(): \Illuminate\Http\Client\PendingRequest
+    private function qdrantClient(): PendingRequest
     {
         $credentials = $this->qdrantCredentials();
         if ($credentials === null) {
@@ -127,6 +128,7 @@ class EmbeddingStore
                         'kb_id' => $chunk->kb_id,
                         'document_id' => $chunk->document_id,
                         'chunk_id' => $chunk->id,
+                        'revision_id' => $chunk->revision_id,
                     ],
                 ]],
             ]);
@@ -139,14 +141,15 @@ class EmbeddingStore
         }
     }
 
-    private function qdrantSearch(int $kbId, array $queryEmbedding, int $topK): array
+    private function qdrantSearch(int $kbId, array $queryEmbedding, int $topK, ?int $revisionId = null): array
     {
         try {
+            $must = [['key' => 'kb_id', 'match' => ['value' => $kbId]]];
             $resp = $this->qdrantClient()->post('/collections/'.self::QDRANT_COLLECTION.'/points/search', [
                 'vector' => $queryEmbedding,
-                'limit' => $topK,
+                'limit' => $revisionId !== null ? max(30, $topK) : $topK,
                 'filter' => [
-                    'must' => [['key' => 'kb_id', 'match' => ['value' => $kbId]]],
+                    'must' => $must,
                 ],
                 'with_payload' => true,
             ]);
@@ -160,7 +163,7 @@ class EmbeddingStore
                 return [];
             }
 
-            $chunks = AiKbChunk::whereIn('id', $chunkIds)->get()->keyBy('id');
+            $chunks = $this->eligibleChunks(AiKbChunk::whereIn('id', $chunkIds), $revisionId)->get()->keyBy('id');
             $results = [];
             foreach ($resp->json('result', []) as $hit) {
                 $chunk = $chunks->get($hit['id']);
@@ -209,11 +212,12 @@ class EmbeddingStore
     // MySQL fallback
     // -------------------------------------------------------------------------
 
-    private function mysqlSearch(int $kbId, array $queryEmbedding, int $topK): array
+    private function mysqlSearch(int $kbId, array $queryEmbedding, int $topK, ?int $revisionId = null): array
     {
-        $chunks = AiKbChunk::where('kb_id', $kbId)
-            ->whereNotNull('embedding')
-            ->get();
+        $chunks = $this->eligibleChunks(
+            AiKbChunk::where('kb_id', $kbId)->whereNotNull('embedding'),
+            $revisionId,
+        )->get();
 
         return $chunks->map(function (AiKbChunk $chunk) use ($queryEmbedding) {
             return [
@@ -221,6 +225,22 @@ class EmbeddingStore
                 'score' => $this->cosine($queryEmbedding, $this->unpackEmbedding($chunk->embedding ?? '')),
             ];
         })->sortByDesc('score')->take($topK)->values()->toArray();
+    }
+
+    private function eligibleChunks($query, ?int $revisionId)
+    {
+        if (! config('knowledge_base.guarded_publishing')) {
+            return $query;
+        }
+
+        return $query
+            ->where('embedding_status', 'ready')
+            ->when($revisionId !== null, fn ($builder) => $builder->whereHas('document.revisions', fn ($revisions) => $revisions->where('ai_kb_revisions.id', $revisionId)))
+            ->whereHas('document', fn ($documents) => $documents
+                ->where('enabled', true)
+                ->when($revisionId === null, fn ($builder) => $builder->where('publication_status', 'published'))
+                ->whereIn('review_status', ['auto_approved', 'approved'])
+                ->where('status', 'indexed'));
     }
 
     private function unpackEmbedding(string $json): array

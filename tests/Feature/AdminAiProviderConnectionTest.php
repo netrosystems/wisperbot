@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Modules\AI\Services\Llm\QwenProvider;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Modules\Integrations\Services\ConnectionTester;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,5 +72,129 @@ class AdminAiProviderConnectionTest extends TestCase
         $this->assertStringContainsString('rejected the credentials', $result['message']);
         $this->assertStringNotContainsString('secret-admin-provider-body', $result['message']);
         $this->assertStringNotContainsString('secret-admin-provider-body', $config->refresh()->last_test_message);
+    }
+
+    #[Test]
+    public function deepseek_is_available_as_a_super_admin_system_integration(): void
+    {
+        $this->assertContains('llm_deepseek_default', IntegrationConfig::PROVIDERS);
+        $this->assertSame('AI / LLM', IntegrationConfig::CATEGORIES['llm_deepseek_default']);
+
+        $config = IntegrationConfig::create([
+            'provider' => 'llm_deepseek_default',
+            'label' => 'DeepSeek (System)',
+            'mode' => 'live',
+            'enabled' => true,
+            'credentials' => ['api_key' => 'sk-system-deepseek'],
+        ]);
+
+        Http::fake([
+            'api.deepseek.com/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => 'OK']]],
+            ]),
+        ]);
+
+        $result = app(ConnectionTester::class)->test($config);
+
+        $this->assertTrue($result['ok']);
+        $this->assertStringContainsString('system chat connected', $result['message']);
+        Http::assertSentCount(1);
+        $this->assertSame('ok', $config->refresh()->last_test_status);
+    }
+
+    #[Test]
+    public function qwen_is_tested_through_its_region_bound_runtime_endpoint(): void
+    {
+        $this->assertContains('llm_qwen_default', IntegrationConfig::PROVIDERS);
+
+        $config = IntegrationConfig::create([
+            'provider' => 'llm_qwen_default',
+            'label' => 'Alibaba Qwen 3.7 Flash (System)',
+            'mode' => 'live',
+            'enabled' => true,
+            'credentials' => [
+                'api_key' => 'sk-system-qwen',
+                'region' => 'ap-southeast-1',
+                'workspace_id' => 'workspace-123',
+            ],
+        ]);
+
+        Http::fake([
+            'workspace-123.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => 'OK']]],
+                'usage' => ['prompt_tokens' => 4, 'completion_tokens' => 1],
+                'model' => QwenProvider::MODEL,
+            ]),
+        ]);
+
+        $result = app(ConnectionTester::class)->test($config);
+
+        $this->assertTrue($result['ok']);
+        $this->assertStringContainsString('Qwen 3.7 Flash connected', $result['message']);
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://workspace-123.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions'
+                && $request['model'] === QwenProvider::MODEL
+                && $request['enable_thinking'] === false
+                && $request->hasHeader('Authorization', 'Bearer sk-system-qwen');
+        });
+        $this->assertSame('ok', $config->refresh()->last_test_status);
+    }
+
+    #[Test]
+    public function qwen_rejects_unapproved_regions_before_sending_a_request(): void
+    {
+        $config = IntegrationConfig::create([
+            'provider' => 'llm_qwen_default',
+            'label' => 'Alibaba Qwen 3.7 Flash (System)',
+            'mode' => 'live',
+            'enabled' => true,
+            'credentials' => [
+                'api_key' => 'sk-system-qwen',
+                'region' => 'attacker.example',
+                'workspace_id' => 'workspace-123',
+            ],
+        ]);
+        Http::fake();
+
+        $result = app(ConnectionTester::class)->test($config);
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('fail', $config->refresh()->last_test_status);
+        Http::assertNothingSent();
+    }
+
+    #[Test]
+    public function only_a_tested_enabled_ai_provider_can_be_selected_for_managed_generation(): void
+    {
+        $admin = $this->createSuperAdmin();
+        $openAi = IntegrationConfig::create([
+            'provider' => 'llm_openai_default',
+            'label' => 'OpenAI (Default)',
+            'mode' => 'live',
+            'enabled' => true,
+            'is_default' => true,
+            'last_test_status' => 'ok',
+            'credentials' => ['api_key' => 'sk-openai'],
+        ]);
+        $qwen = IntegrationConfig::create([
+            'provider' => 'llm_qwen_default',
+            'label' => 'Alibaba Qwen 3.7 Flash (System)',
+            'mode' => 'live',
+            'enabled' => true,
+            'last_test_status' => 'ok',
+            'credentials' => [
+                'api_key' => 'sk-qwen',
+                'region' => 'ap-southeast-1',
+                'workspace_id' => 'workspace-123',
+            ],
+        ]);
+
+        $this->withoutMiddleware()
+            ->actingAs($admin, 'admin')
+            ->post(route('admin.integrations.set-default', 'llm_qwen_default'))
+            ->assertSessionHas('success');
+
+        $this->assertFalse($openAi->refresh()->is_default);
+        $this->assertTrue($qwen->refresh()->is_default);
     }
 }

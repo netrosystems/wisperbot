@@ -3,7 +3,9 @@
 namespace App\Modules\Social\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\AI\Exceptions\AiCreditsException;
 use App\Modules\AI\Services\LlmGateway;
+use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Modules\Social\Exceptions\PublishedPostLifecycleException;
 use App\Modules\Social\Jobs\PublishSocialPostJob;
 use App\Modules\Social\Models\SocialAccount;
@@ -13,6 +15,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -69,7 +72,10 @@ class SocialPostController extends Controller
     public function composer(Request $request): Response
     {
         $wid = $this->workspaceId($request);
-        $accounts = SocialAccount::where('workspace_id', $wid)->where('active', true)->get(['id', 'network', 'name', 'picture_url']);
+        $accounts = SocialAccount::where('workspace_id', $wid)
+            ->where('active', true)
+            ->where(fn ($query) => $query->whereNull('token_expires_at')->orWhere('token_expires_at', '>', now()))
+            ->get(['id', 'network', 'name', 'picture_url']);
 
         return Inertia::render('Social/Composer', ['accounts' => $accounts]);
     }
@@ -149,7 +155,18 @@ class SocialPostController extends Controller
             'target_accounts.*' => ['integer'],
             'scheduled_at' => ['nullable', 'date'],
             'timezone' => ['nullable', 'string', 'max:64'],
+            'delivery_mode' => ['nullable', 'in:schedule,publish_now'],
         ]);
+
+        if (($validated['delivery_mode'] ?? null) === 'schedule' && empty($validated['scheduled_at'])) {
+            throw ValidationException::withMessages([
+                'scheduled_at' => ['Choose a future date and time for this scheduled post.'],
+            ]);
+        }
+        if (($validated['delivery_mode'] ?? null) === 'publish_now') {
+            $validated['scheduled_at'] = null;
+        }
+        unset($validated['delivery_mode']);
 
         // Ensure every requested account belongs to this workspace (cross-workspace IDOR guard).
         $requestedIds = collect($validated['target_accounts'])->map(fn ($id) => (int) $id);
@@ -207,7 +224,9 @@ class SocialPostController extends Controller
             return response()->json(['success' => true, 'post_id' => $post->id]);
         }
 
-        return redirect()->route('client.social.posts.index')
+        return redirect()->route('client.social.automation.index', [
+            'tab' => $validated['scheduled_at'] ? 'upcoming' : 'all',
+        ])
             ->with('success', 'Post '.($validated['scheduled_at'] ? 'scheduled' : 'queued for publishing').'.');
     }
 
@@ -217,7 +236,7 @@ class SocialPostController extends Controller
 
         $capabilities = $this->publishedPosts->capabilities($post);
         if (! $capabilities['can_update']) {
-            return redirect()->route('client.social.posts.index')
+            return redirect()->route('client.social.automation.index')
                 ->with('error', $capabilities['reason'] ?? 'This post cannot be edited safely.');
         }
 
@@ -309,7 +328,7 @@ class SocialPostController extends Controller
             ? 'Facebook Page post updated successfully.'
             : 'Post updated successfully.';
 
-        return redirect()->route('client.social.posts.index')->with('success', $message);
+        return redirect()->route('client.social.automation.index')->with('success', $message);
     }
 
     /**
@@ -465,12 +484,21 @@ class SocialPostController extends Controller
                 $validated['topic'], $networks, $postCount, $tone, $goal,
                 $validated['start_date'], $validated['end_date'], $validated['timezone'] ?? 'UTC'
             );
-            $response = $gateway->chat($wid, $messages, ['temperature' => 0.7, 'max_tokens' => 4096]);
+            $response = $gateway->chat($wid, $messages, [
+                'temperature' => 0.7,
+                'max_tokens' => 4096,
+                'feature' => 'social_plan',
+                'idempotency_key' => $request->header('Idempotency-Key') ?? 'social-plan:'.(string) Str::uuid(),
+            ]);
             $posts = $this->parsePlanResponse($response->content, $postCount);
 
             return response()->json(['posts' => $posts, 'accounts' => $accounts]);
+        } catch (AiCreditsException $e) {
+            throw $e;
         } catch (\Throwable $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+            $error = ProviderErrorPresenter::present($e);
+
+            return response()->json(['error' => $error['message'], 'error_code' => $error['code']], 422);
         }
     }
 
@@ -614,11 +642,18 @@ SYSTEM;
                 ['role' => 'system', 'content' => "You are a social media copywriter. Write engaging, concise posts optimized for {$network}. Return ONLY the post text, no explanations."],
                 ['role' => 'user',   'content' => $request->prompt],
             ];
-            $response = $gateway->chat($wid, $messages, []);
+            $response = $gateway->chat($wid, $messages, [
+                'feature' => 'social_post',
+                'idempotency_key' => $request->header('Idempotency-Key') ?? 'social-post:'.(string) Str::uuid(),
+            ]);
 
             return response()->json(['body' => $response->content]);
+        } catch (AiCreditsException $e) {
+            throw $e;
         } catch (\Throwable $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+            $error = ProviderErrorPresenter::present($e);
+
+            return response()->json(['error' => $error['message'], 'error_code' => $error['code']], 422);
         }
     }
 }

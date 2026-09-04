@@ -5,12 +5,13 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\ClientSubscription;
 use App\Models\Subscription;
+use App\Modules\AI\Services\AiCreditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SubscriptionApiController extends Controller
 {
-    public function show(Request $request): JsonResponse
+    public function show(Request $request, AiCreditService $credits): JsonResponse
     {
         $user = $request->user();
         $effective = $user->effectiveSubscription();
@@ -34,11 +35,12 @@ class SubscriptionApiController extends Controller
                 'ends_at' => $effective->ends_at?->toIso8601String(),
                 'gateway' => $effective instanceof Subscription ? $effective->gateway : null,
                 'managed_by_admin' => $effective instanceof ClientSubscription,
+                'ai_credits' => $credits->usage((int) ($user->current_workspace_id ?? $user->workspace_id)),
             ],
         ]);
     }
 
-    public function usage(Request $request): JsonResponse
+    public function usage(Request $request, AiCreditService $credits): JsonResponse
     {
         $user = $request->user();
         $plan = $user->effectiveSubscription()?->plan;
@@ -50,6 +52,7 @@ class SubscriptionApiController extends Controller
                     'users' => $plan->limitValue('users'),
                     'storage_gb' => $plan->limitValue('storage_gb'),
                 ] : null,
+                'ai_credits' => $credits->usage((int) ($user->current_workspace_id ?? $user->workspace_id)),
             ],
         ]);
     }

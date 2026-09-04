@@ -1469,6 +1469,7 @@ const AI_EXAMPLES = ['automation.ai_example_welcome', 'automation.ai_example_aba
 
 function AiGenerateModal({ prompt, setPrompt, loading, error, onClose, onGenerate }) {
     const { t } = useTranslation();
+    const creditRemaining = usePage().props.aiCredits?.remaining ?? null;
     return (
         <div onClick={loading ? undefined : onClose} style={overlayStyle}>
             <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, width: 520 }}>
@@ -1495,7 +1496,7 @@ function AiGenerateModal({ prompt, setPrompt, loading, error, onClose, onGenerat
                 <div style={modalFooterStyle}>
                     <button onClick={onClose} disabled={loading} style={ghostBtnStyle}>{t('common.cancel')}</button>
                     <button onClick={onGenerate} disabled={loading || !prompt.trim()} className="ai-glow" style={{ ...primaryBtnStyle, background: '#7c3aed', opacity: (loading || !prompt.trim()) ? 0.6 : 1 }}>
-                        {loading ? <><Loader2 size={13} className="animate-spin" /> {t('automation.ai_generating')}</> : <><Sparkles size={13} /> {t('automation.ai_generate')}</>}
+                        {loading ? <><Loader2 size={13} className="animate-spin" /> {t('automation.ai_generating')}</> : <><Sparkles size={13} /> {t('automation.ai_generate')} · 5 credits{creditRemaining !== null ? ` · ${creditRemaining} left` : ''}</>}
                     </button>
                 </div>
             </div>
@@ -1558,7 +1559,7 @@ function AutomationBuilderInner({ automation: initial }) {
             style: { stroke: isNo ? '#ef4444' : '#6366f1', strokeWidth: 2 },
             markerEnd: { type: MarkerType.ArrowClosed, color: isNo ? '#ef4444' : '#6366f1' },
         }, eds));
-    }, []);
+    }, [setEdges]);
 
     const { screenToFlowPosition, deleteElements } = useReactFlow();
 
@@ -1677,9 +1678,12 @@ function AutomationBuilderInner({ automation: initial }) {
     };
 
     const generateAi = () => {
+        const requestId = window.crypto.randomUUID();
         setAiLoading(true);
         setAiError(null);
-        axios.post(route('client.automations.generate'), { prompt: aiPrompt, persist: false })
+        axios.post(route('client.automations.generate'), { prompt: aiPrompt, persist: false }, {
+            headers: { 'Idempotency-Key': `workflow-generate:${requestId}` },
+        })
             .then(res => {
                 if (res.data?.ok && res.data.graph) {
                     applyGraph(res.data.graph);

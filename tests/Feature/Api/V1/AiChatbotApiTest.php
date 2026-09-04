@@ -4,6 +4,8 @@ namespace Tests\Feature\Api\V1;
 
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKnowledgeBase;
+use App\Modules\AI\Models\AiProviderConfig;
+use App\Services\AddonEntitlementService;
 use App\Support\ApiAbilities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -28,7 +30,8 @@ class AiChatbotApiTest extends TestCase
 
     public function test_list_chatbots_returns_200(): void
     {
-        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
+        ['user' => $user, 'workspace' => $workspace, 'client' => $client] = $this->createWorkspaceContext();
+        $this->enableDeveloperTools($client->id, $user->id);
         $token = $user->createToken('t', ['*'])->plainTextToken;
 
         AiChatbot::factory()->create(['workspace_id' => $workspace->id]);
@@ -42,13 +45,22 @@ class AiChatbotApiTest extends TestCase
 
     public function test_chat_invocation_returns_reply(): void
     {
-        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
+        ['user' => $user, 'workspace' => $workspace, 'client' => $client] = $this->createWorkspaceContext();
+        $this->enableDeveloperTools($client->id, $user->id);
         $token = $user->createToken('t', [ApiAbilities::AI_WRITE])->plainTextToken;
 
         $kb = AiKnowledgeBase::factory()->create(['workspace_id' => $workspace->id]);
         $chatbot = AiChatbot::factory()->create([
             'workspace_id' => $workspace->id,
             'ai_kb_id' => $kb->id,
+            'enabled' => true,
+        ]);
+        AiProviderConfig::create([
+            'workspace_id' => $workspace->id,
+            'provider' => 'openai',
+            'credentials' => ['api_key' => 'sk-test'],
+            'default_model_chat' => 'gpt-4o-mini',
+            'default_model_embed' => 'text-embedding-3-small',
             'enabled' => true,
         ]);
 
@@ -71,7 +83,8 @@ class AiChatbotApiTest extends TestCase
 
     public function test_chat_on_other_workspace_chatbot_returns_404(): void
     {
-        ['user' => $user] = $this->createWorkspaceContext();
+        ['user' => $user, 'client' => $client] = $this->createWorkspaceContext();
+        $this->enableDeveloperTools($client->id, $user->id);
         ['workspace' => $otherWs] = $this->createWorkspaceContext();
         $token = $user->createToken('t', ['*'])->plainTextToken;
 
@@ -82,5 +95,16 @@ class AiChatbotApiTest extends TestCase
                 'message' => 'Hello?',
             ])
             ->assertStatus(404);
+    }
+
+    private function enableDeveloperTools(int $clientId, int $userId): void
+    {
+        app(AddonEntitlementService::class)->activate(
+            $clientId,
+            AddonEntitlementService::DEVELOPER_TOOLS,
+            $userId,
+            'manual',
+            'test-developer-tools-'.$clientId,
+        );
     }
 }

@@ -95,9 +95,9 @@ journey
 ### Feature 5: Social Media Publisher & Scheduler (`app/Modules/Social`)
 
 #### Capabilities
-- **Connected Accounts**: Connect Facebook Pages, Instagram Business Accounts, and LinkedIn profiles via OAuth 2.0.
-- **Multi-Platform Post Composer (`/app/social/composer`)**: Compose copy, attach media, preview platform-specific layouts, and publish immediately or schedule for future delivery.
-- **Interactive Visual Calendar (`/app/social/calendar`)**: Month/Week/Day calendar view for managing scheduled and past social media campaigns.
+- **Social Media Automation (`/app/social/automation`)**: A unified workspace for compact OAuth account management, upcoming/draft/published/failed post lists, search and filters, and an integrated calendar view.
+- **Multi-Platform Scheduling (`/app/social/automation/schedule`)**: Compose copy, attach media, preview platform-specific layouts, and explicitly choose scheduled delivery or immediate publication.
+- **Connected Accounts**: Connect multiple Facebook Pages, Instagram Business Accounts, LinkedIn profiles, YouTube channels, and TikTok accounts from the unified workflow.
 - **Capability-Driven Deletion**: Safely distinguishes remote platform deletion capabilities between Facebook (supported) and Instagram (API limited).
 
 ---
@@ -105,10 +105,15 @@ journey
 ### Feature 6: AI Knowledge Bases & Autonomous Smart Bots (`app/Modules/AI`)
 
 #### Capabilities
-- **Multi-Source Knowledge Ingestion**: Ingest raw text, PDF/Word documents, website URL crawlers, and XML sitemaps into vectorized embeddings (`IndexKnowledgeDocumentJob`).
+- **Multi-Source Knowledge Ingestion**: The guided client UI accepts focused website URLs, files, and XML sitemaps. Existing raw-text, FAQ, and dedicated-video records remain compatible but are not separate authoring choices. `IndexDocumentJob` discovers validated YouTube, Vimeo, and public HTTPS MP4 links inside extracted pages/files, while the surrounding guidance drives semantic retrieval; a chatbot-level score threshold allows at most one video from the query-matched passage per answer.
+- **Zero-configuration website discovery**: The Website source accepts a homepage or sitemap URL, follows validated HTTPS redirects, checks HTML sitemap declarations, `robots.txt`, and common sitemap paths, then falls back to a capped same-host link crawl. Nested indexes and duplicate URLs are bounded by the Knowledge Base sitemap page limit.
+- **Video Knowledge Answers**: AI responses retain normal text while adding a structured `payload.resources[]` video card. WisperBot web/mobile clients render click-to-play players; external messaging providers receive the canonical video link because they cannot render embedded players.
 - **Hybrid Vector Retrieval**: Built-in MySQL vector-like similarity fallback with high-performance Qdrant vector database support.
-- **LLM Provider Agnostic**: Native support for OpenAI (GPT-4o), Anthropic (Claude 3.5), Google (Gemini 1.5/2.0), and DeepSeek.
+- **LLM Provider Agnostic**: Client BYOK supports OpenAI, Anthropic, and Google Gemini. DeepSeek and Alibaba Qwen 3.7 Flash are restricted to Super Admin system integrations and are never exposed as workspace providers. A tested, enabled system LLM can be selected to power managed generation; Knowledge Base embeddings continue through OpenAI or Gemini.
 - **Smart Bot Configuration**: Define persona prompt instructions, confidence thresholds, temperature, and fallback behaviors.
+- **Managed AI Credits**: Every production generation path uses `LlmGateway`, which applies a centrally versioned action weight, atomically reserves organization-pooled monthly credits, finalizes only a usable response, and refunds failures. Workspaces choose managed, BYOK, or validated automatic fallback. Embeddings and provider tests cost zero credits.
+- **Guarded Knowledge Publishing**: Behind `KB_GUARDED_PUBLISHING`, client content follows Define → Add sources → Review quality → Test answers → Publish. Immutable revisions keep the last healthy version live while edits are extracted, deterministically checked, embedded, and regression-tested. Blocked, degraded, disabled, rejected, or unpublished sources cannot reach live retrieval.
+- **Retrieval Cost Controls**: Exact approved FAQs bypass generation, safe answers cache for 24 hours per chatbot/revision, query embeddings cache for seven days, unchanged chunk hashes reuse embeddings, and normal answers use no more than three passages/1,200 context tokens by default. Low-confidence business questions clarify or hand off rather than using general knowledge.
 
 ---
 
@@ -148,7 +153,8 @@ journey
 ### Feature 10: Subscriptions, Add-ons & Developer Platform (`app/Http/Controllers/Client/*`)
 
 #### Capabilities
-- **Tiered Plans & Usage Metering**: Automated enforcement of contact limits, monthly message quotas, AI vector tokens, and team member capacity.
+- **Tiered Plans & Usage Metering**: Automated enforcement of contact limits, monthly message quotas, finite monthly WisperBot AI credits, and team member capacity. Credits reset on the subscription anniversary month even for annual billing, never roll over, and do not create automatic overage charges.
+- **AI Credit Safety**: Account administrators receive once-per-period in-app and email warnings at 80% and 100%. Credit-blocked automation runs pause at their current AI node and expose an explicit retry after the billing or provider issue is resolved.
 - **Self-Service Checkout**: Automated billing and invoicing via Stripe, PayPal, and Paddle.
 - **Developer Tools Add-on**:
   - API Token generator with scoped permissions for REST APIs (`/api/v1/*`).

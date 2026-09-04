@@ -3,7 +3,7 @@ import ClientLayout from '@/Layouts/ClientLayout';
 import EmptyState from '@/Components/EmptyState';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff, CheckCircle, AlertCircle, LoaderCircle, Bot, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, AlertCircle, LoaderCircle, Bot, BookOpen, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 const SETUP_GUIDES = {
     openai: {
@@ -178,6 +178,7 @@ function ProviderCard({ provider }) {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
+                {info.notice && <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">{info.notice}</div>}
                 <div>
                     <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{t('ai.api_key')}</label>
                     <div className="relative mt-1">
@@ -244,7 +245,52 @@ function ProviderCard({ provider }) {
     );
 }
 
-export default function AiProvidersIndex({ providers }) {
+function ProviderModeCard({ providerMode, aiCredits }) {
+    const { data, setData, put, processing, errors } = useForm({ provider_mode: providerMode });
+    const options = [
+        ['managed', 'Use WisperBot AI credits', 'Use the managed privacy-first AI service included with your plan.'],
+        ['byok', 'Use my API provider', 'Always use an enabled workspace API key; WisperBot credits are not consumed.'],
+        ['auto_fallback', 'Credits, then my provider', 'Use credits first and switch only to a provider that passed connection testing.'],
+    ];
+    const submit = (event) => {
+        event.preventDefault();
+        put(route('client.ai.providers.mode'), { preserveScroll: true });
+    };
+
+    return (
+        <form onSubmit={submit} className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                    <span className="rounded-lg bg-brand-50 p-2 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300"><Sparkles className="h-5 w-5" /></span>
+                    <div>
+                        <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">AI usage mode</h3>
+                        <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
+                            {aiCredits?.remaining ?? 0} of {aiCredits?.allowance ?? 0} monthly credits remaining
+                            {aiCredits?.resets_at ? ` · resets ${new Date(aiCredits.resets_at).toLocaleDateString()}` : ''}
+                        </p>
+                    </div>
+                </div>
+                <button type="submit" disabled={processing} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">
+                    {processing ? 'Saving…' : 'Save mode'}
+                </button>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {options.map(([value, label, description]) => (
+                    <label key={value} className={`cursor-pointer rounded-lg border p-3 ${data.provider_mode === value ? 'border-brand-500 bg-brand-50/60 dark:bg-brand-900/20' : 'border-neutral-200 dark:border-neutral-700'}`}>
+                        <span className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                            <input type="radio" name="provider_mode" value={value} checked={data.provider_mode === value} onChange={() => setData('provider_mode', value)} />
+                            {label}
+                        </span>
+                        <span className="mt-1 block pl-5 text-xs text-neutral-500 dark:text-neutral-400">{description}</span>
+                    </label>
+                ))}
+            </div>
+            {errors.provider_mode && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.provider_mode}</p>}
+        </form>
+    );
+}
+
+export default function AiProvidersIndex({ providers, providerMode = 'auto_fallback', aiCredits = null }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
@@ -258,6 +304,7 @@ export default function AiProvidersIndex({ providers }) {
                     <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{t('ai.provider_settings_subtitle')}</p>
                 </div>
                 {flash.success && <div className="rounded-lg bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-4 py-2 text-sm">{flash.success}</div>}
+                <ProviderModeCard providerMode={providerMode} aiCredits={aiCredits} />
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {providers.length === 0 ? (
                         <div className="col-span-full">

@@ -25,6 +25,7 @@ class AiChatbotApiController extends WorkspaceScopedController
                 'enabled' => $b->enabled,
                 'kb_id' => $b->ai_kb_id,
                 'channels' => $b->channels ?? [],
+                'video_match_threshold' => $b->video_match_threshold ?? 0.72,
                 'created_at' => $b->created_at->toIso8601String(),
             ]);
 
@@ -55,6 +56,8 @@ class AiChatbotApiController extends WorkspaceScopedController
             $validated['message'],
             $this->workspaceId($request),
             $validated['history'] ?? [],
+            $request->header('Idempotency-Key'),
+            true,
         );
 
         return response()->json($result);

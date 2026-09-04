@@ -46,7 +46,7 @@ class SecureHeaders
         $styleSrc = "'self' 'unsafe-inline' https://fonts.bunny.net https://fonts.googleapis.com".$this->viteDevSources().$this->thirdPartyStyleSources();
         $fontSrc = "'self' data: https://fonts.bunny.net https://fonts.gstatic.com https://fonts.googleapis.com";
 
-        $frameSrc = "'self'".$this->metaFrameSources();
+        $frameSrc = "'self'".$this->metaFrameSources().' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com';
 
         $directives = array_filter([
             "default-src 'self'",

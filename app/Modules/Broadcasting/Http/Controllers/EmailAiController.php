@@ -3,9 +3,13 @@
 namespace App\Modules\Broadcasting\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Modules\AI\Services\Llm\LlmManager;
+use App\Modules\AI\Exceptions\AiCreditsException;
+use App\Modules\AI\Exceptions\AiOutputRejectedException;
+use App\Modules\AI\Services\LlmGateway;
+use App\Modules\AI\Services\ProviderErrorPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class EmailAiController extends Controller
 {
@@ -18,11 +22,7 @@ class EmailAiController extends Controller
 
         $workspaceId = (int) ($request->user()->current_workspace_id ?? $request->user()->workspace_id);
 
-        try {
-            $llm = LlmManager::forWorkspace($workspaceId);
-        } catch (\RuntimeException $e) {
-            return response()->json(['error' => 'No AI provider configured. Set one up in AI → Providers.'], 422);
-        }
+        $llm = app(LlmGateway::class);
 
         $bodySnippet = '';
         if (! empty($validated['body'])) {
@@ -68,8 +68,13 @@ PROMPT;
 
         try {
             $response = $llm->chat(
-                [['role' => 'user', 'content' => $userMessage]],
-                ['system' => $systemPrompt, 'max_tokens' => 200],
+                $workspaceId,
+                [['role' => 'system', 'content' => $systemPrompt], ['role' => 'user', 'content' => $userMessage]],
+                [
+                    'max_tokens' => 200,
+                    'feature' => 'email_subject',
+                    'idempotency_key' => $request->header('Idempotency-Key') ?? 'email-subject:'.(string) Str::uuid(),
+                ],
             );
 
             $content = trim($response->content);
@@ -80,8 +85,12 @@ PROMPT;
             }
 
             return response()->json(['suggestions' => array_slice($suggestions, 0, 3)]);
+        } catch (AiCreditsException $e) {
+            throw $e;
         } catch (\Throwable $e) {
-            return response()->json(['error' => 'AI suggestion failed: '.$e->getMessage()], 500);
+            $error = ProviderErrorPresenter::present($e);
+
+            return response()->json(['error' => $error['message'], 'error_code' => $error['code']], 422);
         }
     }
 
@@ -95,11 +104,7 @@ PROMPT;
 
         $workspaceId = (int) ($request->user()->current_workspace_id ?? $request->user()->workspace_id);
 
-        try {
-            $llm = LlmManager::forWorkspace($workspaceId);
-        } catch (\RuntimeException $e) {
-            return response()->json(['error' => 'No AI provider configured. Set one up in AI → Providers.'], 422);
-        }
+        $llm = app(LlmGateway::class);
 
         $tone = $validated['tone'] ?? 'professional';
         $campaignCtx = $validated['campaign_name'] ? "Campaign name: \"{$validated['campaign_name']}\"." : '';
@@ -144,37 +149,52 @@ Rules you MUST follow:
 PROMPT;
 
         $messages = [
+            ['role' => 'system', 'content' => $systemPrompt],
             ['role' => 'user', 'content' => trim("{$campaignCtx} {$validated['prompt']}")],
         ];
 
         try {
-            $response = $llm->chat($messages, ['system' => $systemPrompt, 'max_tokens' => 2000]);
-            $parsed = $this->parseEmailResponse($response->content);
+            $requestKey = $request->header('Idempotency-Key') ?? 'email-generate:'.(string) Str::uuid();
+            $validEmail = function ($response): bool {
+                $parsed = $this->parseEmailResponse($response->content);
 
-            // If the body looks like strategy/plan content rather than an email, retry once
-            // with an even more explicit instruction prepended to the user message.
-            if ($parsed && $this->looksLikeStrategy($parsed['body'])) {
+                return $parsed !== null && ! $this->looksLikeStrategy($parsed['body']);
+            };
+            try {
+                $response = $llm->chat($workspaceId, $messages, [
+                    'max_tokens' => 2000,
+                    'feature' => 'email_generate',
+                    'idempotency_key' => $requestKey,
+                    'response_validator' => $validEmail,
+                ]);
+            } catch (AiOutputRejectedException) {
                 $retryMessages = [
+                    ['role' => 'system', 'content' => $systemPrompt],
                     [
                         'role' => 'user',
-                        'content' => 'Write the actual email (not a strategy or plan). '
-                            .trim("{$campaignCtx} {$validated['prompt']}"),
+                        'content' => 'Write the actual email (not a strategy or plan). '.trim("{$campaignCtx} {$validated['prompt']}"),
                     ],
                 ];
-                $retryResponse = $llm->chat($retryMessages, ['system' => $systemPrompt, 'max_tokens' => 2000]);
-                $retryParsed = $this->parseEmailResponse($retryResponse->content);
-                if ($retryParsed && ! $this->looksLikeStrategy($retryParsed['body'])) {
-                    $parsed = $retryParsed;
-                }
+                $response = $llm->chat($workspaceId, $retryMessages, [
+                    'max_tokens' => 2000,
+                    'feature' => 'email_generate',
+                    'idempotency_key' => $requestKey.':retry:1',
+                    'response_validator' => $validEmail,
+                ]);
             }
+            $parsed = $this->parseEmailResponse($response->content);
 
             if (! $parsed) {
                 return response()->json(['error' => 'AI returned an unexpected format. Try rephrasing your prompt.'], 422);
             }
 
             return response()->json($parsed);
+        } catch (AiCreditsException $e) {
+            throw $e;
         } catch (\Throwable $e) {
-            return response()->json(['error' => 'AI generation failed: '.$e->getMessage()], 500);
+            $error = ProviderErrorPresenter::present($e);
+
+            return response()->json(['error' => $error['message'], 'error_code' => $error['code']], 422);
         }
     }
 

@@ -90,7 +90,7 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
             <div className="max-w-2xl space-y-6">
                 {/* Header */}
                 <div className="flex items-center gap-3">
-                    <Link href={route('client.social.posts.index')} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition">
+                    <Link href={route('client.social.automation.index')} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition">
                         <ArrowLeft className="h-5 w-5" />
                     </Link>
                     <div className="flex-1 min-w-0">
@@ -152,7 +152,7 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
                             {accounts.length === 0 && (
                                 <p className="text-sm text-neutral-400">
                                     {t('social.no_accounts_connected')}{' '}
-                                    <Link href={route('client.social.accounts.index')} className="text-brand-600 hover:underline">
+                                    <Link href={route('client.social.automation.index')} className="text-brand-600 hover:underline">
                                         {t('social.add_one')}
                                     </Link>
                                 </p>
@@ -292,7 +292,7 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
                                     : t('social.save_as_draft')}
                         </button>
                         <Link
-                            href={route('client.social.posts.index')}
+                            href={route('client.social.automation.index')}
                             className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-5 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
                         >
                             {t('common.cancel')}

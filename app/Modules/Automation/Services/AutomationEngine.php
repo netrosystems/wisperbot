@@ -6,6 +6,7 @@ use App\Events\ConversationAssigned;
 use App\Events\MessageSent;
 use App\Mail\AutomationEmail;
 use App\Models\User;
+use App\Modules\AI\Exceptions\AiCreditsException;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\AI\Services\LlmGateway;
@@ -162,6 +163,12 @@ class AutomationEngine
 
             if (($result['status'] ?? 'ok') === 'error') {
                 $run->update(['status' => 'failed', 'error' => $result['message'], 'completed_at' => now()]);
+
+                return;
+            }
+
+            if (($result['status'] ?? '') === 'paused') {
+                $run->update(['status' => 'paused', 'error' => $result['message'], 'completed_at' => null]);
 
                 return;
             }
@@ -427,6 +434,8 @@ class AutomationEngine
                 'google_forms' => $this->executeGoogleForms($data, $run, $context),
                 default => ['status' => 'skipped', 'message' => "Unknown node type: {$type}"],
             };
+        } catch (AiCreditsException) {
+            return ['status' => 'paused', 'message' => 'AI credits are unavailable. Add credits or enable a tested provider, then retry this run.'];
         } catch (\Throwable $e) {
             Log::error("AutomationEngine node error [{$type}]: ".$e->getMessage());
 
@@ -514,7 +523,14 @@ class AutomationEngine
                 ? $userMessage
                 : $this->renderTokens($data['prompt'] ?? '', $contact, $context);
 
-            $result = $this->chatbotRunner->runForApi($bot, $prompt, $workspaceId, $context['history'] ?? []);
+            $result = $this->chatbotRunner->runForApi(
+                $bot,
+                $prompt,
+                $workspaceId,
+                $context['history'] ?? [],
+                'automation:'.$run->id.':node:'.($run->current_node_id ?? 'chatbot'),
+                true,
+            );
             $reply = $result['reply'] ?? null;
             $tokens = $result['tokens_used'] ?? 0;
         } else {
@@ -526,9 +542,15 @@ class AutomationEngine
             ];
 
             try {
-                $response = $this->llmGateway->chat($workspaceId, $messages, ['max_tokens' => 512]);
+                $response = $this->llmGateway->chat($workspaceId, $messages, [
+                    'max_tokens' => 512,
+                    'feature' => 'automation_ai_step',
+                    'idempotency_key' => 'automation:'.$run->id.':node:'.($run->current_node_id ?? 'ai'),
+                ]);
                 $reply = $response->content;
                 $tokens = $response->promptTokens + $response->completionTokens;
+            } catch (AiCreditsException) {
+                return ['status' => 'paused', 'message' => 'AI credits are unavailable. Add credits or enable a tested provider, then retry this run.'];
             } catch (\Throwable $e) {
                 return ['status' => 'error', 'message' => 'AI generation failed: '.$e->getMessage()];
             }

@@ -82,7 +82,7 @@ class SelectedMetaAccountConnectionTest extends TestCase
             ])
             ->get('/app/social/accounts/callback/facebook?code=auth-code&state=verified-state');
 
-        $response->assertRedirect(route('client.social.accounts.index'));
+        $response->assertRedirect(route('client.social.automation.index'));
         $response->assertSessionHas('success', '1 Facebook account(s) connected.');
 
         $this->assertDatabaseHas('social_media_accounts', [

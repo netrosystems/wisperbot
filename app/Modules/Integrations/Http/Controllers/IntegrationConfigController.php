@@ -3,6 +3,7 @@
 namespace App\Modules\Integrations\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\AI\Services\Llm\QwenProvider;
 use App\Modules\Integrations\Models\IntegrationAuditLog;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Modules\Integrations\Services\ConnectionTester;
@@ -10,6 +11,7 @@ use App\Services\StorageManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -101,6 +103,19 @@ class IntegrationConfigController extends Controller
         foreach ($fields as $f) {
             $rules['credentials.'.$f['key']] = [$f['required'] ? 'nullable' : 'nullable', 'string', 'max:1024'];
         }
+        if ($provider === 'llm_qwen_default') {
+            $rules['credentials.region'] = ['nullable', 'string', function (string $attribute, mixed $value, \Closure $fail) {
+                if (! preg_match('/^•+$/u', (string) $value) && ! in_array($value, QwenProvider::REGIONS, true)) {
+                    $fail('Select a supported Alibaba Cloud region.');
+                }
+            }];
+            $rules['credentials.workspace_id'] = ['nullable', 'string', 'max:128', function (string $attribute, mixed $value, \Closure $fail) {
+                if (! preg_match('/^•+$/u', (string) $value)
+                    && ! preg_match('/^[A-Za-z0-9](?:[A-Za-z0-9-]{1,126}[A-Za-z0-9])?$/', (string) $value)) {
+                    $fail('Enter a valid Model Studio Workspace ID.');
+                }
+            }];
+        }
 
         $validated = $request->validate($rules);
 
@@ -123,6 +138,18 @@ class IntegrationConfigController extends Controller
             $changedKeys[] = $k;
         }
 
+        if ($config->exists && $config->is_default && $changedKeys !== []) {
+            throw ValidationException::withMessages([
+                'credentials' => 'Select another managed AI provider before changing credentials for the active provider.',
+            ]);
+        }
+
+        if ($config->exists && $config->is_default && ! (bool) $validated['enabled']) {
+            throw ValidationException::withMessages([
+                'enabled' => 'Select another managed AI provider before disabling the active provider.',
+            ]);
+        }
+
         if ((bool) $validated['enabled']) {
             $missing = IntegrationConfig::missingRequiredCredentialKeys($provider, $merged);
             if ($missing !== []) {
@@ -136,13 +163,21 @@ class IntegrationConfigController extends Controller
         }
 
         $wasEnabled = $config->enabled ?? false;
-        $config->fill([
+        $updates = [
             'label' => IntegrationConfig::LABELS[$provider] ?? $provider,
             'enabled' => (bool) $validated['enabled'],
             'mode' => $validated['mode'],
             'credentials' => $merged,
             'updated_by_admin_id' => auth('admin')->id(),
-        ])->save();
+        ];
+        if ($changedKeys !== []) {
+            $updates += [
+                'last_test_status' => 'untested',
+                'last_test_message' => null,
+                'last_tested_at' => null,
+            ];
+        }
+        $config->fill($updates)->save();
 
         $this->auditLog($request, $config, $config->wasRecentlyCreated ? 'create' : 'update', $changedKeys);
         if ($wasEnabled !== $config->enabled) {
@@ -191,6 +226,10 @@ class IntegrationConfigController extends Controller
             return back()->with('error', 'Complete all required credentials before enabling.');
         }
 
+        if ($config->enabled && $config->is_default && in_array($provider, IntegrationConfig::LLM_PROVIDERS, true)) {
+            return back()->with('error', 'Select another managed AI provider before disabling the active provider.');
+        }
+
         $updates = ['enabled' => ! $config->enabled];
         // If disabling a storage that was the default, clear its default flag
         if ($config->enabled && ($config->is_default ?? false) && str_starts_with($provider, 'storage_')) {
@@ -208,24 +247,41 @@ class IntegrationConfigController extends Controller
 
     public function setDefault(Request $request, string $provider): RedirectResponse
     {
-        abort_unless(in_array($provider, IntegrationConfig::STORAGE_PROVIDERS, true), 404);
+        $isStorage = in_array($provider, IntegrationConfig::STORAGE_PROVIDERS, true);
+        $isLlm = in_array($provider, IntegrationConfig::LLM_PROVIDERS, true);
+        abort_unless($isStorage || $isLlm, 404);
 
         $config = IntegrationConfig::forProvider($provider);
-        if (! $config || ! $config->enabled) {
-            return back()->with('error', 'Only an enabled storage provider can be set as default.');
+        if (! $config || ! $config->enabled || ! $config->isConfigured()) {
+            return back()->with('error', 'Only an enabled and configured provider can be selected.');
         }
 
-        // Clear is_default on all other storage providers
-        IntegrationConfig::whereIn('provider', IntegrationConfig::STORAGE_PROVIDERS)
-            ->where('provider', '!=', $provider)
-            ->update(['is_default' => false]);
+        if ($isLlm && $config->last_test_status !== 'ok') {
+            return back()->with('error', 'Test this AI provider successfully before using it as managed AI.');
+        }
 
-        $config->update(['is_default' => true]);
+        $providers = $isStorage ? IntegrationConfig::STORAGE_PROVIDERS : IntegrationConfig::LLM_PROVIDERS;
+        DB::transaction(function () use ($config, $provider, $providers) {
+            IntegrationConfig::whereIn('provider', $providers)
+                ->where('mode', 'live')
+                ->lockForUpdate()
+                ->get(['id']);
+            IntegrationConfig::whereIn('provider', $providers)
+                ->where('mode', 'live')
+                ->where('provider', '!=', $provider)
+                ->update(['is_default' => false]);
+            $config->update(['is_default' => true]);
+        });
         $this->auditLog($request, $config, 'update', ['is_default']);
 
-        app(StorageManager::class)->clearCache();
+        if ($isStorage) {
+            app(StorageManager::class)->clearCache();
+        }
 
-        return back()->with('success', IntegrationConfig::LABELS[$provider].' set as default storage.');
+        return back()->with(
+            'success',
+            IntegrationConfig::LABELS[$provider].($isStorage ? ' set as default storage.' : ' will now power managed AI generation.'),
+        );
     }
 
     public function rotate(Request $request, string $provider): RedirectResponse

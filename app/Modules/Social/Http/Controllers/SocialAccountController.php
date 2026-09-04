@@ -60,7 +60,7 @@ class SocialAccountController extends Controller
         try {
             $authUrl = $this->oauth->getAuthUrl($network, $this->workspaceId($request), $callbackUrl);
         } catch (\RuntimeException $e) {
-            return redirect()->route('client.social.accounts.index')
+            return redirect()->route('client.social.automation.index')
                 ->with('error', "OAuth for {$network} is not configured. Please contact your administrator.");
         }
 
@@ -76,12 +76,12 @@ class SocialAccountController extends Controller
         $stored = Session::pull('social_oauth_state', []);
 
         if ($error || ! $code) {
-            return redirect()->route('client.social.accounts.index')->with('error', 'OAuth failed: '.($error ?? 'No code received'));
+            return redirect()->route('client.social.automation.index')->with('error', 'OAuth failed: '.($error ?? 'No code received'));
         }
 
         // Verify state to prevent OAuth CSRF / account-linking hijack
         if (empty($stored['state']) || ! hash_equals($stored['state'], (string) $state)) {
-            return redirect()->route('client.social.accounts.index')->with('error', 'Invalid OAuth state. Please try connecting again.');
+            return redirect()->route('client.social.automation.index')->with('error', 'Invalid OAuth state. Please try connecting again.');
         }
 
         $callbackUrl = $this->callbackUrl($network);
@@ -89,7 +89,7 @@ class SocialAccountController extends Controller
             $tokens = $this->oauth->exchangeCode($network, $code, $callbackUrl, $stored);
 
             if (empty($tokens['access_token'])) {
-                return redirect()->route('client.social.accounts.index')->with('error', 'Failed to obtain access token.');
+                return redirect()->route('client.social.automation.index')->with('error', 'Failed to obtain access token.');
             }
 
             // Meta connections are resolved through Page/Business discovery
@@ -109,7 +109,7 @@ class SocialAccountController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return redirect()->route('client.social.accounts.index')
+            return redirect()->route('client.social.automation.index')
                 ->with('error', ucfirst($network).' authorization failed: '.mb_substr($e->getMessage(), 0, 240));
         }
 
@@ -143,12 +143,12 @@ class SocialAccountController extends Controller
                     'error' => $e->getMessage(),
                 ]);
 
-                return redirect()->route('client.social.accounts.index')
+                return redirect()->route('client.social.automation.index')
                     ->with('error', 'Meta authorization succeeded, but WisperBot could not verify which account you selected. No accounts were connected. Please try again.');
             }
 
             if ($selectedTargetIds === []) {
-                return redirect()->route('client.social.accounts.index')
+                return redirect()->route('client.social.automation.index')
                     ->with('error', 'Meta did not return a selected Page or Instagram account. No accounts were connected. Reconnect and choose the specific account you want to add.');
             }
 
@@ -167,11 +167,11 @@ class SocialAccountController extends Controller
                 if ($discovery['successful_sources'] === []) {
                     $message = $discovery['errors'][0]['message'] ?? 'Unknown Graph API error.';
 
-                    return redirect()->route('client.social.accounts.index')
+                    return redirect()->route('client.social.automation.index')
                         ->with('error', 'Could not fetch your '.ucfirst($network).' pages: '.$message);
                 }
 
-                return redirect()->route('client.social.accounts.index')
+                return redirect()->route('client.social.automation.index')
                     ->with('error', 'No '.ucfirst($network).' Pages were found. Reconnect and grant both pages_show_list and business_management so WisperBot can include Pages assigned through a Meta Business Portfolio.');
             }
 
@@ -233,15 +233,15 @@ class SocialAccountController extends Controller
                     ? 'No Instagram Business accounts were found linked to your Facebook Pages. Make sure your Instagram account is set to Business type and connected to a Facebook Page.'
                     : 'Facebook Pages were discovered, but Meta did not return a Page access token. Reconnect and grant Page management access.';
 
-                return redirect()->route('client.social.accounts.index')->with('error', $message);
+                return redirect()->route('client.social.automation.index')->with('error', $message);
             }
 
-            return redirect()->route('client.social.accounts.index')
+            return redirect()->route('client.social.automation.index')
                 ->with('success', $connected.' '.ucfirst($network).' account(s) connected.');
         }
 
         if (empty($accountInfo['account_id'])) {
-            return redirect()->route('client.social.accounts.index')
+            return redirect()->route('client.social.automation.index')
                 ->with('error', ucfirst($network).' connected, but the provider did not return an account identity. Nothing was saved.');
         }
 
@@ -266,7 +266,7 @@ class SocialAccountController extends Controller
             ]
         );
 
-        return redirect()->route('client.social.accounts.index')->with('success', ucfirst($network).' account connected.');
+        return redirect()->route('client.social.automation.index')->with('success', ucfirst($network).' account connected.');
     }
 
     public function disconnect(Request $request, SocialAccount $account): RedirectResponse

@@ -2,12 +2,15 @@
 
 namespace App\Modules\Inbox\Services;
 
+use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 
 class WidgetPayloadBuilder
 {
+    public function __construct(private VideoResourceService $videos) {}
+
     /**
      * @return array<int, array<string, mixed>>
      */
@@ -43,6 +46,7 @@ class WidgetPayloadBuilder
             'filename' => $message->payload['filename'] ?? null,
             'mime_type' => $message->payload['mime_type'] ?? null,
             'file_size' => $message->payload['file_size'] ?? null,
+            'resources' => $this->videos->sanitisePublicList($message->payload['resources'] ?? []),
             'sent_by' => $message->sent_by,
             'agent_name' => $isAgent
                 ? ($message->sender?->name ?: ($widget->agent_name ?: 'Support'))

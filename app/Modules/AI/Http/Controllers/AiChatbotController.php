@@ -3,8 +3,10 @@
 namespace App\Modules\AI\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\AI\Exceptions\AiCreditsException;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKnowledgeBase;
+use App\Modules\AI\Services\AiCreditService;
 use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Modules\Shared\Models\Conversation;
@@ -31,6 +33,7 @@ class AiChatbotController extends Controller
         return Inertia::render('AI/Chatbots/Index', [
             'chatbots' => $chatbots,
             'knowledgeBases' => $knowledgeBases,
+            'aiCredits' => app(AiCreditService::class)->usage($wid),
         ]);
     }
 
@@ -41,7 +44,14 @@ class AiChatbotController extends Controller
             'name' => ['required', 'string', 'max:128'],
         ]);
 
-        AiChatbot::create(array_merge($validated, ['workspace_id' => $wid]));
+        AiChatbot::create(array_merge([
+            'workspace_id' => $wid,
+            'max_context_chunks' => 3,
+            'retrieval_match_threshold' => 0.60,
+            'max_context_tokens' => 1200,
+            'video_match_threshold' => 0.72,
+            'unsupported_answer_action' => 'clarify_then_handoff',
+        ], $validated));
 
         return back()->with('success', 'Chatbot created.');
     }
@@ -56,6 +66,10 @@ class AiChatbotController extends Controller
             'system_prompt' => ['nullable', 'string', 'max:8192'],
             'tone' => ['nullable', 'string', 'max:64'],
             'max_context_chunks' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'retrieval_match_threshold' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'max_context_tokens' => ['nullable', 'integer', 'min:200', 'max:4000'],
+            'video_match_threshold' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'unsupported_answer_action' => ['nullable', 'in:clarify_then_handoff,handoff,general'],
             'fallback_reply' => ['nullable', 'string', 'max:512'],
             'channels' => ['nullable', 'array'],
             'enabled' => ['boolean'],
@@ -109,9 +123,9 @@ class AiChatbotController extends Controller
             $fakeConversation->id = 0;
             $fakeMessage->setRelation('conversation', $fakeConversation);
 
-            $reply = app(ChatbotRunner::class)->run($chatbot, $fakeMessage, throwProviderErrors: true);
+            $result = app(ChatbotRunner::class)->run($chatbot, $fakeMessage, throwProviderErrors: true);
 
-            if (blank($reply)) {
+            if (blank($result['reply'] ?? null)) {
                 return response()->json([
                     'error' => 'The AI provider returned an empty response. Check the selected model and try again.',
                     'error_code' => 'provider_empty_response',
@@ -119,8 +133,12 @@ class AiChatbotController extends Controller
             }
 
             return response()->json([
-                'reply' => $reply,
+                'reply' => $result['reply'],
+                'resources' => $result['resources'] ?? [],
+                'ai_credits' => app(AiCreditService::class)->usage($this->workspaceId($request)),
             ]);
+        } catch (AiCreditsException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             $error = ProviderErrorPresenter::present($e);
 

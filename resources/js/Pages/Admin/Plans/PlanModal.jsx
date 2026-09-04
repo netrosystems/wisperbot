@@ -16,7 +16,7 @@ const emptyPlan = (currency = 'USD') => ({
     paddle_monthly_id: '',
     paddle_yearly_id: '',
     features: [],
-    limits: {},
+    limits: { ai_credits_per_month: 0 },
     enabled: true,
     featured: false,
     popular: false,

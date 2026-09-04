@@ -1,6 +1,6 @@
-import { Head, usePage, useForm } from '@inertiajs/react';
+import { Head, Link, usePage, useForm } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
-import { Send, Sparkles, Clock, Plus, Trash2, ThumbsUp, MessageCircle, Share2, Heart, Bookmark, Repeat2 } from 'lucide-react';
+import { Send, Sparkles, Clock, Plus, Trash2, ThumbsUp, MessageCircle, Share2, Heart, Bookmark, Repeat2, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SocialBrandIcon } from '@/Components/BrandIcons';
@@ -10,14 +10,6 @@ import { DatePicker } from '@/Components/ui';
 import { browserTz, tzLocalToUtcIso, formatInTz } from '@/Utils/datetime';
 
 const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000 };
-
-const NETWORK_COLORS = {
-    facebook:  '#1877F2',
-    instagram: '#E1306C',
-    linkedin:  '#0A66C2',
-    tiktok:    '#000000',
-    youtube:   '#FF0000',
-};
 
 const NETWORK_LABELS = {
     facebook: 'Facebook', instagram: 'Instagram',
@@ -198,6 +190,7 @@ export default function SocialComposer({ accounts }) {
         target_accounts: [],
         scheduled_at:    '',
         timezone:        userTz,
+        delivery_mode:   'schedule',
     });
 
     const [aiLoading, setAiLoading] = useState(false);
@@ -216,12 +209,13 @@ export default function SocialComposer({ accounts }) {
 
     const generateWithAI = async () => {
         if (!aiPrompt.trim()) return;
+        const requestId = window.crypto.randomUUID();
         setAiLoading(true);
         setAiError('');
         try {
             const res = await fetch(route('client.social.ai-generate'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content, 'Idempotency-Key': `social-post:${requestId}` },
                 body: JSON.stringify({ prompt: aiPrompt, network: selectedNetworks[0] ?? '' }),
             });
             const json = await res.json();
@@ -240,10 +234,14 @@ export default function SocialComposer({ accounts }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         setSubmitError('');
+        if (data.delivery_mode === 'schedule' && !data.scheduled_at) {
+            setSubmitError(t('social.schedule_time_required', { defaultValue: 'Choose a future date and time before scheduling this post.' }));
+            return;
+        }
         // Convert wall-clock datetime-local value to UTC ISO; strip blank media URLs.
         transform(d => ({
             ...d,
-            scheduled_at: d.scheduled_at ? tzLocalToUtcIso(d.scheduled_at, d.timezone || 'UTC') : null,
+            scheduled_at: d.delivery_mode === 'schedule' && d.scheduled_at ? tzLocalToUtcIso(d.scheduled_at, d.timezone || 'UTC') : null,
             media_urls: (d.media_urls ?? []).filter(Boolean),
         }));
         post(route('client.social.posts.store'), {
@@ -259,15 +257,18 @@ export default function SocialComposer({ accounts }) {
     const mediaUrls = (data.media_urls ?? []).filter(Boolean);
 
     return (
-        <ClientLayout title={t('social.composer_title')}>
-            <Head title={t('social.composer_head')} />
+        <ClientLayout title={t('social.composer_title', { defaultValue: 'Schedule a Post' })}>
+            <Head title={t('social.composer_head', { defaultValue: 'Schedule a Post · Social Media Automation' })} />
             <div className="flex gap-6 items-start">
 
                 {/* ── LEFT: composer ── */}
                 <div className="w-full max-w-xl shrink-0 space-y-5">
                     <div>
-                        <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{t('social.composer_title')}</h2>
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">{t('social.composer_subtitle')}</p>
+                        <Link href={route('client.social.automation.index')} className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-neutral-500 transition hover:text-brand-600">
+                            <ArrowLeft className="h-4 w-4" /> {t('social.back_to_automation', { defaultValue: 'Back to Social Media Automation' })}
+                        </Link>
+                        <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{t('social.composer_title', { defaultValue: 'Schedule a Post' })}</h2>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">{t('social.composer_subtitle', { defaultValue: 'Write or generate content, preview each network, then schedule it or publish now.' })}</p>
                     </div>
 
                     {flash.success && <div className="rounded-lg bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-4 py-2 text-sm">{flash.success}</div>}
@@ -299,7 +300,7 @@ export default function SocialComposer({ accounts }) {
                                     {account.name}
                                 </button>
                             ))}
-                            {accounts.length === 0 && <p className="text-sm text-neutral-400">{t('social.no_accounts_connected')} <a href={route('client.social.accounts.index')} className="text-brand-600 hover:underline">{t('social.add_one')}</a></p>}
+                            {accounts.length === 0 && <p className="text-sm text-neutral-400">{t('social.no_accounts_connected')} <Link href={route('client.social.automation.index')} className="text-brand-600 hover:underline">{t('social.add_one')}</Link></p>}
                         </div>
                         {errors.target_accounts && <p className="mt-1 text-xs text-red-500">{errors.target_accounts}</p>}
                     </div>
@@ -310,7 +311,7 @@ export default function SocialComposer({ accounts }) {
                         <div className="flex gap-2">
                             <input type="text" value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} placeholder={t('social.ai_prompt_placeholder')} className="flex-1 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" />
                             <button type="button" onClick={generateWithAI} disabled={aiLoading || !aiPrompt.trim()} className="ai-glow flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition">
-                                <Sparkles className="h-4 w-4" /> {aiLoading ? t('social.generating') : t('social.generate')}
+                                <Sparkles className="h-4 w-4" /> {aiLoading ? t('social.generating') : `${t('social.generate')} · 2 credits${props.aiCredits ? ` · ${props.aiCredits.remaining} left` : ''}`}
                             </button>
                         </div>
                         {aiError && <p className="text-xs text-red-500 mt-1">{aiError}</p>}
@@ -393,23 +394,34 @@ export default function SocialComposer({ accounts }) {
                             {errors.media_urls && <p className="text-xs text-red-500">{errors.media_urls}</p>}
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400 flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {t('social.schedule_optional')}</label>
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                <DatePicker
-                                    mode="datetime"
-                                    value={data.scheduled_at}
-                                    onChange={v => setData('scheduled_at', v)}
-                                />
-                                <TimezonePicker
-                                    value={data.timezone}
-                                    onChange={tz => setData('timezone', tz)}
-                                />
+                        <div className="space-y-3">
+                            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400 flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {t('social.delivery', { defaultValue: 'When should this publish?' })}</label>
+                            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('social.delivery', { defaultValue: 'When should this publish?' })}>
+                                {['schedule', 'publish_now'].map(mode => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={data.delivery_mode === mode}
+                                        onClick={() => setData('delivery_mode', mode)}
+                                        className={`rounded-lg border px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-brand-500/30 ${data.delivery_mode === mode ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-300' : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:text-neutral-300'}`}
+                                    >
+                                        {t(`social.delivery_${mode}`, { defaultValue: mode === 'schedule' ? 'Schedule for later' : 'Publish now' })}
+                                    </button>
+                                ))}
                             </div>
-                            {data.scheduled_at && (
-                                <p className="text-xs text-neutral-400">
-                                    {t('social.publishes_at', { time: formatInTz(tzLocalToUtcIso(data.scheduled_at, data.timezone), data.timezone) })}
-                                </p>
+                            {data.delivery_mode === 'schedule' && (
+                                <>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                        <DatePicker mode="datetime" value={data.scheduled_at} onChange={v => setData('scheduled_at', v)} />
+                                        <TimezonePicker value={data.timezone} onChange={tz => setData('timezone', tz)} />
+                                    </div>
+                                    {data.scheduled_at && (
+                                        <p className="text-xs text-neutral-400">
+                                            {t('social.publishes_at', { time: formatInTz(tzLocalToUtcIso(data.scheduled_at, data.timezone), data.timezone) })}
+                                        </p>
+                                    )}
+                                </>
                             )}
                             {errors.scheduled_at && <p className="text-xs text-red-500">{errors.scheduled_at}</p>}
                             {errors.timezone && <p className="text-xs text-red-500">{errors.timezone}</p>}
@@ -419,7 +431,7 @@ export default function SocialComposer({ accounts }) {
                             <div className="flex gap-2 pt-1">
                                 <button type="submit" disabled={processing || !data.body.trim()} className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition">
                                     <Send className="h-4 w-4" />
-                                    {data.scheduled_at
+                                    {data.delivery_mode === 'schedule'
                                         ? (processing ? t('social.scheduling') : t('social.schedule'))
                                         : (processing ? t('social.publishing') : t('social.publish_now'))}
                                 </button>

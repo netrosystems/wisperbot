@@ -18,7 +18,7 @@ Super Admin configures platform-level applications/gateways. A client then autho
 | eBay | Developer keyset, RuName, scopes/environment | Seller OAuth | Poll/sync seller messages and reply; see provider guide. |
 | Amazon SP-API | LWA/SP-API public app and messaging role | Seller OAuth | Order-specific allowed message actions; no mirrored inbound inbox. |
 | Ecommerce | Platform OAuth/app settings as required | Connect Shopify, WooCommerce, BigCommerce stores | Products/orders/customers, webhooks, automation context. |
-| AI | Provider availability/defaults; optional Qdrant | Workspace API keys/models and knowledge bases | Chat completion, embeddings, RAG and smart bots. |
+| AI | Managed OpenAI availability/defaults; optional Qdrant | Choose managed/BYOK/automatic mode; optionally add workspace keys/models and knowledge bases | Credit-metered managed completion, zero-credit BYOK/embeddings, RAG and smart bots. |
 | SMS | Enable supported gateway definitions | Configure workspace sender credentials | SMS campaigns and delivery callbacks. |
 | Billing | Stripe, PayPal, Paddle credentials/webhooks | Select plan/add-on and checkout | Subscription and payment lifecycle. |
 | Realtime | Pusher/Reverb server configuration | None beyond authenticated session/mobile token | Workspace/conversation broadcasts and presence. |
@@ -88,9 +88,16 @@ For every requested permission, record the complete flow: login/authorization, e
 ## AI and vector storage
 
 - Workspace AI credentials are encrypted in the database; UI placeholders mean “keep current key.”
+- Knowledge ingestion discovers YouTube, Vimeo (including retained unlisted `h` hashes), and direct public HTTPS MP4 links in extracted websites and files. WisperBot derives player URLs and never stores arbitrary embed markup; clients do not create a separate Video source.
+- YouTube/Vimeo are rendered only after Play is selected. Customer-site CSP may need `https://www.youtube.com`, `https://www.youtube-nocookie.com`, or `https://player.vimeo.com` in `frame-src`; Vimeo domain-level privacy must also permit the embedding customer domain.
+- External messaging channels cannot render web players, so AI answers append `Watch video: CANONICAL_URL` while WisperBot clients use the structured resource card.
 - Provider tests must surface the actual category (invalid key, model unavailable, quota, network), not collapse everything into “bad credentials.”
 - Only select chat/embedding models that the provider project can list/access.
 - Qdrant uses `QDRANT_URL` and `QDRANT_API_KEY`; MySQL fallback remains functional when absent.
+- WisperBot managed generation uses the tested, enabled Super Admin AI / LLM integration marked as the managed default. If no database default has been selected, the configured legacy OpenAI managed provider remains the compatibility fallback. Workspace credentials are never substituted into the managed pool.
+- Provider mode is `managed`, `byok`, or `auto_fallback`. New and unset workspaces default to `auto_fallback`. It consumes managed credits first and uses a customer provider only when that provider is enabled and has a successful connection test; invalid, expired, or missing fallback credentials pause the action and prompt provider setup or reconnection after managed credits become unavailable.
+- DeepSeek is configured only by Super Admins as `llm_deepseek_default` under Integrations → AI / LLM. It is excluded from client provider payloads, client update/test routes, workspace BYOK, and automatic fallback. DeepSeek has no compatible embedding endpoint in this integration, so Knowledge Base embeddings require an enabled OpenAI or Gemini system/workspace provider. Review DeepSeek data-processing, retention, training, and data-location terms before enabling the system integration.
+- Alibaba Qwen 3.7 Flash is configured only by Super Admins as `llm_qwen_default`. Its encrypted API key, region, and Model Studio Workspace ID derive an allowlisted region-specific `maas.aliyuncs.com` endpoint; arbitrary endpoints are rejected. The connection test calls `qwen3.7-flash` with thinking disabled. Qwen is generation-only in WisperBot, so Knowledge Base embeddings still require OpenAI or Gemini.
 
 ## Billing
 

@@ -88,15 +88,18 @@ class I18nFileService
         return array_keys($a) !== range(0, count($a) - 1);
     }
 
-    private function cacheVersion(): string
+    private function cacheVersion(string $code): string
     {
-        return Cache::get('i18n_version', '0');
+        $path = $this->path($code);
+        $modifiedAt = File::exists($path) ? (string) File::lastModified($path) : 'missing';
+
+        return Cache::get('i18n_version', '0').':'.$modifiedAt;
     }
 
     /** Read locale file and return flat key => value. */
     public function getFlatDictionary(string $code): array
     {
-        $version = $this->cacheVersion();
+        $version = $this->cacheVersion($code);
         $cacheKey = 'i18n:file:'.$code.':'.$version;
 
         return Cache::remember($cacheKey, 3600, function () use ($code) {

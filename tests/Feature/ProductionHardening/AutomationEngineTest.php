@@ -3,6 +3,8 @@
 namespace Tests\Feature\ProductionHardening;
 
 use App\Events\MessageReceived;
+use App\Modules\AI\Exceptions\AiCreditsException;
+use App\Modules\AI\Services\LlmGateway;
 use App\Modules\Automation\Jobs\ExecuteAutomationRunJob;
 use App\Modules\Automation\Models\Automation;
 use App\Modules\Automation\Models\AutomationRun;
@@ -123,5 +125,37 @@ class AutomationEngineTest extends TestCase
             'automation_id' => $automation->id,
             'contact_id' => $contact->id,
         ]);
+    }
+
+    public function test_ai_credit_exhaustion_pauses_run_for_retry(): void
+    {
+        $data = $this->createWorkspaceContext();
+        $workspace = $data['workspace'];
+        $contact = Contact::factory()->create(['workspace_id' => $workspace->id]);
+        $automation = Automation::create([
+            'workspace_id' => $workspace->id,
+            'name' => 'AI credit pause',
+            'status' => 'active',
+            'trigger_type' => 'message.received',
+            'nodes' => [
+                ['id' => 'trigger', 'type' => 'trigger', 'data' => []],
+                ['id' => 'ai', 'type' => 'ai_reply', 'data' => ['prompt' => 'Reply helpfully']],
+            ],
+            'edges' => [['id' => 'edge', 'source' => 'trigger', 'target' => 'ai']],
+        ]);
+        $run = AutomationRun::create([
+            'automation_id' => $automation->id,
+            'contact_id' => $contact->id,
+            'status' => 'pending',
+            'context' => ['message_body' => 'Hello'],
+        ]);
+        $gateway = \Mockery::mock(LlmGateway::class);
+        $gateway->shouldReceive('chat')->once()->andThrow(new AiCreditsException('Exhausted.', 'ai_credits_exhausted'));
+        $this->app->instance(LlmGateway::class, $gateway);
+
+        app(AutomationEngine::class)->executeRun($run->fresh());
+
+        $this->assertDatabaseHas('automation_runs', ['id' => $run->id, 'status' => 'paused']);
+        $this->assertStringContainsString('retry', $run->fresh()->error);
     }
 }

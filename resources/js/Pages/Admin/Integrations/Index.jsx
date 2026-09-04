@@ -286,6 +286,30 @@ const SETUP_GUIDES = {
         link: 'https://aistudio.google.com/app/apikey',
         linkLabel: 'Open Google AI Studio',
     },
+    llm_deepseek_default: {
+        title: 'DeepSeek API Setup',
+        steps: [
+            'Sign up or log in at platform.deepseek.com.',
+            'Open API Keys and create a new secret key.',
+            'Copy the key immediately and store it securely.',
+            'Review DeepSeek data processing, retention, training, and data-location terms before enabling it.',
+            'Paste the key here and run the connection test.',
+        ],
+        link: 'https://platform.deepseek.com/api_keys',
+        linkLabel: 'Open DeepSeek Platform',
+    },
+    llm_qwen_default: {
+        title: 'Alibaba Qwen 3.7 Flash Setup',
+        steps: [
+            'Open Alibaba Cloud Model Studio and choose the region where you will run Qwen.',
+            'Create an API key and copy the Workspace ID from that same region.',
+            'Paste the API key and Workspace ID, then select the matching region.',
+            'Save, enable, and test the connection.',
+            'After the test passes, choose “Use as managed AI”.',
+        ],
+        link: 'https://modelstudio.console.alibabacloud.com/',
+        linkLabel: 'Open Alibaba Cloud Model Studio',
+    },
     qdrant: {
         title: 'Qdrant Vector Store Setup',
         steps: [
@@ -401,6 +425,7 @@ function SetupGuide({ provider }) {
 }
 
 const STORAGE_PROVIDERS = ['storage_local', 'storage_s3', 'storage_do', 'storage_wasabi'];
+const LLM_PROVIDERS = ['llm_openai_default', 'llm_anthropic_default', 'llm_gemini_default', 'llm_deepseek_default', 'llm_qwen_default'];
 
 const CATEGORY_LABEL_KEYS = {
     'Storage': 'integrations.cat_storage',
@@ -440,6 +465,8 @@ const BRAND = {
     llm_openai_default:     { bg: null, color: '#10a37f', logo: 'openai' },
     llm_anthropic_default:  { bg: null, color: '#d4793b', logo: 'anthropic' },
     llm_gemini_default:     { bg: null, color: '#4285F4', logo: 'googlegemini' },
+    llm_deepseek_default:   { bg: 'bg-neutral-100 dark:bg-neutral-800', color: '#4D6BFE', icon: <span className="text-[10px] font-bold">DS</span> },
+    llm_qwen_default:       { bg: 'bg-violet-100 dark:bg-violet-900/30', color: '#615CED', icon: <span className="text-[10px] font-bold">QW</span> },
     qdrant:          { bg: null, color: '#DC143C', logo: 'qdrant' },
     onesignal:       { bg: 'bg-red-100 dark:bg-red-900/40', color: '#e54b4d', icon: <span className="text-sm font-bold">1</span> },
 };
@@ -484,8 +511,9 @@ function BrandBadge({ provider }) {
 function ProviderCard({ item, onTest, onSetDefault, testing, settingDefault }) {
     const { t } = useTranslation();
     const isStorage = STORAGE_PROVIDERS.includes(item.provider);
+    const isLlm = LLM_PROVIDERS.includes(item.provider);
     const brand = BRAND[item.provider] ?? DEFAULT_BRAND;
-    const isDefault = isStorage && item.is_default;
+    const isDefault = (isStorage || isLlm) && item.is_default;
 
     return (
         <div className={`rounded-xl border p-5 flex flex-col gap-3 transition ${
@@ -549,7 +577,7 @@ function ProviderCard({ item, onTest, onSetDefault, testing, settingDefault }) {
                         {testing === item.provider ? t('integrations.testing') : item.provider === 'onesignal' ? 'Test configuration' : t('integrations.test')}
                     </button>
                 )}
-                {isStorage && item.enabled && !isDefault && (
+                {((isStorage && item.enabled) || (isLlm && item.enabled && item.last_test_status === 'ok')) && !isDefault && (
                     <button
                         type="button"
                         disabled={settingDefault === item.provider}
@@ -557,7 +585,9 @@ function ProviderCard({ item, onTest, onSetDefault, testing, settingDefault }) {
                         className="flex items-center gap-1 rounded-lg border border-sky-300 dark:border-sky-700 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition disabled:opacity-50"
                     >
                         <Star className="h-3 w-3" />
-                        {settingDefault === item.provider ? t('integrations.setting') : t('integrations.set_default')}
+                        {settingDefault === item.provider
+                            ? t('integrations.setting')
+                            : isLlm ? 'Use as managed AI' : t('integrations.set_default')}
                     </button>
                 )}
             </div>

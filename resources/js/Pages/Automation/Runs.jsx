@@ -1,6 +1,6 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
-import { ArrowLeft, CheckCircle, XCircle, Clock, SkipForward } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Clock, SkipForward, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const STATUS_ICONS = {
@@ -8,6 +8,7 @@ const STATUS_ICONS = {
     failed:    <XCircle className="h-4 w-4 text-red-500" />,
     running:   <Clock className="h-4 w-4 text-blue-500" />,
     pending:   <Clock className="h-4 w-4 text-yellow-500" />,
+    paused:    <Clock className="h-4 w-4 text-amber-500" />,
     cancelled: <SkipForward className="h-4 w-4 text-neutral-400" />,
 };
 
@@ -38,6 +39,11 @@ export default function AutomationRuns({ automation, runs }) {
                                 <span className="font-medium text-neutral-900 dark:text-neutral-100 text-sm">{t('automation.run_number', { id: run.id })}</span>
                                 <span className="text-xs text-neutral-400">{run.started_at}</span>
                                 {run.error && <span className="ml-auto text-xs text-red-600 dark:text-red-400">{run.error}</span>}
+                                {run.status === 'paused' && (
+                                    <button type="button" onClick={() => router.post(route('client.automations.runs.retry', [automation.id, run.id]))} className="inline-flex items-center gap-1 rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/30">
+                                        <RefreshCw className="h-3.5 w-3.5" /> Retry
+                                    </button>
+                                )}
                             </div>
                             {run.logs?.length > 0 && (
                                 <div className="space-y-1">

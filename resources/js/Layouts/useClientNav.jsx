@@ -5,7 +5,7 @@ import {
     LayoutDashboard, CreditCard, Package, FileText, Users, Settings,
     Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot, Database,
     Zap, Share2, Tag, LifeBuoy, ExternalLink, MessageSquare,
-    ShoppingBag, MessageCircle, Mail,
+    ShoppingBag, Mail,
 } from 'lucide-react';
 
 const iconClass = 'h-4 w-4';
@@ -109,10 +109,7 @@ export default function useClientNav() {
     ];
 
     const socialItems = [
-        { label: t('nav.post_composer'),   href: safeRoute('client.social.composer'),        icon: <FileText className={iconClass} />,       activePattern: 'client.social.composer' },
-        { label: t('nav.post_automation'),  href: safeRoute('client.social.posts.index'),     icon: <Radio className={iconClass} />,           activePattern: 'client.social.posts.*' },
-        { label: t('nav.calendar_view'),    href: safeRoute('client.social.calendar'),         icon: <LayoutDashboard className={iconClass} />, activePattern: 'client.social.calendar' },
-        { label: t('nav.connected_social_media'), href: safeRoute('client.social.accounts.index'), icon: <Share2 className={iconClass} />, activePattern: 'client.social.accounts.*' },
+        { label: t('nav.social_media_automation', { defaultValue: 'Social Media Automation' }), href: safeRoute('client.social.automation.index'), icon: <Share2 className={iconClass} />, activePattern: 'client.social.*' },
     ];
 
     const ecommerceItems = [

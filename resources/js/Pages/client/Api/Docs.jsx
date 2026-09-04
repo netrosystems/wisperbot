@@ -90,10 +90,14 @@ const ENDPOINTS = [
         groupKey: 'api.group_ai_knowledge_bases',
         items: [
             { method: 'GET', path: `${BASE}/ai/knowledge-bases`, descKey: 'api.ep_kb_list', scope: 'ai:read' },
-            { method: 'POST', path: `${BASE}/ai/knowledge-bases`, descKey: 'api.ep_kb_create', scope: 'ai:write', body: '{ "name": "Help Center" }' },
+            { method: 'POST', path: `${BASE}/ai/knowledge-bases`, descKey: 'api.ep_kb_create', scope: 'ai:write', body: '{ "name": "Help Center", "purpose": "Product setup and support", "language": "en", "brand": "Acme" }' },
             { method: 'GET', path: `${BASE}/ai/knowledge-bases/{id}`, descKey: 'api.ep_kb_get', scope: 'ai:read' },
-            { method: 'POST', path: `${BASE}/ai/knowledge-bases/{id}/documents`, descKey: 'api.ep_kb_add_doc', scope: 'ai:write', body: '{ "source_type": "url", "source_ref": "https://example.com/faq" }' },
+            { method: 'POST', path: `${BASE}/ai/knowledge-bases/{id}/documents`, descKey: 'api.ep_kb_add_doc', scope: 'ai:write', body: '{ "source_type": "url", "title": "Setup guide", "source_ref": "https://YOUR-DOMAIN/help/widget-setup" }' },
             { method: 'DELETE', path: `${BASE}/ai/knowledge-bases/{kbId}/documents/{docId}`, descKey: 'api.ep_kb_remove_doc', scope: 'ai:write' },
+            { method: 'POST', path: `${BASE}/ai/knowledge-bases/{kbId}/documents/{docId}/approve`, descKey: 'api.ep_kb_approve_doc', scope: 'ai:write' },
+            { method: 'POST', path: `${BASE}/ai/knowledge-bases/{kbId}/documents/{docId}/toggle`, descKey: 'api.ep_kb_toggle_doc', scope: 'ai:write' },
+            { method: 'POST', path: `${BASE}/ai/knowledge-bases/{id}/test`, descKey: 'api.ep_kb_test', scope: 'ai:read', body: '{ "question": "How do I configure the widget?" }' },
+            { method: 'POST', path: `${BASE}/ai/knowledge-bases/{id}/publish`, descKey: 'api.ep_kb_publish', scope: 'ai:write' },
         ],
     },
     {
