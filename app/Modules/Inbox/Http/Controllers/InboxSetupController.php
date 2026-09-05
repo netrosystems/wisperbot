@@ -8,7 +8,9 @@ use App\Modules\Inbox\Services\TelegramBusinessClient;
 use App\Modules\Integrations\Services\CredentialResolver;
 use App\Modules\Integrations\Services\MetaPageDiscoveryService;
 use App\Modules\Shared\Models\ChannelAccount;
+use App\Modules\Whatsapp\Http\Controllers\WhatsappConnectionHealthController;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
+use App\Modules\Whatsapp\Services\WhatsappConnectionHealthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,6 +42,8 @@ class InboxSetupController extends Controller
         $channelAccountPhoneIdsByWaba = [];
         $channelAccountsByWaba = [];
         foreach ($wabas as $waba) {
+            $waba->setAttribute('connection_health', app(WhatsappConnectionHealthService::class)->summary($waba));
+            $waba->setAttribute('can_manage_health', WhatsappConnectionHealthController::canManage($request));
             $webhookTokensByWaba[$waba->id] = $waba->makeVisible('webhook_verify_token')->webhook_verify_token;
             $accounts = $whatsappChannelAccounts->where('business_account_id', $waba->waba_id)->values();
             $channelAccountPhoneIdsByWaba[$waba->id] = $accounts->pluck('phone_number_id')->all();

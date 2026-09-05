@@ -29,6 +29,8 @@ Frontend changes still require a current Vite build. Build locally and upload
 Node memory. Pulling PHP/source files alone cannot update the browser UI because
 `public/build` is intentionally excluded from Git.
 
+WhatsApp connection health additionally requires its migration and a separate `channel-health` worker before enabling `CHANNEL_HEALTH_ENABLED`. Start with the workspace allowlist, verify real message delivery, then expand. See [connection monitoring operations](docs/OPERATIONS.md#whatsapp-connection-monitoring-2026-09-05) for worker timeout, operator WABA settings, and rollback instructions.
+
 For a feature release or major release, use:
 
 ```bash

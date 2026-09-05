@@ -10,6 +10,7 @@ use App\Modules\Whatsapp\Jobs\TemplateSyncJob;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
 use App\Modules\Whatsapp\Models\WhatsappPhoneNumber;
 use App\Modules\Whatsapp\Services\CloudApiClient;
+use App\Modules\Whatsapp\Services\WhatsappConnectionHealthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -20,6 +21,7 @@ class WhatsappEmbeddedSignupController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
+        WhatsappConnectionHealthController::authorizeManager($request);
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:2048'],
             'waba_id' => ['nullable', 'string', 'max:64'],
@@ -221,6 +223,12 @@ class WhatsappEmbeddedSignupController extends Controller
             : null;
         $warnings = array_filter([$webhookError, $syncError, $phoneWarning, $coexistenceSyncWarning]);
 
+        $healthService = app(WhatsappConnectionHealthService::class);
+        if ($healthService->enabled((int) $waba->workspace_id) && $waba->status === 'active') {
+            $healthService->enqueue($waba);
+            $warnings[] = 'Authorization completed. Connection checks are running; messaging readiness is not yet verified.';
+        }
+
         return response()->json([
             'success' => true,
             'message' => $warnings === []
@@ -231,42 +239,13 @@ class WhatsappEmbeddedSignupController extends Controller
             'phone_count' => $phoneCount,
             'sync_error' => $syncError,
             'webhook_warning' => $warnings !== [] ? implode(' ', $warnings) : null,
+            'health' => $healthService->summary($waba),
         ]);
     }
 
     public function reregisterWebhook(Request $request, WhatsappBusinessAccount $waba): JsonResponse
     {
-        $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
-        if ($waba->workspace_id !== $workspaceId) {
-            abort(403);
-        }
-
-        $meta = CredentialResolver::system()->meta();
-        if (! $meta || ! $meta->appId() || ! $meta->appSecret()) {
-            return response()->json(['message' => 'Meta App credentials not configured.'], 422);
-        }
-
-        $token = $waba->accessToken() ?? $meta->systemUserToken();
-        if (! $token) {
-            return response()->json(['message' => 'No access token available for this WABA.'], 422);
-        }
-
-        $isCoexistence = ($waba->meta_json['connected_via'] ?? null) === 'coexistence';
-        $webhookError = $this->subscribeWabaWebhooks(
-            $waba->waba_id,
-            $token,
-            $waba->webhook_verify_token,
-            $meta,
-            $isCoexistence,
-        );
-
-        if ($webhookError) {
-            return response()->json(['success' => false, 'message' => $webhookError], 422);
-        }
-
-        $waba->update(['status' => 'active']);
-
-        return response()->json(['success' => true, 'message' => 'Webhook re-registered with Meta.']);
+        return app(WhatsappConnectionHealthController::class)->repair($request, $waba, app(WhatsappConnectionHealthService::class));
     }
 
     private function discoverWabaId(
@@ -315,25 +294,19 @@ class WhatsappEmbeddedSignupController extends Controller
         $appToken = $appId.'|'.$appSecret;
 
         // Step 1: Subscribe our Meta App to this WABA's events.
-        // Use the App Access Token (more reliable than the short-lived user token).
+        // WABA subscriptions require the account-authorized token, not an app token.
         try {
             $subRes = Http::post("https://graph.facebook.com/v25.0/{$wabaId}/subscribed_apps", [
-                'access_token' => $appToken,
+                'access_token' => $userToken,
             ]);
 
             if (! $subRes->successful()) {
-                $fallback = Http::post("https://graph.facebook.com/v25.0/{$wabaId}/subscribed_apps", [
-                    'access_token' => $userToken,
+                Log::warning('WhatsApp embedded signup: subscribed_apps failed', [
+                    'waba_id' => $wabaId,
+                    'http_status' => $subRes->status(),
                 ]);
-                if (! $fallback->successful()) {
-                    Log::warning('WhatsApp embedded signup: subscribed_apps failed', [
-                        'waba_id' => $wabaId,
-                        'app_response' => $subRes->json(),
-                        'user_response' => $fallback->json(),
-                    ]);
 
-                    return 'Meta did not subscribe the app to this WhatsApp Business Account. Inbound messages will not work; verify whatsapp_business_management access and the WABA assignment.';
-                }
+                return 'Meta did not subscribe the app to this WhatsApp Business Account. Inbound messages will not work; verify whatsapp_business_management access and the WABA assignment.';
             }
         } catch (\Throwable $e) {
             Log::warning('WhatsApp embedded signup: subscribed_apps call failed', [
@@ -359,7 +332,7 @@ class WhatsappEmbeddedSignupController extends Controller
                 'phone_number_quality_update',
                 'account_update',
             ];
-            if ($coexistence) {
+            if ($coexistence || WhatsappBusinessAccount::where('status', 'active')->where('meta_json->connected_via', 'coexistence')->exists()) {
                 $fields = array_merge($fields, ['history', 'smb_app_state_sync', 'smb_message_echoes']);
             }
 

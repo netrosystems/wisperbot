@@ -73,6 +73,16 @@ For Coexistence, WisperBot subscribes the WABA to `messages`, template/account/p
 
 Meta currently prevents a Business Portfolio that owns the Meta app from selecting its own WABA inside that app's customer Embedded Signup flow. This is a provider ownership rule, not a missing WisperBot selection. The platform owner's WABA must be connected operationally with an approved system-user token and explicit asset assignment; customer WABAs continue through Embedded Signup. Never expose that platform token in the client UI.
 
+### WhatsApp health and repair
+
+Channel Setup exposes `GET /app/whatsapp/setup/{waba}/health`, `POST .../health/check`, and `POST .../repair`. Mutation endpoints require workspace ownership/administrator membership, reuse active operations, and throttle new operations. Queued responses return HTTP 202 with `operation_id`, `success`, `message`, and an additive `health` summary. The legacy `.../reregister-webhook` route delegates to the repair flow and keeps those response fields; it no longer marks an account active based on a provider POST alone.
+
+Checks validate token app/scopes, WABA access, subscription app identity, connected phone membership/status, shared callback/event fields, and scheduler/worker evidence. Phone detail fields unavailable from Meta remain unknown. A phone outside the first provider page is treated as unknown when pagination exists, never falsely reported removed. `whatsapp_business_management` and `whatsapp_business_messaging` are required; `business_management` is not universally required for customer health checks.
+
+Repairs use the customer WABA credential, or an explicitly configured operator credential whose WABA ownership is verified. App access tokens are used only for app-level inspection/configuration, never WABA subscription writes. Repair restores a missing subscription and refreshes metadata for existing phones, then reads the app subscription back. Callback overrides require administrator review. Coexistence repair never calls `/register` or `/smb_app_data`.
+
+Health is separate from routing status. `ready` means checks passed; `delivery_verified` requires observed processing of a real live customer message after repair. History, echoes, statuses, and unsigned local test callbacks do not establish receipt evidence. Check/repair histories contain sanitized reason codes and component results, not provider errors or credentials.
+
 ### Review evidence
 
 For every requested permission, record the complete flow: login/authorization, exact user action in WisperBot, corresponding provider result, and the result back in WisperBot. Use a real app-role/admin Page/account while the app is unpublished. API test calls can take time to register in App Review.

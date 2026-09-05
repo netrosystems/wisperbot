@@ -133,7 +133,13 @@ class WhatsappDriver implements ChannelDriverInterface
                 foreach ($value['messages'] ?? [] as $msg) {
                     try {
                         $processed[] = $this->processInboundMessage($value, $msg);
+                        if ($field === 'messages') {
+                            app(WhatsappConnectionHealthService::class)->processed($wabaId, (string) ($value['metadata']['phone_number_id'] ?? ''), true);
+                        }
                     } catch (\Throwable $e) {
+                        if ($field === 'messages') {
+                            app(WhatsappConnectionHealthService::class)->processed($wabaId, (string) ($value['metadata']['phone_number_id'] ?? ''), false);
+                        }
                         Log::error('WhatsApp webhook processing failed', ['error' => $e->getMessage(), 'msg' => $msg]);
                     }
                 }

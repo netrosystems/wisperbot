@@ -53,6 +53,8 @@ Provider assets should not be attached to multiple workspaces when inbound routi
 
 ## Webhooks
 
+WhatsApp health mutations require workspace manager authorization and are scoped by both workspace and WABA. Jobs revalidate credential revision and membership before persisting results. Platform tokens cannot be substituted for customer tokens; operator use requires an explicit deployment allowlist plus matching Graph owner business. Health requests do not follow redirects and keep raw provider errors, tokens, customer text, and message IDs out of health histories. A repair cannot grant access, register a Coexistence number, replay messages, or change shared app callbacks. Monitoring storage failures must not prevent valid webhook dispatch.
+
 CSRF exemptions do not mean “unverified.” Every provider controller must validate the provider signature, secret, challenge token, or equivalent before accepting work. Use `WebhookIdempotencyService`/inbound event records so provider retries do not duplicate messages, posts, orders, or billing transitions.
 
 Webhook endpoints should acknowledge quickly and queue expensive processing. The shared Meta rate limit is intentionally high because many workspaces share Meta egress IPs.

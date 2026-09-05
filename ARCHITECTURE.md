@@ -189,6 +189,7 @@ Background jobs are categorized into dedicated queues to prevent high-volume ope
 | :--- | :--- | :--- | :--- |
 | `default` | General tenant operations, email sync, notifications | Normal (3) | `SyncEmailAccountJob`, `SendNotificationJob`, `DataExportJob` |
 | `whatsapp` | Inbound & outbound WhatsApp, Meta Messenger, Instagram | High (1) | `ProcessInboundWhatsAppMessageJob`, `ProcessMetaWebhookJob` |
+| `channel-health` | WhatsApp connection inspection and explicit repair | Low, separate worker | `CheckWhatsappConnectionJob`, `CheckWhatsappPlatformJob` |
 | `ai` | Document chunking, vector embedding, smart bot execution | Normal (2) | `IndexKnowledgeDocumentJob`, `GenerateAiResponseJob` |
 | `social` | Scheduled social media post publishing | Normal (3) | `PublishSocialPostJob`, `RefreshSocialTokensJob` |
 | `broadcast` | Bulk SMS campaign batching & dispatching | Low (4) | `DispatchSmsBatchJob`, `ProcessSmsDeliveryCallbackJob` |

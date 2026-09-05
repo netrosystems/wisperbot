@@ -61,6 +61,10 @@ Crossing 80% and 100% stores one threshold timestamp per period before dispatchi
 
 ## Request and event flow
 
+### WhatsApp health operations
+
+`WhatsappConnectionHealthService` owns scheduled/onboarding/manual checks, separate `whatsapp_connection_health` snapshots, and workspace-scoped `whatsapp_connection_operations` history. Jobs carry operation/workspace IDs, serialize per WABA with locks, and discard results when credentials, phone membership, or connection state change. Credential fingerprints use HMAC; no plaintext credential is persisted in diagnostics. Provider calls are isolated in `WhatsappHealthProbe`, with a cached platform check and rate-limit backoff. Receipt and processing evidence is best-effort and cannot block webhook dispatch. Existing account status continues controlling routing independently of health.
+
 ### Inbound provider message
 
 1. Provider calls a `/webhooks/...` route.

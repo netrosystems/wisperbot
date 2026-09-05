@@ -6,6 +6,10 @@ use App\Support\Concerns\MasksDemoData;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property string $phone_number_id
+ */
 class WhatsappPhoneNumber extends Model
 {
     use MasksDemoData;

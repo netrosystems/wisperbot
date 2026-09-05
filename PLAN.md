@@ -89,6 +89,7 @@ journey
 - **Template Lifecycle Management**: Create, submit for Meta approval, and synchronize WhatsApp Message Templates (Header, Body, Buttons, Parameters).
 - **Keyword Auto-Replies**: Rule-based automated responses triggered by inbound keyword patterns.
 - **Media Messaging**: Inbound and outbound support for interactive buttons, list messages, documents, location pins, and voice notes.
+- **Connection health and repair**: Optional 15-minute background checks, live receipt/processing evidence, compact Channel Setup statuses, explicit subscription repair, guided reconnection, and incident/recovery notifications. Health never toggles routing status or consumes AI credits. Operator credentials require configured/verified ownership; customer access stays account-scoped. Deploy the migration and separate `channel-health` worker before enabling the rollout flag.
 
 ---
 

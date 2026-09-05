@@ -20,6 +20,12 @@ x-queue-defaults: &queue-defaults
     - ./storage:/var/www/html/storage
 
 services:
+  queue-channel-health:
+    <<: *queue-defaults
+    command: php artisan queue:work redis --queue=channel-health --sleep=3 --tries=1 --timeout=120 --max-time=3600
+    deploy:
+      replicas: 1
+
   queue-default:
     <<: *queue-defaults
     command: php artisan queue:work redis --queue=default --sleep=3 --tries=3 --max-time=3600

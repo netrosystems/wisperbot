@@ -78,10 +78,11 @@ export default function CronSetupIndex({
     tasks = [],
     schedulerLastRun = null,
     schedulerStatus = 'inactive',
+    whatsappHealth = { enabled: false },
 }) {
     const { t } = useTranslation();
 
-    const queueList = queueNames.join(',');
+    const queueList = queueNames.filter(name => name !== 'channel-health').join(',');
     const cronCommand = `* * * * * ${phpBinary} ${basePath}/artisan schedule:run >> /dev/null 2>&1`;
 
     const queueCommand = `${phpBinary} ${basePath}/artisan queue:work ${queueConnection} --queue=${queueList} --sleep=1 --tries=3 --timeout=120 --max-time=3600`;
@@ -109,6 +110,18 @@ stdout_logfile=${basePath}/storage/logs/worker.log`;
             <Head title={t('cron.title')} />
 
             <div className="max-w-3xl space-y-6">
+                {whatsappHealth.enabled && <section className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 space-y-3">
+                    <h2 className="font-semibold">{t('cron.whatsapp_health', { defaultValue: 'WhatsApp connection health' })}</h2>
+                    <p className="text-xs text-neutral-500">{t('cron.health_worker_help', { defaultValue: 'Run a separate worker for connection checks so customer messages keep priority.' })}</p>
+                    <CodeBlock code={`${phpBinary} ${basePath}/artisan queue:work ${queueConnection} --queue=channel-health --sleep=3 --tries=1 --timeout=120 --max-time=3600`} />
+                    <ul className="space-y-1 text-xs">{Object.entries(whatsappHealth.platform ?? {}).map(([key, item]) => <li key={key} className={item.state === 'passed' ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}>{item.message}</li>)}</ul>
+                    <h3 className="text-sm font-medium">{t('cron.health_accounts', { defaultValue: 'Connections to review (up to 50)' })}</h3>
+                    {whatsappHealth.accounts.length === 0 && <p className="text-xs text-neutral-500">{t('cron.health_no_issues', { defaultValue: 'No recorded account issues. Delivery still requires a real incoming message.' })}</p>}
+                    {whatsappHealth.accounts.map(account => <details key={account.id} className="border-t border-neutral-200 dark:border-neutral-700 pt-2 text-xs">
+                        <summary className="cursor-pointer focus-visible:outline focus-visible:outline-2">{t('cron.health_workspace', { defaultValue: 'Workspace' })} {account.workspace_id} · WABA {account.waba_id} · {t(`inbox.health_${account.health.state}`, { defaultValue: ({ ready: 'Ready', needs_attention: 'Needs attention', reconnect_required: 'Reconnect required', checking: 'Checking', check_delayed: 'Check delayed' })[account.health.state] ?? 'Check delayed' })}</summary>
+                        <ul className="mt-2 space-y-1">{Object.entries(account.health.components ?? {}).map(([key, item]) => <li key={key}>{item.message}</li>)}</ul>
+                    </details>)}
+                </section>}
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h2 className="flex items-center gap-2 text-xl font-semibold text-neutral-900 dark:text-neutral-100">

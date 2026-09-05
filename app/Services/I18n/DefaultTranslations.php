@@ -23,8 +23,39 @@ class DefaultTranslations
             self::client(),
             self::plans(),
             self::locales(),
+            self::whatsappHealth(),
             self::misc()
         );
+    }
+
+    private static function whatsappHealth(): array
+    {
+        return [
+            'inbox.health_title' => 'Connection health',
+            'inbox.health_ready' => 'Ready',
+            'inbox.health_needs_attention' => 'Needs attention',
+            'inbox.health_reconnect_required' => 'Reconnect required',
+            'inbox.health_checking' => 'Checking',
+            'inbox.health_check_delayed' => 'Check delayed',
+            'inbox.health_check' => 'Check connection',
+            'inbox.health_repair' => 'Repair connection',
+            'inbox.health_reconnect' => 'Reconnect WhatsApp',
+            'inbox.health_refresh_failed' => 'Connection status could not be refreshed. Try again.',
+            'inbox.health_not_yet' => 'Not yet',
+            'inbox.health_admin_help' => 'Your service administrator needs to review this connection.',
+            'inbox.health_delivery_verified' => 'A real incoming message has been processed.',
+            'inbox.health_send_test' => 'Connection checks passed. Send a message to your business number to verify delivery.',
+            'inbox.health_last_checked' => 'Last checked',
+            'inbox.health_last_message' => 'Last incoming message processed',
+            'inbox.health_details' => 'Connection details',
+            'inbox.health_webhook_details' => 'Webhook details',
+            'inbox.health_phone' => 'Phone',
+            'cron.whatsapp_health' => 'WhatsApp connection health',
+            'cron.health_worker_help' => 'Run a separate worker for connection checks so customer messages keep priority.',
+            'cron.health_accounts' => 'Connections to review (up to 50)',
+            'cron.health_no_issues' => 'No recorded account issues. Delivery still requires a real incoming message.',
+            'cron.health_workspace' => 'Workspace',
+        ];
     }
 
     private static function common(): array

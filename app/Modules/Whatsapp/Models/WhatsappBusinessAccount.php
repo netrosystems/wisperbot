@@ -9,6 +9,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property int $workspace_id
+ * @property string $waba_id
+ * @property string $status
+ * @property array<string, mixed>|null $credentials
+ * @property array<string, mixed>|null $meta_json
+ */
 class WhatsappBusinessAccount extends Model
 {
     use HasFactory;
@@ -35,6 +43,7 @@ class WhatsappBusinessAccount extends Model
         ];
     }
 
+    /** @return HasMany<WhatsappPhoneNumber, $this> */
     public function phoneNumbers(): HasMany
     {
         return $this->hasMany(WhatsappPhoneNumber::class, 'waba_id_fk');

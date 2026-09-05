@@ -106,6 +106,22 @@ AI-credit enforcement defaults to enabled. `AI_CREDITS_ENFORCE=false` is an expl
 
 An AI node that cannot reserve credits leaves its automation run in `paused` rather than marking it completed or sending a generic fallback. After upgrading the plan or enabling a successfully tested BYOK provider, open the automation's run history and select **Retry**. The run resumes from its stored `current_node_id`; its stable run/node idempotency key prevents a completed AI action from being billed twice.
 
+## WhatsApp connection monitoring (2026-09-05)
+
+Deploy the `2026_09_05_120000_create_whatsapp_connection_health_tables` migration and matching frontend before enabling `CHANNEL_HEALTH_ENABLED=true`. Initially set `CHANNEL_HEALTH_WORKSPACE_IDS=YOUR_OPERATOR_WORKSPACE_ID`; an empty list enables every workspace. This does not change messaging account status or consume AI credits.
+
+Run a **separate supervised process** in addition to existing workers:
+
+```bash
+php artisan queue:work --queue=channel-health --sleep=3 --tries=1 --timeout=120 --max-time=3600
+```
+
+The queue connection's `retry_after` must exceed 120 seconds (use at least 180 seconds). The Docker queue overlay includes this worker. Admin → Cron Setup displays the command, platform component checks, and up to 50 accounts needing review. The minute scheduler dispatches heartbeats and due checks; initial WABAs are distributed over 15 minutes. Meta rate limits use bounded backoff and honor `Retry-After`. History is pruned after 90 days.
+
+Only for platform-owned accounts, configure `META_OPERATOR_BUSINESS_ID` and comma-separated `META_OPERATOR_WABA_IDS`. The checker verifies the WABA owner against that business before using the system token for subscription repair. Customer WABAs always use their stored account credential; these environment settings never belong in a customer form.
+
+Clear/rebuild config caches and restart workers after configuration changes. Verify the operator WABA, then a customer Cloud API account and a Coexistence account. A real incoming message must be processed after a repair before delivery is verified. Monitoring does not send test messages, register phones, replay messages, or restore events Meta never delivered. Stop rollout by disabling `CHANNEL_HEALTH_ENABLED`; existing messaging continues. External uptime monitoring remains necessary to alert when the entire application/scheduler is stopped.
+
 ## Incident triage order
 
 1. Capture request ID, exact time/timezone, workspace, route, and user-visible error.

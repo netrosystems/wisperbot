@@ -11,6 +11,8 @@ use App\Modules\Social\Jobs\DispatchScheduledPostsJob;
 use App\Modules\Social\Jobs\RefreshSocialTokensJob;
 use App\Modules\Whatsapp\Jobs\TemplateSyncJob;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
+use App\Modules\Whatsapp\Models\WhatsappConnectionOperation;
+use App\Modules\Whatsapp\Services\WhatsappConnectionHealthService;
 use App\Services\WebhookIdempotencyService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -26,6 +28,14 @@ Artisan::command('inspire', function () {
 Schedule::call(function () {
     Cache::put(CronSetupController::HEARTBEAT_KEY, now()->toIso8601String(), now()->addDay());
 })->everyMinute()->name('scheduler-heartbeat');
+
+Schedule::call(fn () => app(WhatsappConnectionHealthService::class)->tick())
+    ->everyMinute()->name('whatsapp-connection-health')->withoutOverlapping();
+
+Schedule::call(function () {
+    WhatsappConnectionOperation::where('created_at', '<', now()->subDays(config('channel_health.retention_days', 90)))
+        ->whereNotNull('finished_at')->delete();
+})->daily()->name('prune-whatsapp-connection-health');
 
 // ─── Marketing Suite Scheduled Tasks ────────────────────────────────────────
 

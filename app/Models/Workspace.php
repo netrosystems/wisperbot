@@ -26,6 +26,7 @@ class Workspace extends Model
         'default_locale' => 'en',
     ];
 
+    /** @return BelongsTo<User, $this> */
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
@@ -36,7 +37,11 @@ class Workspace extends Model
         return $this->belongsTo(Client::class);
     }
 
-    /** Users who are members of this workspace (via pivot). */
+    /**
+     * Users who are members of this workspace (via pivot).
+     *
+     * @return BelongsToMany<User, $this>
+     */
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'workspace_user')

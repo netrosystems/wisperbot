@@ -1,5 +1,6 @@
 ﻿import { Head, router, usePage, Link } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
+import WhatsappConnectionHealth from '@/Components/Inbox/WhatsappConnectionHealth';
 import {
     Check, Copy, AlertTriangle,
     Phone, Inbox, Webhook, FileText,
@@ -416,13 +417,12 @@ function CodeField({ label, value, icon: Icon }) {
     );
 }
 
-function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots }) {
+function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots, onReconnect }) {
     const { t } = useTranslation();
+    const [connectionHealth, setConnectionHealth] = useState(waba.connection_health);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting]           = useState(false);
     const [syncingPhones, setSyncingPhones] = useState(false);
-    const [reregistering, setReregistering] = useState(false);
-    const [reregisterMsg, setReregisterMsg] = useState(null);
     const phoneList = waba.phone_numbers ?? waba.phoneNumbers ?? [];
 
     const caByPhone = {};
@@ -442,26 +442,6 @@ function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots }) {
             preserveScroll: true,
             onFinish: () => setSyncingPhones(false),
         });
-    };
-
-    const reregisterWebhook = async () => {
-        setReregistering(true);
-        setReregisterMsg(null);
-        try {
-            const res = await fetch(route('client.whatsapp.setup.reregister-webhook', { waba: waba.id }), {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Accept': 'application/json',
-                },
-            });
-            const json = await res.json();
-            setReregisterMsg(res.ok ? (json.message ?? t('inbox.webhook_reregistered')) : (json.message ?? t('inbox.failed')));
-        } catch {
-            setReregisterMsg(t('inbox.network_error'));
-        } finally {
-            setReregistering(false);
-        }
     };
 
     return (
@@ -516,23 +496,15 @@ function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots }) {
             )}
 
             <div className="p-4 space-y-4">
+                <WhatsappConnectionHealth waba={waba} onReconnect={onReconnect} onHealthChange={setConnectionHealth} />
                 {/* Webhook — always global for embedded signup */}
-                <div className="space-y-2">
+                <details className="space-y-2">
+                    <summary className="cursor-pointer text-xs text-neutral-500 dark:text-neutral-400 focus-visible:outline focus-visible:outline-2">{t('inbox.health_webhook_details', { defaultValue: 'Webhook details' })}</summary>
                     <CodeField label={t('inbox.webhook_url')} value={webhookGlobalUrl} icon={Webhook} />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
                         {t('inbox.registered_via_embedded')}
                     </p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button type="button" onClick={reregisterWebhook} disabled={reregistering}
-                            className="flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 disabled:opacity-60 font-medium transition">
-                            <RefreshCw className={`h-3 w-3 ${reregistering ? 'animate-spin' : ''}`} />
-                            {reregistering ? t('inbox.reregistering') : t('inbox.reregister_webhook')}
-                        </button>
-                        {reregisterMsg && (
-                            <span className="text-xs text-neutral-500 dark:text-neutral-400">{reregisterMsg}</span>
-                        )}
-                    </div>
-                </div>
+                </details>
 
                 {/* Phone numbers */}
                 <div>
@@ -556,6 +528,9 @@ function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots }) {
                                 return (
                                     <div key={phoneId ?? i}>
                                         <PhoneStatusCard num={num} wabaId={waba.id} onRefreshed={() => {}} />
+                                        {connectionHealth?.components?.[`phone:${phoneId}`]?.state !== 'passed' && connectionHealth?.components?.[`phone:${phoneId}`]?.message && (
+                                            <p className="px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{connectionHealth.components[`phone:${phoneId}`].message}</p>
+                                        )}
                                         {ca && (
                                             <div className="px-3.5 pb-2 -mt-1 rounded-b-xl border-x border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60">
                                                 <span className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400">
@@ -684,6 +659,7 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
                         <WabaCard
                             key={waba.id}
                             waba={waba}
+                            onReconnect={() => setShowForm(true)}
                             webhookGlobalUrl={webhookGlobalUrl}
                             channelAccounts={channelAccountsByWaba?.[waba.id] ?? []}
                             chatbots={chatbots}

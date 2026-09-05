@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added optional WhatsApp connection-health monitoring and a guided Repair connection action, with separate readiness/delivery evidence, owner/admin authorization, rate-limit backoff, scoped operation history, incident/recovery notifications, and operational diagnostics. Deployment requires a migration and separate `channel-health` worker. WABA subscriptions now use account-authorized credentials; Coexistence repair never re-registers phones or imports history.
+
 - Made the managed AI-credit migration compatible with MySQL installations that use legacy implicit `TIMESTAMP` defaults, and made its schema creation safe to resume after an interrupted deployment.
 
 - Simplified the client header by removing the global Search and language-selection controls while retaining AI credits, notifications, theme, workspace, and account access.

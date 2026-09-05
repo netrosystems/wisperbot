@@ -463,8 +463,13 @@ class CloudApiClient
 
     private function post(string $path, array $data): Response
     {
-        return Http::withToken($this->accessToken)
+        $response = Http::withToken($this->accessToken)
             ->timeout(30)
             ->post(self::BASE.$path, $data);
+        if (in_array((int) $response->json('error.code', 0), [10, 190, 200], true)) {
+            app(WhatsappConnectionHealthService::class)->authenticationFailed($this->phoneNumberId);
+        }
+
+        return $response;
     }
 }

@@ -11,7 +11,7 @@ class CronSetupControllerTest extends TestCase
     #[Test]
     public function production_worker_guide_includes_every_named_queue(): void
     {
-        $required = ['default', 'whatsapp', 'broadcast', 'ai', 'social', 'leads', 'automation'];
+        $required = ['default', 'whatsapp', 'broadcast', 'ai', 'social', 'leads', 'automation', 'channel-health'];
 
         $this->assertSame($required, CronSetupController::QUEUE_NAMES);
         $this->assertCount(count(array_unique($required)), CronSetupController::QUEUE_NAMES);
