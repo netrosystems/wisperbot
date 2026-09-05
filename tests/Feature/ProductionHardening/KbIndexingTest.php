@@ -57,6 +57,18 @@ class KbIndexingTest extends TestCase
         $method->invoke(new IndexDocumentJob(-1), 'https://example.com', app(KnowledgeUrlGuard::class));
     }
 
+    public function test_www_sitemap_links_are_normalized_without_allowing_other_hosts(): void
+    {
+        Queue::fake();
+        Http::fake(['*' => Http::response('<urlset><url><loc>https://example.com/help</loc></url><url><loc>https://attacker.example.org/help</loc></url></urlset>')]);
+        $kb = $this->seedKb();
+        $doc = AiKbDocument::create(['kb_id' => $kb->id, 'title' => 'Website', 'source_type' => 'sitemap', 'source_ref' => 'https://www.example.com/sitemap.xml', 'status' => 'pending']);
+        $this->runIndexer($doc->id);
+        $this->assertDatabaseHas('ai_kb_documents', ['kb_id' => $kb->id, 'source_ref' => 'https://www.example.com/help']);
+        $this->assertDatabaseMissing('ai_kb_documents', ['kb_id' => $kb->id, 'source_ref' => 'https://attacker.example.org/help']);
+        Queue::assertPushed(IndexDocumentJob::class, 1);
+    }
+
     public function test_blocked_crawler_response_keeps_its_actionable_error(): void
     {
         Http::fake(['*' => Http::response([], 403)]);

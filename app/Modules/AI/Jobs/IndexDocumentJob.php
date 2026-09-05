@@ -492,6 +492,13 @@ class IndexDocumentJob implements ShouldQueue
         $limit = (int) config('knowledge_base.sitemap_page_limit', 200);
         foreach (array_slice($locations, 0, (int) config('knowledge_base.sitemap_page_limit', 200)) as $location) {
             try {
+                $locationHost = strtolower((string) parse_url($location, PHP_URL_HOST));
+                if ($locationHost !== $host && ($locationHost === 'www.'.$host || $host === 'www.'.$locationHost)) {
+                    // Fetch only the canonical sitemap host, never an arbitrary
+                    // subdomain. Validate the original authority before rewriting.
+                    $urls->assertSafe($location);
+                    $location = preg_replace('#^https://'.preg_quote($locationHost, '#').'(?=[:/]|$)#i', 'https://'.$host, $location);
+                }
                 $location = $urls->assertSafe($location, $host);
             } catch (\Throwable) {
                 continue;

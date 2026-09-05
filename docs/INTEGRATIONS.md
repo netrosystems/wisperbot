@@ -97,6 +97,8 @@ For every requested permission, record the complete flow: login/authorization, e
 
 ## AI and vector storage
 
+- Sitemap links differing only by a `www.` prefix are normalized onto the canonical sitemap host after URL validation. Other hosts/subdomains remain excluded.
+
 - Managed OpenAI defaults use `gpt-4o-mini` for routine and complex generation. Explicit `AI_MANAGED_ROUTINE_MODEL` / `AI_MANAGED_COMPLEX_MODEL` overrides remain supported. Admin connection tests exercise both distinct configured models at the chatbot's 160-token budget and the configured embedding model, and reject empty text. A passing key/model test is not proof of a working queue or KB assignment.
 - Website root inputs discover robots/common sitemaps before fetching the homepage. This avoids one unfinished streamed homepage blocking discovery of healthy pages. Individual timed-out pages remain failed (never index partial HTML silently); healthy sibling pages continue. TLS validation and public-IP/redirect checks remain enabled.
 
