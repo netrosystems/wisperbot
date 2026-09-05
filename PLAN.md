@@ -153,7 +153,8 @@ journey
 ### Feature 10: Subscriptions, Add-ons & Developer Platform (`app/Http/Controllers/Client/*`)
 
 #### Capabilities
-- **Tiered Plans & Usage Metering**: Automated enforcement of contact limits, monthly message quotas, finite monthly WisperBot AI credits, and team member capacity. Credits reset on the subscription anniversary month even for annual billing, never roll over, and do not create automatic overage charges.
+- **Tiered Plans & Usage Metering**: Automated enforcement of contact limits, monthly message quotas, finite monthly WisperBot AI credits, and team member capacity. Each plan's explicit **WisperBot AI Credits / mo** limit is authoritative and never inferred from price. Clients see remaining/total credits globally and a fixed-rate action breakdown on Subscription. Credits reset on the subscription anniversary month even for annual billing, never roll over, and do not create automatic overage charges.
+- **Renewable Subscription Credit Eligibility**: `active` and `trialing` billing statuses remain authoritative for renewable subscriptions even when a gateway or legacy admin assignment retains the prior cycle's `ends_at` value. Cancellation statuses retain credits only until their explicit future access end.
 - **AI Credit Safety**: Account administrators receive once-per-period in-app and email warnings at 80% and 100%. Credit-blocked automation runs pause at their current AI node and expose an explicit retry after the billing or provider issue is resolved.
 - **Self-Service Checkout**: Automated billing and invoicing via Stripe, PayPal, and Paddle.
 - **Developer Tools Add-on**:

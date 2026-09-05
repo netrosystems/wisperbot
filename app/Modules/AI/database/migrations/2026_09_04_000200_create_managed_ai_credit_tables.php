@@ -75,14 +75,12 @@ return new class extends Migration
             $table->enum('status', ['pending', 'running', 'completed', 'failed', 'cancelled', 'waiting', 'paused'])->default('pending')->change();
         });
 
-        // Commercial limits become finite credits. Exact rollout prices receive
-        // the proposed allowances; every other existing plan safely defaults to 0.
+        // Preserve the explicit plan entitlement. Never derive AI credits from price.
+        // Plans without the new key remain visibly unconfigured until an administrator
+        // sets WisperBot AI Credits / mo.
         DB::table('plans')->orderBy('id')->each(function ($plan) {
             $limits = json_decode($plan->limits ?: '{}', true) ?: [];
             unset($limits['ai_tokens_per_month']);
-            $rolloutAllowances = config('ai_credits.allowances_by_monthly_price_cents', []);
-            $monthlyPrice = (int) ($plan->monthly_price_cents ?? $plan->price_cents ?? 0);
-            $limits['ai_credits_per_month'] = (int) ($rolloutAllowances[$monthlyPrice] ?? 0);
             DB::table('plans')->where('id', $plan->id)->update(['limits' => json_encode($limits)]);
         });
     }

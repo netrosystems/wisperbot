@@ -1469,7 +1469,9 @@ const AI_EXAMPLES = ['automation.ai_example_welcome', 'automation.ai_example_aba
 
 function AiGenerateModal({ prompt, setPrompt, loading, error, onClose, onGenerate }) {
     const { t } = useTranslation();
-    const creditRemaining = usePage().props.aiCredits?.remaining ?? null;
+    const pageProps = usePage().props;
+    const creditRemaining = pageProps.aiCredits?.remaining ?? null;
+    const creditRate = pageProps.aiCreditRates?.workflow_generate ?? 5;
     return (
         <div onClick={loading ? undefined : onClose} style={overlayStyle}>
             <div onClick={e => e.stopPropagation()} style={{ ...modalStyle, width: 520 }}>
@@ -1496,7 +1498,7 @@ function AiGenerateModal({ prompt, setPrompt, loading, error, onClose, onGenerat
                 <div style={modalFooterStyle}>
                     <button onClick={onClose} disabled={loading} style={ghostBtnStyle}>{t('common.cancel')}</button>
                     <button onClick={onGenerate} disabled={loading || !prompt.trim()} className="ai-glow" style={{ ...primaryBtnStyle, background: '#7c3aed', opacity: (loading || !prompt.trim()) ? 0.6 : 1 }}>
-                        {loading ? <><Loader2 size={13} className="animate-spin" /> {t('automation.ai_generating')}</> : <><Sparkles size={13} /> {t('automation.ai_generate')} · 5 credits{creditRemaining !== null ? ` · ${creditRemaining} left` : ''}</>}
+                        {loading ? <><Loader2 size={13} className="animate-spin" /> {t('automation.ai_generating')}</> : <><Sparkles size={13} /> {t('automation.ai_generate')} · {creditRate} credits{creditRemaining !== null ? ` · ${creditRemaining} left` : ''}</>}
                     </button>
                 </div>
             </div>

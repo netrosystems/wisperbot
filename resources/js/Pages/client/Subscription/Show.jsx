@@ -2,7 +2,7 @@ import { useState } from 'react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
-import { Package, ArrowRightCircle, CreditCard, FileText, RefreshCw } from 'lucide-react';
+import { Package, ArrowRightCircle, CreditCard, FileText, RefreshCw, Coins } from 'lucide-react';
 import { formatDateTz } from '@/Utils/datetime';
 
 function formatCurrency(cents, currency = 'USD') {
@@ -111,6 +111,14 @@ export default function SubscriptionShow({ subscription, canCancel, canUpgrade, 
     const userTz = timezone || 'Asia/Dhaka';
     const formatDate = (iso) => formatDateTz(iso, userTz);
     const [showChangePlan, setShowChangePlan] = useState(false);
+    const creditLimit = Number(aiCredits?.limit ?? aiCredits?.allowance ?? 0);
+    const usedPercent = creditLimit > 0 ? Math.min(100, (Number(aiCredits?.used ?? 0) / creditLimit) * 100) : 0;
+    const reservedPercent = creditLimit > 0 ? Math.min(100 - usedPercent, (Number(aiCredits?.reserved ?? 0) / creditLimit) * 100) : 0;
+    const providerModeText = {
+        managed: t('ai_credits.mode_managed'),
+        byok: t('ai_credits.mode_byok'),
+        auto_fallback: t('ai_credits.mode_auto_fallback'),
+    }[aiCredits?.mode] ?? t('ai_credits.mode_managed');
 
     const handleCancel = () => {
         if (!confirm(t('client.cancel_subscription_confirm') || 'Are you sure you want to cancel your subscription?')) return;
@@ -142,40 +150,94 @@ export default function SubscriptionShow({ subscription, canCancel, canUpgrade, 
                 )}
 
                 {aiCredits && (
-                    <div className={`rounded-xl border bg-white p-6 dark:bg-neutral-800/50 ${aiCredits.exhausted ? 'border-red-300 dark:border-red-800' : aiCredits.warning ? 'border-amber-300 dark:border-amber-700' : 'border-neutral-200 dark:border-neutral-700'}`}>
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div>
-                                <h2 className="text-base font-semibold text-neutral-900 dark:text-white">AI Credits</h2>
-                                <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                                    {aiCredits.used.toLocaleString()} used · {aiCredits.remaining.toLocaleString()} remaining · {aiCredits.allowance.toLocaleString()} total
-                                </p>
-                                <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                                    Mode: {String(aiCredits.mode).replace('_', ' ')}{aiCredits.resets_at ? ` · Next reset ${formatDate(aiCredits.resets_at)}` : ''}
-                                </p>
-                                <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">1 credit: chatbot/RAG or short AI action · 2: full email or social post · 5: workflow or multi-post plan</p>
+                    <section className={`overflow-hidden rounded-soft-lg border bg-white dark:bg-neutral-800/50 ${aiCredits.exhausted ? 'border-coral-200 dark:border-coral-800' : aiCredits.warning ? 'border-amber-300 dark:border-amber-700' : 'border-neutral-200 dark:border-neutral-700'}`}>
+                        <div className="p-5 sm:p-6">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div className="flex min-w-0 items-start gap-3">
+                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-soft-lg bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300"><Coins className="h-5 w-5" /></span>
+                                    <div>
+                                        <h2 className="text-base font-semibold text-neutral-900 dark:text-white">{t('ai_credits.title')}</h2>
+                                        {aiCredits.status === 'allowance_not_configured' ? (
+                                            <p className="mt-1 text-sm text-coral-700 dark:text-coral-300">{t('ai_credits.not_configured')}</p>
+                                        ) : aiCredits.status === 'no_active_subscription' ? (
+                                            <p className="mt-1 text-sm text-coral-700 dark:text-coral-300">{t('ai_credits.no_active_subscription')}</p>
+                                        ) : (
+                                            <p className="mt-1 text-lg font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
+                                                {t('ai_credits.remaining_of_total', { remaining: Number(aiCredits.remaining).toLocaleString(), total: creditLimit.toLocaleString() })}
+                                            </p>
+                                        )}
+                                        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{providerModeText}{aiCredits.resets_at ? ` · ${t('ai_credits.resets_on', { date: formatDate(aiCredits.resets_at) })}` : ''}</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Link href={route('client.ai.providers.index')} className="rounded-soft border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700">{t('ai_credits.manage_provider')}</Link>
+                                    {canUpgrade && <Link href={route('client.pricing')} className="rounded-soft bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600">{t('subscription.upgrade_plan')}</Link>}
+                                </div>
                             </div>
-                            <div className="flex gap-2">
-                                <Link href={route('client.ai.providers.index')} className="rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700">Add API provider</Link>
-                                {canUpgrade && <Link href={route('client.pricing')} className="rounded-soft bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600">Upgrade plan</Link>}
-                            </div>
-                        </div>
-                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-700" aria-label={`${aiCredits.percent_used}% of AI credits used`}>
-                            <div className={`h-full rounded-full ${aiCredits.exhausted ? 'bg-red-500' : aiCredits.warning ? 'bg-amber-500' : 'bg-brand-500'}`} style={{ width: `${aiCredits.percent_used}%` }} />
-                        </div>
-                        {(aiCredits.warning || aiCredits.exhausted) && <p className={`mt-2 text-sm ${aiCredits.exhausted ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}>{aiCredits.exhausted ? 'Managed AI actions are paused unless a valid fallback provider is enabled.' : 'You have used at least 80% of this month’s AI credits.'}</p>}
-                        <details className="mt-4 border-t border-neutral-100 pt-3 dark:border-neutral-700">
-                            <summary className="cursor-pointer text-sm font-medium text-brand-600 dark:text-brand-400">View usage</summary>
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                {(aiCreditUsage?.by_feature ?? []).map(row => (
-                                    <div key={row.feature} className="rounded-lg bg-neutral-50 px-3 py-2 text-sm dark:bg-neutral-900/50">
-                                        <span className="font-medium text-neutral-800 dark:text-neutral-200">{String(row.feature).replaceAll('_', ' ')}</span>
-                                        <span className="ml-2 text-neutral-500">{Number(row.credits).toLocaleString()} credits · {row.actions} actions</span>
+
+                            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                {[
+                                    [t('ai_credits.monthly_limit'), creditLimit],
+                                    [t('ai_credits.used'), aiCredits.used],
+                                    [t('ai_credits.processing'), aiCredits.reserved],
+                                    [t('ai_credits.remaining'), aiCredits.remaining],
+                                ].map(([label, value]) => (
+                                    <div key={label} className="rounded-soft border border-neutral-100 bg-neutral-50 px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-900/40">
+                                        <p className="text-xs text-neutral-500 dark:text-neutral-400">{label}</p>
+                                        <p className="mt-0.5 text-lg font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{Number(value ?? 0).toLocaleString()}</p>
                                     </div>
                                 ))}
-                                {(aiCreditUsage?.by_feature ?? []).length === 0 && <p className="text-sm text-neutral-500">No managed-credit actions in this period.</p>}
                             </div>
-                        </details>
-                    </div>
+
+                            <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-700" role="progressbar" aria-label={t('ai_credits.progress_label', { percent: aiCredits.percent_used })} aria-valuemin="0" aria-valuemax="100" aria-valuenow={aiCredits.percent_used}>
+                                <div className={`h-full ${aiCredits.exhausted ? 'bg-coral-500' : aiCredits.warning ? 'bg-amber-500' : 'bg-brand-500'}`} style={{ width: `${usedPercent}%` }} />
+                                <div className="h-full bg-brand-200 dark:bg-brand-700" style={{ width: `${reservedPercent}%` }} />
+                            </div>
+                            {aiCredits.status === 'exhausted' && <p className="mt-2 text-sm text-coral-700 dark:text-coral-300">{t('ai_credits.exhausted_help')}</p>}
+                            {aiCredits.status === 'not_included' && <p className="mt-2 text-sm text-coral-700 dark:text-coral-300">{t('ai_credits.not_included')}</p>}
+                            {aiCredits.status === 'warning' && <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{t('ai_credits.warning_help')}</p>}
+                        </div>
+
+                        <div className="border-t border-neutral-100 p-5 dark:border-neutral-700 sm:p-6">
+                            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{t('ai_credits.usage_by_action')}</h3>
+                            {(aiCreditUsage?.by_action ?? []).length > 0 ? (
+                                <div className="mt-3 overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="text-xs uppercase tracking-wider text-neutral-500"><tr><th className="pb-2 font-semibold">{t('ai_credits.action')}</th><th className="pb-2 text-right font-semibold">{t('ai_credits.cost_each')}</th><th className="pb-2 text-right font-semibold">{t('ai_credits.actions')}</th><th className="pb-2 text-right font-semibold">{t('ai_credits.credits_used')}</th></tr></thead>
+                                        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700">
+                                            {aiCreditUsage.by_action.map(row => <tr key={row.key}><td className="py-2.5 text-neutral-800 dark:text-neutral-200">{row.label}</td><td className="py-2.5 text-right tabular-nums text-neutral-500">{row.credits_per_action}</td><td className="py-2.5 text-right tabular-nums text-neutral-500">{row.actions}</td><td className="py-2.5 text-right font-medium tabular-nums text-neutral-800 dark:text-neutral-200">{row.credits_used}</td></tr>)}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : <p className="mt-2 text-sm text-neutral-500">{t('ai_credits.no_usage')}</p>}
+
+                            <details className="mt-4 border-t border-neutral-100 pt-4 dark:border-neutral-700">
+                                <summary className="cursor-pointer text-sm font-medium text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:text-brand-400">{t('ai_credits.how_charged')}</summary>
+                                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                    {(aiCreditUsage?.rates ?? []).map(rate => (
+                                        <div key={rate.key} className="flex items-center justify-between gap-3 rounded-soft bg-neutral-50 px-3 py-2 text-sm dark:bg-neutral-900/40">
+                                            <span className="text-neutral-700 dark:text-neutral-300">{rate.label}</span>
+                                            <span className="shrink-0 font-medium tabular-nums text-neutral-900 dark:text-neutral-100">{t('ai_credits.credit_count', { count: rate.credits })}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </details>
+
+                            {(aiCreditUsage?.recent ?? []).length > 0 && (
+                                <details className="mt-4 border-t border-neutral-100 pt-4 dark:border-neutral-700">
+                                    <summary className="cursor-pointer text-sm font-medium text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:text-brand-400">{t('ai_credits.recent_activity')}</summary>
+                                    <div className="mt-3 divide-y divide-neutral-100 dark:divide-neutral-700">
+                                        {aiCreditUsage.recent.map(item => (
+                                            <div key={item.id} className="flex items-center justify-between gap-4 py-2 text-sm">
+                                                <div><p className="text-neutral-800 dark:text-neutral-200">{item.label}</p><p className="text-xs text-neutral-500">{formatDate(item.created_at)} · {item.provider_source === 'byok' ? t('ai_credits.your_provider') : item.provider_source === 'admin' ? t('ai_credits.credit_adjustment') : t('ai_credits.wisperbot_managed')}</p></div>
+                                                <span className="shrink-0 tabular-nums text-neutral-600 dark:text-neutral-300">{item.status === 'refunded' ? t('ai_credits.refunded') : item.status === 'granted' ? `+${Number(item.adjustment_delta).toLocaleString()}` : item.status === 'revoked' ? Number(item.adjustment_delta).toLocaleString() : item.provider_source === 'byok' ? t('ai_credits.no_charge') : `−${Number(item.credits).toLocaleString()}`}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </details>
+                            )}
+                        </div>
+                    </section>
                 )}
 
                 {/* Current Plan Card */}

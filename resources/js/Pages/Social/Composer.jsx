@@ -311,7 +311,7 @@ export default function SocialComposer({ accounts }) {
                         <div className="flex gap-2">
                             <input type="text" value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} placeholder={t('social.ai_prompt_placeholder')} className="flex-1 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" />
                             <button type="button" onClick={generateWithAI} disabled={aiLoading || !aiPrompt.trim()} className="ai-glow flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60 transition">
-                                <Sparkles className="h-4 w-4" /> {aiLoading ? t('social.generating') : `${t('social.generate')} · 2 credits${props.aiCredits ? ` · ${props.aiCredits.remaining} left` : ''}`}
+                                <Sparkles className="h-4 w-4" /> {aiLoading ? t('social.generating') : `${t('social.generate')} · ${props.aiCreditRates?.social_post ?? 2} credits${props.aiCredits ? ` · ${props.aiCredits.remaining} left` : ''}`}
                             </button>
                         </div>
                         {aiError && <p className="text-xs text-red-500 mt-1">{aiError}</p>}

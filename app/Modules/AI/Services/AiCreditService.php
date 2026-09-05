@@ -24,17 +24,41 @@ class AiCreditService
 {
     public function creditsFor(string $feature): int
     {
-        $rates = config('ai_credits.rates', []);
-        if (! array_key_exists($feature, $rates)) {
+        $action = config('ai_credits.actions.'.$feature);
+        if (! is_array($action) || ! array_key_exists('credits', $action)) {
             throw new AiCreditsException('This AI action is not configured for managed credits.', 'ai_credit_rate_missing', 500);
         }
 
-        return max(0, (int) $rates[$feature]);
+        return max(0, (int) $action['credits']);
+    }
+
+    /** @return array<int, array{key:string,label:string,credits:int}> */
+    public function actionCatalog(): array
+    {
+        return collect(config('ai_credits.actions', []))
+            ->reject(fn (mixed $action, string $key): bool => $key === 'rag_reply' || ! is_array($action))
+            ->map(fn (array $action, string $key): array => [
+                'key' => $key,
+                'label' => (string) ($action['label'] ?? Str::headline($key)),
+                'credits' => max(0, (int) ($action['credits'] ?? 0)),
+            ])->values()->all();
     }
 
     public function usage(int $workspaceId): array
     {
         $workspace = Workspace::with(['owner', 'client'])->findOrFail($workspaceId);
+        $identity = $this->accountIdentity($workspace);
+        $subscription = $identity['subscription'];
+        $mode = AiWorkspaceSetting::modeFor($workspaceId);
+        if (! $subscription || ! $this->subscriptionProvidesAccess($subscription)) {
+            return $this->emptyUsage('no_active_subscription', $mode);
+        }
+
+        $planLimit = $this->configuredAllowance($subscription);
+        if ($planLimit === null) {
+            return $this->emptyUsage('allowance_not_configured', $mode);
+        }
+
         $period = $this->currentPeriod($workspace);
         $allowance = $period?->allowance ?? 0;
         $adjustments = $period?->adjustment_credits ?? 0;
@@ -43,14 +67,24 @@ class AiCreditService
         $total = max(0, $allowance + $adjustments);
         $remaining = max(0, $total - $used - $reserved);
 
+        $status = match (true) {
+            $total === 0 => 'not_included',
+            $remaining === 0 => 'exhausted',
+            (($used + $reserved) / $total) >= 0.8 => 'warning',
+            default => 'available',
+        };
+
         return [
+            'limit' => $total,
+            'plan_limit' => $planLimit,
             'allowance' => $total,
             'used' => $used,
             'reserved' => $reserved,
             'remaining' => $remaining,
             'percent_used' => $total > 0 ? min(100, (int) round((($used + $reserved) / $total) * 100)) : 0,
             'resets_at' => $period?->period_end?->toIso8601String(),
-            'mode' => AiWorkspaceSetting::modeFor($workspaceId),
+            'mode' => $mode,
+            'status' => $status,
             'exhausted' => $total === 0 || $remaining === 0,
             'warning' => $total > 0 && (($used + $reserved) / $total) >= 0.8,
         ];
@@ -61,19 +95,48 @@ class AiCreditService
         $workspace = Workspace::with(['owner', 'client'])->findOrFail($workspaceId);
         $period = $this->currentPeriod($workspace);
         if (! $period) {
-            return ['by_feature' => [], 'recent' => []];
+            return ['by_feature' => [], 'by_action' => [], 'rates' => $this->actionCatalog(), 'recent' => []];
         }
 
+        $byFeature = AiCreditLedger::where('period_id', $period->id)
+            ->where('status', 'succeeded')
+            ->where('provider_source', 'managed')
+            ->selectRaw('feature, SUM(credits) AS credits, COUNT(*) AS actions')
+            ->groupBy('feature')->orderByDesc('credits')->get();
+        $recent = AiCreditLedger::where('period_id', $period->id)
+            ->whereIn('status', ['succeeded', 'refunded', 'granted', 'revoked'])
+            ->latest('id')->limit(25)
+            ->get(['id', 'feature', 'provider_source', 'credits', 'adjustment_delta', 'status', 'created_at']);
+        $byAction = $byFeature
+            ->groupBy(fn ($row): string => $row->feature === 'rag_reply' ? 'chatbot_reply' : $row->feature)
+            ->map(function ($rows, string $key): array {
+                $actions = (int) $rows->sum('actions');
+                $credits = (int) $rows->sum('credits');
+
+                return [
+                    'key' => $key,
+                    'label' => $this->actionLabel($key),
+                    'credits_per_action' => (int) (config('ai_credits.actions.'.$key.'.credits')
+                        ?? ($actions > 0 ? round($credits / $actions) : 0)),
+                    'actions' => $actions,
+                    'credits_used' => $credits,
+                ];
+            })->sortByDesc('credits_used')->values()->all();
+
         return [
-            'by_feature' => AiCreditLedger::where('period_id', $period->id)
-                ->where('status', 'succeeded')
-                ->selectRaw('feature, SUM(credits) AS credits, COUNT(*) AS actions')
-                ->groupBy('feature')->orderByDesc('credits')->get()->toArray(),
-            'recent' => AiCreditLedger::where('period_id', $period->id)
-                ->whereIn('status', ['succeeded', 'refunded', 'granted', 'revoked'])
-                ->latest('id')->limit(25)
-                ->get(['id', 'feature', 'provider_source', 'credits', 'adjustment_delta', 'status', 'created_at'])
-                ->toArray(),
+            'by_feature' => $byFeature->toArray(),
+            'by_action' => $byAction,
+            'rates' => $this->actionCatalog(),
+            'recent' => $recent->map(fn (AiCreditLedger $row): array => [
+                'id' => $row->id,
+                'key' => $row->feature,
+                'label' => $this->actionLabel($row->feature),
+                'provider_source' => $row->provider_source,
+                'credits' => $row->credits,
+                'adjustment_delta' => $row->adjustment_delta,
+                'status' => $row->status,
+                'created_at' => $row->created_at?->toIso8601String(),
+            ])->values()->all(),
         ];
     }
 
@@ -91,6 +154,12 @@ class AiCreditService
 
         try {
             return DB::transaction(function () use ($workspace, $identity, $workspaceId, $actorId, $feature, $stableKey, $credits) {
+                if (! $identity['subscription'] || ! $this->subscriptionProvidesAccess($identity['subscription'])) {
+                    throw new AiCreditsException('No active subscription includes WisperBot AI credits.', 'ai_credits_unavailable');
+                }
+                if ($this->configuredAllowance($identity['subscription']) === null) {
+                    throw new AiCreditsException("Your plan's WisperBot AI credit allowance is not configured.", 'ai_credit_allowance_not_configured');
+                }
                 $period = $this->currentPeriod($workspace, lock: true);
                 if (! $period) {
                     throw new AiCreditsException('No active subscription includes WisperBot AI credits.', 'ai_credits_unavailable');
@@ -273,8 +342,10 @@ class AiCreditService
         if (! $subscription || ! $this->subscriptionProvidesAccess($subscription)) {
             return null;
         }
-        $allowance = $subscription->plan?->limitValue('ai_credits_per_month');
-        $allowance = is_numeric($allowance) ? max(0, (int) $allowance) : 0;
+        $allowance = $this->configuredAllowance($subscription);
+        if ($allowance === null) {
+            return null;
+        }
 
         // Replacing a subscription during an upgrade must not mint a fresh period.
         // Reuse the account's still-open monthly bucket and only raise its ceiling.
@@ -341,6 +412,22 @@ class AiCreditService
                 ->latest('id')
                 ->first();
 
+            // Self-service billing belongs to a User even when that user operates
+            // inside a Client organization. Mirror effectiveSubscription/effectivePlan
+            // and keep the resulting credits pooled at the Client identity.
+            if (! $subscription) {
+                $subscription = Subscription::with('plan')
+                    ->whereIn('user_id', $client->users()->select('id'))
+                    ->where(function ($query) {
+                        $query->whereIn('status', ['active', 'trialing'])
+                            ->orWhere(function ($cancelled) {
+                                $cancelled->where('status', 'canceled')->where('ends_at', '>', now());
+                            });
+                    })
+                    ->latest('id')
+                    ->first();
+            }
+
             return ['type' => 'client', 'id' => (int) $client->id, 'subscription' => $subscription];
         }
 
@@ -362,20 +449,63 @@ class AiCreditService
         return ['type' => 'user', 'id' => (int) $workspace->owner_id, 'subscription' => $subscription];
     }
 
+    private function configuredAllowance(Subscription|ClientSubscription $subscription): ?int
+    {
+        $limits = $subscription->plan?->limits;
+        if (! is_array($limits) || ! array_key_exists('ai_credits_per_month', $limits) || ! is_numeric($limits['ai_credits_per_month'])) {
+            return null;
+        }
+
+        return max(0, (int) $limits['ai_credits_per_month']);
+    }
+
+    private function emptyUsage(string $status, string $mode): array
+    {
+        return [
+            'limit' => 0,
+            'plan_limit' => null,
+            'allowance' => 0,
+            'used' => 0,
+            'reserved' => 0,
+            'remaining' => 0,
+            'percent_used' => 0,
+            'resets_at' => null,
+            'mode' => $mode,
+            'status' => $status,
+            'exhausted' => true,
+            'warning' => false,
+        ];
+    }
+
+    private function actionLabel(string $feature): string
+    {
+        return (string) config('ai_credits.actions.'.$feature.'.label', Str::headline($feature));
+    }
+
     private function subscriptionProvidesAccess(Subscription|ClientSubscription $subscription): bool
     {
         $starts = $subscription->starts_at;
-        $ends = $subscription->ends_at;
         if ($starts && $starts->isFuture()) {
             return false;
         }
-        if ($ends && ! $ends->isFuture()) {
-            return false;
+
+        $activeStatuses = $subscription instanceof Subscription
+            ? ['active', 'trialing']
+            : [ClientSubscription::STATUS_ACTIVE];
+        if (in_array($subscription->status, $activeStatuses, true)) {
+            // Billing status is authoritative for renewable subscriptions. Some
+            // gateways and legacy admin assignments retain the previous cycle's
+            // end date while the subscription remains active.
+            return true;
         }
 
-        return $subscription instanceof Subscription
-            ? in_array($subscription->status, ['active', 'trialing', 'canceled'], true)
-            : in_array($subscription->status, [ClientSubscription::STATUS_ACTIVE, ClientSubscription::STATUS_CANCELLED], true);
+        $cancelledStatus = $subscription instanceof Subscription
+            ? 'canceled'
+            : ClientSubscription::STATUS_CANCELLED;
+
+        return $subscription->status === $cancelledStatus
+            && $subscription->ends_at
+            && $subscription->ends_at->isFuture();
     }
 
     private function isFreeSubscription(Subscription|ClientSubscription $subscription): bool
@@ -433,7 +563,12 @@ class AiCreditService
             $start = $start->addMonthNoOverflow();
         }
         $end = $start->addMonthNoOverflow();
-        if ($subscription->ends_at && CarbonImmutable::instance($subscription->ends_at)->lessThan($end)) {
+        $cancelledStatus = $subscription instanceof Subscription
+            ? 'canceled'
+            : ClientSubscription::STATUS_CANCELLED;
+        if ($subscription->status === $cancelledStatus
+            && $subscription->ends_at
+            && CarbonImmutable::instance($subscription->ends_at)->lessThan($end)) {
             $end = CarbonImmutable::instance($subscription->ends_at);
         }
 

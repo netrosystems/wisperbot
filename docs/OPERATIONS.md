@@ -100,7 +100,7 @@ Laravel validation, PHP `upload_max_filesize`, PHP `post_max_size`, web-server/p
 
 ## Managed AI rollout
 
-`AI_CREDITS_ENFORCE=false` is shadow mode: the ledger records completed managed demand and provider cost, but over-limit actions are not blocked or allowed to create a negative visible balance. Configure finite `ai_credits_per_month` values, validate the managed OpenAI integration, compare ledger totals with provider billing, and confirm the stale-reservation scheduler before setting `AI_CREDITS_ENFORCE=true`. Restart queue workers and clear/rebuild configuration caches after changing the flag. Hard enforcement returns `402 ai_credits_exhausted`; automatic mode uses only a successfully tested workspace provider.
+AI-credit enforcement defaults to enabled. `AI_CREDITS_ENFORCE=false` is an explicit diagnostic shadow mode: the ledger records completed managed demand and provider cost, but over-limit actions are not blocked or allowed to create a negative visible balance. Configure each plan's finite `ai_credits_per_month` value, validate the selected managed integration, compare ledger totals with provider billing, and confirm the stale-reservation scheduler before deployment. Restart queue workers and clear/rebuild configuration caches after changing the flag. Hard enforcement returns `402 ai_credits_exhausted`; automatic mode uses only a successfully tested workspace provider.
 
 ### Credit-blocked automation runs
 

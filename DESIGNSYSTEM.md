@@ -150,3 +150,9 @@ The default client surface uses plain-language five-step progress: Define, Add s
 ## Social Media Automation workspace
 
 Social publishing uses one standard page with a compact connected-account strip above a scan-friendly posts list. Provider cards show no more than two identities until expanded; account reconnect/disconnect and post lifecycle actions use keyboard-accessible Headless UI menus. The page has one orange primary action, **Schedule Post**, while AI planning is secondary. When there are no accounts or posts, use compact explanatory rows rather than tall illustrated panels, avoid duplicate calls to action, and hide tabs and filters that have nothing to operate on. Post status tabs default to Upcoming once posts exist, and List/Calendar use a segmented view control rather than separate navigation destinations. Desktop post rows become compact mobile cards below the table breakpoint. New translation keys must include readable English fallbacks at critical navigation and page-heading boundaries, and locale-file changes must invalidate the server dictionary cache automatically.
+
+## AI credit visibility
+
+Client pages show a compact header control formatted as **remaining / monthly total** (for example, `88 / 100`). Its popover exposes used, processing, remaining, and reset date without internal action or provider-mode keys. The Subscription page uses a segmented usage bar and a scan-friendly action table generated from the authoritative backend credit catalog. Warning and exhausted states pair semantic color with text, retain the numeric counter on narrow screens, and provide visible keyboard focus.
+
+The client header prioritizes operational controls and does not include global Search or a language selector. Locale selection remains available on public/authentication surfaces where language choice is part of entry into the product.

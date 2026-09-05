@@ -38,7 +38,7 @@ function addDays(dateStr, days) {
 
 // ─── Brief Step ──────────────────────────────────────────────────────────────
 
-function BriefStep({ brief, setBrief, accounts, onGenerate, loading, error, creditRemaining }) {
+function BriefStep({ brief, setBrief, accounts, onGenerate, loading, error, creditRemaining, creditRate }) {
     const { t } = useTranslation();
     const toggleAccount = (id) => {
         setBrief(prev => {
@@ -169,7 +169,7 @@ function BriefStep({ brief, setBrief, accounts, onGenerate, loading, error, cred
                 disabled={loading || !brief.topic.trim() || !brief.start_date || !brief.end_date || brief.target_accounts.length === 0}
                 className="ai-glow w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-                {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('social.generating_plan')}</> : <><Sparkles className="h-4 w-4" /> {t('social.generate_plan')} · 5 credits{creditRemaining !== null ? ` · ${creditRemaining} left` : ''}</>}
+                {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('social.generating_plan')}</> : <><Sparkles className="h-4 w-4" /> {t('social.generate_plan')} · {creditRate} credits{creditRemaining !== null ? ` · ${creditRemaining} left` : ''}</>}
             </button>
         </div>
     );
@@ -290,7 +290,9 @@ function ReviewStep({ editedPosts, setEditedPosts, approved, setApproved, select
 
 export default function AiPlannerModal({ show, onClose, accounts, onSuccess }) {
     const { t } = useTranslation();
-    const creditRemaining = usePage().props.aiCredits?.remaining ?? null;
+    const pageProps = usePage().props;
+    const creditRemaining = pageProps.aiCredits?.remaining ?? null;
+    const creditRate = pageProps.aiCreditRates?.social_plan ?? 5;
     const userTz = browserTz() || 'UTC';
     const today = todayDate();
 
@@ -439,6 +441,7 @@ export default function AiPlannerModal({ show, onClose, accounts, onSuccess }) {
                             loading={loading}
                             error={error}
                             creditRemaining={creditRemaining}
+                            creditRate={creditRate}
                         />
                     )}
                     {step === 'review' && (

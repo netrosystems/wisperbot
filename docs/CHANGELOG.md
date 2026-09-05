@@ -4,6 +4,10 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Simplified the client header by removing the global Search and language-selection controls while retaining AI credits, notifications, theme, workspace, and account access.
+
+- Made each plan's configured **WisperBot AI Credits / mo** limit the sole credit entitlement, added a global remaining/total header meter with live refresh, and redesigned Subscription usage with distinct entitlement states, processing reservations, human-readable per-action rates, totals, and recent activity. Active renewable subscriptions now retain their allowance when a gateway or legacy assignment leaves a stale prior-cycle end date.
+
 - Consolidated Connected Social Media, Post Composer, Post Automation, and Calendar into **Social Media Automation**, with compact account management, Upcoming-first status tabs, search/filtering, responsive post rows, integrated List/Calendar views, compatibility redirects, and an explicit Schedule versus Publish now composer choice. Empty workspaces now use compact, action-focused rows and hide inapplicable post controls; locale-file changes also invalidate cached dictionaries so translation keys never appear as client-facing copy.
 
 - Added Super Admin configuration and managed-provider selection for Alibaba Qwen 3.7 Flash, including region-bound endpoint validation, live connection testing, encrypted credentials, and OpenAI/Gemini-only Knowledge Base embedding fallback.

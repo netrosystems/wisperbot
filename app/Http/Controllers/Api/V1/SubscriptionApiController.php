@@ -36,6 +36,7 @@ class SubscriptionApiController extends Controller
                 'gateway' => $effective instanceof Subscription ? $effective->gateway : null,
                 'managed_by_admin' => $effective instanceof ClientSubscription,
                 'ai_credits' => $credits->usage((int) ($user->current_workspace_id ?? $user->workspace_id)),
+                'ai_credit_usage' => $credits->usageDetails((int) ($user->current_workspace_id ?? $user->workspace_id)),
             ],
         ]);
     }
@@ -53,6 +54,7 @@ class SubscriptionApiController extends Controller
                     'storage_gb' => $plan->limitValue('storage_gb'),
                 ] : null,
                 'ai_credits' => $credits->usage((int) ($user->current_workspace_id ?? $user->workspace_id)),
+                'ai_credit_usage' => $credits->usageDetails((int) ($user->current_workspace_id ?? $user->workspace_id)),
             ],
         ]);
     }

@@ -295,7 +295,9 @@ function TemplatePicker({ onSelect }) {
 
 function AiGeneratePanel({ campaignName, onGenerated }) {
     const { t } = useTranslation();
-    const creditRemaining = usePage().props.aiCredits?.remaining ?? null;
+    const pageProps = usePage().props;
+    const creditRemaining = pageProps.aiCredits?.remaining ?? null;
+    const creditRate = pageProps.aiCreditRates?.email_generate ?? 2;
     const [prompt, setPrompt] = useState('');
     const [tone, setTone] = useState('professional');
     const [loading, setLoading] = useState(false);
@@ -370,7 +372,7 @@ function AiGeneratePanel({ campaignName, onGenerated }) {
                 className={`${btnBase} ai-glow w-full justify-center bg-brand-600 text-white hover:bg-brand-700`}
             >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {loading ? t('email_editor.generating') : `${t('email_editor.generate_email')} · 2 credits${creditRemaining !== null ? ` · ${creditRemaining} left` : ''}`}
+                {loading ? t('email_editor.generating') : `${t('email_editor.generate_email')} · ${creditRate} credits${creditRemaining !== null ? ` · ${creditRemaining} left` : ''}`}
             </button>
 
             <p className="text-center text-xs text-neutral-400">
@@ -384,7 +386,9 @@ function AiGeneratePanel({ campaignName, onGenerated }) {
 
 function SubjectImprover({ subject, body, onPick }) {
     const { t } = useTranslation();
-    const creditRemaining = usePage().props.aiCredits?.remaining ?? null;
+    const pageProps = usePage().props;
+    const creditRemaining = pageProps.aiCredits?.remaining ?? null;
+    const creditRate = pageProps.aiCreditRates?.email_subject ?? 1;
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [suggestions, setSuggestions] = useState([]);
@@ -425,7 +429,7 @@ function SubjectImprover({ subject, body, onPick }) {
                 className="ai-glow inline-flex items-center gap-1 rounded-md border border-brand-300 bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 transition hover:bg-brand-100 disabled:opacity-40 dark:border-brand-700 dark:bg-brand-950/40 dark:text-brand-300 dark:hover:bg-brand-900/50"
             >
                 {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                {t('email_editor.improve')} · 1 credit{creditRemaining !== null ? ` · ${creditRemaining} left` : ''}
+                {t('email_editor.improve')} · {creditRate} {creditRate === 1 ? 'credit' : 'credits'}{creditRemaining !== null ? ` · ${creditRemaining} left` : ''}
             </button>
 
             {open && (

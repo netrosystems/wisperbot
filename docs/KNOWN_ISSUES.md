@@ -52,7 +52,7 @@ Past deployments have produced untracked logs, lock files, build zips/backups, a
 
 ## Managed AI rollout state
 
-The managed-credit system ships in shadow mode unless `AI_CREDITS_ENFORCE=true`. Production must configure the managed OpenAI integration, finite plan allowances, scheduler, privacy/subprocessor disclosures, and reconcile at least two weeks of ledger/provider-cost data before hard enforcement. Super Admin reporting and audited adjustments are available at `/admin/ai-credits/report`; cost and margin figures are estimates and must not be treated as provider invoices.
+The managed-credit system now defaults to hard enforcement; `AI_CREDITS_ENFORCE=false` is an explicit diagnostic shadow mode only. Production must configure a tested managed generation integration, explicit finite plan allowances, scheduler, and privacy/subprocessor disclosures. Super Admin reporting and audited adjustments are available at `/admin/ai-credits/report`; cost and margin figures are estimates and must not be treated as provider invoices.
 
 ## Guarded Knowledge Base rollout state
 

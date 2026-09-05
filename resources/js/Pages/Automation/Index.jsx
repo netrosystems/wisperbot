@@ -263,7 +263,7 @@ export default function AutomationIndex({ automations }) {
                         </p>
                         <div className="flex gap-2 pt-1">
                             <button disabled={aiLoading || !aiPrompt.trim()} onClick={handleGenerate} className="ai-glow flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-purple-600 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-60 transition">
-                                {aiLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('automation.ai_generating')}</> : <><Sparkles className="h-4 w-4" /> {t('automation.ai_generate')} · 5 credits{props.aiCredits ? ` · ${props.aiCredits.remaining} left` : ''}</>}
+                                {aiLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('automation.ai_generating')}</> : <><Sparkles className="h-4 w-4" /> {t('automation.ai_generate')} · {props.aiCreditRates?.workflow_generate ?? 5} credits{props.aiCredits ? ` · ${props.aiCredits.remaining} left` : ''}</>}
                             </button>
                             <button type="button" disabled={aiLoading} onClick={() => setShowAi(false)} className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 transition">
                                 {t('common.cancel')}

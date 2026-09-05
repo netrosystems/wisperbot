@@ -28,14 +28,16 @@ class AiCreditServiceTest extends TestCase
         config()->set('ai_credits.enforce', true);
     }
 
-    public function test_rollout_allowances_match_all_four_monthly_prices(): void
+    public function test_action_catalog_is_the_single_source_for_fixed_rates(): void
     {
-        $this->assertSame([
-            0 => 100,
-            2000 => 1000,
-            4000 => 3000,
-            15000 => 15000,
-        ], config('ai_credits.allowances_by_monthly_price_cents'));
+        $service = app(AiCreditService::class);
+
+        $this->assertNull(config('ai_credits.allowances_by_monthly_price_cents'));
+        $this->assertSame(1, $service->creditsFor('chatbot_reply'));
+        $this->assertSame(2, $service->creditsFor('social_post'));
+        $this->assertSame(5, $service->creditsFor('workflow_generate'));
+        $this->assertSame(0, $service->creditsFor('document_embedding'));
+        $this->assertSame(config('ai_credits.rates'), collect(config('ai_credits.actions'))->map(fn ($action) => $action['credits'])->all());
     }
 
     public function test_workspaces_owned_by_the_same_account_share_one_period(): void
@@ -53,6 +55,68 @@ class AiCreditServiceTest extends TestCase
         $this->assertSame(4, $usage['used']);
         $this->assertSame(1, $usage['remaining']);
         $this->assertSame($usage, $service->usage($second->id));
+    }
+
+    public function test_usage_summary_and_action_breakdown_use_plan_limit_and_catalog_labels(): void
+    {
+        [, $workspace] = $this->subscribedWorkspace(100);
+        $service = app(AiCreditService::class);
+        $reservation = $service->reserve($workspace->id, 'social_post', 'social-copy');
+        $service->succeed($reservation->ledger, $this->response(), 'openai');
+
+        $usage = $service->usage($workspace->id);
+        $this->assertSame(100, $usage['limit']);
+        $this->assertSame(2, $usage['used']);
+        $this->assertSame(98, $usage['remaining']);
+        $this->assertSame('available', $usage['status']);
+
+        $details = $service->usageDetails($workspace->id);
+        $this->assertSame('Generate one social post', $details['by_action'][0]['label']);
+        $this->assertSame(2, $details['by_action'][0]['credits_per_action']);
+        $this->assertSame(2, $details['by_action'][0]['credits_used']);
+        $this->assertNotEmpty($details['rates']);
+    }
+
+    public function test_authenticated_client_can_refresh_workspace_scoped_header_summary(): void
+    {
+        [$owner, $workspace] = $this->subscribedWorkspace(100);
+        $owner->update(['workspace_id' => $workspace->id]);
+
+        $this->actingAs($owner)
+            ->getJson(route('client.subscription.ai-credits'))
+            ->assertOk()
+            ->assertJsonPath('data.limit', 100)
+            ->assertJsonPath('data.remaining', 100)
+            ->assertJsonPath('data.status', 'available')
+            ->assertJsonMissingPath('data.rates');
+    }
+
+    public function test_header_summary_rejects_an_inaccessible_workspace(): void
+    {
+        [$owner] = $this->subscribedWorkspace(100);
+        $otherWorkspace = Workspace::factory()->create();
+        $owner->update(['workspace_id' => $otherWorkspace->id]);
+
+        $this->actingAs($owner)
+            ->getJson(route('client.subscription.ai-credits'))
+            ->assertForbidden();
+    }
+
+    public function test_usage_distinguishes_unconfigured_allowance_from_zero_credit_plan(): void
+    {
+        $owner = User::factory()->create(['role' => User::ROLE_CLIENT, 'status' => User::STATUS_ACTIVE]);
+        $workspace = Workspace::factory()->create(['owner_id' => $owner->id]);
+        $plan = Plan::factory()->create(['limits' => []]);
+        Subscription::create([
+            'user_id' => $owner->id, 'plan_id' => $plan->id, 'status' => 'active',
+            'billing_cycle' => 'month', 'starts_at' => now()->subDay(), 'gateway' => 'manual',
+        ]);
+
+        $this->assertSame('allowance_not_configured', app(AiCreditService::class)->usage($workspace->id)['status']);
+
+        $plan->update(['limits' => ['ai_credits_per_month' => 0]]);
+        $owner->unsetRelation('activeSubscription');
+        $this->assertSame('not_included', app(AiCreditService::class)->usage($workspace->id)['status']);
     }
 
     public function test_final_credit_cannot_be_reserved_twice(): void
@@ -114,7 +178,7 @@ class AiCreditServiceTest extends TestCase
         app(AiCreditService::class)->reserve($workspace->id, 'chatbot_reply', 'unverified');
     }
 
-    public function test_missing_or_null_managed_allowance_is_finite_zero(): void
+    public function test_missing_or_null_managed_allowance_is_reported_as_not_configured(): void
     {
         $owner = User::factory()->create();
         $workspace = Workspace::factory()->create(['owner_id' => $owner->id]);
@@ -125,7 +189,7 @@ class AiCreditServiceTest extends TestCase
         ]);
 
         $this->expectException(AiCreditsException::class);
-        $this->expectExceptionMessage('credits are exhausted');
+        $this->expectExceptionMessage('allowance is not configured');
         app(AiCreditService::class)->reserve($workspace->id, 'chatbot_reply', 'null-allowance');
     }
 
@@ -211,6 +275,32 @@ class AiCreditServiceTest extends TestCase
         $this->assertSame('client', $reservation->ledger->period->account_type);
     }
 
+    public function test_organization_uses_a_members_self_service_plan_when_no_client_subscription_exists(): void
+    {
+        $client = Client::create(['name' => 'Self-service Org', 'status' => 'active']);
+        $owner = User::factory()->create([
+            'client_id' => $client->id,
+            'role' => User::ROLE_CLIENT,
+            'status' => User::STATUS_ACTIVE,
+        ]);
+        $plan = Plan::factory()->create(['limits' => ['ai_credits_per_month' => 100]]);
+        Subscription::create([
+            'user_id' => $owner->id,
+            'plan_id' => $plan->id,
+            'status' => 'active',
+            'billing_cycle' => 'month',
+            'starts_at' => now()->subDay(),
+            'gateway' => 'manual',
+        ]);
+        $workspace = Workspace::factory()->create(['owner_id' => $owner->id, 'client_id' => $client->id]);
+
+        $usage = app(AiCreditService::class)->usage($workspace->id);
+
+        $this->assertSame(100, $usage['limit']);
+        $this->assertSame(100, $usage['remaining']);
+        $this->assertSame('available', $usage['status']);
+    }
+
     public function test_cancelled_subscription_keeps_current_credits_until_access_end(): void
     {
         [, $workspace, $subscription] = $this->subscribedWorkspace(5);
@@ -220,6 +310,36 @@ class AiCreditServiceTest extends TestCase
 
         $subscription->update(['ends_at' => now()->subSecond()]);
         $this->assertSame(0, app(AiCreditService::class)->usage($workspace->id)['remaining']);
+    }
+
+    public function test_active_client_subscription_uses_plan_credits_when_previous_cycle_end_date_is_stale(): void
+    {
+        $client = Client::create(['name' => 'Renewing Org', 'status' => 'active']);
+        $owner = User::factory()->create([
+            'client_id' => $client->id,
+            'role' => User::ROLE_CLIENT,
+            'status' => User::STATUS_ACTIVE,
+        ]);
+        $plan = Plan::factory()->create(['limits' => ['ai_credits_per_month' => 100]]);
+        ClientSubscription::create([
+            'client_id' => $client->id,
+            'plan_id' => $plan->id,
+            'billing_cycle' => 'monthly',
+            'starts_at' => now()->subMonths(5),
+            'ends_at' => now()->subMonth(),
+            'status' => ClientSubscription::STATUS_ACTIVE,
+        ]);
+        $workspace = Workspace::factory()->create([
+            'owner_id' => $owner->id,
+            'client_id' => $client->id,
+        ]);
+
+        $usage = app(AiCreditService::class)->usage($workspace->id);
+
+        $this->assertSame(100, $usage['limit']);
+        $this->assertSame(100, $usage['remaining']);
+        $this->assertSame('available', $usage['status']);
+        $this->assertTrue(Carbon::parse($usage['resets_at'])->isFuture());
     }
 
     public function test_threshold_notifications_are_sent_only_once_per_period(): void
@@ -253,7 +373,7 @@ class AiCreditServiceTest extends TestCase
 
     private function subscribedWorkspace(int $credits): array
     {
-        $owner = User::factory()->create();
+        $owner = User::factory()->create(['role' => User::ROLE_CLIENT, 'status' => User::STATUS_ACTIVE]);
         $plan = Plan::factory()->create(['limits' => ['ai_credits_per_month' => $credits]]);
         $subscription = Subscription::create([
             'user_id' => $owner->id,

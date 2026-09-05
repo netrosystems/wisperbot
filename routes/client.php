@@ -32,6 +32,7 @@ Route::middleware(['verified'])->group(function () {
 
     // Subscription
     Route::get('/subscription', [ClientSubscriptionController::class, 'show'])->name('subscription.show');
+    Route::get('/subscription/ai-credits', [ClientSubscriptionController::class, 'aiCredits'])->name('subscription.ai-credits');
     Route::post('/subscription/change-plan', [ClientSubscriptionController::class, 'changePlan'])->name('subscription.change-plan');
     Route::get('/subscription/invoice/{transaction}', [ClientSubscriptionController::class, 'invoiceDownload'])->name('subscription.invoice');
     Route::delete('/subscription', [ClientSubscriptionController::class, 'destroy'])->name('subscription.destroy');

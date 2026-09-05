@@ -1,10 +1,10 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Dropdown } from '@/Components/ui';
 import { useTheme } from '@/context/ThemeContext';
 import { useLocale } from '@/hooks/useLocale';
-import { Bell, X, CheckCheck, ExternalLink } from 'lucide-react';
+import { Bell, X, CheckCheck, ExternalLink, Coins } from 'lucide-react';
 import GlobalSearch from '@/Components/GlobalSearch';
 import axios from 'axios';
 
@@ -20,6 +20,7 @@ export default function Topbar({
     title,
     showWorkspace = true,
     showGlobalSearch = false,
+    showLanguage = true,
     unreadCount: externalUnreadCount,
 }) {
     const { t } = useTranslation();
@@ -30,7 +31,37 @@ export default function Topbar({
     const [notifOpen, setNotifOpen] = useState(false);
     const [recentNotifs, setRecentNotifs] = useState([]);
     const notifRef = useRef(null);
+    const creditRef = useRef(null);
+    const [creditOpen, setCreditOpen] = useState(false);
+    const currentWorkspaceId = page.props.currentWorkspace?.id ?? null;
+    const [refreshedCredits, setRefreshedCredits] = useState(null);
+    const aiCredits = refreshedCredits?.workspaceId === currentWorkspaceId
+        ? refreshedCredits.data
+        : (page.props.aiCredits ?? null);
     const unreadCount = externalUnreadCount ?? (page.props.unreadNotificationsCount ?? 0);
+
+    const refreshAiCredits = useCallback(() => {
+        if (!user || page.props.auth?.adminUser) return;
+        axios.get(route('client.subscription.ai-credits'))
+            .then((response) => setRefreshedCredits({ workspaceId: currentWorkspaceId, data: response.data?.data ?? null }))
+            .catch(() => {});
+    }, [user, page.props.auth?.adminUser, currentWorkspaceId]);
+
+    useEffect(() => {
+        if (!user || page.props.auth?.adminUser) return undefined;
+        const refreshWhenVisible = () => {
+            if (document.visibilityState === 'visible') refreshAiCredits();
+        };
+        window.addEventListener('focus', refreshWhenVisible);
+        window.addEventListener('wisperbot:ai-credits-refresh', refreshAiCredits);
+        const interval = window.setInterval(refreshWhenVisible, 60000);
+
+        return () => {
+            window.removeEventListener('focus', refreshWhenVisible);
+            window.removeEventListener('wisperbot:ai-credits-refresh', refreshAiCredits);
+            window.clearInterval(interval);
+        };
+    }, [user, page.props.auth?.adminUser, refreshAiCredits]);
 
     const { locale: currentLocale, isRtl: currentIsRtl, locales: i18nLocales, setLocale: setLocaleCode } = useLocale();
     const localeEntries = i18nLocales.length
@@ -65,6 +96,9 @@ export default function Topbar({
         const handler = (e) => {
             if (notifRef.current && !notifRef.current.contains(e.target)) {
                 setNotifOpen(false);
+            }
+            if (creditRef.current && !creditRef.current.contains(e.target)) {
+                setCreditOpen(false);
             }
         };
         document.addEventListener('mousedown', handler);
@@ -148,6 +182,55 @@ export default function Topbar({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
+                {user && !page.props.auth?.adminUser && aiCredits && (
+                    <div className="relative" ref={creditRef}>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const next = !creditOpen;
+                                setCreditOpen(next);
+                                if (next) refreshAiCredits();
+                            }}
+                            className={`flex min-w-[70px] items-center gap-2 rounded-soft border px-2.5 py-1.5 text-xs font-semibold tabular-nums transition focus:outline-none focus:ring-2 focus:ring-brand-500/30 ${aiCredits.exhausted ? 'border-coral-200 bg-coral-50 text-coral-700 dark:border-coral-800 dark:bg-coral-950/40 dark:text-coral-300' : aiCredits.warning ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800'}`}
+                            aria-label={t('ai_credits.header_label', { remaining: aiCredits.remaining, limit: aiCredits.limit ?? aiCredits.allowance })}
+                            aria-expanded={creditOpen}
+                        >
+                            <Coins className="h-4 w-4 shrink-0 text-brand-500" aria-hidden="true" />
+                            <span className="hidden lg:inline">{t('ai_credits.short_label')}</span>
+                            <span>{Number(aiCredits.remaining ?? 0).toLocaleString()} / {Number(aiCredits.limit ?? aiCredits.allowance ?? 0).toLocaleString()}</span>
+                        </button>
+
+                        {creditOpen && (
+                            <div className="absolute right-0 z-50 mt-1 w-72 overflow-hidden rounded-soft-lg border border-neutral-200 bg-white shadow-soft-lg dark:border-neutral-700 dark:bg-neutral-900">
+                                <div className="border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
+                                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{t('ai_credits.title')}</p>
+                                    <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                        {t('ai_credits.remaining_of_total', { remaining: Number(aiCredits.remaining ?? 0).toLocaleString(), total: Number(aiCredits.limit ?? aiCredits.allowance ?? 0).toLocaleString() })}
+                                    </p>
+                                </div>
+                                <div className="space-y-3 px-4 py-3">
+                                    <div className="h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={aiCredits.percent_used ?? 0}>
+                                        <div className={`h-full rounded-full ${aiCredits.exhausted ? 'bg-coral-500' : aiCredits.warning ? 'bg-amber-500' : 'bg-brand-500'}`} style={{ width: `${aiCredits.percent_used ?? 0}%` }} />
+                                    </div>
+                                    <dl className="grid grid-cols-3 gap-2 text-center">
+                                        <div><dt className="text-[11px] text-neutral-500">{t('ai_credits.used')}</dt><dd className="text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{Number(aiCredits.used ?? 0).toLocaleString()}</dd></div>
+                                        <div><dt className="text-[11px] text-neutral-500">{t('ai_credits.processing')}</dt><dd className="text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{Number(aiCredits.reserved ?? 0).toLocaleString()}</dd></div>
+                                        <div><dt className="text-[11px] text-neutral-500">{t('ai_credits.remaining')}</dt><dd className="text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{Number(aiCredits.remaining ?? 0).toLocaleString()}</dd></div>
+                                    </dl>
+                                    {aiCredits.status === 'allowance_not_configured' && <p className="text-xs text-coral-700 dark:text-coral-300">{t('ai_credits.not_configured')}</p>}
+                                    {aiCredits.status === 'no_active_subscription' && <p className="text-xs text-coral-700 dark:text-coral-300">{t('ai_credits.no_active_subscription')}</p>}
+                                    {aiCredits.status === 'not_included' && <p className="text-xs text-coral-700 dark:text-coral-300">{t('ai_credits.not_included')}</p>}
+                                    {aiCredits.status === 'exhausted' && <p className="text-xs text-coral-700 dark:text-coral-300">{t('ai_credits.exhausted_help')}</p>}
+                                    {aiCredits.resets_at && <p className="text-xs text-neutral-500 dark:text-neutral-400">{t('ai_credits.resets_on', { date: new Date(aiCredits.resets_at).toLocaleDateString() })}</p>}
+                                </div>
+                                <Link href={route('client.subscription.show')} onClick={() => setCreditOpen(false)} className="block border-t border-neutral-100 px-4 py-2.5 text-center text-xs font-medium text-brand-600 hover:bg-brand-50 dark:border-neutral-800 dark:text-brand-400 dark:hover:bg-brand-900/20">
+                                    {t('ai_credits.view_usage')}
+                                </Link>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Notification bell (client users only) */}
                 {user && !page.props.auth?.adminUser && (
                     <div className="relative" ref={notifRef}>
@@ -288,44 +371,46 @@ export default function Topbar({
                 )}
 
                 {/* Language switcher */}
-                <Dropdown>
-                    <Dropdown.Trigger>
-                        <button
-                            type="button"
-                            className="flex items-center gap-1.5 rounded-soft px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 transition duration-150"
-                            aria-label={t('topbar.language')}
-                        >
-                            <svg className="h-4 w-4 shrink-0" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                                <circle cx="12" cy="12" r="9" />
-                                <path strokeLinecap="round" d="M3.6 9h16.8M3.6 15h16.8" />
-                                <path strokeLinecap="round" d="M12 3c-2.5 3-4 5.7-4 9s1.5 6 4 9M12 3c2.5 3 4 5.7 4 9s-1.5 6-4 9" />
-                            </svg>
-                            <span className="hidden sm:inline">
-                                {i18nLocales.find((l) => l.code === currentLocale)?.native_name ?? currentLocale.toUpperCase()}
-                            </span>
-                            {currentIsRtl && <span className="rounded bg-neutral-200 dark:bg-neutral-700 px-1 text-[10px] font-medium text-neutral-600 dark:text-neutral-300">RTL</span>}
-                            <svg className="h-4 w-4 text-neutral-400 dark:text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </button>
-                    </Dropdown.Trigger>
-                    <Dropdown.Content align="right" width="48">
-                        {localeEntries.map(([code, label]) => {
-                            const isRtl = i18nLocales.find((l) => l.code === code)?.is_rtl ?? false;
-                            return (
-                                <Dropdown.Item
-                                    key={code}
-                                    as="button"
-                                    onClick={() => handleLocale(code)}
-                                    className={currentLocale === code ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 font-medium' : ''}
-                                >
-                                    <span>{label}</span>
-                                    {isRtl && <span className="ms-1.5 rounded bg-neutral-200 dark:bg-neutral-700 px-1 text-[10px]">RTL</span>}
-                                </Dropdown.Item>
-                            );
-                        })}
-                    </Dropdown.Content>
-                </Dropdown>
+                {showLanguage && (
+                    <Dropdown>
+                        <Dropdown.Trigger>
+                            <button
+                                type="button"
+                                className="flex items-center gap-1.5 rounded-soft px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 transition duration-150"
+                                aria-label={t('topbar.language')}
+                            >
+                                <svg className="h-4 w-4 shrink-0" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                                    <circle cx="12" cy="12" r="9" />
+                                    <path strokeLinecap="round" d="M3.6 9h16.8M3.6 15h16.8" />
+                                    <path strokeLinecap="round" d="M12 3c-2.5 3-4 5.7-4 9s1.5 6 4 9M12 3c2.5 3 4 5.7 4 9s-1.5 6-4 9" />
+                                </svg>
+                                <span className="hidden sm:inline">
+                                    {i18nLocales.find((l) => l.code === currentLocale)?.native_name ?? currentLocale.toUpperCase()}
+                                </span>
+                                {currentIsRtl && <span className="rounded bg-neutral-200 dark:bg-neutral-700 px-1 text-[10px] font-medium text-neutral-600 dark:text-neutral-300">RTL</span>}
+                                <svg className="h-4 w-4 text-neutral-400 dark:text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        </Dropdown.Trigger>
+                        <Dropdown.Content align="right" width="48">
+                            {localeEntries.map(([code, label]) => {
+                                const isRtl = i18nLocales.find((l) => l.code === code)?.is_rtl ?? false;
+                                return (
+                                    <Dropdown.Item
+                                        key={code}
+                                        as="button"
+                                        onClick={() => handleLocale(code)}
+                                        className={currentLocale === code ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 font-medium' : ''}
+                                    >
+                                        <span>{label}</span>
+                                        {isRtl && <span className="ms-1.5 rounded bg-neutral-200 dark:bg-neutral-700 px-1 text-[10px]">RTL</span>}
+                                    </Dropdown.Item>
+                                );
+                            })}
+                        </Dropdown.Content>
+                    </Dropdown>
+                )}
 
                 {/* Account menu */}
                 {user && (

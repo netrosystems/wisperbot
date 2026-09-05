@@ -1,39 +1,37 @@
 <?php
 
+$actions = [
+    'chatbot_reply' => ['label' => 'Chatbot or Knowledge Base answer', 'credits' => 1],
+    // Kept as a compatibility alias for callers and historical ledger entries.
+    'rag_reply' => ['label' => 'Chatbot or Knowledge Base answer', 'credits' => 1],
+    'email_subject' => ['label' => 'Improve an email subject', 'credits' => 1],
+    'short_rewrite' => ['label' => 'Short rewrite or correction', 'credits' => 1],
+    'kb_quality_review' => ['label' => 'Knowledge Base quality review', 'credits' => 1],
+    'automation_ai_step' => ['label' => 'AI step inside an automation run', 'credits' => 1],
+    'email_generate' => ['label' => 'Generate a complete email', 'credits' => 2],
+    'social_post' => ['label' => 'Generate one social post', 'credits' => 2],
+    'workflow_generate' => ['label' => 'Generate an automation workflow', 'credits' => 5],
+    'social_plan' => ['label' => 'Generate a multi-post social plan', 'credits' => 5],
+    'document_embedding' => ['label' => 'Knowledge Base indexing', 'credits' => 0],
+    'provider_test' => ['label' => 'AI provider connection test', 'credits' => 0],
+];
+
 return [
     /*
-    | Managed-credit enforcement is intentionally switchable for the staged rollout.
-    | In shadow mode reservations and costs are recorded, but exhausted accounts are
-    | allowed to continue so operators can reconcile the ledger before hard blocking.
+    | Managed-credit enforcement defaults on. Operators may explicitly use shadow
+    | mode while auditing a deployment: reservations and costs are recorded, but
+    | exhausted accounts are allowed to continue without a negative visible balance.
     */
-    'enforce' => (bool) env('AI_CREDITS_ENFORCE', false),
+    'enforce' => (bool) env('AI_CREDITS_ENFORCE', true),
     'reservation_ttl_minutes' => 10,
     'max_concurrent_managed_requests' => 3,
     'managed_requests_per_minute' => 30,
     'free_managed_requests_per_minute' => 10,
     'rate_version' => 1,
 
-    'allowances_by_monthly_price_cents' => [
-        0 => 100,
-        2000 => 1000,
-        4000 => 3000,
-        15000 => 15000,
-    ],
-
-    'rates' => [
-        'chatbot_reply' => 1,
-        'rag_reply' => 1,
-        'email_subject' => 1,
-        'short_rewrite' => 1,
-        'kb_quality_review' => 1,
-        'automation_ai_step' => 1,
-        'email_generate' => 2,
-        'social_post' => 2,
-        'workflow_generate' => 5,
-        'social_plan' => 5,
-        'provider_test' => 0,
-        'document_embedding' => 0,
-    ],
+    // This catalog is the single source for charging and client-facing labels.
+    'actions' => $actions,
+    'rates' => array_map(static fn (array $action): int => $action['credits'], $actions),
 
     'managed' => [
         'provider' => 'openai',

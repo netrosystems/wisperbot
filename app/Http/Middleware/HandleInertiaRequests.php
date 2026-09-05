@@ -100,6 +100,7 @@ class HandleInertiaRequests extends Middleware
                 'onboardingSummary' => null,
                 'entitlements' => ['developer_tools' => false],
                 'aiCredits' => null,
+                'aiCreditRates' => [],
             ];
         }
 
@@ -275,10 +276,11 @@ class HandleInertiaRequests extends Middleware
         // fallback props (no translations, empty permissions → blank admin panel).
         // This only surfaced when the session carried a leftover current_workspace_id.
         if ($user instanceof User) {
-            $workspaceId = $request->session()->get('current_workspace_id') ?? $user->workspace_id;
-            if ($workspaceId) {
-                $workspace = Workspace::with('client')->find($workspaceId);
+            $requestedWorkspaceId = $request->session()->get('current_workspace_id') ?? $user->workspace_id;
+            if ($requestedWorkspaceId) {
+                $workspace = Workspace::with('client')->find($requestedWorkspaceId);
                 if ($workspace && $workspace->isAccessibleBy($user)) {
+                    $workspaceId = (int) $workspace->id;
                     $currentWorkspace = ['id' => $workspace->id, 'name' => $workspace->name];
                     $plan = $workspace->client?->activePlan();
                 }
@@ -386,6 +388,7 @@ class HandleInertiaRequests extends Middleware
             'app_version' => $this->appVersion(),
             'onboardingSummary' => $onboardingSummary,
             'aiCredits' => $aiCredits,
+            'aiCreditRates' => $user && ! $isAdminRoute ? config('ai_credits.rates', []) : [],
             'landingPageEnabled' => SystemSetting::get('landing.page_enabled', '1') === '1',
             'branding' => $this->brandingShare(),
             'pusher' => $this->pusherPublicConfig(),

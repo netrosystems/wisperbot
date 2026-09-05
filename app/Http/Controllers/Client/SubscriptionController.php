@@ -8,6 +8,7 @@ use App\Models\Coupon;
 use App\Models\PaymentTransaction;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\Workspace;
 use App\Modules\AI\Services\AiCreditService;
 use App\Services\Billing\BillingGatewayRegistry;
 use App\Services\Billing\InvoiceService;
@@ -103,6 +104,18 @@ class SubscriptionController extends Controller
             'transactions' => $transactions,
             'aiCredits' => $workspaceId > 0 ? $this->aiCredits->usage($workspaceId) : null,
             'aiCreditUsage' => $workspaceId > 0 ? $this->aiCredits->usageDetails($workspaceId) : null,
+        ]);
+    }
+
+    public function aiCredits(Request $request): JsonResponse
+    {
+        $workspaceId = (int) ($request->user()->current_workspace_id ?? $request->user()->workspace_id ?? 0);
+        abort_if($workspaceId <= 0, 404);
+        $workspace = Workspace::findOrFail($workspaceId);
+        $this->authorize('view', $workspace);
+
+        return response()->json([
+            'data' => $this->aiCredits->usage($workspaceId),
         ]);
     }
 
