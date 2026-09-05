@@ -40,12 +40,17 @@ class EmbeddingStore
         }
 
         try {
-            $response = $this->qdrantClient()->post('/collections/'.self::QDRANT_COLLECTION.'/points/delete', [
+            $payload = [
                 'filter' => [
                     'must' => [['key' => 'document_id', 'match' => ['value' => $documentId]]],
                 ],
                 'wait' => true,
-            ]);
+            ];
+            $response = $this->qdrantClient()->post('/collections/'.self::QDRANT_COLLECTION.'/points/delete?wait=true', $payload);
+            if ($response->status() === 400 && str_contains((string) $response->json('status.error'), 'Index required but not found')) {
+                $this->ensurePayloadIndexes();
+                $response = $this->qdrantClient()->post('/collections/'.self::QDRANT_COLLECTION.'/points/delete?wait=true', $payload);
+            }
 
             if ($response->status() === 404) {
                 return;
@@ -194,6 +199,8 @@ class EmbeddingStore
                 );
             }
 
+            $this->ensurePayloadIndexes($check->json('result.payload_schema', []));
+
             return;
         }
 
@@ -207,6 +214,24 @@ class EmbeddingStore
 
         if (! $created->successful()) {
             throw new \RuntimeException('Qdrant collection creation failed (HTTP '.$created->status().'): '.$created->body());
+        }
+        $this->ensurePayloadIndexes();
+    }
+
+    /** Qdrant Cloud strict mode requires indexed fields for filtered operations. */
+    private function ensurePayloadIndexes(array $schema = []): void
+    {
+        foreach (['document_id', 'kb_id'] as $field) {
+            if (($schema[$field]['data_type'] ?? null) === 'integer') {
+                continue;
+            }
+            $response = $this->qdrantClient()->put('/collections/'.self::QDRANT_COLLECTION.'/index?wait=true', [
+                'field_name' => $field,
+                'field_schema' => 'integer',
+            ]);
+            if (! $response->successful()) {
+                throw new \RuntimeException('Qdrant payload index creation failed (HTTP '.$response->status().').');
+            }
         }
     }
 

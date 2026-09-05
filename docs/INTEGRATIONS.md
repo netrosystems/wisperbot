@@ -129,3 +129,6 @@ Only Stripe, PayPal, and Paddle are supported. Webhooks are CSRF-exempt but must
 
 - [eBay Seller Messaging](../EBAY_SELLER_MESSAGING_SETUP.md)
 - [Amazon Seller Messaging](../AMAZON_SELLER_MESSAGING_SETUP.md)
+# Qdrant payload indexes
+
+WisperBot automatically maintains integer payload indexes for `document_id` and `kb_id` in `kb_chunks`. These support filtered cleanup and KB retrieval with Qdrant Cloud strict mode enabled. The integration credential requires permission to create payload indexes. Existing vectors are preserved.

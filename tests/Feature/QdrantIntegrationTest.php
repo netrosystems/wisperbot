@@ -59,6 +59,27 @@ class QdrantIntegrationTest extends TestCase
         ]);
     }
 
+    public function test_strict_mode_missing_indexes_are_created_before_retrying_cleanup(): void
+    {
+        $this->configureQdrant();
+        $indexed = false;
+        Http::fake(function (Request $request) use (&$indexed) {
+            if ($request->method() === 'PUT') {
+                $indexed = true;
+
+                return Http::response(['status' => 'ok']);
+            }
+
+            return $indexed ? Http::response(['status' => 'ok'])
+                : Http::response(['status' => ['error' => 'Index required but not found for document_id']], 400);
+        });
+        app(EmbeddingStore::class)->deleteDocumentEmbeddings(123);
+        foreach (['document_id', 'kb_id'] as $field) {
+            Http::assertSent(fn (Request $request) => $request->method() === 'PUT'
+                && $request['field_name'] === $field && $request['field_schema'] === 'integer');
+        }
+    }
+
     public function test_runtime_uses_admin_qdrant_credentials_and_checks_writes(): void
     {
         IntegrationConfig::create([

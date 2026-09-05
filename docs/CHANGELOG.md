@@ -63,3 +63,6 @@ Earlier feature history is available in Git. Do not reconstruct historical dates
 
 - Discover website sitemaps before waiting for homepage content; show accurate timeout/access errors and readable extraction labels.
 - Align managed OpenAI defaults and connection tests; test both configured generation models plus embeddings. Reject empty output before charging credits.
+# 2026-09-05
+
+- Fixed Knowledge Base indexing against Qdrant Cloud collections missing required integer payload indexes. Automatic setup preserves existing vectors and strict-mode protection.

@@ -77,3 +77,6 @@ For the next developer or LLM:
 6. Run focused backend/frontend tests and a production build when frontend changes.
 7. Update the documentation files required by the impact matrix in the same commit.
 8. Record unresolved external/provider dependencies in `KNOWN_ISSUES.md` rather than claiming completion.
+# 2026-09-05: Qdrant strict-mode indexing repair
+
+Production evidence identified missing integer payload indexes on `kb_chunks.document_id` and `kb_chunks.kb_id`. Collection setup now creates them without deleting vectors or disabling strict mode; filtered cleanup retries once after index setup. Missing collections remain safe to delete, while authorization and service failures remain errors. Focused Qdrant tests pass (5 tests). No SQL migration or frontend bundle change is required.
