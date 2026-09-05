@@ -16,6 +16,49 @@ class QdrantIntegrationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_deleting_vectors_from_a_missing_collection_is_safe_to_repeat(): void
+    {
+        $this->configureQdrant();
+        Http::fake(['*' => Http::response(['status' => ['error' => 'Collection does not exist']], 404)]);
+
+        app(EmbeddingStore::class)->deleteDocumentEmbeddings(123);
+        app(EmbeddingStore::class)->deleteDocumentEmbeddings(123);
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST'
+            && $request['filter']['must'][0]['match']['value'] === 123);
+    }
+
+    public function test_real_vector_deletion_failures_are_not_silently_ignored(): void
+    {
+        $this->configureQdrant();
+        Http::fake(['*' => Http::response([], 503)]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Qdrant delete failed (HTTP 503)');
+        app(EmbeddingStore::class)->deleteDocumentEmbeddings(123);
+    }
+
+    public function test_missing_collection_can_be_created(): void
+    {
+        $this->configureQdrant();
+        Http::fake(fn (Request $request) => Http::response([], $request->method() === 'GET' ? 404 : 200));
+
+        $method = new \ReflectionMethod(EmbeddingStore::class, 'ensureQdrantCollection');
+        $method->invoke(app(EmbeddingStore::class), 3);
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'PUT'
+            && $request->url() === 'https://qdrant.test/collections/kb_chunks'
+            && $request['vectors']['size'] === 3);
+    }
+
+    private function configureQdrant(): void
+    {
+        IntegrationConfig::create([
+            'provider' => 'qdrant', 'label' => 'Qdrant', 'mode' => 'live',
+            'enabled' => true, 'credentials' => ['url' => 'https://qdrant.test', 'api_key' => 'test-key'],
+        ]);
+    }
+
     public function test_runtime_uses_admin_qdrant_credentials_and_checks_writes(): void
     {
         IntegrationConfig::create([

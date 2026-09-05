@@ -97,7 +97,9 @@ class EmbeddingStore
 
         $client = Http::baseUrl(rtrim((string) $credentials['url'], '/'))
             ->timeout(10)
-            ->retry(2, 300);
+            // Callers handle HTTP status codes, including an absent collection.
+            // Transport failures still throw after retries are exhausted.
+            ->retry(2, 300, throw: false);
 
         $apiKey = $credentials['api_key'] ?? null;
         if ($apiKey) {

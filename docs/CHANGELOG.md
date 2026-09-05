@@ -56,3 +56,6 @@ The documented baseline includes:
 - Pusher/Reverb realtime channels, OneSignal/web push notification foundations, scheduler/queue diagnostics, and deploy-time patch versioning.
 
 Earlier feature history is available in Git. Do not reconstruct historical dates from memory; add future entries as changes are completed.
+# 2026-09-05 — Knowledge Base deletion hotfix
+
+- Fixed missing Qdrant collections blocking document deletion and first-write collection creation. Real cleanup failures still stop deletion. No migration or frontend build required.
