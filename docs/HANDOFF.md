@@ -31,6 +31,8 @@ Credit entitlement resolution mirrors billing: an admin-assigned Client subscrip
 
 Active renewable subscriptions now remain credit-eligible when a gateway or legacy admin assignment retains a stale prior-cycle `ends_at` value. The explicit active/trialing status is authoritative; canceled subscriptions still stop receiving credits after their access end. This fixes the Bella Salon & Spa Pro fixture resolving as `0 / 0` despite its configured 100-credit plan allowance.
 
+The managed-credit migration uses explicit `DATETIME` billing-period boundaries for compatibility with MySQL servers that retain legacy implicit `TIMESTAMP` defaults. Its new columns/tables are guarded so a deployment can safely rerun the migration after a partial schema failure.
+
 Alibaba Qwen 3.7 Flash is available locally as the Super Admin-only `llm_qwen_default` managed generation provider. It requires a region-matched Model Studio API key and Workspace ID, must pass its connection test before selection, and does not replace the OpenAI/Gemini embedding path used by Knowledge Bases.
 
 Knowledge Base video answers are now implemented locally. Deployments must run migrations, rebuild the Vite bundle, restart the `ai` queue worker, and verify the customer site's `frame-src` CSP before provider playback can be claimed as operational. Native SDK clients receive the additive `payload.resources` contract but require their own UI release to render the inline card.

@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Made the managed AI-credit migration compatible with MySQL installations that use legacy implicit `TIMESTAMP` defaults, and made its schema creation safe to resume after an interrupted deployment.
+
 - Simplified the client header by removing the global Search and language-selection controls while retaining AI credits, notifications, theme, workspace, and account access.
 
 - Made each plan's configured **WisperBot AI Credits / mo** limit the sole credit entitlement, added a global remaining/total header meter with live refresh, and redesigned Subscription usage with distinct entitlement states, processing reservations, human-readable per-action rates, totals, and recent activity. Active renewable subscriptions now retain their allowance when a gateway or legacy assignment leaves a stale prior-cycle end date.
