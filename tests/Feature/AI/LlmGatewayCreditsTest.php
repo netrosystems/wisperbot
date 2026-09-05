@@ -7,6 +7,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\AI\Exceptions\AiCreditsException;
+use App\Modules\AI\Exceptions\AiOutputRejectedException;
 use App\Modules\AI\Models\AiCreditLedger;
 use App\Modules\AI\Models\AiProviderConfig;
 use App\Modules\AI\Models\AiWorkspaceSetting;
@@ -60,6 +61,21 @@ class LlmGatewayCreditsTest extends TestCase
         $this->assertSame('Hello', $second->content);
         $this->assertSame(1, AiCreditLedger::where('status', 'succeeded')->value('credits'));
         Http::assertSentCount(1);
+    }
+
+    public function test_empty_generation_is_refunded_not_charged_as_success(): void
+    {
+        $workspace = $this->workspaceWithCredits(100);
+        $this->managedOpenAi();
+        Http::fake(['api.openai.com/*' => Http::response($this->openAiResponse(''))]);
+        try {
+            app(LlmGateway::class)->chat($workspace->id, [['role' => 'user', 'content' => 'Hi']], ['feature' => 'chatbot_reply', 'idempotency_key' => 'empty-output']);
+            $this->fail('Empty output must not succeed.');
+        } catch (AiOutputRejectedException) {
+            $this->assertSame('refunded', AiCreditLedger::sole()->status);
+            $this->assertSame(0, AiCreditLedger::sole()->period->used_credits);
+            $this->assertSame(0, AiCreditLedger::sole()->period->reserved_credits);
+        }
     }
 
     public function test_provider_failure_refunds_managed_reservation(): void

@@ -19,6 +19,8 @@ composer dev
 
 ## Production deployment
 
+Managed OpenAI model overrides must be tested with the active project key. The admin test now exercises both distinct `AI_MANAGED_ROUTINE_MODEL` and `AI_MANAGED_COMPLEX_MODEL` values plus `AI_MANAGED_EMBEDDING_MODEL`; after changing these values rebuild config and restart `ai` workers. A provider test alone does not verify widget assignment, queues, retrieval, or credit finalization. Indexing status label changes in `resources/js/locales/en.json` are served by `/i18n/{locale}` and do not require a Vite rebuild when no JS component changes.
+
 Follow [DEPLOYMENT.md](../DEPLOYMENT.md). The essential properties are:
 
 - deploy the `main` branch;

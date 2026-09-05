@@ -4,6 +4,7 @@ namespace App\Modules\AI\Services;
 
 use App\Modules\AI\Models\AiKbDocument;
 use App\Services\StorageManager;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use League\HTMLToMarkdown\HtmlConverter;
 use Smalot\PdfParser\Parser;
@@ -35,16 +36,23 @@ class KnowledgeSourceExtractor
         $redirects = 0;
         while (true) {
             $connectedIp = null;
-            $response = Http::withOptions([
-                'allow_redirects' => false,
-                'on_stats' => function ($stats) use (&$connectedIp): void {
-                    $connectedIp = $stats->getHandlerStats()['primary_ip'] ?? null;
-                },
-            ])
-                ->withHeaders([
-                    'User-Agent' => 'WisperBotKnowledgeIndexer/2.0 (+https://wisperbot.com)',
-                    'Accept' => 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
-                ])->timeout(20)->get($url);
+            try {
+                $response = Http::withOptions([
+                    'allow_redirects' => false,
+                    'on_stats' => function ($stats) use (&$connectedIp): void {
+                        $connectedIp = $stats->getHandlerStats()['primary_ip'] ?? null;
+                    },
+                ])
+                    ->withHeaders([
+                        'User-Agent' => 'WisperBotKnowledgeIndexer/2.0 (+https://wisperbot.com)',
+                        'Accept' => 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
+                    ])->connectTimeout(5)->timeout(12)->get($url);
+            } catch (ConnectionException $exception) {
+                $reason = str_contains($exception->getMessage(), 'cURL error 28')
+                    ? 'the page took too long to finish responding. Other website pages can still be indexed. Retry this page later or upload a reviewed file.'
+                    : 'the connection failed. Check that this page is publicly accessible over HTTPS, then retry.';
+                throw new \RuntimeException('URL indexing failed: '.$reason, 0, $exception);
+            }
             if ($connectedIp !== null) {
                 $this->urls->assertPublicIp($connectedIp);
             }

@@ -243,19 +243,26 @@ class ConnectionTester
             if (! empty($creds['organization_id'])) {
                 $request = $request->withHeaders(['OpenAI-Organization' => $creds['organization_id']]);
             }
-            $resp = $request
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4o-mini',
-                    'messages' => [['role' => 'user', 'content' => 'hi']],
-                    'max_tokens' => 1,
-                ]);
-
-            if (! $resp->successful()) {
-                return $this->llmFailure('OpenAI chat test failed.', $resp);
+            foreach (array_unique([
+                (string) config('ai_credits.managed.routine_model'),
+                (string) config('ai_credits.managed.complex_model'),
+            ]) as $model) {
+                $payload = [
+                    'model' => $model,
+                    'messages' => [['role' => 'user', 'content' => 'Reply only OK.']],
+                    str_starts_with($model, 'gpt-5') ? 'max_completion_tokens' : 'max_tokens' => 160,
+                ];
+                $resp = $request->post('https://api.openai.com/v1/chat/completions', $payload);
+                if (! $resp->successful()) {
+                    return $this->llmFailure('OpenAI managed model '.$model.' test failed.', $resp);
+                }
+                if (! filled($resp->json('choices.0.message.content'))) {
+                    return ['ok' => false, 'message' => 'OpenAI managed model '.$model.' returned no usable text. Check the model and output budget before enabling managed AI.'];
+                }
             }
 
             $embeddingResp = $request->post('https://api.openai.com/v1/embeddings', [
-                'model' => 'text-embedding-3-small',
+                'model' => (string) config('ai_credits.managed.embedding_model'),
                 'input' => ['connection test'],
             ]);
 

@@ -278,14 +278,25 @@ class IndexDocumentJob implements ShouldQueue
         if (empty($sitemapUrl)) {
             return '';
         }
-        [$response, $resolvedUrl] = $this->fetchSiteResource($sitemapUrl, $urls);
-        $parsed = $this->parseSitemapXml($response->body());
+        // A streaming homepage can remain open indefinitely even when its
+        // sitemap and inner pages are healthy. Discover first for root URLs.
+        $sitemapUrl = $urls->assertSafe($sitemapUrl);
+        $rootInput = in_array(parse_url($sitemapUrl, PHP_URL_PATH) ?: '/', ['/', ''], true);
+        $discovered = $rootInput ? $this->discoverSitemap($sitemapUrl, '', $urls) : null;
+        if ($discovered !== null) {
+            [$resolvedUrl, $parsed] = $discovered;
+            $doc->update(['source_ref' => $resolvedUrl]);
+        } else {
+            [$response, $resolvedUrl] = $this->fetchSiteResource($sitemapUrl, $urls);
+            $parsed = $this->parseSitemapXml($response->body());
+        }
 
         // Non-technical users commonly paste their homepage in the Sitemap tab.
         // Resolve a declared/common sitemap first; if the site has none, safely
         // fan out the homepage and its same-host links instead of failing.
         if ($parsed === null) {
-            $discovered = $this->discoverSitemap($resolvedUrl, $response->body(), $urls);
+            $discovered = $this->discoverSitemap($resolvedUrl, $response->body(), $urls,
+                ! $rootInput || $this->origin($resolvedUrl) !== $this->origin($sitemapUrl));
             if ($discovered !== null) {
                 [$resolvedUrl, $parsed] = $discovered;
                 $doc->update(['source_ref' => $resolvedUrl]);
@@ -314,7 +325,7 @@ class IndexDocumentJob implements ShouldQueue
     }
 
     /** @return array{0:Response,1:string} */
-    private function fetchSiteResource(string $url, KnowledgeUrlGuard $urls, int $timeout = 20, int $attempts = 2): array
+    private function fetchSiteResource(string $url, KnowledgeUrlGuard $urls, int $timeout = 12, int $attempts = 1): array
     {
         $url = $urls->assertSafe($url);
         for ($redirects = 0; $redirects <= 4; $redirects++) {
@@ -329,9 +340,15 @@ class IndexDocumentJob implements ShouldQueue
                     'User-Agent' => 'WisperBotKnowledgeIndexer/2.0 (+https://wisperbot.com)',
                     'Accept' => 'application/xml,text/xml,text/html,text/plain;q=0.9,*/*;q=0.5',
                     'Accept-Language' => 'en,*;q=0.5',
-                ])->retry($attempts, 400)->timeout($timeout)->get($url);
+                ])->retry($attempts, 400, throw: false)->connectTimeout(5)->timeout($timeout)->get($url);
             } catch (\Throwable $exception) {
-                throw new \RuntimeException('Sitemap indexing failed: the website could not be reached securely. Check its DNS and HTTPS certificate, then retry.', 0, $exception);
+                $reason = match (true) {
+                    str_contains($exception->getMessage(), 'cURL error 28') => 'the website took too long to finish responding. Try its sitemap URL or a specific page instead.',
+                    str_contains($exception->getMessage(), 'cURL error 6') => 'the website address could not be resolved. Check the address and its DNS settings.',
+                    str_contains($exception->getMessage(), 'cURL error 60') => 'the website HTTPS certificate could not be verified. Ask the website owner to check its certificate.',
+                    default => 'the connection to the website failed. Retry later or upload a reviewed file.',
+                };
+                throw new \RuntimeException('Sitemap indexing failed: '.$reason, 0, $exception);
             }
             if ($connectedIp !== null) {
                 $urls->assertPublicIp($connectedIp);
@@ -402,7 +419,7 @@ class IndexDocumentJob implements ShouldQueue
     }
 
     /** @return array{0:string,1:array{is_index:bool,urls:array<int,string>}}|null */
-    private function discoverSitemap(string $pageUrl, string $html, KnowledgeUrlGuard $urls): ?array
+    private function discoverSitemap(string $pageUrl, string $html, KnowledgeUrlGuard $urls, bool $includeCommon = true): ?array
     {
         $candidates = [];
         if (preg_match_all('/<link\b[^>]*>/iu', $html, $linkTags)) {
@@ -415,15 +432,17 @@ class IndexDocumentJob implements ShouldQueue
         }
 
         $origin = $this->origin($pageUrl);
-        try {
-            [$robots] = $this->fetchSiteResource($origin.'/robots.txt', $urls, 8, 1);
-            if (preg_match_all('/^\s*Sitemap\s*:\s*(\S+)\s*$/im', $robots->body(), $matches)) {
-                array_push($candidates, ...$matches[1]);
+        if ($includeCommon) {
+            try {
+                [$robots] = $this->fetchSiteResource($origin.'/robots.txt', $urls, 8, 1);
+                if (preg_match_all('/^\s*Sitemap\s*:\s*(\S+)\s*$/im', $robots->body(), $matches)) {
+                    array_push($candidates, ...$matches[1]);
+                }
+            } catch (\Throwable) {
+                // robots.txt is optional.
             }
-        } catch (\Throwable) {
-            // robots.txt is optional.
+            array_push($candidates, $origin.'/sitemap.xml', $origin.'/sitemap_index.xml', $origin.'/sitemap-index.xml', $origin.'/wp-sitemap.xml');
         }
-        array_push($candidates, $origin.'/sitemap.xml', $origin.'/sitemap_index.xml', $origin.'/sitemap-index.xml', $origin.'/wp-sitemap.xml');
 
         foreach (array_values(array_unique($candidates)) as $candidate) {
             try {

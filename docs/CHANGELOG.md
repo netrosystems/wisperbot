@@ -59,3 +59,7 @@ Earlier feature history is available in Git. Do not reconstruct historical dates
 # 2026-09-05 — Knowledge Base deletion hotfix
 
 - Fixed missing Qdrant collections blocking document deletion and first-write collection creation. Real cleanup failures still stop deletion. No migration or frontend build required.
+# 2026-09-05 — Website indexing and managed AI reliability
+
+- Discover website sitemaps before waiting for homepage content; show accurate timeout/access errors and readable extraction labels.
+- Align managed OpenAI defaults and connection tests; test both configured generation models plus embeddings. Reject empty output before charging credits.

@@ -70,7 +70,11 @@ class LlmGateway
                 $resolved = LlmManager::forWorkspaceByok($workspaceId);
             }
             $providerName = $resolved['provider'];
+            $model = $opts['model'] ?? $model;
             $response = $resolved['client']->chat($messages, $opts);
+            if (trim($response->content) === '') {
+                throw new AiOutputRejectedException('The AI provider returned an empty response. Please check its model and output budget.');
+            }
             if (is_callable($responseValidator) && ! $responseValidator($response)) {
                 throw new AiOutputRejectedException('The AI provider returned an unusable response.');
             }

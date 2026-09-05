@@ -35,8 +35,8 @@ return [
 
     'managed' => [
         'provider' => 'openai',
-        'routine_model' => env('AI_MANAGED_ROUTINE_MODEL', 'gpt-5-nano'),
-        'complex_model' => env('AI_MANAGED_COMPLEX_MODEL', 'gpt-5-mini'),
+        'routine_model' => env('AI_MANAGED_ROUTINE_MODEL', 'gpt-4o-mini'),
+        'complex_model' => env('AI_MANAGED_COMPLEX_MODEL', 'gpt-4o-mini'),
         'embedding_model' => env('AI_MANAGED_EMBEDDING_MODEL', 'text-embedding-3-small'),
     ],
 

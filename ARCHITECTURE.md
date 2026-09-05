@@ -1,5 +1,7 @@
 # WisperBot — Technical Architecture Specification
 
+AI reliability: connection tests must exercise configured managed generation/embedding models. Empty generation cannot finalize credits. Website discovery must not depend on a successful homepage fetch when a safe sitemap is available; partial HTML is not silently treated as complete content.
+
 This document defines the mandatory structural patterns, layer boundaries, multi-tenancy models, event pipelines, and quality standards for **WisperBot**. All backend and frontend implementations must strictly adhere to these specifications.
 
 ---

@@ -99,6 +99,7 @@ Knowledge Base client authoring exposes URL, file, and sitemap ingestion. Text, 
    The client-facing Website option accepts either a homepage or sitemap: indexing resolves safe redirects, HTML declarations, `robots.txt`, and common sitemap paths before falling back to same-host links. All candidates pass DNS/IP SSRF checks and the configured page cap.
 2. `IndexDocumentJob` runs on the `ai` queue, extracts/chunks text, requests embeddings, and stores vectors.
 3. MySQL vector-like storage is the functional fallback; Qdrant is optional for scale.
+   Root website discovery probes sitemaps before homepage content. Crawling distinguishes HTTP access failures from transport timeouts. `LlmGateway` rejects empty generation before credit finalization and records the resolved runtime model for failed attempts.
 4. Smart bots retrieve workspace/knowledge-base scoped context before generating a concise answer.
 
 ### Social publishing

@@ -14,9 +14,23 @@ class AdminAiProviderConnectionTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_admin_connection_checks_both_configured_runtime_models(): void
+    {
+        config(['ai_credits.managed.routine_model' => 'gpt-4o-mini', 'ai_credits.managed.complex_model' => 'gpt-4o']);
+        $config = IntegrationConfig::create(['provider' => 'llm_openai_default', 'label' => 'OpenAI', 'mode' => 'live', 'enabled' => true, 'credentials' => ['api_key' => 'test']]);
+        Http::fake(['api.openai.com/*' => fn ($r) => $r['model'] === 'gpt-4o'
+            ? Http::response(['error' => ['code' => 'model_not_found']], 403)
+            : Http::response(['choices' => [['message' => ['content' => 'OK']]]])]);
+        $result = app(ConnectionTester::class)->test($config);
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('gpt-4o', $result['message']);
+        Http::assertSentCount(2);
+    }
+
     #[Test]
     public function openai_admin_test_checks_chat_and_knowledge_base_embeddings(): void
     {
+        config(['ai_credits.managed.routine_model' => 'gpt-4o-mini', 'ai_credits.managed.complex_model' => 'gpt-4o-mini']);
         $config = IntegrationConfig::create([
             'provider' => 'llm_openai_default',
             'label' => 'OpenAI (Default)',

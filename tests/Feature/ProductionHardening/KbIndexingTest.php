@@ -6,6 +6,7 @@ use App\Modules\AI\Jobs\IndexDocumentJob;
 use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Models\AiProviderConfig;
+use App\Modules\AI\Services\KnowledgeUrlGuard;
 use App\Services\StorageManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -29,6 +30,40 @@ class KbIndexingTest extends TestCase
     private function runIndexer(int $documentId): void
     {
         app()->call([new IndexDocumentJob($documentId), 'handle']);
+    }
+
+    public function test_root_url_discovers_sitemap_without_fetching_stalled_homepage(): void
+    {
+        Queue::fake();
+        Http::fake(fn ($r) => match ($r->url()) {
+            'https://example.com/robots.txt' => Http::response('Not found', 404),
+            'https://example.com/sitemap.xml' => Http::response('<urlset><url><loc>https://example.com/help</loc></url></urlset>', 200),
+            default => Http::failedConnection('cURL error 28: timed out'),
+        });
+        $kb = $this->seedKb();
+        $doc = AiKbDocument::create(['kb_id' => $kb->id, 'title' => 'Website', 'source_type' => 'sitemap', 'source_ref' => 'https://example.com', 'status' => 'pending']);
+        $this->runIndexer($doc->id);
+        $this->assertSame('indexed', $doc->fresh()->status);
+        Http::assertNotSent(fn ($r) => $r->url() === 'https://example.com');
+        Queue::assertPushed(IndexDocumentJob::class, 1);
+    }
+
+    public function test_timeout_does_not_claim_a_certificate_problem(): void
+    {
+        Http::fake(['*' => Http::failedConnection('cURL error 28: timed out')]);
+        $method = new \ReflectionMethod(IndexDocumentJob::class, 'fetchSiteResource');
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('took too long');
+        $method->invoke(new IndexDocumentJob(-1), 'https://example.com', app(KnowledgeUrlGuard::class));
+    }
+
+    public function test_blocked_crawler_response_keeps_its_actionable_error(): void
+    {
+        Http::fake(['*' => Http::response([], 403)]);
+        $method = new \ReflectionMethod(IndexDocumentJob::class, 'fetchSiteResource');
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('blocked automated access');
+        $method->invoke(new IndexDocumentJob(-1), 'https://example.com', app(KnowledgeUrlGuard::class), 1, 2);
     }
 
     private function fakeEmbeddings(): void

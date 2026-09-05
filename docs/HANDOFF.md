@@ -13,6 +13,8 @@ Always run `git status --short` and inspect recent history before starting; this
 
 ## Current focus
 
+2026-09-05 crawler/managed-AI follow-up: production reproduction found an unfinished streamed homepage, despite a working sitemap and service pages, and `model_not_found` for the runtime `gpt-5-nano` while the admin-tested `gpt-4o-mini` worked. Root-first sitemap discovery, bounded transport errors, actual runtime model tests, working default models, empty-output refunds, and readable indexing labels are implemented in an isolated release. No schema changes or client credential replacement. Live verification/deployment results must be recorded after release.
+
 2026-09-05 Qdrant hotfix: final HTTP retry responses reach explicit status handling, allowing document deletion when the collection is absent and first-write collection creation. Ten focused Qdrant/guarded KB tests and changed-file Pint pass. Repository-wide analysis remains blocked by existing unmatched Leads/Twitter ignore paths. Backend-only release; no migration or frontend build required.
 
 Local verification on 2026-09-05: the final connection-health, Embedded Signup, and scheduler-guide run passed 31 tests (87 assertions); frontend tests passed 22 tests, and the production build passed with bundle-size warnings. Changed-file Pint and focused health-code static analysis pass. Repository-wide static analysis remains blocked by existing configuration references to removed Leads/GooglePlaces/Twitter paths. No production migration, worker installation, or live customer verification was performed by this implementation.
