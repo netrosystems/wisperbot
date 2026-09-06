@@ -1,5 +1,19 @@
 <?php
 
+Schedule::call(function () {
+    if (! config('social_comments.enabled')) {
+        return;
+    }
+    SocialAccount::whereIn('network', ['facebook', 'instagram'])->where('active', true)
+        ->whereIn('id', SocialCommentSetting::where('connection_status', 'ready')
+            ->where(fn ($q) => $q->whereNull('last_synced_at')->orWhere('last_synced_at', '<', now()->subMinutes(15)))->select('social_account_id'))
+        ->chunkById(100, function ($accounts) {
+            foreach ($accounts as $account) {
+                SyncSocialComments::dispatch($account->id, $account->workspace_id);
+            }
+        });
+})->everyFifteenMinutes()->name('social-comments-sync')->withoutOverlapping();
+
 use App\Http\Controllers\Admin\CronSetupController;
 use App\Modules\AI\Services\AiCreditService;
 use App\Modules\Broadcasting\Jobs\LaunchScheduledCampaignsJob;
@@ -9,6 +23,9 @@ use App\Modules\Inbox\Jobs\SyncEmailAccountJob;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Social\Jobs\DispatchScheduledPostsJob;
 use App\Modules\Social\Jobs\RefreshSocialTokensJob;
+use App\Modules\Social\Jobs\SyncSocialComments;
+use App\Modules\Social\Models\SocialAccount;
+use App\Modules\Social\Models\SocialCommentSetting;
 use App\Modules\Whatsapp\Jobs\TemplateSyncJob;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
 use App\Modules\Whatsapp\Models\WhatsappConnectionOperation;

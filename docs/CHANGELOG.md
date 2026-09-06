@@ -4,6 +4,14 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Refined chatbot reply buttons with shorter desktop height, softer borders, clearer text and tighter spacing while retaining larger touch targets. Web-only styling; no API changes.
+
+- Removed the duplicate Meta setup overlay from Inbox Channel Setup; authorization progress stays inline in the existing connection side panel.
+
+- Clarified comment availability across all five social providers in connection UI and mobile JSON; added unsupported-platform and independent moderation gates. This does not add YouTube, LinkedIn or TikTok comment adapters.
+
+- Added an optional compact Comments workspace beside Posts, with Facebook/Instagram public comment handling, scoped mobile APIs, manual replies/moderation, explicit AI preview and public-KB consent, per-thread takeover, credit-safe generation, signed ingestion, bounded synchronization, and delivery-unknown protection. Requires migration, matching frontend, and Meta permission/external-client verification before public rollout. Native mobile screens and full ad discovery remain separate.
+
 - Added optional WhatsApp connection-health monitoring and a guided Repair connection action, with separate readiness/delivery evidence, owner/admin authorization, rate-limit backoff, scoped operation history, incident/recovery notifications, and operational diagnostics. Deployment requires a migration and separate `channel-health` worker. WABA subscriptions now use account-authorized credentials; Coexistence repair never re-registers phones or imports history.
 
 - Made the managed AI-credit migration compatible with MySQL installations that use legacy implicit `TIMESTAMP` defaults, and made its schema creation safe to resume after an interrupted deployment.
@@ -56,13 +64,19 @@ The documented baseline includes:
 - Pusher/Reverb realtime channels, OneSignal/web push notification foundations, scheduler/queue diagnostics, and deploy-time patch versioning.
 
 Earlier feature history is available in Git. Do not reconstruct historical dates from memory; add future entries as changes are completed.
+# Client WhatsApp setup simplification — 2026-09-05
+
+- Hide webhook configuration, raw WhatsApp account/phone IDs, and infrastructure diagnostic disclosures from client Channel Setup. Keep status, delivery timestamps, and contextual Check/Repair/Reconnect actions with plain-language guidance; preserve Super Admin diagnostics.
 # 2026-09-05 — Knowledge Base deletion hotfix
 
-- Fixed missing Qdrant collections blocking document deletion and first-write collection creation. Real cleanup failures still stop deletion. No migration or frontend build required.
-# 2026-09-05 — Website indexing and managed AI reliability
+- Fixed Qdrant retry handling preventing old document deletion when the vector collection is absent; the same fix restores first-write collection creation. Genuine vector cleanup failures remain blocking. Backend-only deployment; no database migration.
+# 2026-09-05 production v1.3.42
 
-- Discover website sitemaps before waiting for homepage content; show accurate timeout/access errors and readable extraction labels.
-- Align managed OpenAI defaults and connection tests; test both configured generation models plus embeddings. Reject empty output before charging credits.
-# 2026-09-05
+- Fixed sitemap-first website discovery, canonical www aliases, bounded extraction timeouts, and readable indexing-state labels.
+- Aligned OpenAI admin validation with managed runtime models and rejected/refunded empty AI outputs.
+- Fixed missing Qdrant payload indexes for strict-mode document cleanup. Verified a real website chatbot reply and its one-credit charge.
+# Unreleased — 2026-09-06
 
-- Fixed Knowledge Base indexing against Qdrant Cloud collections missing required integer payload indexes. Automatic setup preserves existing vectors and strict-mode protection.
+- Added AI-generated suggested customer reply buttons to the website widget and Smart Bot Playground, with read-only labels in the agent inbox and additive mobile payloads.
+- Added matching Flutter customer SDK decoding, prebuilt buttons and headless selection methods. Existing clients retain text fallback. No SQL migration; SDK and host apps require separate releases.
+- Playground now forwards bounded history for context-aware follow-up choices.

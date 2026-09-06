@@ -61,6 +61,8 @@ Webhook endpoints should acknowledge quickly and queue expensive processing. The
 
 ## Website widget identity and privacy
 
+- Suggested replies are plain text only. IDs are not authorization tokens and no hidden action/value is accepted. They never execute purchases, bookings, cancellations or permissions. Label sanitation and safe text rendering prevent markup execution. The existing private visitor session authorizes the normal message send. Malformed generated JSON is rejected before credits finalize; raw broken JSON is never shown as a reply.
+
 - A visitor transcript is bound to an opaque, stable visitor/session identity and widget key.
 - A host website may pass name/email/avatar/external ID, but trusted identity requires a server-generated HMAC using the widget secret.
 - Never embed the widget secret in public JavaScript.
@@ -80,6 +82,8 @@ Webhook endpoints should acknowledge quickly and queue expensive processing. The
 Production licensing is a server/admin-panel control and must remain enforced. Local bypass logic is acceptable only when `APP_ENV=local` (or an equally strict local-only guard) and must fail closed in staging/production. Licensing must not be scattered as a check on every business API request unless explicitly designed that way.
 
 ## Data retention and deletion
+
+Public social comments use separate workspace-scoped tables and a public-only KB answer path. Private inbox history, orders, and contact profiles are never supplied to this path. Account tokens, encrypted sync cursors, and credential fingerprints are excluded from serializers. Signed Meta changes are queued independently from private messaging; duplicate asset ownership fails closed. Outbound operations are serialized, revalidated after lock acquisition, and fingerprinted against credential changes. Unknown delivery is never blindly retried. All public moderation is explicit and permission-checked. See [Social Comments](SOCIAL_COMMENTS.md).
 
 Disconnect, conversation/contact deletion, workspace export, and account deletion require explicit ownership checks and predictable cascading/soft-delete behavior. Provider-side deletion is separate from deleting a local record and should be attempted only when the API supports it, with failures made visible to the user.
 

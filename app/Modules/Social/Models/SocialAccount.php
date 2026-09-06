@@ -4,6 +4,7 @@ namespace App\Modules\Social\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/** @property array<string, mixed>|null $meta */
 class SocialAccount extends Model
 {
     protected $table = 'social_media_accounts';

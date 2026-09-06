@@ -1,5 +1,9 @@
 # WisperBot — UI/UX Design System & Strict Style Guidelines
 
+## Suggested reply buttons
+
+Place up to three wrapping text choices immediately below an AI answer. Web choices use a compact 34px minimum height, 8px corners, soft neutral borders, a subtle fill, and 13px medium-weight labels; keep 6px between choices and 8px above the group. On devices with a coarse pointer, retain a 44px minimum touch target. Preserve visible focus, dark-mode contrast where supported, and a labelled group. Do not replace the text composer. Disable historic, already-answered, in-flight and human-handoff choices without making their labels illegible. Agent inbox choices are read-only labels, not agent CTAs. Avoid repeated numbered text when the structured buttons are rendered.
+
 This document defines the mandatory UI/UX standards, component specifications, color tokens, layout archetypes, and accessibility patterns for **WisperBot**. All frontend components, page views, and design modifications must strictly adhere to these guidelines.
 
 ---
@@ -149,11 +153,17 @@ The default client surface uses plain-language five-step progress: Define, Add s
 
 ## Social Media Automation workspace
 
+The Connect account picker pairs provider names with truthful comment availability. An expandable “Which platforms support comments?” explanation appears in the picker and Comments workspace. Avoid large capability cards. The picker scrolls within 85dvh so expanded guidance remains usable on narrow screens.
+
+When comments are enabled, shared Posts/Comments navigation sits beneath the page header. Comments uses one bordered, bounded-height two-pane workspace: a 340–390px desktop list with compact status filters and a flexible public thread/composer. Mobile displays either list or detail with a Back action. Use restrained unread dots, small platform indicators, two-line excerpts, and textual state labels. Do not repeat the account-card grid here. Account AI settings use a focus-trapped drawer; public reply destination remains explicit; destructive moderation uses confirmation. Realtime events offer list refresh instead of moving rows under the user's pointer.
+
 Social publishing uses one standard page with a compact connected-account strip above a scan-friendly posts list. Provider cards show no more than two identities until expanded; account reconnect/disconnect and post lifecycle actions use keyboard-accessible Headless UI menus. The page has one orange primary action, **Schedule Post**, while AI planning is secondary. When there are no accounts or posts, use compact explanatory rows rather than tall illustrated panels, avoid duplicate calls to action, and hide tabs and filters that have nothing to operate on. Post status tabs default to Upcoming once posts exist, and List/Calendar use a segmented view control rather than separate navigation destinations. Desktop post rows become compact mobile cards below the table breakpoint. New translation keys must include readable English fallbacks at critical navigation and page-heading boundaries, and locale-file changes must invalidate the server dictionary cache automatically.
 
 ## WhatsApp connection health
 
-Channel Setup uses a compact bordered health panel per WABA with a text-labelled state, last check and incoming-message timestamps, and a contextual Check connection, Repair connection, or Reconnect WhatsApp control. Technical checks and webhook configuration live in native keyboard-accessible disclosures. Color never carries status alone. Ready configuration and verified delivery use different copy; inactive/quiet channels must not be described as broken. Members can view health; only workspace owners/administrators see mutation controls. Admin → Cron Setup groups platform health and affected accounts with the separate health-worker command.
+Channel Setup Embedded Signup keeps waiting guidance inline in the existing side panel. Do not stack a centered WisperBot onboarding dialog over that panel. Meta's own authorization window remains separate; loading disables the initiating button, and inline progress uses a polite status announcement.
+
+Channel Setup uses a compact bordered health panel per WhatsApp account with a text-labelled state, last check and incoming-message timestamps, and a contextual Check connection, Repair connection, or Reconnect WhatsApp control. Client panels do not display webhook configuration, raw WABA/phone identifiers, or infrastructure diagnostics. Problems use plain-language repair/reconnect/support guidance; technical component results remain in Admin → Cron Setup. Color never carries status alone. Ready configuration and verified delivery use different copy; inactive/quiet channels must not be described as broken. Members can view health; only workspace owners/administrators see mutation controls. Admin → Cron Setup groups platform health and affected accounts with the separate health-worker command.
 
 ## AI credit visibility
 

@@ -126,6 +126,8 @@ Clear/rebuild config caches and restart workers after configuration changes. Ver
 
 ## Incident triage order
 
+Social comments deployment is separate and off by default: migrate `2026_09_05_150000_create_social_comments_tables`, deploy the matching local-built Vite assets, then restart `social` and `ai` workers. The `social-comments-sync` scheduler runs every 15 minutes. Use worker timeout at least 120 seconds, queue retry_after at least 180 seconds, and a shared lock-capable cache. Set `SOCIAL_COMMENTS_ENABLED=true` only after Meta scope/subscription checks and controlled testing. Detailed limits, rollback, mobile API, and reviewer recording steps are in [Social Comments](SOCIAL_COMMENTS.md). No production deployment is implied by a local build.
+
 1. Capture request ID, exact time/timezone, workspace, route, and user-visible error.
 2. Verify deployed Git revision and frontend asset manifest.
 3. Check `storage/logs/laravel.log`, dedicated error logs, failed jobs, scheduler heartbeat, and worker processes.
@@ -137,3 +139,6 @@ Clear/rebuild config caches and restart workers after configuration changes. Ver
 Deploy the migration and code with `KB_GUARDED_PUBLISHING=false`, restart workers consuming `ai`, and compute/inspect migrated readiness without changing retrieval. Existing indexed documents with valid embeddings are placed in an initial published revision without re-embedding; indexed documents without embeddings become degraded and need review. Enable the flag first for internal/staging environments, validate exact FAQ/cache behavior, revision rollback, knowledge gaps, regression tests, and queue retries, then roll out to selected client deployments. Keep the flag reversible until production answer quality and token telemetry are stable.
 
 Operational checks: `php artisan migrate --force`, restart the `ai` worker, clear config cache after changing the flag, rebuild Vite assets, and verify that a failed draft leaves the prior `published_revision_id` answering normally.
+# Crawler / managed AI production checks (2026-09-05)
+
+After deploying a runtime-model or crawler change, finalize deployment to refresh cached configuration and restart `ai` workers. Test the actual configured managed models, not only credential validity. Website homepage responses can stall even when `/sitemap.xml` and individual pages work: discovery probes sitemaps first and extraction uses bounded timeouts. Qdrant credentials need payload-index creation rights for `kb_chunks.document_id` and `kb_chunks.kb_id`. Retry only affected Knowledge Base documents; do not replay unrelated failed jobs. SQL migrations and Vite rebuilding are not required for the v1.3.42 backend/locale-only hotfix.

@@ -79,6 +79,7 @@ journey
 - **Visitor Session Isolation**: Each visitor is assigned a secure cryptographic session token. Unauthenticated visitors stay anonymous; authenticated user profiles are verified via server-side HMAC validation.
 - **AI-to-Human Handoff**: Auto-engages visitors with knowledge base answers, offering a smooth handoff to live agents after 2 failed turns or explicit user request.
 - **Custom Branding**: Configurable colors, greeting messages, avatar launcher icon, and pre-chat capture forms.
+- **Suggested customer replies**: Smart Bots can supply two or three context-relevant text choices within one generation. Web widget and updated Flutter SDK render buttons; tapping sends ordinary customer text. Existing clients and external channels retain numbered text. See `docs/CHAT_REPLY_OPTIONS.md` for contracts, safety and separate SDK/app rollout.
 
 ---
 
@@ -94,6 +95,8 @@ journey
 ---
 
 ### Feature 5: Social Media Publisher & Scheduler (`app/Modules/Social`)
+
+Public comments are implemented locally behind `SOCIAL_COMMENTS_ENABLED=false`: compact Posts/Comments navigation, cursor list/thread detail, explicit public replies, per-account Off/Suggestions/Automatic modes, reviewed public KB previews, scoped mobile APIs, signed event ingestion, bounded synchronization, and safe operation retries. Comments do not become private inbox conversations. Public release remains gated on Meta approval and external-client verification; ad discovery and native mobile screens are not claimed. See `docs/SOCIAL_COMMENTS.md`.
 
 #### Capabilities
 - **Social Media Automation (`/app/social/automation`)**: A unified workspace for compact OAuth account management, upcoming/draft/published/failed post lists, search and filters, and an integrated calendar view.

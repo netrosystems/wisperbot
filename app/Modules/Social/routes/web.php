@@ -2,11 +2,26 @@
 
 use App\Modules\Social\Http\Controllers\SocialAccountController;
 use App\Modules\Social\Http\Controllers\SocialAutomationController;
+use App\Modules\Social\Http\Controllers\SocialCommentController;
 use App\Modules\Social\Http\Controllers\SocialPostController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'client-app'])->prefix('app/social')->name('client.social.')->group(function () {
+    Route::prefix('automation/comments')->name('comments.')->group(function () {
+        $controller = SocialCommentController::class;
+        Route::get('/', [$controller, 'index'])->name('index');
+        Route::post('/accounts/{account}/settings', [$controller, 'settings'])->middleware('throttle:30,1');
+        Route::post('/accounts/{account}/sync', [$controller, 'sync'])->middleware('throttle:10,1');
+        Route::post('/operations/{operation}/retry', [$controller, 'retry'])->middleware('throttle:30,1');
+        Route::get('/{comment}', [$controller, 'show'])->whereNumber('comment');
+        Route::post('/{comment}/read', [$controller, 'read'])->whereNumber('comment');
+        Route::post('/{comment}/reply', [$controller, 'reply'])->whereNumber('comment')->middleware('throttle:30,1');
+        Route::post('/{comment}/suggest', [$controller, 'suggest'])->whereNumber('comment')->middleware('throttle:10,1');
+        Route::post('/{comment}/suggestions/{operation}/review', [$controller, 'reviewSuggestion'])->whereNumber('comment')->middleware('throttle:10,1');
+        Route::post('/{comment}/moderate', [$controller, 'moderate'])->whereNumber('comment')->middleware('throttle:30,1');
+        Route::patch('/{comment}', [$controller, 'update'])->whereNumber('comment');
+    });
     Route::get('/automation', [SocialAutomationController::class, 'index'])->name('automation.index');
     Route::get('/automation/schedule', [SocialPostController::class, 'composer'])->name('automation.schedule');
 

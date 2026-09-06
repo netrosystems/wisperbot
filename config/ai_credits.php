@@ -10,6 +10,7 @@ $actions = [
     'automation_ai_step' => ['label' => 'AI step inside an automation run', 'credits' => 1],
     'email_generate' => ['label' => 'Generate a complete email', 'credits' => 2],
     'social_post' => ['label' => 'Generate one social post', 'credits' => 2],
+    'social_comment_reply' => ['label' => 'Generate a public comment reply', 'credits' => 1],
     'workflow_generate' => ['label' => 'Generate an automation workflow', 'credits' => 5],
     'social_plan' => ['label' => 'Generate a multi-post social plan', 'credits' => 5],
     'document_embedding' => ['label' => 'Knowledge Base indexing', 'credits' => 0],

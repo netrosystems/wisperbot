@@ -130,7 +130,11 @@ class AutoReplyListener
                 'channel' => $message->channel,
                 'type' => 'text',
                 'body' => $providerBody,
-                'payload' => ['resources' => $resources],
+                'payload' => [
+                    'resources' => $resources,
+                    'quick_replies' => $result['quick_replies'] ?? [],
+                    'display_body' => $result['display_body'] ?? $reply,
+                ],
                 'status' => 'queued',
                 'sent_by' => 'bot',
                 'sent_at' => now(),
