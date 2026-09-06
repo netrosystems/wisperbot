@@ -11,6 +11,8 @@ import ClientLayout from '@/Layouts/ClientLayout';
 import { SocialBrandIcon } from '@/Components/BrandIcons';
 import { browserTz, formatInTz } from '@/Utils/datetime';
 import AiPlannerModal from '../Posts/AiPlannerModal';
+import SocialWorkspaceTabs from '@/Components/Social/SocialWorkspaceTabs';
+import CommentPlatformAvailability from '@/Components/Social/CommentPlatformAvailability';
 
 const NETWORKS = [
     { id: 'facebook', label: 'Facebook' },
@@ -100,13 +102,13 @@ function AccountMenu({ account, onDisconnect }) {
     );
 }
 
-function ProviderPicker({ open, onClose }) {
+function ProviderPicker({ open, onClose, platforms }) {
     const { t } = useTranslation();
     return (
         <Dialog open={open} onClose={onClose} className="relative z-50">
             <div className="fixed inset-0 bg-neutral-950/40 backdrop-blur-[2px]" aria-hidden="true" />
             <div className="fixed inset-0 flex items-center justify-center p-4">
-                <DialogPanel className="w-full max-w-md rounded-xl border border-neutral-200 bg-white p-5 shadow-soft-md dark:border-neutral-800 dark:bg-neutral-900">
+                <DialogPanel className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-xl border border-neutral-200 bg-white p-5 shadow-soft-md dark:border-neutral-800 dark:bg-neutral-900">
                     <div className="flex items-start justify-between gap-4">
                         <div>
                             <DialogTitle className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{t('social.connect_account', { defaultValue: 'Connect account' })}</DialogTitle>
@@ -122,10 +124,11 @@ function ProviderPicker({ open, onClose }) {
                                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-50 dark:bg-neutral-800">
                                     <SocialBrandIcon network={network.id} className="h-5 w-5" />
                                 </span>
-                                {network.label}
+                                <span>{network.label}<span className="mt-1 block text-[11px] font-normal leading-4 text-neutral-500">{t(`social.comments_platform_${network.id}_summary`, { defaultValue: platforms?.[network.id]?.summary || 'Publishing connection' })}</span></span>
                             </a>
                         ))}
                     </div>
+                    <div className="mt-3"><CommentPlatformAvailability platforms={platforms} /></div>
                 </DialogPanel>
             </div>
         </Dialog>
@@ -403,6 +406,8 @@ export default function SocialAutomation({ accounts = [], activeAccounts = [], p
                     </div>
                 </header>
 
+                {props.commentsEnabled && <SocialWorkspaceTabs />}
+
                 {props.flash?.success && <div role="status" className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">{props.flash.success}</div>}
                 {props.flash?.error && <div role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-200">{props.flash.error}</div>}
 
@@ -430,7 +435,7 @@ export default function SocialAutomation({ accounts = [], activeAccounts = [], p
                 </section>
             </div>
 
-            <ProviderPicker open={providerPicker} onClose={() => setProviderPicker(false)} />
+            <ProviderPicker open={providerPicker} onClose={() => setProviderPicker(false)} platforms={props.commentPlatforms} />
             <PostDetails post={detailPost} accountMap={accountMap} timezone={timezone} onClose={() => setDetailPost(null)} />
             <AiPlannerModal show={plannerOpen} onClose={() => setPlannerOpen(false)} accounts={activeAccounts} onSuccess={() => { setPlannerOpen(false); router.reload({ only: ['posts', 'tabCounts'] }); }} />
         </ClientLayout>

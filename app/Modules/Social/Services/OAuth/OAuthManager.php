@@ -156,6 +156,12 @@ class OAuthManager
             : 'pages_manage_posts,pages_read_engagement,pages_show_list,business_management';
         $state = $this->storeState(['network' => $network]);
 
+        if (config('social_comments.enabled')) {
+            $scopes .= $network === 'instagram'
+                ? ',instagram_manage_comments,pages_manage_metadata'
+                : ',pages_read_user_content,pages_manage_engagement,pages_manage_metadata';
+        }
+
         return 'https://www.facebook.com/'.self::META_GRAPH_VERSION.'/dialog/oauth?'.http_build_query([
             'client_id' => $creds->clientId() ?? '',
             'redirect_uri' => $redirect,

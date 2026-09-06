@@ -5,6 +5,7 @@ namespace App\Modules\AI\Models;
 use Database\Factories\AiChatbotFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class AiChatbot extends Model
@@ -51,7 +52,8 @@ class AiChatbot extends Model
         ];
     }
 
-    public function knowledgeBase()
+    /** @return BelongsTo<AiKnowledgeBase, $this> */
+    public function knowledgeBase(): BelongsTo
     {
         return $this->belongsTo(AiKnowledgeBase::class, 'ai_kb_id');
     }

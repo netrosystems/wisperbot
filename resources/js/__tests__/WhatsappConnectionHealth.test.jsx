@@ -12,6 +12,16 @@ const waba = (health = {}) => ({
 });
 
 describe('WhatsApp connection health', () => {
+    it('keeps infrastructure diagnostics out of the client panel', () => {
+        render(<WhatsappConnectionHealth waba={waba({ state: 'needs_attention', action: 'contact_admin', components: {
+            'platform:webhook': { state: 'failed', message: 'Webhook callback subscription is missing.' },
+            'phone:123456': { state: 'passed', message: 'Phone connection checks passed.' },
+        } })} />);
+        expect(screen.getByText(/service administrator needs to review/)).toBeInTheDocument();
+        expect(screen.queryByText(/Webhook|123456|Connection details/)).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Repair connection' })).not.toBeInTheDocument();
+    });
+
     it('distinguishes configuration success from real delivery', () => {
         render(<WhatsappConnectionHealth waba={waba()} />);
         expect(screen.getByRole('status')).toHaveTextContent('Ready');

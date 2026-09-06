@@ -1,9 +1,10 @@
 ﻿import { Head, router, usePage, Link } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import WhatsappConnectionHealth from '@/Components/Inbox/WhatsappConnectionHealth';
+import MetaSignupProgress from '@/Components/Inbox/MetaSignupProgress';
 import {
-    Check, Copy, AlertTriangle,
-    Phone, Inbox, Webhook, FileText,
+    Check, AlertTriangle,
+    Phone, Inbox, FileText,
     Trash2, RefreshCw, Bot, ChevronDown, ExternalLink,
     Edit3, Clock, ShieldCheck, ShieldAlert, Wifi, WifiOff, X,
 } from 'lucide-react';
@@ -94,21 +95,6 @@ function TelegramLogo({ className = 'h-5 w-5' }) {
 }
 
 /* â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ shared helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */
-
-function CopyButton({ text }) {
-    const { t } = useTranslation();
-    const [copied, setCopied] = useState(false);
-    const copy = () => navigator.clipboard.writeText(text).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    });
-    return (
-        <button type="button" onClick={copy} title={t('inbox.copy')}
-            className="shrink-0 rounded-md p-1.5 text-neutral-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 dark:hover:text-brand-400 transition-all">
-            {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-        </button>
-    );
-}
 
 function StatusBadge({ status }) {
     const { t } = useTranslation();
@@ -354,7 +340,6 @@ function PhoneStatusCard({ num, wabaId, onRefreshed }) {
                             <span>{t('inbox.name_declined_submit_new')}</span>
                         </div>
                     )}
-                    <div className="font-mono text-[10px] text-neutral-400 mt-0.5">{t('inbox.id_label')} {phoneId}</div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                     <button type="button" onClick={refresh} disabled={refreshing} title={t('inbox.refresh_status_meta')}
@@ -403,21 +388,7 @@ function PhoneStatusCard({ num, wabaId, onRefreshed }) {
     );
 }
 
-function CodeField({ label, value, icon: Icon }) {
-    return (
-        <div className="rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 px-3.5 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5 flex items-center gap-1.5">
-                {Icon && <Icon className="h-3 w-3" />} {label}
-            </p>
-            <div className="flex items-center gap-2">
-                <code className="flex-1 min-w-0 text-xs font-mono text-neutral-600 dark:text-neutral-300 break-all leading-relaxed">{value}</code>
-                <CopyButton text={value} />
-            </div>
-        </div>
-    );
-}
-
-function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots, onReconnect }) {
+function WabaCard({ waba, channelAccounts, chatbots, onReconnect }) {
     const { t } = useTranslation();
     const [connectionHealth, setConnectionHealth] = useState(waba.connection_health);
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -454,8 +425,7 @@ function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots, onReconne
                     </div>
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">WABA</span>
-                            <code className="font-mono text-xs text-neutral-600 dark:text-neutral-300">{waba.waba_id}</code>
+                            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">{t('inbox.whatsapp_account_label', { defaultValue: 'WhatsApp account' })}</span>
                             <StatusBadge status={waba.status} />
                         </div>
                     </div>
@@ -497,14 +467,6 @@ function WabaCard({ waba, webhookGlobalUrl, channelAccounts, chatbots, onReconne
 
             <div className="p-4 space-y-4">
                 <WhatsappConnectionHealth waba={waba} onReconnect={onReconnect} onHealthChange={setConnectionHealth} />
-                {/* Webhook — always global for embedded signup */}
-                <details className="space-y-2">
-                    <summary className="cursor-pointer text-xs text-neutral-500 dark:text-neutral-400 focus-visible:outline focus-visible:outline-2">{t('inbox.health_webhook_details', { defaultValue: 'Webhook details' })}</summary>
-                    <CodeField label={t('inbox.webhook_url')} value={webhookGlobalUrl} icon={Webhook} />
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                        {t('inbox.registered_via_embedded')}
-                    </p>
-                </details>
 
                 {/* Phone numbers */}
                 <div>
@@ -1084,7 +1046,6 @@ function EmbeddedSignupButton({ configId, appId, channel, whatsappOnboarding = W
     const resolvedAppId = appId || props.metaAppId;
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState(null);
-    const [showMetaGuide, setShowMetaGuide] = useState(false);
 
     const launch = useCallback(async () => {
         setError(null);
@@ -1095,13 +1056,11 @@ function EmbeddedSignupButton({ configId, appId, channel, whatsappOnboarding = W
         }
 
         setLoading(true);
-        setShowMetaGuide(true);
 
         try {
             await loadFbSdk(resolvedAppId);
         } catch (e) {
             setLoading(false);
-            setShowMetaGuide(false);
             setError(e?.message ?? t('inbox.could_not_load_fb_sdk'));
             return;
         }
@@ -1111,7 +1070,6 @@ function EmbeddedSignupButton({ configId, appId, channel, whatsappOnboarding = W
 
         window.FB.login(
             (response) => {
-                setShowMetaGuide(false);
                 if (response.authResponse && response.authResponse.code) {
                     const code = response.authResponse.code;
                     if (isWhatsapp) {
@@ -1163,60 +1121,7 @@ function EmbeddedSignupButton({ configId, appId, channel, whatsappOnboarding = W
                 </p>
             )}
             {children}
-            {showMetaGuide && (
-                <MetaOnboardingGuide
-                    channel={channel}
-                    onClose={() => setShowMetaGuide(false)}
-                />
-            )}
-        </div>
-    );
-}
-
-function MetaOnboardingGuide({ onClose, channel }) {
-    const { t } = useTranslation();
-
-    return (
-        <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 backdrop-blur-sm"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="meta-onboarding-title"
-        >
-            <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl dark:border-neutral-700 dark:bg-neutral-900">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0866FF]/10 text-[#0866FF]">
-                            <ExternalLink className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h2 id="meta-onboarding-title" className="text-base font-semibold text-neutral-900 dark:text-white">
-                                {t('inbox.complete_setup_with_meta')}
-                            </h2>
-                            <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                                {channel === 'whatsapp'
-                                    ? t('inbox.secure_whatsapp_onboarding')
-                                    : t('inbox.secure_meta_onboarding')}
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-                        aria-label={t('common.close')}
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-                <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
-                    {t('inbox.meta_popup_guidance')}
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                    {t('inbox.waiting_for_meta')}
-                </div>
-            </div>
+            <MetaSignupProgress loading={loading} />
         </div>
     );
 }

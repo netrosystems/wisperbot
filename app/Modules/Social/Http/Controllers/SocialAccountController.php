@@ -4,6 +4,7 @@ namespace App\Modules\Social\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Integrations\Services\MetaPageDiscoveryService;
+use App\Modules\Social\Jobs\SyncSocialComments;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Services\Drivers\FacebookDriver;
 use App\Modules\Social\Services\Drivers\InstagramSocialDriver;
@@ -200,19 +201,20 @@ class SocialAccountController extends Controller
                         ? '@'.$igAccount['username']
                         : ($igAccount['name'] ?? $page['name']);
 
-                    SocialAccount::updateOrCreate(
+                    $connectedAccount = SocialAccount::updateOrCreate(
                         ['workspace_id' => $wid, 'network' => 'instagram', 'account_id' => $igAccount['id']],
                         [
                             'name' => $igName,
                             'picture_url' => $igAccount['profile_picture_url'] ?? ($page['picture']['data']['url'] ?? null),
                             'access_token' => $pageToken, // page token is used for IG Graph API calls
+                            'meta' => array_merge(SocialAccount::where('workspace_id', $wid)->where('network', 'instagram')->where('account_id', $igAccount['id'])->first()?->meta ?? [], ['page_id' => (string) $page['id']]),
                             'refresh_token' => null,
                             'token_expires_at' => null,
                             'active' => true,
                         ]
                     );
                 } else {
-                    SocialAccount::updateOrCreate(
+                    $connectedAccount = SocialAccount::updateOrCreate(
                         ['workspace_id' => $wid, 'network' => 'facebook', 'account_id' => $page['id']],
                         [
                             'name' => $page['name'],
@@ -225,6 +227,9 @@ class SocialAccountController extends Controller
                     );
                 }
 
+                if (config('social_comments.enabled')) {
+                    SyncSocialComments::dispatch($connectedAccount->id, $wid, true)->afterCommit();
+                }
                 $connected++;
             }
 

@@ -21,6 +21,10 @@ This directory and the root specification files form the durable project memory 
 
 ## Additional Setup Guides
 
+- [Suggested chatbot replies and Flutter SDK contract](CHAT_REPLY_OPTIONS.md)
+
+- [Social Comments web/mobile API and review checklist](SOCIAL_COMMENTS.md)
+
 - [Deployment](../DEPLOYMENT.md)
 - [eBay Seller Messaging](../EBAY_SELLER_MESSAGING_SETUP.md)
 - [Amazon Seller Messaging](../AMAZON_SELLER_MESSAGING_SETUP.md)

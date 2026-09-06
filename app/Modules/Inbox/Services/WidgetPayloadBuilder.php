@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inbox\Services;
 
+use App\Modules\AI\Services\ChatReplyOptions;
 use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\Conversation;
@@ -47,6 +48,9 @@ class WidgetPayloadBuilder
             'mime_type' => $message->payload['mime_type'] ?? null,
             'file_size' => $message->payload['file_size'] ?? null,
             'resources' => $this->videos->sanitisePublicList($message->payload['resources'] ?? []),
+            'quick_replies' => $isAgent ? app(ChatReplyOptions::class)->sanitize($message->payload['quick_replies'] ?? []) : [],
+            'display_body' => $isAgent && is_string($message->payload['display_body'] ?? null)
+                ? $message->payload['display_body'] : (string) $message->body,
             'sent_by' => $message->sent_by,
             'agent_name' => $isAgent
                 ? ($message->sender?->name ?: ($widget->agent_name ?: 'Support'))

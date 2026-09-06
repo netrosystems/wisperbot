@@ -417,6 +417,7 @@
   function send(text) {
     if (sendingText) return;
     sendingText = true;
+    updateQuickReplies();
     if (sendBtn) sendBtn.disabled = true;
     var clientMessageId = makeClientMessageId();
     // Render immediately; a slow network must never make a submitted message
@@ -465,6 +466,7 @@
     }).then(function () {
       sendingText = false;
       if (sendBtn) sendBtn.disabled = false;
+      updateQuickReplies();
     });
   }
 
@@ -966,7 +968,7 @@
     for (var i = 0; i < thread.length; i++) {
       if (thread[i].id === m.id) { existingIdx = i; break; }
     }
-    var msgObj = { id: m.id, role: m.role, body: m.body, agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status, resources: m.resources || [] };
+    var msgObj = { id: m.id, role: m.role, body: m.body, display_body: m.display_body, quick_replies: m.quick_replies || [], agent_name: m.agent_name, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status, resources: m.resources || [] };
     if (existingIdx >= 0) thread[existingIdx] = msgObj;
     else thread.push(msgObj);
     saveThread();
@@ -1053,7 +1055,10 @@
   function addBubble(message) {
     message = message || {};
     var role = message.role;
-    var text = message.body;
+    var options = role === 'agent' && Array.isArray(message.quick_replies) ? message.quick_replies.filter(function (option) {
+      return option && typeof option.label === 'string' && option.label.trim() && option.label.length <= 60 && !/[<>\x00-\x1F]/.test(option.label);
+    }).slice(0, 3) : [];
+    var text = options.length && typeof message.display_body === 'string' ? message.display_body : message.body;
     var name = message.agent_name;
     var attachmentUrl = message.attachment_url;
     var type = message.type;
@@ -1114,6 +1119,27 @@
     var resourceMarkup = video ? videoCardMarkup(video) : '';
     row.innerHTML = av + '<div class="wb-bubble">' + resourceMarkup + attachment + caption + statusMarkup + '</div>';
     body.appendChild(row);
+    if (options.length && id) {
+      var choices = document.createElement('div');
+      choices.className = 'wb-quick-replies';
+      choices.setAttribute('role', 'group');
+      choices.setAttribute('aria-label', 'Suggested replies');
+      choices.setAttribute('data-message-id', String(id));
+      options.forEach(function (option) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = option.label;
+        button.setAttribute('aria-label', 'Reply: ' + option.label);
+        button.addEventListener('click', function () {
+          if (button.disabled || sendingText) return;
+          send(option.label);
+          if (input) input.focus();
+        });
+        choices.appendChild(button);
+      });
+      row.querySelector('.wb-bubble').appendChild(choices);
+    }
+    updateQuickReplies();
     var playButton = row.querySelector('.wb-video-play');
     if (playButton && video) playButton.addEventListener('click', function () { activateVideoCard(row, video); });
     scrollDown();
@@ -1128,6 +1154,17 @@
       '<button type="button" class="wb-video-play" aria-label="Play ' + escAttr(resource.title || 'video') + '"><span>▶</span></button>' +
       '</div><div class="wb-video-meta"><strong>' + esc(resource.title || 'Video') + '</strong>' +
       '<a href="' + escAttr(resource.canonical_url) + '" target="_blank" rel="noopener noreferrer">Open video</a></div></section>';
+  }
+
+  function updateQuickReplies() {
+    if (!body) return;
+    var latest = thread.reduce(function (previous, current) {
+      return Number(current.id) > Number(previous.id || 0) ? current : previous;
+    }, {});
+    body.querySelectorAll('.wb-quick-replies').forEach(function (group) {
+      var disabled = sendingText || handoff.status === 'connected' || latest.role !== 'agent' || String(latest.id) !== group.getAttribute('data-message-id');
+      group.querySelectorAll('button').forEach(function (button) { button.disabled = disabled; });
+    });
   }
 
   function activateVideoCard(row, resource) {
@@ -1207,6 +1244,7 @@
     };
     renderHandoff();
     updateStatus();
+    updateQuickReplies();
   }
 
   function renderHandoff() {
@@ -1508,6 +1546,7 @@
       '.wb-status-glyph{font-size:10px;margin-left:5px;opacity:.75;display:inline-block;vertical-align:bottom;letter-spacing:-1px}',
       '.wb-status-glyph.wb-status-read{opacity:1;color:#67e8f9}',
       '.wb-media-image{display:block;max-width:100%;max-height:240px;border-radius:10px;object-fit:cover;margin-bottom:6px}.wb-media-audio{display:block;width:220px;max-width:100%;height:38px;margin-bottom:6px}.wb-caption:empty{display:none}',
+      '.wb-quick-replies{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.wb-quick-replies button{font:inherit;font-size:13px;font-weight:500;line-height:18px;box-sizing:border-box;min-height:34px;padding:7px 10px;border:1px solid #dce0e6;border-radius:8px;background:#f8f9fb;color:#343b48;cursor:pointer;text-align:start;overflow-wrap:anywhere;max-width:100%}.wb-quick-replies button:hover:not(:disabled){background:#eef0f4;border-color:#aeb6c2;color:#1f2430}.wb-quick-replies button:focus-visible{outline:2px solid ' + COLOR + ';outline-offset:2px}.wb-quick-replies button:disabled{background:transparent;border-color:#e5e7eb;color:#737b88;cursor:default}@media(any-pointer:coarse){.wb-quick-replies button{min-height:44px}}',
       '.wb-video-card{width:min(280px,70vw);margin:-3px -7px 8px;overflow:hidden;border-radius:12px;background:#111827;color:#fff}.wb-video-stage{position:relative;aspect-ratio:16/9;min-height:200px;background:#030712;display:grid;place-items:center}.wb-video-stage>img,.wb-video-stage>iframe,.wb-video-stage>video{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:contain}.wb-video-stage>img{object-fit:cover;opacity:.82}.wb-video-play{position:relative;z-index:1;width:52px;height:52px;border:0;border-radius:50%;background:' + COLOR + ';color:#fff;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.3);font-size:20px}.wb-video-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;font-size:12px}.wb-video-meta strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wb-video-meta a,.wb-video-error a{color:#fdba74;white-space:nowrap}.wb-video-error{padding:16px;text-align:center;font-size:12px;color:#d1d5db}',
       '.wb-media-doc-card{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:12px;text-decoration:none;transition:background .15s;max-width:100%}',
       '.wb-in .wb-media-doc-card{background:#f1f5f9;color:#0f172a}',

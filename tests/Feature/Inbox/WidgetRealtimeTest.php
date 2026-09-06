@@ -7,6 +7,7 @@ use App\Events\MessageStatusUpdated;
 use App\Events\WidgetMessageCreated;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Models\WidgetPushSubscription;
+use App\Modules\Inbox\Services\WidgetPayloadBuilder;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -20,6 +21,26 @@ use Tests\TestCase;
 class WidgetRealtimeTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_choices_are_additive_in_history_and_broadcast_and_send_as_normal_text(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+        $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key])->assertOk();
+        $conversationId = $session->json('conversation_id');
+        $message = Message::create([
+            'conversation_id' => $conversationId, 'direction' => 'out', 'channel' => 'webchat',
+            'type' => 'text', 'body' => "Which app?\n\n1. iOS app\n2. Android app", 'status' => 'sent', 'sent_by' => 'bot',
+            'payload' => ['display_body' => 'Which app?', 'quick_replies' => [['id' => 'qr_1', 'label' => 'iOS app'], ['id' => 'qr_2', 'label' => 'Android app']]],
+        ]);
+        $builder = app(WidgetPayloadBuilder::class);
+        $this->assertSame('iOS app', $builder->message($message, $widget)['quick_replies'][0]['label']);
+        $this->assertSame($builder->message($message, $widget), $builder->messages($conversationId, $widget, 0)[0]);
+        $this->withHeader('X-Widget-Token', $session->json('token'))
+            ->postJson(route('widget.send'), ['key' => $widget->widget_key, 'message' => 'iOS app'])
+            ->assertOk()->assertJsonPath('message.body', 'iOS app');
+        $this->assertDatabaseHas('messages', ['conversation_id' => $conversationId, 'direction' => 'in', 'body' => 'iOS app']);
+    }
 
     public function test_widget_broadcast_auth_accepts_only_the_token_bound_conversation(): void
     {

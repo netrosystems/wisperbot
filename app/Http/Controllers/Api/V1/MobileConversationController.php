@@ -7,6 +7,7 @@ use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Events\TypingChanged;
 use App\Models\User;
+use App\Modules\AI\Services\ChatReplyOptions;
 use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\WebchatGeoService;
@@ -734,6 +735,9 @@ class MobileConversationController extends WorkspaceScopedController
         }
         if (array_key_exists('resources', $payload)) {
             $payload['resources'] = $this->videos->sanitisePublicList($payload['resources']);
+        }
+        if (array_key_exists('quick_replies', $payload)) {
+            $payload['quick_replies'] = app(ChatReplyOptions::class)->sanitize($payload['quick_replies']);
         }
 
         return $payload;
