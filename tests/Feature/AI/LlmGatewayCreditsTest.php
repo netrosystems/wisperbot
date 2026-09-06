@@ -8,9 +8,11 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\AI\Exceptions\AiCreditsException;
 use App\Modules\AI\Exceptions\AiOutputRejectedException;
+use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiCreditLedger;
 use App\Modules\AI\Models\AiProviderConfig;
 use App\Modules\AI\Models\AiWorkspaceSetting;
+use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\AI\Services\LlmGateway;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,6 +97,34 @@ class LlmGatewayCreditsTest extends TestCase
             $this->assertSame(0, AiCreditLedger::sole()->period->used_credits);
             $this->assertSame(0, AiCreditLedger::sole()->period->reserved_credits);
         }
+    }
+
+    public function test_chatbot_choices_use_one_generation_and_one_credit_with_idempotent_replay(): void
+    {
+        $workspace = $this->workspaceWithCredits(100);
+        $this->managedOpenAi();
+        $bot = AiChatbot::create(['workspace_id' => $workspace->id, 'name' => 'Support', 'enabled' => true]);
+        Http::fake(['api.openai.com/*' => Http::response($this->openAiResponse('{"reply":"Which app do you need?","quick_replies":["iOS app","Android app"]}'))]);
+        $runner = app(ChatbotRunner::class);
+        $first = $runner->runForApi($bot, 'I need an app', $workspace->id, [], 'choice-test', true);
+        $second = $runner->runForApi($bot, 'I need an app', $workspace->id, [], 'choice-test', true);
+        $this->assertSame($first, $second);
+        $this->assertCount(2, $first['quick_replies']);
+        $this->assertStringContainsString('1. iOS app', $first['reply']);
+        $this->assertSame(1, AiCreditLedger::sole()->credits);
+        Http::assertSentCount(1);
+    }
+
+    public function test_truncated_choice_json_is_refunded_before_showing_a_fallback(): void
+    {
+        $workspace = $this->workspaceWithCredits(100);
+        $this->managedOpenAi();
+        $bot = AiChatbot::create(['workspace_id' => $workspace->id, 'name' => 'Support', 'enabled' => true, 'fallback_reply' => 'Please try again.']);
+        Http::fake(['api.openai.com/*' => Http::response($this->openAiResponse('{"reply":"Which app'))]);
+        $result = app(ChatbotRunner::class)->runForApi($bot, 'App', $workspace->id);
+        $this->assertSame('Please try again.', $result['reply']);
+        $this->assertSame('refunded', AiCreditLedger::sole()->status);
+        $this->assertSame(0, AiCreditLedger::sole()->period->used_credits);
     }
 
     public function test_auto_fallback_uses_only_a_successfully_tested_customer_key_when_exhausted(): void

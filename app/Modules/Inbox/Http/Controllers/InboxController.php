@@ -7,6 +7,7 @@ use App\Events\MessageSent;
 use App\Events\TypingChanged;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\AI\Services\ChatReplyOptions;
 use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\TypingPresence;
@@ -879,6 +880,9 @@ class InboxController extends Controller
         }
         if (array_key_exists('resources', $payload)) {
             $payload['resources'] = $this->videos->sanitisePublicList($payload['resources']);
+        }
+        if (array_key_exists('quick_replies', $payload)) {
+            $payload['quick_replies'] = app(ChatReplyOptions::class)->sanitize($payload['quick_replies']);
         }
 
         return $payload;

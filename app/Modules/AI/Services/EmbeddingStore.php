@@ -256,7 +256,7 @@ class EmbeddingStore
 
     private function eligibleChunks($query, ?int $revisionId)
     {
-        if (! config('knowledge_base.guarded_publishing')) {
+        if (! config('knowledge_base.guarded_publishing') && $revisionId === null) {
             return $query;
         }
 

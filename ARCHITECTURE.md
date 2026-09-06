@@ -1,5 +1,7 @@
 # WisperBot — Technical Architecture Specification
 
+Suggested customer replies use `ChatReplyOptions` to validate a single generated response. Outbound messages retain a text fallback and add `payload.display_body` / `payload.quick_replies`; the shared widget serializer exposes them through session, poll and realtime. Taps send normal visitor text, not executable actions. See `docs/CHAT_REPLY_OPTIONS.md`.
+
 AI reliability: connection tests must exercise configured managed generation/embedding models. Empty generation cannot finalize credits. Website discovery must not depend on a successful homepage fetch when a safe sitemap is available; partial HTML is not silently treated as complete content.
 
 This document defines the mandatory structural patterns, layer boundaries, multi-tenancy models, event pipelines, and quality standards for **WisperBot**. All backend and frontend implementations must strictly adhere to these specifications.
@@ -251,6 +253,8 @@ sequenceDiagram
 ---
 
 ## 7. Health Monitoring & Observability
+
+Social comments persist independently in `social_comment_posts`, `social_comments`, `social_comment_settings`, `social_comment_operations`, and `social_comment_reads`. Signed Meta changes enter `IngestSocialComments` on `social`; generation uses the public-only `ChatbotRunner::runForPublicComment` on `ai`; the same operation then transitions to delivery on `social`. Per-comment locks, stable idempotency keys, credential fingerprints, and revision checks prevent duplicate/stale replies. Public/mobile contracts and boundaries are documented in `docs/SOCIAL_COMMENTS.md`.
 
 WisperBot includes health and readiness endpoints protected by `HEALTHZ_TOKEN`:
 

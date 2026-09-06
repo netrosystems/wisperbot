@@ -9,8 +9,6 @@ use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Services\AiCreditService;
 use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\AI\Services\ProviderErrorPresenter;
-use App\Modules\Shared\Models\Conversation;
-use App\Modules\Shared\Models\Message;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -98,9 +96,11 @@ class AiChatbotController extends Controller
     public function playground(Request $request, AiChatbot $chatbot): JsonResponse
     {
         $this->authorise($request, $chatbot);
-        $request->validate([
+        $validated = $request->validate([
             'message' => ['required', 'string', 'max:1000'],
-            'history' => ['nullable', 'array'],
+            'history' => ['nullable', 'array', 'max:20'],
+            'history.*.role' => ['required', 'in:user,assistant'],
+            'history.*.content' => ['required', 'string', 'max:4000'],
         ]);
 
         if (! $chatbot->enabled) {
@@ -111,19 +111,10 @@ class AiChatbotController extends Controller
         }
 
         try {
-            // Build a synthetic inbound Message model (unsaved) for ChatbotRunner
-            $fakeMessage = new Message;
-            $fakeMessage->body = $request->message;
-            $fakeMessage->direction = 'in';
-            $fakeMessage->channel = 'playground';
-
-            // Attach a minimal conversation with workspace context
-            $fakeConversation = new Conversation;
-            $fakeConversation->workspace_id = $this->workspaceId($request);
-            $fakeConversation->id = 0;
-            $fakeMessage->setRelation('conversation', $fakeConversation);
-
-            $result = app(ChatbotRunner::class)->run($chatbot, $fakeMessage, throwProviderErrors: true);
+            $result = app(ChatbotRunner::class)->runForApi(
+                $chatbot, $validated['message'], $this->workspaceId($request),
+                $validated['history'] ?? [], $request->header('Idempotency-Key'), true,
+            );
 
             if (blank($result['reply'] ?? null)) {
                 return response()->json([
@@ -134,6 +125,8 @@ class AiChatbotController extends Controller
 
             return response()->json([
                 'reply' => $result['reply'],
+                'display_body' => $result['display_body'] ?? $result['reply'],
+                'quick_replies' => $result['quick_replies'] ?? [],
                 'resources' => $result['resources'] ?? [],
                 'ai_credits' => app(AiCreditService::class)->usage($this->workspaceId($request)),
             ]);

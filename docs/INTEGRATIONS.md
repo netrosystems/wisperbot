@@ -6,6 +6,8 @@ All application secrets belong in encrypted database configuration or environmen
 
 ## Integration ownership model
 
+Social publishing connections do not imply comment access. Only Facebook Pages and linked Instagram professional accounts have Comments adapters, with independent account checks. YouTube, LinkedIn and TikTok require separate adapters and authorization/approval; the client picker and mobile catalog mark them not integrated. See [platform availability](SOCIAL_COMMENTS.md#platform-availability-2026-09-05).
+
 Super Admin configures platform-level applications/gateways. A client then authorizes or configures workspace-specific accounts. Tokens and credentials are encrypted and never returned in full to the browser. Provider asset IDs are bound to a workspace to avoid duplicate routing.
 
 | Platform | Super Admin responsibility | Client responsibility | Inbound/outbound behavior |
@@ -67,7 +69,7 @@ WisperBot intentionally exposes two distinct WhatsApp setup choices:
 - **Existing WhatsApp Business app (Coexistence):** the Facebook SDK login payload sets `extras.featureType` to `whatsapp_business_app_onboarding` and `sessionInfoVersion` to `3`. Meta may finish with `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`. WisperBot must not call `/{PHONE_NUMBER_ID}/register`, because the number is already registered to the Business app.
 - **Cloud API-only:** uses the normal Embedded Signup flow and registers the selected phone number when required.
 
-Embedded Signup requests Meta's `popup` presentation and WisperBot displays an in-page progress dialog until Meta returns control. Meta authentication cannot be embedded in an iframe inside WisperBot; browser popup policy may still present the provider-controlled window as a tab, especially on mobile or when the user's popup preference requires it. The originating WisperBot page must remain open so the Facebook SDK callback can complete.
+Embedded Signup requests Meta's `popup` presentation. WisperBot shows compact inline progress inside the existing Channel Setup drawer, not a second centered dialog. Meta authentication cannot be embedded in an iframe inside WisperBot; browser popup policy may still present the provider-controlled window as a tab, especially on mobile or when the user's popup preference requires it. The originating WisperBot page must remain open so the Facebook SDK callback can complete.
 
 For Coexistence, WisperBot subscribes the WABA to `messages`, template/account/phone updates, `history`, `smb_app_state_sync`, and `smb_message_echoes`. After connection it requests `smb_app_state_sync` followed by `history` through `/{PHONE_NUMBER_ID}/smb_app_data`. History is imported silently, without firing inbound AI/automation events or creating unread counts. Live phone-app echoes are stored as outbound human messages and broadcast to open agent dashboards.
 
@@ -85,6 +87,8 @@ Health is separate from routing status. `ready` means checks passed; `delivery_v
 
 ### Review evidence
 
+Public comments now have a separate Social module path behind `SOCIAL_COMMENTS_ENABLED`. See [Social Comments](SOCIAL_COMMENTS.md) for matching Facebook Login scopes, signed webhook routing, provider limitations, and the pending external-client review gate. App Live status alone does not grant comments access. Checks preserve Page messaging fields and use customer tokens for every asset write; app tokens are diagnostic-only.
+
 For every requested permission, record the complete flow: login/authorization, exact user action in WisperBot, corresponding provider result, and the result back in WisperBot. Use a real app-role/admin Page/account while the app is unpublished. API test calls can take time to register in App Review.
 
 ## Email
@@ -97,11 +101,6 @@ For every requested permission, record the complete flow: login/authorization, e
 
 ## AI and vector storage
 
-- Sitemap links differing only by a `www.` prefix are normalized onto the canonical sitemap host after URL validation. Other hosts/subdomains remain excluded.
-
-- Managed OpenAI defaults use `gpt-4o-mini` for routine and complex generation. Explicit `AI_MANAGED_ROUTINE_MODEL` / `AI_MANAGED_COMPLEX_MODEL` overrides remain supported. Admin connection tests exercise both distinct configured models at the chatbot's 160-token budget and the configured embedding model, and reject empty text. A passing key/model test is not proof of a working queue or KB assignment.
-- Website root inputs discover robots/common sitemaps before fetching the homepage. This avoids one unfinished streamed homepage blocking discovery of healthy pages. Individual timed-out pages remain failed (never index partial HTML silently); healthy sibling pages continue. TLS validation and public-IP/redirect checks remain enabled.
-
 - Workspace AI credentials are encrypted in the database; UI placeholders mean “keep current key.”
 - Knowledge ingestion discovers YouTube, Vimeo (including retained unlisted `h` hashes), and direct public HTTPS MP4 links in extracted websites and files. WisperBot derives player URLs and never stores arbitrary embed markup; clients do not create a separate Video source.
 - YouTube/Vimeo are rendered only after Play is selected. Customer-site CSP may need `https://www.youtube.com`, `https://www.youtube-nocookie.com`, or `https://player.vimeo.com` in `frame-src`; Vimeo domain-level privacy must also permit the embedding customer domain.
@@ -109,7 +108,7 @@ For every requested permission, record the complete flow: login/authorization, e
 - Provider tests must surface the actual category (invalid key, model unavailable, quota, network), not collapse everything into “bad credentials.”
 - Only select chat/embedding models that the provider project can list/access.
 - Qdrant uses `QDRANT_URL` and `QDRANT_API_KEY`; MySQL fallback remains functional when absent.
-- Qdrant HTTP retries return final HTTP responses for explicit status handling. Missing collections are safe during deletion and can be created on first write. Other deletion and transport failures remain blocking.
+- Qdrant HTTP retries return final HTTP responses for explicit status handling. A missing `kb_chunks` collection is a no-op during vector deletion and is created on the next vector write. Other deletion failures still block removal; transport failures remain exceptions.
 - WisperBot managed generation uses the tested, enabled Super Admin AI / LLM integration marked as the managed default. If no database default has been selected, the configured legacy OpenAI managed provider remains the compatibility fallback. Workspace credentials are never substituted into the managed pool.
 - Provider mode is `managed`, `byok`, or `auto_fallback`. New and unset workspaces default to `auto_fallback`. It consumes managed credits first and uses a customer provider only when that provider is enabled and has a successful connection test; invalid, expired, or missing fallback credentials pause the action and prompt provider setup or reconnection after managed credits become unavailable.
 - DeepSeek is configured only by Super Admins as `llm_deepseek_default` under Integrations → AI / LLM. It is excluded from client provider payloads, client update/test routes, workspace BYOK, and automatic fallback. DeepSeek has no compatible embedding endpoint in this integration, so Knowledge Base embeddings require an enabled OpenAI or Gemini system/workspace provider. Review DeepSeek data-processing, retention, training, and data-location terms before enabling the system integration.
@@ -129,6 +128,9 @@ Only Stripe, PayPal, and Paddle are supported. Webhooks are CSRF-exempt but must
 
 - [eBay Seller Messaging](../EBAY_SELLER_MESSAGING_SETUP.md)
 - [Amazon Seller Messaging](../AMAZON_SELLER_MESSAGING_SETUP.md)
-# Qdrant payload indexes
+# 2026-09-05 verified crawler and AI compatibility
 
-WisperBot automatically maintains integer payload indexes for `document_id` and `kb_id` in `kb_chunks`. These support filtered cleanup and KB retrieval with Qdrant Cloud strict mode enabled. The integration credential requires permission to create payload indexes. Existing vectors are preserved.
+OpenAI admin connection tests exercise the configured managed routine/complex models and embedding model, rather than a separate hard-coded chat model. Default managed generation uses `gpt-4o-mini`; explicit configuration remains authoritative. Qdrant `kb_chunks` maintains integer payload indexes for `document_id` and `kb_id` so strict-mode cleanup and filtering work without weakening protection. Credentials must permit payload-index creation.
+# Flutter suggested-reply support (2026-09-06)
+
+The `Netro-Systems/wisperbot_chat` customer SDK supports additive text choices after its corresponding package/app release. A server deployment alone cannot update installed native UI. Older SDKs and external messaging channels retain numbered plain text. See [Suggested customer replies](CHAT_REPLY_OPTIONS.md).

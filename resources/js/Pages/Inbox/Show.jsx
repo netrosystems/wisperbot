@@ -720,6 +720,7 @@ function SoundPrefsMenu() {
 }
 
 function MessageBubble({ msg, conversationId }) {
+    const { t } = useTranslation();
     const { props: pageProps } = usePage();
     const bubbleTz = pageProps.timezone || 'Asia/Dhaka';
     const isOut = msg.direction === 'out';
@@ -884,7 +885,15 @@ function MessageBubble({ msg, conversationId }) {
 
                     {/* TEXT / fallback */}
                     {!templateComponents && (mediaType === 'text' || (!['image','video','audio','document','location','contacts','interactive','template','poll','event','unsupported'].includes(mediaType))) && (
-                        <WaText text={msg.body || '(media)'} />
+                        <WaText text={isOut && p.quick_replies?.length && typeof p.display_body === 'string' ? p.display_body : msg.body || '(media)'} />
+                    )}
+
+                    {isOut && Array.isArray(p.quick_replies) && p.quick_replies.length > 0 && (
+                        <ul className="mt-2 flex flex-wrap gap-1.5 list-none" aria-label={t('inbox.suggested_replies', 'Suggested customer replies')}>
+                            {p.quick_replies.slice(0, 3).filter(choice => typeof choice?.label === 'string').map(choice => (
+                                <li key={choice.id} className="rounded-lg border border-white/40 px-2.5 py-1.5 text-xs">{choice.label}</li>
+                            ))}
+                        </ul>
                     )}
 
                     {/* Caption below media */}

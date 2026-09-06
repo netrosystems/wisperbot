@@ -57,7 +57,6 @@ export default function WhatsappConnectionHealth({ waba, onReconnect, onHealthCh
     if (!health.enabled) return null;
     const working = busy || health.state === 'checking';
     const ready = health.state === 'ready';
-    const findings = Object.entries(health.components ?? {}).filter(([, value]) => value.state !== 'passed');
     const formatDate = value => value ? new Date(value).toLocaleString() : t('inbox.health_not_yet', { defaultValue: 'Not yet' });
     const actionLabel = health.action === 'reconnect' ? t('inbox.health_reconnect', { defaultValue: 'Reconnect WhatsApp' })
         : health.action === 'repair' ? t('inbox.health_repair', { defaultValue: 'Repair connection' })
@@ -76,21 +75,17 @@ export default function WhatsappConnectionHealth({ waba, onReconnect, onHealthCh
         {ready && <p className="text-neutral-600 dark:text-neutral-300">{health.delivery_verified
             ? t('inbox.health_delivery_verified', { defaultValue: 'A real incoming message has been processed.' })
             : t('inbox.health_send_test', { defaultValue: 'Connection checks passed. Send a message to your business number to verify delivery.' })}</p>}
-        {!working && findings.slice(0, 1).map(([key, finding]) => <p key={key} className="text-neutral-600 dark:text-neutral-300">{finding.message}</p>)}
+        {!working && !ready && health.action !== 'contact_admin' && <p className="text-neutral-600 dark:text-neutral-300">{
+            health.action === 'reconnect'
+                ? t('inbox.health_reconnect_hint', { defaultValue: 'Reconnect your WhatsApp account to restore access.' })
+                : health.action === 'repair'
+                    ? t('inbox.health_repair_hint', { defaultValue: 'Your connection needs attention. Select Repair connection to check and restore message delivery.' })
+                    : t('inbox.health_delayed_hint', { defaultValue: 'We could not finish checking your connection. Try checking again shortly.' })
+        }</p>}
         <div className="text-neutral-500 dark:text-neutral-400 space-y-1">
             <p>{t('inbox.health_last_checked', { defaultValue: 'Last checked' })}: {formatDate(health.checked_at)}</p>
             <p>{t('inbox.health_last_message', { defaultValue: 'Last incoming message processed' })}: {formatDate(health.last_message_at)}</p>
         </div>
         {error && <p role="alert" className="text-red-600 dark:text-red-400">{error}</p>}
-        <details className="text-neutral-500 dark:text-neutral-400">
-            <summary className="cursor-pointer py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">{t('inbox.health_details', { defaultValue: 'Connection details' })}</summary>
-            <ul className="mt-2 space-y-2">{Object.entries(health.components ?? {}).map(([key, value]) => <li key={key}>
-                {key.startsWith('phone:') && <span className="font-medium">{t('inbox.health_phone', { defaultValue: 'Phone' })} {key.slice(6)}: </span>}
-                {value.message}
-            </li>)}</ul>
-            {waba.can_manage_health && health.action !== 'repair' && health.action !== 'reconnect' && <button type="button" disabled={working} onClick={() => run('repair')} className="mt-2 text-brand-600 dark:text-brand-400 disabled:opacity-50 focus-visible:outline focus-visible:outline-2">
-                {t('inbox.health_repair', { defaultValue: 'Repair connection' })}
-            </button>}
-        </details>
     </section>;
 }

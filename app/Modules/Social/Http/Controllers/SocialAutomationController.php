@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Services\PublishedPostLifecycle;
+use App\Modules\Social\Services\SocialCommentCapabilities;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -94,6 +95,8 @@ class SocialAutomationController extends Controller
         }
 
         return Inertia::render('Social/Automation/Index', [
+            'commentsEnabled' => (bool) config('social_comments.enabled'),
+            'commentPlatforms' => SocialCommentCapabilities::catalog(),
             'accounts' => $accounts,
             'activeAccounts' => $activeAccounts,
             'posts' => $posts,

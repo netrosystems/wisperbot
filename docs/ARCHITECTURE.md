@@ -1,5 +1,7 @@
 # Architecture
 
+Suggested reply contracts and Flutter rollout are specified in [Suggested customer replies](CHAT_REPLY_OPTIONS.md). Generation stays on the existing gateway and credit path, while the visitor API remains unchanged. The agent inbox shows choice labels read-only.
+
 Last verified against code: 2026-09-03.
 
 ## System shape
@@ -104,6 +106,10 @@ Knowledge Base client authoring exposes URL, file, and sitemap ingestion. Text, 
 
 ### Social publishing
 
+`SocialCommentCapabilities` is the web/mobile platform catalog. Publishing connection, adapter availability, deployment flag and verified action capabilities are separate. Unsupported providers fail closed before Meta HTTP; moderation is independently checked at enqueue and delivery.
+
+The optional Comments page `/app/social/automation/comments` and `/api/v1/mobile/social/comments` share a scoped controller/service and separate comment storage. `social` handles signed changes, sync, and delivery; `ai` handles public KB generation. Only published revision retrieval is allowed even when the legacy KB feature flag is off. Successful suggestions are charged once; delivery reuses stored text. Cursor-paginated lists and replies use the same additive web/mobile contract. See [Social Comments](SOCIAL_COMMENTS.md).
+
 1. `GET /app/social/automation` supplies the workspace-scoped account summary, post tabs/counts, filters, and on-demand calendar data without serializing provider credentials. Legacy list/account/calendar URLs redirect to this canonical workflow.
 2. Client selects connected accounts and composes content at `/app/social/automation/schedule`, explicitly choosing scheduled or immediate delivery.
 3. A post and per-account mappings are stored.
@@ -151,3 +157,6 @@ Pusher settings can be stored in the database by Super Admin and override enviro
 When `KB_GUARDED_PUBLISHING=true`, Knowledge Base writes create or modify a draft revision. Add/remove operations change only draft membership; editing, reindexing, or toggling a source inherited from a published revision creates a draft document copy before mutation. `IndexDocumentJob` uses the `ai` queue for extraction, deterministic quality checks, section-aware chunks, embedding reuse, and regression gating. Only `published_revision_id` is passed into chatbot retrieval. The relational revision-document link—not a mutable document flag alone—is the authority for revision membership, including Qdrant results that are post-filtered against MySQL.
 
 Exact approved FAQ answers and safe revision-keyed cache hits return without generation. Query embeddings are model-keyed and reused for seven days. Unsupported business queries record score-only diagnostics plus a hashed knowledge-gap key and follow the configured clarify/handoff action.
+# Crawler and managed model validation (2026-09-05)
+
+Website ingestion probes robots/common sitemaps before downloading a root homepage, normalizes validated www/non-www aliases only, and bounds page fetch time. Incomplete responses are not indexed as complete documents. Qdrant collection setup maintains integer payload indexes on `document_id` and `kb_id`; strict-mode filtered cleanup retries after creating missing indexes, without swallowing other failures. Managed OpenAI tests exercise configured runtime models and embeddings; empty generated output is rejected before credit finalization.

@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\SocialPostApiController;
 use App\Http\Controllers\Api\V1\SubscriptionApiController;
 use App\Http\Controllers\Api\V1\TokenController;
 use App\Http\Controllers\Api\V1\WorkspaceApiController;
+use App\Modules\Social\Http\Controllers\SocialCommentController;
 use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +60,20 @@ Route::post('v1/broadcasting/auth', [BroadcastController::class, 'authenticate']
 // `demo` blocks writes (POST/PATCH/DELETE) in demo mode while GET reads pass,
 // keeping the mobile app a consistent read-only showcase like the web app.
 Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group(function () {
+    Route::prefix('social/comments')->group(function () {
+        $controller = SocialCommentController::class;
+        Route::get('/', [$controller, 'index']);
+        Route::post('/accounts/{account}/settings', [$controller, 'settings'])->middleware('throttle:30,1');
+        Route::post('/accounts/{account}/sync', [$controller, 'sync'])->middleware('throttle:10,1');
+        Route::post('/operations/{operation}/retry', [$controller, 'retry'])->middleware('throttle:30,1');
+        Route::get('/{comment}', [$controller, 'show'])->whereNumber('comment');
+        Route::post('/{comment}/read', [$controller, 'read'])->whereNumber('comment');
+        Route::post('/{comment}/reply', [$controller, 'reply'])->whereNumber('comment')->middleware('throttle:30,1');
+        Route::post('/{comment}/suggest', [$controller, 'suggest'])->whereNumber('comment')->middleware('throttle:10,1');
+        Route::post('/{comment}/suggestions/{operation}/review', [$controller, 'reviewSuggestion'])->whereNumber('comment')->middleware('throttle:10,1');
+        Route::post('/{comment}/moderate', [$controller, 'moderate'])->whereNumber('comment')->middleware('throttle:30,1');
+        Route::patch('/{comment}', [$controller, 'update'])->whereNumber('comment');
+    });
     // Workspace context
     Route::post('/workspaces/{workspace}/select', [WorkspaceApiController::class, 'select']);
 
