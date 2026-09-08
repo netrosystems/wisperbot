@@ -31,6 +31,7 @@ class AiCreditLedger extends Model
         ];
     }
 
+    /** @return BelongsTo<AiCreditPeriod, $this> */
     public function period(): BelongsTo
     {
         return $this->belongsTo(AiCreditPeriod::class, 'period_id');

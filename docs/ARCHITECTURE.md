@@ -8,6 +8,8 @@ Last verified against code: 2026-09-03.
 
 ## System shape
 
+Static analysis reads both `database/migrations` and `app/Modules/*/database/migrations`, parses model `casts()` methods, and uses declared related-model generics on direct Eloquent relationships. Keep these contracts aligned with the actual schema and relationships; this configuration does not change runtime database schema or relax the analysis level.
+
 WisperBot is a modular Laravel 12 monolith with an Inertia/React frontend. It serves four primary surfaces:
 
 1. Public marketing, blog, CMS, install, license, and authentication pages.

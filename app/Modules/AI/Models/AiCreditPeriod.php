@@ -28,6 +28,7 @@ class AiCreditPeriod extends Model
         ];
     }
 
+    /** @return HasMany<AiCreditLedger, $this> */
     public function ledger(): HasMany
     {
         return $this->hasMany(AiCreditLedger::class, 'period_id');

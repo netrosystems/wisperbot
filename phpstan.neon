@@ -6,6 +6,10 @@ parameters:
     paths:
         - app
     level: 6
+    databaseMigrationsPath:
+        - database/migrations
+        - app/Modules/*/database/migrations
+    parseModelCastsMethod: true
     ignoreErrors:
     excludePaths:
         - app/Http/Middleware/HandleInertiaRequests.php

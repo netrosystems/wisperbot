@@ -113,6 +113,7 @@ class User extends Authenticatable implements MustVerifyEmail
     // Social accounts
     // -------------------------------------------------------------------------
 
+    /** @return HasMany<SocialAccount, $this> */
     public function socialAccounts(): HasMany
     {
         return $this->hasMany(SocialAccount::class);
@@ -165,16 +166,19 @@ class User extends Authenticatable implements MustVerifyEmail
     // Subscriptions
     // -------------------------------------------------------------------------
 
+    /** @return HasMany<Subscription, $this> */
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
     }
 
+    /** @return HasMany<ClientAddonSubscription, $this> */
     public function purchasedAddonSubscriptions(): HasMany
     {
         return $this->hasMany(ClientAddonSubscription::class, 'purchased_by_user_id');
     }
 
+    /** @return HasOne<Subscription, $this> */
     public function activeSubscription(): HasOne
     {
         return $this->hasOne(Subscription::class)
@@ -278,16 +282,19 @@ class User extends Authenticatable implements MustVerifyEmail
     // Notifications & Webhooks
     // -------------------------------------------------------------------------
 
+    /** @return HasMany<NotificationPreference, $this> */
     public function notificationPreferences(): HasMany
     {
         return $this->hasMany(NotificationPreference::class);
     }
 
+    /** @return HasMany<WebhookEndpoint, $this> */
     public function webhookEndpoints(): HasMany
     {
         return $this->hasMany(WebhookEndpoint::class);
     }
 
+    /** @return HasMany<PaymentTransaction, $this> */
     public function paymentTransactions(): HasMany
     {
         return $this->hasMany(PaymentTransaction::class);

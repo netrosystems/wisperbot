@@ -32,26 +32,31 @@ class BlogPost extends Model
         ];
     }
 
+    /** @return BelongsTo<AdminUser, $this> */
     public function author(): BelongsTo
     {
         return $this->belongsTo(AdminUser::class, 'author_id');
     }
 
+    /** @return BelongsTo<BlogCategory, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(BlogCategory::class, 'category_id');
     }
 
+    /** @return BelongsToMany<BlogTag, $this> */
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(BlogTag::class, 'blog_post_tag');
     }
 
+    /** @return HasMany<BlogPostRevision, $this> */
     public function revisions(): HasMany
     {
         return $this->hasMany(BlogPostRevision::class)->latest('id');
     }
 
+    /** @return HasMany<BlogPostRedirect, $this> */
     public function redirects(): HasMany
     {
         return $this->hasMany(BlogPostRedirect::class);

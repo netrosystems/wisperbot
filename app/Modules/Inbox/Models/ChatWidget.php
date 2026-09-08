@@ -5,8 +5,8 @@ namespace App\Modules\Inbox\Models;
 use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Shared\Models\ChannelAccount;
-use App\Services\StorageManager;
 use App\Services\PusherPublicConfig;
+use App\Services\StorageManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
@@ -59,16 +59,19 @@ class ChatWidget extends Model
         });
     }
 
+    /** @return BelongsTo<ChannelAccount, $this> */
     public function channelAccount(): BelongsTo
     {
         return $this->belongsTo(ChannelAccount::class);
     }
 
+    /** @return BelongsTo<Workspace, $this> */
     public function workspace(): BelongsTo
     {
         return $this->belongsTo(Workspace::class);
     }
 
+    /** @return BelongsTo<AiChatbot, $this> */
     public function aiChatbot(): BelongsTo
     {
         return $this->belongsTo(AiChatbot::class, 'ai_chatbot_id');

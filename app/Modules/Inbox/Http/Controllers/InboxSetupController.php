@@ -358,6 +358,8 @@ class InboxSetupController extends Controller
 
     public function embeddedSignupMessenger(Request $request): JsonResponse
     {
+        // A resumed Page selection only has its previously authorized Page token.
+        $longToken = null;
         $validated = $request->validate([
             'code' => ['nullable', 'required_without:selection_token', 'string', 'max:2048'],
             'selection_token' => ['nullable', 'required_without:code', 'string', 'max:96'],
@@ -476,7 +478,7 @@ class InboxSetupController extends Controller
             // User Profile API (name/picture). If /me/accounts didn't include one,
             // fetch it explicitly. Never fall back to the user token — a user token
             // cannot resolve page-scoped PSIDs and yields Graph error 100.
-            if (! $pageToken) {
+            if (! $pageToken && $longToken) {
                 $tokenRes = Http::withToken($longToken)
                     ->get("https://graph.facebook.com/v25.0/{$pageId}", ['fields' => 'access_token']);
                 $pageToken = $tokenRes->json('access_token');

@@ -18,11 +18,13 @@ class AiKbRevision extends Model
         return ['version' => 'integer', 'readiness_score' => 'integer', 'published_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<AiKnowledgeBase, $this> */
     public function knowledgeBase(): BelongsTo
     {
         return $this->belongsTo(AiKnowledgeBase::class, 'kb_id');
     }
 
+    /** @return BelongsToMany<AiKbDocument, $this> */
     public function documents(): BelongsToMany
     {
         return $this->belongsToMany(AiKbDocument::class, 'ai_kb_revision_documents', 'revision_id', 'document_id')->withTimestamps();

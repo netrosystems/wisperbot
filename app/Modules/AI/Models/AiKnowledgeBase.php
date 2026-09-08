@@ -48,16 +48,19 @@ class AiKnowledgeBase extends Model
         ];
     }
 
+    /** @return HasMany<AiKbDocument, $this> */
     public function documents(): HasMany
     {
         return $this->hasMany(AiKbDocument::class, 'kb_id');
     }
 
+    /** @return HasMany<AiChatbot, $this> */
     public function chatbots(): HasMany
     {
         return $this->hasMany(AiChatbot::class, 'ai_kb_id');
     }
 
+    /** @return HasMany<AiKbRevision, $this> */
     public function revisions(): HasMany
     {
         return $this->hasMany(AiKbRevision::class, 'kb_id');
@@ -73,16 +76,19 @@ class AiKnowledgeBase extends Model
         return $this->belongsTo(AiKbRevision::class, 'draft_revision_id');
     }
 
+    /** @return HasMany<AiKbTestCase, $this> */
     public function testCases(): HasMany
     {
         return $this->hasMany(AiKbTestCase::class, 'kb_id');
     }
 
+    /** @return HasMany<AiKbKnowledgeGap, $this> */
     public function knowledgeGaps(): HasMany
     {
         return $this->hasMany(AiKbKnowledgeGap::class, 'kb_id');
     }
 
+    /** @return HasMany<AiKbRetrievalDiagnostic, $this> */
     public function retrievalDiagnostics(): HasMany
     {
         return $this->hasMany(AiKbRetrievalDiagnostic::class, 'kb_id');

@@ -150,6 +150,7 @@ class BlogPostController extends Controller
             'publish' => $query->update(['status' => 'published', 'published_at' => now()]),
             'draft' => $query->update(['status' => 'draft']),
             'delete' => $query->delete(),
+            default => throw ValidationException::withMessages(['action' => 'Choose a supported bulk action.']),
         };
 
         return back()->with('success', 'Selected posts updated.');

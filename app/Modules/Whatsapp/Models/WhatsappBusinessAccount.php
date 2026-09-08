@@ -49,6 +49,7 @@ class WhatsappBusinessAccount extends Model
         return $this->hasMany(WhatsappPhoneNumber::class, 'waba_id_fk');
     }
 
+    /** @return HasMany<WhatsappTemplate, $this> */
     public function templates(): HasMany
     {
         return $this->hasMany(WhatsappTemplate::class, 'waba_id', 'waba_id');

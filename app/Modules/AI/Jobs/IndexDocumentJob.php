@@ -282,26 +282,28 @@ class IndexDocumentJob implements ShouldQueue
         // sitemap and inner pages are healthy. Discover first for root URLs.
         $sitemapUrl = $urls->assertSafe($sitemapUrl);
         $rootInput = in_array(parse_url($sitemapUrl, PHP_URL_PATH) ?: '/', ['/', ''], true);
+        $pageHtml = '';
         $discovered = $rootInput ? $this->discoverSitemap($sitemapUrl, '', $urls) : null;
         if ($discovered !== null) {
             [$resolvedUrl, $parsed] = $discovered;
             $doc->update(['source_ref' => $resolvedUrl]);
         } else {
             [$response, $resolvedUrl] = $this->fetchSiteResource($sitemapUrl, $urls);
-            $parsed = $this->parseSitemapXml($response->body());
+            $pageHtml = $response->body();
+            $parsed = $this->parseSitemapXml($pageHtml);
         }
 
         // Non-technical users commonly paste their homepage in the Sitemap tab.
         // Resolve a declared/common sitemap first; if the site has none, safely
         // fan out the homepage and its same-host links instead of failing.
         if ($parsed === null) {
-            $discovered = $this->discoverSitemap($resolvedUrl, $response->body(), $urls,
+            $discovered = $this->discoverSitemap($resolvedUrl, $pageHtml, $urls,
                 ! $rootInput || $this->origin($resolvedUrl) !== $this->origin($sitemapUrl));
             if ($discovered !== null) {
                 [$resolvedUrl, $parsed] = $discovered;
                 $doc->update(['source_ref' => $resolvedUrl]);
             } else {
-                $pageUrls = $this->discoverPageLinks($resolvedUrl, $response->body(), $urls);
+                $pageUrls = $this->discoverPageLinks($resolvedUrl, $pageHtml, $urls);
                 $this->createSitemapChildren($doc, $pageUrls, 'url', (string) parse_url($resolvedUrl, PHP_URL_HOST), $urls, $workflow);
 
                 return '';

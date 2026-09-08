@@ -14,6 +14,7 @@ class BlogCategory extends Model
         return ['is_active' => 'boolean'];
     }
 
+    /** @return HasMany<BlogPost, $this> */
     public function posts(): HasMany
     {
         return $this->hasMany(BlogPost::class, 'category_id');

@@ -9,6 +9,7 @@ class BlogPostRedirect extends Model
 {
     protected $fillable = ['blog_post_id', 'old_slug'];
 
+    /** @return BelongsTo<BlogPost, $this> */
     public function post(): BelongsTo
     {
         return $this->belongsTo(BlogPost::class, 'blog_post_id');

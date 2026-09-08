@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- In-progress analysis remediation: recognize modular database schema and model casts, type model relationships, and remove obsolete baseline suppressions. Harden resumed Messenger selection and sitemap fetch state. Repository-wide analysis and the full test suite are not yet passing; no Main merge is authorized by these results.
+
 - Removed stale PHPStan baseline references to deleted Leads/Twitter files. Analysis now executes, but repository-wide findings still block the Main merge gate.
 
 - Require matching quick replies for generated closed-choice questions and recover clear English yes/no and eSIM compatibility choices when the model omits them, without another model request. SDK payload shape remains unchanged.

@@ -9,6 +9,7 @@ class BlogTag extends Model
 {
     protected $fillable = ['name', 'slug'];
 
+    /** @return BelongsToMany<BlogPost, $this> */
     public function posts(): BelongsToMany
     {
         return $this->belongsToMany(BlogPost::class, 'blog_post_tag');

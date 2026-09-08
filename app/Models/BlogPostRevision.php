@@ -16,11 +16,13 @@ class BlogPostRevision extends Model
         return ['snapshot' => 'array', 'created_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<BlogPost, $this> */
     public function post(): BelongsTo
     {
         return $this->belongsTo(BlogPost::class, 'blog_post_id');
     }
 
+    /** @return BelongsTo<AdminUser, $this> */
     public function author(): BelongsTo
     {
         return $this->belongsTo(AdminUser::class, 'admin_user_id');

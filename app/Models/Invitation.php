@@ -23,11 +23,13 @@ class Invitation extends Model
         'expires_at' => 'datetime',
     ];
 
+    /** @return BelongsTo<Client, $this> */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function invitedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'invited_by');

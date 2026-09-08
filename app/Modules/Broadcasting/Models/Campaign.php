@@ -63,6 +63,7 @@ class Campaign extends Model
         ];
     }
 
+    /** @return HasMany<CampaignRecipient, $this> */
     public function recipients(): HasMany
     {
         return $this->hasMany(CampaignRecipient::class);
@@ -89,13 +90,13 @@ class Campaign extends Model
 
         $this->update([
             'totals_json' => [
-                'total'        => array_sum($counts),
-                'queued'       => $counts['queued'] ?? 0,
-                'sent'         => $counts['sent'] ?? 0,
-                'delivered'    => $counts['delivered'] ?? 0,
-                'read'         => $counts['read'] ?? 0,
-                'failed'       => $counts['failed'] ?? 0,
-                'clicked'      => $clicked,
+                'total' => array_sum($counts),
+                'queued' => $counts['queued'] ?? 0,
+                'sent' => $counts['sent'] ?? 0,
+                'delivered' => $counts['delivered'] ?? 0,
+                'read' => $counts['read'] ?? 0,
+                'failed' => $counts['failed'] ?? 0,
+                'clicked' => $clicked,
                 'unsubscribed' => $unsubscribed,
             ],
         ]);

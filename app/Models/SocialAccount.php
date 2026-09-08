@@ -19,6 +19,7 @@ class SocialAccount extends Model
 
     protected $hidden = ['access_token', 'refresh_token'];
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

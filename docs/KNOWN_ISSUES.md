@@ -4,7 +4,9 @@ Status snapshot: 2026-09-03. Remove an item only when the fix is verified and re
 
 ## Static analysis release gate (2026-09-08)
 
-Removed 16 obsolete baseline entries for deleted Leads and Twitter files. `composer analyse` now runs across the application but reports more than 1,000 errors (the default formatter truncates the report). Findings include model property types and `ExpireTrialsCommand` calling `isFuture()` on a string. The gate is not passing; do not describe the baseline cleanup as resolving application-wide analysis. Do not lower the level or blanket-suppress findings to unblock release.
+Removed 16 obsolete baseline entries for deleted Leads and Twitter files. Follow-up analysis configuration now scans module migrations and parses model `casts()` methods; direct model relationships declare their actual related model types. This resolves the erroneous string-date inference in `ExpireTrialsCommand` and many undefined-property reports. Removed another 546 obsolete baseline entries and reduced two stale counts; no new suppressions were added. The measured report decreased from 1,729 to 686 findings. The gate still fails, chiefly on missing array value contracts, generic inference, redundant null handling and remaining code defects. Do not lower the level or blanket-suppress findings to unblock release.
+
+Full backend verification during this cleanup: 617 passed, 74 failed before the new Messenger regression was added. Failures include admin redirects and API authorization responses; their baseline status has not yet been isolated. The focused affected-area suite passes 38 tests (151 assertions). Main must remain held; this is an incomplete repository-wide cleanup, not a release-ready result.
 
 ## Website indexing boundaries
 

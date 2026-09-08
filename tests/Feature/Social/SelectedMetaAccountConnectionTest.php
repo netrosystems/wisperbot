@@ -4,6 +4,7 @@ namespace Tests\Feature\Social;
 
 use App\Models\User;
 use App\Models\Workspace;
+use App\Modules\Inbox\Http\Controllers\InboxSetupController;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Modules\Social\Models\SocialAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,6 +15,34 @@ use Tests\TestCase;
 class SelectedMetaAccountConnectionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_resumed_messenger_selection_without_page_token_does_not_use_an_undefined_user_token(): void
+    {
+        $this->withoutMiddleware();
+        IntegrationConfig::create([
+            'provider' => 'meta_app', 'label' => 'Meta App', 'mode' => 'live', 'enabled' => true,
+            'credentials' => ['app_id' => 'test-app', 'app_secret' => 'test-secret'],
+        ]);
+        $user = User::factory()->create();
+        $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
+        $user->forceFill(['workspace_id' => $workspace->id])->save();
+        Http::fake();
+
+        $request = \Illuminate\Http\Request::create('/app/inbox/setup/embedded-signup/messenger', 'POST', [
+            'selection_token' => 'pending', 'selected_facebook_page_id' => 'selected-page',
+        ]);
+        $request->setUserResolver(fn () => $user);
+        $request->setLaravelSession(app('session.store'));
+        $request->session()->put('messenger_connect_selection.pending', [
+            'workspace_id' => $workspace->id,
+            'pages' => [['id' => 'selected-page', 'name' => 'Test Page']],
+        ]);
+        $response = app(InboxSetupController::class)->embeddedSignupMessenger($request);
+        $this->assertSame(422, $response->getStatusCode());
+
+        Http::assertNothingSent();
+        $this->assertDatabaseMissing('channel_accounts', ['workspace_id' => $workspace->id, 'channel' => 'messenger']);
+    }
 
     public function test_facebook_callback_connects_only_the_page_selected_in_meta_oauth(): void
     {

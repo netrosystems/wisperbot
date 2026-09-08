@@ -63,6 +63,7 @@ class Plan extends Model
         };
     }
 
+    /** @return BelongsTo<Currency, $this> */
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class, 'currency_code', 'code');
@@ -86,11 +87,13 @@ class Plan extends Model
         return is_array($limits) ? ($limits[$key] ?? null) : null;
     }
 
+    /** @return HasMany<ClientSubscription, $this> */
     public function clientSubscriptions(): HasMany
     {
         return $this->hasMany(ClientSubscription::class, 'plan_id');
     }
 
+    /** @return HasMany<Subscription, $this> */
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class, 'plan_id');
