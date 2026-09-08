@@ -19,6 +19,7 @@ Read the authoritative document for your task domain before writing code, and up
 | **UI, Styling, Colors, Layouts & Components** | [`DESIGNSYSTEM.md`](DESIGNSYSTEM.md) | Pixel-perfect UI using Space Grotesk & Fraunces, exact WisperBot Orange (`#FF762E`) & Amber (`#FFBF00`) tokens, `.page` vs `.viewport-table-page` (InboxLayout 100vh) layouts, XYFlow canvas, and accessible Radix/Headless UI components. |
 | **Backend, APIs, Modules, Queues & Tenancy** | [`ARCHITECTURE.md`](ARCHITECTURE.md) and `docs/ARCHITECTURE.md` | Correct modular monolith patterns (`app/Modules/*`), strict `workspace_id` query scoping, queue assignments (`whatsapp`, `ai`, `social`, `automation`, `broadcast`), Reverb/Pusher WebSockets, and health probes. |
 | **Features, Workflows, State Machines & Roadmap** | [`PLAN.md`](PLAN.md) | Complete business logic compliance across all 10 modules (Omni-Channel Inbox, Master Email Inbox, Widget with HMAC, WhatsApp Cloud API, AI Knowledge Bases, XYFlow Automations, Social Publishing, SMS Campaigns, Billing). |
+| **Smart Bot questions, CTA choices, Widget & SDK parity** | [`docs/PRODUCT_DECISIONS.md`](docs/PRODUCT_DECISIONS.md) and [`docs/CHAT_REPLY_OPTIONS.md`](docs/CHAT_REPLY_OPTIONS.md) | Industry-independent conversational choices, KB-grounded follow-ups, safe shared payloads, generic rendering, and separate SDK release ownership. Read both before changing or diagnosing this existing feature. |
 | **External Integrations & OAuth Credentials** | [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) and provider guides | Correct Meta OAuth scopes, Instagram limitations, Google/Microsoft OAuth, Telegram, SMS Gateways, SP-API / eBay, and Qdrant vectors. |
 | **Operations, Workers, Deployment & Crons** | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) and/or [`DEPLOYMENT.md`](DEPLOYMENT.md) | Scheduler setup, worker commands, deployment checklist, Vite production bundle builds, and log diagnostics. |
 | **Security, Secrets & Threat Boundaries** | [`docs/SECURITY.md`](docs/SECURITY.md) | `Crypt::encryptString` secret storage, Sanctum bearer tokens, CSRF, webhook signatures, widget HMAC secrets, and local licensing guards. |
@@ -45,6 +46,8 @@ If a code change has no documentation impact, say so in the commit/hand-off summ
 
 ## Engineering invariants
 
+- WisperBot is a multi-industry SaaS. A client's business, sample question, screenshot or KB is a test case, not a platform-wide product rule. Do not hardcode tenant names, industries, question scripts or choice labels into the primary Smart Bot flow.
+- Dynamic Smart Bot reply choices are an existing feature. Trace generation → stored payload → session/poll/realtime serialization → widget/SDK rendering before proposing a replacement. Buttons are suggested customer text, not executable business actions. Never claim SDK deployment from server tests; the app team owns SDK implementation and release unless explicitly reassigned.
 - Preserve workspace isolation on every query, webhook, broadcast channel, job, and API action.
 - Keep public widget conversations private to a stable visitor/session identity; never expose a shared public transcript.
 - Treat inbound webhooks as untrusted: verify signatures/tokens, apply idempotency, and queue expensive work.

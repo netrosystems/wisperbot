@@ -127,6 +127,23 @@ class LlmGatewayCreditsTest extends TestCase
         $this->assertSame(0, AiCreditLedger::sole()->period->used_credits);
     }
 
+    public function test_plain_closed_question_gets_choices_without_an_extra_generation_or_charge(): void
+    {
+        config(['chatbot.quick_replies_enabled' => true]);
+        $workspace = $this->workspaceWithCredits(100);
+        $this->managedOpenAi();
+        $bot = AiChatbot::create(['workspace_id' => $workspace->id, 'name' => 'Support', 'enabled' => true]);
+        Http::fake(['api.openai.com/*' => Http::response($this->openAiResponse('Does your phone support eSIM?'))]);
+        $runner = app(ChatbotRunner::class);
+        $first = $runner->runForApi($bot, 'Installation failed', $workspace->id, [], 'recover-choice', true);
+        $second = $runner->runForApi($bot, 'Installation failed', $workspace->id, [], 'recover-choice', true);
+        $this->assertSame($first, $second);
+        $this->assertSame(['Yes', 'No'], array_column($first['quick_replies'], 'label'));
+        $this->assertSame('Does your phone support eSIM?', $first['display_body']);
+        $this->assertSame(1, AiCreditLedger::sole()->credits);
+        Http::assertSentCount(1);
+    }
+
     public function test_auto_fallback_uses_only_a_successfully_tested_customer_key_when_exhausted(): void
     {
         $workspace = $this->workspaceWithCredits(0);

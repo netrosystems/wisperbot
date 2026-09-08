@@ -37,6 +37,11 @@ class WidgetRealtimeTest extends TestCase
         $this->assertSame('iOS app', $builder->message($message, $widget)['quick_replies'][0]['label']);
         $this->assertSame($builder->message($message, $widget), $builder->messages($conversationId, $widget, 0)[0]);
         $this->withHeader('X-Widget-Token', $session->json('token'))
+            ->getJson(route('widget.poll', ['key' => $widget->widget_key, 'after' => 0]))
+            ->assertOk()->assertJsonPath('messages.0.quick_replies.0.label', 'iOS app')
+            ->assertJsonPath('messages.0.display_body', 'Which app?');
+        $this->assertSame('iOS app', (new WidgetMessageCreated($conversationId, $builder->message($message, $widget)))->broadcastWith()['message']['quick_replies'][0]['label']);
+        $this->withHeader('X-Widget-Token', $session->json('token'))
             ->postJson(route('widget.send'), ['key' => $widget->widget_key, 'message' => 'iOS app'])
             ->assertOk()->assertJsonPath('message.body', 'iOS app');
         $this->assertDatabaseHas('messages', ['conversation_id' => $conversationId, 'direction' => 'in', 'body' => 'iOS app']);

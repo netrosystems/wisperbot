@@ -19,6 +19,10 @@ This directory and the root specification files form the durable project memory 
 6. [Known Issues](KNOWN_ISSUES.md) — Unfinished or fragile areas.
 7. [Changelog](CHANGELOG.md) — Documentation-level release history.
 
+## Smart Bot conversational choices
+
+For any work on Smart Bot questions, reply CTA buttons, or widget/customer-SDK behavior, read [Product decisions](PRODUCT_DECISIONS.md#dynamic-smart-bot-questions-and-cta-replies) and [the implementation/API contract](CHAT_REPLY_OPTIONS.md). This existing feature is industry-independent; client examples are not platform defaults. SDK release status must be verified separately.
+
 ## Additional Setup Guides
 
 - [Suggested chatbot replies and Flutter SDK contract](CHAT_REPLY_OPTIONS.md)

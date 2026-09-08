@@ -188,20 +188,20 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                     <Toggle
                         checked={data.ai_enabled}
                         onChange={(v) => setData('ai_enabled', v)}
-                        label="Let an AI chatbot answer first"
+                        label={t('widget_appearance.smart_bot_first', 'Let a Smart Bot answer first')}
                         description="Off = messages go straight to your live agents. On = the AI replies instantly, then hands off to a human when needed."
                     />
                     {data.ai_enabled && (
                         chatbots.length > 0 ? (
-                            <Field label="Chatbot">
+                            <Field label={t('widget_appearance.smart_bot', 'Smart Bot')}>
                                 <select className={inputCls} value={data.ai_chatbot_id ?? ''} onChange={(e) => setData('ai_chatbot_id', e.target.value)}>
-                                    <option value="">Select a chatbot…</option>
+                                    <option value="">{t('widget_appearance.select_smart_bot', 'Select a Smart Bot…')}</option>
                                     {chatbots.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                                 </select>
                             </Field>
                         ) : (
                             <p className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                                No enabled chatbots yet. Create one under <b>AI → Chatbots</b> first, then pick it here.
+                                {t('widget_appearance.no_smart_bots', 'No active Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here.')}
                             </p>
                         )
                     )}

@@ -4,6 +4,10 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Require matching quick replies for generated closed-choice questions and recover clear English yes/no and eSIM compatibility choices when the model omits them, without another model request. SDK payload shape remains unchanged.
+
+- Renamed Widget Appearance's AI-answering labels and selection guidance to Smart Bot. Presentation only; no API, SDK or configuration changes.
+
 - Refined chatbot reply buttons with shorter desktop height, softer borders, clearer text and tighter spacing while retaining larger touch targets. Web-only styling; no API changes.
 
 - Removed the duplicate Meta setup overlay from Inbox Channel Setup; authorization progress stays inline in the existing connection side panel.

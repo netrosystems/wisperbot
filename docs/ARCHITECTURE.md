@@ -2,6 +2,8 @@
 
 Suggested reply contracts and Flutter rollout are specified in [Suggested customer replies](CHAT_REPLY_OPTIONS.md). Generation stays on the existing gateway and credit path, while the visitor API remains unchanged. The agent inbox shows choice labels read-only.
 
+Closed-question generation explicitly requests matching choices. `ChatReplyOptions` can recover limited unambiguous English closed-choice prompts when enabled; both conversation and API runners use the same normalization after generation. No second model call or extra charge is introduced.
+
 Last verified against code: 2026-09-03.
 
 ## System shape

@@ -14,6 +14,7 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 - Website chat management is grouped as **Chatbot Widget**, with Widgets, Appearance, and Integrations.
 - Social publishing uses one client destination named **Social Media Automation**. Account connection is the compact first section, post management defaults to Upcoming, and List/Calendar are views of the same workspace. The focused composer opens from **Schedule Post** and requires an explicit Schedule for later or Publish now choice.
 - AI is presented as **AI Automations** and chatbots as **Smart Bots**.
+- Widget Appearance uses **Smart Bot** consistently in its AI-answering toggle, selector and empty-state guidance; internal chatbot identifiers and API fields remain unchanged.
 - Media Library remains a normal content/group asset because campaigns, posts, automation, email, and chat reuse uploads.
 
 ## Website widget
@@ -52,6 +53,17 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 - Channel connection drawers are onboarding-only. They close after a successful connection and never duplicate webhook, sync, template, phone-number, chatbot-assignment, rename, or disconnect controls; connected-channel management belongs exclusively to Channel Setup cards. This rule applies consistently to WhatsApp, Instagram, and Messenger.
 - Channel Setup presents every connection action once in its primary setup area. The account grid renders connected channels only; empty WhatsApp, Instagram, Messenger, Telegram, eBay, and Amazon cards must not repeat connection calls to action farther down the page. The former Getting Started, webhook, and external-resource footer is intentionally omitted because it duplicates the guided setup surface.
 - Client UI says sources, passages, readiness, and review—not vectors or embeddings—unless the user opens advanced diagnostics.
+
+## Dynamic Smart Bot questions and CTA replies
+
+Product requirement clarified: 2026-09-08. This is an existing horizontal SaaS capability, not an industry-specific assistant or fixed decision tree. Its implementation contract and verification limits are in [Suggested customer replies](CHAT_REPLY_OPTIONS.md).
+
+- Each client's selected Smart Bot uses that client's assigned Knowledge Base and the current private conversation. One customer's products, terminology, troubleshooting steps or policies must not become defaults for other workspaces.
+- When additional information is needed, ask one useful contextual question. For a question with a small set of meaningful answers, generate two or three corresponding `quick_replies` dynamically in the customer's language. Questions, labels and subsequent branches are not limited to Yes/No, devices or any particular industry.
+- Use free text for open questions, large catalogs or information that cannot safely be reduced to a few choices. Keep the composer available even when choices exist. Do not force unnecessary questions after a complete answer or invent business options absent from verified sources.
+- The website widget and customer SDK render the same server-provided labels generically. They must not decide behavior by matching industry names or hardcoded labels. A selected label is sent as a normal customer message; the next answer uses its conversational context and verified business knowledge, then answers, asks the next useful question, or follows the configured clarification/handoff fallback.
+- Reply buttons do not execute purchases, cancellations, bookings or permission changes. Those require separate authorized action workflows. Human handoff, stale-choice protection, privacy, tenancy and fixed-action credit rules still apply.
+- Implementation presence, successful automated tests, production deployment and native SDK release are different states. Verify all relevant stages before claiming the complete customer journey works. A language-specific recovery heuristic is not a universal implementation of this requirement.
 
 ## Developer features
 

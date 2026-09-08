@@ -79,7 +79,7 @@ journey
 - **Visitor Session Isolation**: Each visitor is assigned a secure cryptographic session token. Unauthenticated visitors stay anonymous; authenticated user profiles are verified via server-side HMAC validation.
 - **AI-to-Human Handoff**: Auto-engages visitors with knowledge base answers, offering a smooth handoff to live agents after 2 failed turns or explicit user request.
 - **Custom Branding**: Configurable colors, greeting messages, avatar launcher icon, and pre-chat capture forms.
-- **Suggested customer replies**: Smart Bots can supply two or three context-relevant text choices within one generation. Web widget and updated Flutter SDK render buttons; tapping sends ordinary customer text. Existing clients and external channels retain numbered text. See `docs/CHAT_REPLY_OPTIONS.md` for contracts, safety and separate SDK/app rollout.
+- **Dynamic Smart Bot questions and CTA replies**: Existing multi-industry capability, not a fixed industry script. Using the client's KB and conversation, the Smart Bot asks one useful question when needed and generates two or three matching localized choices for closed questions. Widget and customer SDK render arbitrary server-provided labels; selection sends ordinary customer text and informs the next answer/question or safe fallback. Open questions keep free text. No invented business options or executable actions. Server contract exists; native SDK implementation/release belongs to the app team. See `docs/PRODUCT_DECISIONS.md` and `docs/CHAT_REPLY_OPTIONS.md` for invariants, implementation status and release checks.
 
 ---
 

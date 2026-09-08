@@ -157,7 +157,7 @@ class ChatbotRunner
                 $conversation->id,
             );
 
-            $result = array_merge(app(ChatReplyOptions::class)->parse($response->content), [
+            $result = array_merge(app(ChatReplyOptions::class)->parse($response->content, (bool) config('chatbot.quick_replies_enabled')), [
                 'tokens_used' => $response->promptTokens + $response->completionTokens,
                 'resources' => $resources,
             ]);
@@ -383,7 +383,7 @@ class ChatbotRunner
                 $bot->id,
             );
 
-            $result = array_merge(app(ChatReplyOptions::class)->parse($response->content), [
+            $result = array_merge(app(ChatReplyOptions::class)->parse($response->content, (bool) config('chatbot.quick_replies_enabled')), [
                 'tokens_used' => $response->promptTokens + $response->completionTokens,
                 'resources' => $resources,
             ]);

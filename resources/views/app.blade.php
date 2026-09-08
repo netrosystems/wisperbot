@@ -227,7 +227,40 @@
             window.WisperBotSettings = @json($wisperBotVisitor);
         </script>
         @endif
-        @php($landingWidgetKey = app()->environment('local') ? rescue(static fn () => \App\Modules\Inbox\Models\ChatWidget::where('enabled', true)->value('widget_key'), null, false) : 'YuPwdXYo153pZso1LrOmSzlW4Y42OVkq')
+        @php($landingWidgetKey = app()->environment('local') ? '1nDZkiMSJ6y7pjSWadRAMotops506C5V' : 'YuPwdXYo153pZso1LrOmSzlW4Y42OVkq')
+        @if(app()->environment('local') && $landingWidgetKey)
+        @php($localWidget = \App\Modules\Inbox\Models\ChatWidget::where('widget_key', $landingWidgetKey)->first())
+        @php($localVisitor = $wisperBotVisitor)
+        @if($localVisitor && $localWidget?->identity_secret)
+        @php($localVisitor['user_hash'] = hash_hmac('sha256', $localVisitor['external_id'], $localWidget->identity_secret))
+        @endif
+        <script>
+            (function () {
+                var visitor = @json($localVisitor);
+                var initialUserId = @json($widgetUser ? (string) $widgetUser->getAuthIdentifier() : null);
+                // Supply identity before the async widget initializes.
+                window.WisperBotSettings = visitor || {};
+                var attempts = 0;
+                var timer = setInterval(function () {
+                    if (typeof window.WisperBot === 'function') {
+                        clearInterval(timer);
+                        window.WisperBot(visitor ? 'identify' : 'logout', visitor || undefined);
+                    } else if (++attempts >= 200) {
+                        clearInterval(timer);
+                    }
+                }, 100);
+                // Inertia sign-in/out does not normally reload this document.
+                // Reload only on identity changes to obtain a server-signed identity.
+                document.addEventListener('inertia:navigate', function (event) {
+                    var user = event.detail.page.props.auth?.user;
+                    var nextUserId = user ? String(user.id) : null;
+                    if (nextUserId === initialUserId) return;
+                    if (typeof window.WisperBot === 'function') window.WisperBot('logout');
+                    window.location.reload();
+                });
+            })();
+        </script>
+        @endif
         @if($landingWidgetKey)
         <script src="{{ url('/widgets/chat/'.$landingWidgetKey.'.js') }}" async></script>
         @endif

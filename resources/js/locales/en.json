@@ -1,4 +1,10 @@
 {
+    "widget_appearance": {
+        "smart_bot_first": "Let a Smart Bot answer first",
+        "smart_bot": "Smart Bot",
+        "select_smart_bot": "Select a Smart Bot…",
+        "no_smart_bots": "No active Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here."
+    },
     "0": {
         "01": "01",
         "07em": "07Em",
