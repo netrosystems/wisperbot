@@ -13,6 +13,8 @@ Always run `git status --short` and inspect recent history before starting; this
 
 ## Current focus
 
+2026-09-08 static-analysis follow-up: removed only the 16 baseline entries pointing to deleted Leads/Twitter files, retaining analysis level and unmatched-ignore checks. `composer analyse` now executes and reports 1,000+ application-wide errors. Main remains held pending resolution or an explicitly approved release-gate exception; this cleanup is not a passing analysis result. See `KNOWN_ISSUES.md`.
+
 2026-09-08 branch handoff: local header explicitly uses the requested existing widget, supplies server-signed signed-in identity, and resets identity across Inertia sign-in/out transitions. This override is gated to the local environment; production widget selection is unchanged. Verification: 41 focused backend tests (160 assertions), 35 frontend tests and production build pass. Full static analysis remains blocked by pre-existing missing Leads/Twitter ignore paths. Local widget UI was exercised with simulated multi-industry responses; real local provider/KB and native SDK verification remain outstanding. Mobile SDK repository is excluded. No migration or application version increment is required for these changes.
 
 2026-09-08 durable product clarification: dynamic Smart Bot questions/CTA replies are an existing industry-independent SaaS capability. `AGENTS.md` now routes this work to the explicit product invariants and `docs/CHAT_REPLY_OPTIONS.md`; the guide distinguishes merged server/widget code, uncommitted hardening, unresolved live verification and the app-team-owned SDK release. Do not treat client examples or limited English recovery as the platform design. This follow-up changes documentation only and preserves preceding code edits.

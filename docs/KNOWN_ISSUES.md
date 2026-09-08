@@ -2,6 +2,10 @@
 
 Status snapshot: 2026-09-03. Remove an item only when the fix is verified and recorded in `CHANGELOG.md`.
 
+## Static analysis release gate (2026-09-08)
+
+Removed 16 obsolete baseline entries for deleted Leads and Twitter files. `composer analyse` now runs across the application but reports more than 1,000 errors (the default formatter truncates the report). Findings include model property types and `ExpireTrialsCommand` calling `isFuture()` on a string. The gate is not passing; do not describe the baseline cleanup as resolving application-wide analysis. Do not lower the level or blanket-suppress findings to unblock release.
+
 ## Website indexing boundaries
 
 Website discovery handles safe redirects, declared/common/compressed sitemaps, and a capped same-host link fallback. It cannot index authenticated pages or override a site's WAF, rate limits, DNS/TLS failures, or crawler restrictions. Fully client-rendered sites that return no useful HTML need a future opt-in browser-rendering service; clients should currently expose server-rendered help content or upload reviewed files. The UI reports actionable failures and never bypasses the target site's access controls.
