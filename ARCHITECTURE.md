@@ -66,7 +66,8 @@ flowchart TD
    - Mobile apps and external developer APIs use Laravel Sanctum Bearer tokens.
 2. **Encrypted Credentials**: External API keys, OAuth refresh tokens, and provider secrets are encrypted in the database (`Crypt::encryptString`) and never returned unmasked to the browser.
 3. **Public Widget Isolation**: Visitor conversations from `/widget/v1/*` are pinned to a unique session token. Unsigned identities remain anonymous; signed identities require server-side HMAC validation (`hash_hmac`).
-4. **Idempotent Webhook Processing**: Inbound webhooks (`/webhooks/*`) undergo cryptographic signature verification and payload deduplication before dispatching jobs onto background queues.
+4. **Scheduled Widget AI**: `chat_widgets.ai_schedule_json` stores workspace-owned weekly office hours, an IANA timezone, and inside/outside mode. `ChatWidget::shouldAiAnswerNow()` is the single runtime decision used by inbound webchat generation, public configuration, and handoff payloads. Invalid enabled schedules fail closed; other channels and deterministic auto-reply rules remain independent.
+5. **Idempotent Webhook Processing**: Inbound webhooks (`/webhooks/*`) undergo cryptographic signature verification and payload deduplication before dispatching jobs onto background queues.
 
 ---
 

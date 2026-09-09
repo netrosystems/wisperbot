@@ -1,7 +1,31 @@
-import { useForm } from '@inertiajs/react';
+import { useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Lock, MessageCircle, Send, Sparkles } from 'lucide-react';
+import { Bot, CalendarClock, Lock, MessageCircle, Send, Sparkles } from 'lucide-react';
+import TimezonePicker from '@/Components/TimezonePicker';
+
+const SCHEDULE_DAYS = [
+    ['mon', 'Monday'],
+    ['tue', 'Tuesday'],
+    ['wed', 'Wednesday'],
+    ['thu', 'Thursday'],
+    ['fri', 'Friday'],
+    ['sat', 'Saturday'],
+    ['sun', 'Sunday'],
+];
+
+function defaultAiSchedule(timezone) {
+    return {
+        enabled: false,
+        mode: 'outside_hours',
+        timezone: timezone || 'UTC',
+        schedule: Object.fromEntries(SCHEDULE_DAYS.map(([key], index) => [key, {
+            enabled: index < 5,
+            start: '09:00',
+            end: '17:00',
+        }])),
+    };
+}
 
 /** Small labelled field wrapper. */
 function Field({ label, hint, children }) {
@@ -19,7 +43,13 @@ const inputCls =
 
 function Toggle({ checked, onChange, label, description }) {
     return (
-        <button type="button" onClick={() => onChange(!checked)} className="flex w-full items-start gap-3 text-left">
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            onClick={() => onChange(!checked)}
+            className="flex w-full items-start gap-3 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900"
+        >
             <span className={`mt-0.5 relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition ${checked ? 'bg-brand-500' : 'bg-neutral-300 dark:bg-neutral-700'}`}>
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
             </span>
@@ -46,6 +76,8 @@ function Card({ title, icon, children }) {
 
 export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCustomLauncherLogo = false, submitLabel, onSubmit }) {
     const { t } = useTranslation();
+    const userTimezone = usePage().props.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const initialAiSchedule = widget?.ai_schedule_json ?? defaultAiSchedule(userTimezone);
 
     const { data, setData, processing, errors } = useForm({
         name: widget?.name ?? '',
@@ -64,6 +96,7 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
         enabled: widget?.enabled ?? true,
         ai_enabled: widget?.ai_enabled ?? false,
         ai_chatbot_id: widget?.ai_chatbot_id ?? '',
+        ai_schedule_json: initialAiSchedule,
         require_prechat: widget?.require_prechat ?? false,
         prechat_fields: widget?.prechat_fields ?? ['name', 'email'],
         offline_message: widget?.offline_message ?? '',
@@ -73,6 +106,7 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
 
     const [domainsText, setDomainsText] = useState((widget?.allowed_domains ?? []).join('\n'));
     const [launcherLogoPreview, setLauncherLogoPreview] = useState(widget?.launcher_logo_url ?? null);
+    const aiScheduleError = Object.entries(errors).find(([key]) => key.startsWith('ai_schedule_json'))?.[1];
 
     const togglePrechatField = (field) => {
         const has = data.prechat_fields.includes(field);
@@ -192,18 +226,107 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                         description="Off = messages go straight to your live agents. On = the AI replies instantly, then hands off to a human when needed."
                     />
                     {data.ai_enabled && (
-                        chatbots.length > 0 ? (
-                            <Field label={t('widget_appearance.smart_bot', 'Smart Bot')}>
-                                <select className={inputCls} value={data.ai_chatbot_id ?? ''} onChange={(e) => setData('ai_chatbot_id', e.target.value)}>
-                                    <option value="">{t('widget_appearance.select_smart_bot', 'Select a Smart Bot…')}</option>
-                                    {chatbots.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                </select>
-                            </Field>
-                        ) : (
-                            <p className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                                {t('widget_appearance.no_smart_bots', 'No active Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here.')}
-                            </p>
-                        )
+                        <>
+                            {chatbots.length > 0 ? (
+                                <Field label={t('widget_appearance.smart_bot', 'Smart Bot')}>
+                                    <select className={inputCls} value={data.ai_chatbot_id ?? ''} onChange={(e) => setData('ai_chatbot_id', e.target.value)}>
+                                        <option value="">{t('widget_appearance.select_smart_bot', 'Select a Smart Bot…')}</option>
+                                        {chatbots.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                    </select>
+                                </Field>
+                            ) : (
+                                <p className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                                    {t('widget_appearance.no_smart_bots', 'No active Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here.')}
+                                </p>
+                            )}
+
+                            <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                                <Toggle
+                                    checked={Boolean(data.ai_schedule_json?.enabled)}
+                                    onChange={(enabled) => setData('ai_schedule_json', {
+                                        ...(data.ai_schedule_json ?? defaultAiSchedule(userTimezone)),
+                                        enabled,
+                                    })}
+                                    label={t('widget_appearance.schedule_ai', 'Schedule AI answering')}
+                                    description={t('widget_appearance.schedule_ai_hint', 'Set office hours and choose whether the Smart Bot answers during them or while your team is away.')}
+                                />
+
+                                {data.ai_schedule_json?.enabled && (
+                                    <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                                        <div className="mb-3 flex items-start gap-2">
+                                            <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+                                            <div>
+                                                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                                    {t('widget_appearance.ai_schedule_heading', 'AI schedule')}
+                                                </p>
+                                                <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                                    {t('widget_appearance.ai_schedule_description', 'Set your normal office hours, then choose whether AI answers inside or outside them.')}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <Field label={t('widget_appearance.ai_answers_when', 'AI answers')}>
+                                                <select
+                                                    className={inputCls}
+                                                    value={data.ai_schedule_json.mode}
+                                                    onChange={(e) => setData('ai_schedule_json', { ...data.ai_schedule_json, mode: e.target.value })}
+                                                >
+                                                    <option value="outside_hours">{t('widget_appearance.outside_office_hours', 'Outside office hours (recommended)')}</option>
+                                                    <option value="inside_hours">{t('widget_appearance.during_office_hours', 'During office hours')}</option>
+                                                </select>
+                                            </Field>
+                                            <Field label={t('widget_appearance.schedule_timezone', 'Timezone')}>
+                                                <TimezonePicker
+                                                    value={data.ai_schedule_json.timezone}
+                                                    onChange={(timezone) => setData('ai_schedule_json', { ...data.ai_schedule_json, timezone })}
+                                                />
+                                            </Field>
+                                        </div>
+
+                                        <div className="mt-4 overflow-hidden rounded-lg border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
+                                            <div className="grid grid-cols-[minmax(88px,1fr)_96px_96px] gap-2 border-b border-neutral-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-400 dark:border-neutral-800">
+                                                <span>{t('widget_appearance.office_day', 'Office day')}</span>
+                                                <span>{t('widget_appearance.opens', 'Opens')}</span>
+                                                <span>{t('widget_appearance.closes', 'Closes')}</span>
+                                            </div>
+                                            {SCHEDULE_DAYS.map(([key, label]) => {
+                                                const hours = data.ai_schedule_json.schedule?.[key] ?? { enabled: false, start: '09:00', end: '17:00' };
+                                                const updateHours = (changes) => setData('ai_schedule_json', {
+                                                    ...data.ai_schedule_json,
+                                                    schedule: {
+                                                        ...data.ai_schedule_json.schedule,
+                                                        [key]: { ...hours, ...changes },
+                                                    },
+                                                });
+
+                                                return (
+                                                    <div key={key} className="grid grid-cols-[minmax(88px,1fr)_96px_96px] items-center gap-2 border-b border-neutral-100 px-3 py-2 last:border-b-0 dark:border-neutral-800">
+                                                        <label className="flex min-w-0 items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={Boolean(hours.enabled)}
+                                                                onChange={(e) => updateHours({ enabled: e.target.checked })}
+                                                                className="rounded border-neutral-300 text-brand-500 focus:ring-brand-500/30"
+                                                            />
+                                                            <span className="truncate">{t(`common.${key}`, label)}</span>
+                                                        </label>
+                                                        <input aria-label={`${label} opens`} type="time" value={hours.start} disabled={!hours.enabled} onChange={(e) => updateHours({ start: e.target.value })} className={`${inputCls} px-2 disabled:opacity-40`} />
+                                                        <input aria-label={`${label} closes`} type="time" value={hours.end} disabled={!hours.enabled} onChange={(e) => updateHours({ end: e.target.value })} className={`${inputCls} px-2 disabled:opacity-40`} />
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                                            {data.ai_schedule_json.mode === 'outside_hours'
+                                                ? t('widget_appearance.closed_day_ai_hint', 'On unchecked days your office is closed, so AI answers all day.')
+                                                : t('widget_appearance.closed_day_rest_hint', 'On unchecked days your office is closed, so AI rests all day.')}
+                                        </p>
+                                        {aiScheduleError && <p role="alert" className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{aiScheduleError}</p>}
+                                    </div>
+                                )}
+                            </div>
+                        </>
                     )}
                 </Card>
 

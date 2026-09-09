@@ -7,6 +7,8 @@ use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\PusherPublicConfig;
 use App\Services\StorageManager;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
@@ -25,7 +27,7 @@ class ChatWidget extends Model
         'title', 'subtitle', 'welcome_message', 'agent_name', 'avatar_url',
         'primary_color', 'position', 'launcher_text', 'footer_company_name',
         'launcher_logo_path', 'launcher_logo_disk',
-        'ai_enabled', 'ai_chatbot_id', 'require_prechat', 'prechat_fields',
+        'ai_enabled', 'ai_chatbot_id', 'ai_schedule_json', 'require_prechat', 'prechat_fields',
         'offline_message', 'allowed_domains', 'working_hours_json', 'enabled',
         'identity_verification', 'identity_secret',
     ];
@@ -38,6 +40,7 @@ class ChatWidget extends Model
     {
         return [
             'ai_enabled' => 'boolean',
+            'ai_schedule_json' => 'array',
             'require_prechat' => 'boolean',
             'enabled' => 'boolean',
             'identity_verification' => 'boolean',
@@ -92,6 +95,57 @@ class ChatWidget extends Model
             && (int) $chatbot->workspace_id === (int) $this->workspace_id;
     }
 
+    public function shouldAiAnswerNow(?CarbonInterface $at = null): bool
+    {
+        if (! $this->hasActiveAiChatbot()) {
+            return false;
+        }
+
+        $schedule = $this->ai_schedule_json;
+        if (empty($schedule['enabled'])) {
+            return true;
+        }
+
+        $timezone = (string) ($schedule['timezone'] ?? '');
+        $mode = (string) ($schedule['mode'] ?? '');
+        if ($timezone === '' || ! in_array($timezone, timezone_identifiers_list(), true)
+            || ! in_array($mode, ['outside_hours', 'inside_hours'], true)) {
+            return false;
+        }
+
+        $now = CarbonImmutable::instance($at ?? now())->setTimezone($timezone);
+        $day = strtolower($now->format('D'));
+        $hours = $schedule['schedule'][$day] ?? null;
+
+        // A disabled day means the business is closed all day. AI therefore
+        // runs all day in outside-hours mode and rests in inside-hours mode.
+        if (! is_array($hours) || empty($hours['enabled'])) {
+            return $mode === 'outside_hours';
+        }
+
+        $start = $this->scheduleMinutes($hours['start'] ?? null);
+        $end = $this->scheduleMinutes($hours['end'] ?? null);
+        if ($start === null || $end === null || $start >= $end) {
+            return false;
+        }
+
+        $current = ((int) $now->format('H') * 60) + (int) $now->format('i');
+        $inside = $current >= $start && $current < $end;
+
+        return $mode === 'inside_hours' ? $inside : ! $inside;
+    }
+
+    private function scheduleMinutes(mixed $value): ?int
+    {
+        if (! is_string($value) || preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value) !== 1) {
+            return null;
+        }
+
+        [$hours, $minutes] = array_map('intval', explode(':', $value));
+
+        return ($hours * 60) + $minutes;
+    }
+
     public function getLauncherLogoUrlAttribute(): ?string
     {
         if (! $this->launcher_logo_path || ! $this->canUseCustomLauncherLogo()) {
@@ -141,7 +195,7 @@ class ChatWidget extends Model
             'team_members' => $teamMembers,
             'team_member_count' => count($teamMembers),
             // Only expose whether AI is active; never expose the internal bot id.
-            'ai_enabled' => $this->hasActiveAiChatbot(),
+            'ai_enabled' => $this->shouldAiAnswerNow(),
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,

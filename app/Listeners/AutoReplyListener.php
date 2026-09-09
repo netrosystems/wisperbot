@@ -6,6 +6,7 @@ use App\Events\MessageReceived;
 use App\Events\MessageSent;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Services\ChatbotRunner;
+use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
@@ -103,6 +104,16 @@ class AutoReplyListener
         $chatbotId = $channelAccount->meta_json['ai_chatbot_id'] ?? null;
         if (! $chatbotId) {
             return;
+        }
+
+        if ($message->channel === 'webchat') {
+            $widget = ChatWidget::where('workspace_id', $conversation->workspace_id)
+                ->where('channel_account_id', $channelAccount->id)
+                ->first();
+
+            if (! $widget?->shouldAiAnswerNow()) {
+                return;
+            }
         }
 
         $chatbot = AiChatbot::find($chatbotId);

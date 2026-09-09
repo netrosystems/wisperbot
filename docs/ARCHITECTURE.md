@@ -34,7 +34,7 @@ Modules are auto-discovered by `App\Providers\ModuleServiceProvider` from `app/M
 | Module | Responsibility |
 | --- | --- |
 | `Shared` | Contacts, segments, conversations, messages, channel accounts, common contracts/services. |
-| `Inbox` | Omni-channel agent inbox, website widgets, Meta/Telegram/email/eBay/Amazon setup, presence, notes, labels, canned replies. |
+| `Inbox` | Omni-channel agent inbox, website widgets, server-evaluated widget AI schedules, Meta/Telegram/email/eBay/Amazon setup, presence, notes, labels, canned replies. |
 | `Whatsapp` | WABA/phone setup, templates, auto replies, inbound WhatsApp processing, WA chatbot widgets. |
 | `Social` | Social OAuth accounts, composer, scheduled publishing, provider capability handling, token refresh. |
 | `AI` | Provider configuration, knowledge bases, indexing, vector retrieval, smart bots, playground. |

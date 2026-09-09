@@ -17,6 +17,8 @@ Every client-owned query must scope records to a workspace the authenticated use
 
 Client notification rows and delivery payloads include the originating `workspace_id`. Bell counts, lists, mark-read, mark-all-read, and deletion are scoped to the active accessible workspace on both session and Sanctum APIs. Realtime clients discard events from other workspaces, while push consumers receive the workspace identifier and must validate/switch workspace before following a deep link. A notification producer must capture scope from its source entity before queueing; mutable `users.workspace_id` is only a legacy fallback for account-level notices.
 
+Website AI schedules are stored on the workspace-owned `chat_widgets` record and updated only through the existing workspace-authorized Appearance route. The server evaluates the stored IANA timezone on every inbound webchat message; public widget responses expose only the resulting AI availability boolean, never the schedule or Smart Bot identifier.
+
 ### Knowledge Base trust boundary
 
 Smart Bots with an assigned Knowledge Base are knowledge-only unless the workspace explicitly enables general answers. Retrieval failure bypasses chat generation, and strict generated output must affirm grounding before credit finalization. Conversation history can clarify a short follow-up but is never treated as verified evidence; substantive new topics are retrieved independently to prevent unrelated questions from inheriting an earlier business context.

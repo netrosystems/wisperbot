@@ -9,8 +9,8 @@ use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\StorageManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -165,6 +165,15 @@ class ChatWidgetController extends Controller
             'launcher_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:2048'],
             'remove_launcher_logo' => ['nullable', 'boolean'],
             'ai_chatbot_id' => ['nullable', 'integer'],
+            'ai_schedule_json' => ['nullable', 'array'],
+            'ai_schedule_json.enabled' => ['required_with:ai_schedule_json', 'boolean'],
+            'ai_schedule_json.mode' => ['required_if:ai_schedule_json.enabled,true', 'in:outside_hours,inside_hours'],
+            'ai_schedule_json.timezone' => ['required_if:ai_schedule_json.enabled,true', 'string', 'max:64', 'timezone:all'],
+            'ai_schedule_json.schedule' => ['required_if:ai_schedule_json.enabled,true', 'array'],
+            'ai_schedule_json.schedule.*' => ['array'],
+            'ai_schedule_json.schedule.*.enabled' => ['required', 'boolean'],
+            'ai_schedule_json.schedule.*.start' => ['required', 'date_format:H:i'],
+            'ai_schedule_json.schedule.*.end' => ['required', 'date_format:H:i'],
             'prechat_fields' => ['nullable', 'array'],
             'offline_message' => ['nullable', 'string', 'max:512'],
             'allowed_domains' => ['nullable', 'array'],
@@ -177,9 +186,48 @@ class ChatWidgetController extends Controller
         $data['identity_verification'] = $request->boolean('identity_verification');
         $data['enabled'] = $request->has('enabled') ? $request->boolean('enabled') : true;
 
+        $data['ai_schedule_json'] = $this->normalizeAiSchedule($data['ai_schedule_json'] ?? null);
+        if (! empty($data['ai_schedule_json']['enabled'])) {
+            foreach ($data['ai_schedule_json']['schedule'] as $day => $hours) {
+                if ($hours['enabled'] && $hours['start'] >= $hours['end']) {
+                    throw ValidationException::withMessages([
+                        "ai_schedule_json.schedule.{$day}.end" => 'Closing time must be later than opening time.',
+                    ]);
+                }
+            }
+        }
+
         unset($data['launcher_logo'], $data['remove_launcher_logo']);
 
         return $data;
+    }
+
+    /**
+     * @param  array<string,mixed>|null  $schedule
+     * @return array<string,mixed>|null
+     */
+    private function normalizeAiSchedule(?array $schedule): ?array
+    {
+        if ($schedule === null) {
+            return null;
+        }
+
+        $days = [];
+        foreach (['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as $day) {
+            $value = $schedule['schedule'][$day] ?? [];
+            $days[$day] = [
+                'enabled' => filter_var($value['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'start' => (string) ($value['start'] ?? '09:00'),
+                'end' => (string) ($value['end'] ?? '17:00'),
+            ];
+        }
+
+        return [
+            'enabled' => filter_var($schedule['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'mode' => (string) ($schedule['mode'] ?? 'outside_hours'),
+            'timezone' => (string) ($schedule['timezone'] ?? 'UTC'),
+            'schedule' => $days,
+        ];
     }
 
     /** @param array<string, mixed> $data */

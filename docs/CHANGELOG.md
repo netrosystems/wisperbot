@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added optional, timezone-aware Smart Bot scheduling to Website Widget Appearance. Clients can run AI inside or outside per-day office hours; enforcement happens server-side for inbound webchat messages and stays synchronized with public handoff availability. Scheduling defaults off, so existing widgets remain continuously available until configured. Deployment requires the new chat-widget schedule migration and matching frontend/backend.
+
 - Made Smart Bots knowledge-only by default whenever a Knowledge Base is assigned, independent of the guarded-publishing rollout flag. Unrelated or unsupported questions now bypass chat generation when retrieval fails, provider output must pass a grounding contract before credits finalize, and clients can explicitly enable safe general answers with a plain-language setting. Short CTA/follow-up replies retain nearby conversational context without letting prior topics legitimize a substantive unrelated request.
 
 - Scoped client notifications end to end by originating workspace. Web and Sanctum APIs now isolate list/count/read/delete operations, realtime ignores inactive-workspace events, push payloads identify their workspace, and background recipients include owners plus pivot members without leaking notifications across workspaces. Deployment requires the matching notification migration and refreshed backend/frontend/queue processes.

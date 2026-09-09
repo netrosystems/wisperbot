@@ -84,6 +84,7 @@ Brand Orange:    #FF762E   Accent Amber:   #FFBF00   Highlight:    #FFF78D   Cor
 ### 4.1 Standard Page Layout (`ClientLayout`)
 - **Used For**: Dashboard, Settings, Team Management, Contacts Directory, Billing, Reports.
 - **Structure**: Centered content container (`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8`). Includes page header with breadcrumb navigation and right-aligned action buttons.
+- **Contextual schedules**: Keep timing controls beside the feature they govern. Widget Appearance places the AI schedule beneath AI answering, uses a plain-language inside/outside-office-hours choice, a searchable timezone control, and compact seven-day rows. Explain disabled-day behavior in text; never rely on color alone.
 
 ### 4.2 Viewport-Pinned Layout (`InboxLayout`)
 - **Used For**: Omni-Channel Inbox and Master Email Inbox.

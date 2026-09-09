@@ -3,7 +3,20 @@
         "smart_bot_first": "Let a Smart Bot answer first",
         "smart_bot": "Smart Bot",
         "select_smart_bot": "Select a Smart Bot…",
-        "no_smart_bots": "No active Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here."
+        "no_smart_bots": "No active Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here.",
+        "schedule_ai": "Schedule AI answering",
+        "schedule_ai_hint": "Set office hours and choose whether the Smart Bot answers during them or while your team is away.",
+        "ai_schedule_heading": "AI schedule",
+        "ai_schedule_description": "Set your normal office hours, then choose whether AI answers inside or outside them.",
+        "ai_answers_when": "AI answers",
+        "outside_office_hours": "Outside office hours (recommended)",
+        "during_office_hours": "During office hours",
+        "schedule_timezone": "Timezone",
+        "office_day": "Office day",
+        "opens": "Opens",
+        "closes": "Closes",
+        "closed_day_ai_hint": "On unchecked days your office is closed, so AI answers all day.",
+        "closed_day_rest_hint": "On unchecked days your office is closed, so AI rests all day."
     },
     "0": {
         "01": "01",
