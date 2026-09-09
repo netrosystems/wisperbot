@@ -15,14 +15,15 @@ const TONE_COLORS = {
     casual: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
 };
 
-function ToggleSwitch({ checked, onChange }) {
+function ToggleSwitch({ checked, onChange, label }) {
     return (
         <button
             type="button"
             role="switch"
             aria-checked={checked}
+            aria-label={label}
             onClick={() => onChange(!checked)}
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${checked ? 'bg-brand-600' : 'bg-neutral-200 dark:bg-neutral-700'}`}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 ${checked ? 'bg-brand-600' : 'bg-neutral-200 dark:bg-neutral-700'}`}
         >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
         </button>
@@ -186,6 +187,14 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
         ai_kb_id: chatbot.ai_kb_id ?? '',
         enabled: chatbot.enabled,
     });
+    const [unsupportedFallbackAction, setUnsupportedFallbackAction] = useState(
+        chatbot.unsupported_answer_action === 'handoff' ? 'handoff' : 'clarify_then_handoff',
+    );
+    const answersOutsideKnowledgeBase = data.unsupported_answer_action === 'general';
+
+    const setAnswersOutsideKnowledgeBase = (enabled) => {
+        setData('unsupported_answer_action', enabled ? 'general' : unsupportedFallbackAction);
+    };
 
     const save = (e) => {
         e.preventDefault();
@@ -341,11 +350,48 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                                 <input type="number" min={0} max={1} step={0.01} value={data.video_match_threshold} onChange={e => setData('video_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100" />
                             </div>
                             <div className="flex items-center gap-3 pt-5">
-                                <ToggleSwitch checked={data.enabled} onChange={v => setData('enabled', v)} />
+                                <ToggleSwitch checked={data.enabled} onChange={v => setData('enabled', v)} label={t('common.active')} />
                                 <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('common.active')}</span>
                             </div>
                         </div>
-                        <div className="space-y-1"><label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">When no verified answer exists</label><select value={data.unsupported_answer_action} onChange={e => setData('unsupported_answer_action', e.target.value)} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"><option value="clarify_then_handoff">Ask one detail, then offer human help</option><option value="handoff">Offer human help immediately</option><option value="general">General help (never invent business facts)</option></select></div>
+                        {data.ai_kb_id && <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                        {t('ai.answer_outside_kb', 'Answer outside the Knowledge Base')}
+                                    </p>
+                                    <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
+                                        {answersOutsideKnowledgeBase
+                                            ? t('ai.answer_outside_kb_on_hint', 'On: the Smart Bot may answer safe general questions. Business-specific facts still require Knowledge Base support.')
+                                            : t('ai.answer_outside_kb_off_hint', 'Off (recommended): unsupported or unrelated questions use your fallback instead of general AI knowledge.')}
+                                    </p>
+                                </div>
+                                <ToggleSwitch
+                                    checked={answersOutsideKnowledgeBase}
+                                    onChange={setAnswersOutsideKnowledgeBase}
+                                    label={t('ai.answer_outside_kb', 'Answer outside the Knowledge Base')}
+                                />
+                            </div>
+
+                            {!answersOutsideKnowledgeBase && (
+                                <div className="mt-3 border-t border-neutral-200 pt-3 dark:border-neutral-700">
+                                    <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                                        {t('ai.when_no_verified_answer', 'When no verified answer exists')}
+                                    </label>
+                                    <select
+                                        value={data.unsupported_answer_action}
+                                        onChange={e => {
+                                            setUnsupportedFallbackAction(e.target.value);
+                                            setData('unsupported_answer_action', e.target.value);
+                                        }}
+                                        className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                                    >
+                                        <option value="clarify_then_handoff">{t('ai.unsupported_clarify', 'Ask for a relevant detail, then offer human help')}</option>
+                                        <option value="handoff">{t('ai.unsupported_handoff', 'Offer human help immediately')}</option>
+                                    </select>
+                                </div>
+                            )}
+                        </div>}
 
                         <div className="flex gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
                             <button

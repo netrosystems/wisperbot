@@ -2,6 +2,7 @@
 
 namespace App\Modules\AI\Services;
 
+use App\Modules\AI\Exceptions\AiOutputRejectedException;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKbAnswerCache;
 use App\Modules\AI\Models\AiKbEmbeddingCache;
@@ -31,10 +32,11 @@ class ChatbotRunner
         $body = $inboundMessage->body ?? '';
         $workspaceId = $conversation->workspace_id;
         $guarded = (bool) config('knowledge_base.guarded_publishing');
-        $kb = $guarded && $bot->ai_kb_id
+        $knowledgeOnly = $this->restrictsToKnowledgeBase($bot);
+        $kb = $bot->ai_kb_id
             ? AiKnowledgeBase::where('workspace_id', $workspaceId)->find($bot->ai_kb_id)
             : null;
-        $revisionId = $kb?->published_revision_id;
+        $revisionId = $guarded ? $kb?->published_revision_id : null;
 
         if ($guarded && $bot->ai_kb_id && ! $revisionId) {
             return $this->unsupportedResult($bot);
@@ -50,11 +52,16 @@ class ChatbotRunner
             return ['reply' => $cached->answer, 'tokens_used' => 0, 'resources' => $cached->resources ?? []];
         }
 
+        $history = $this->conversationHistory($conversation, $inboundMessage);
+        $retrievalQuestion = ($guarded || $knowledgeOnly)
+            ? $this->retrievalQuestion($body, $history)
+            : $body;
+
         // 1. Embed the user query
         $queryEmbedding = [];
         if ($bot->ai_kb_id) {
             try {
-                $queryEmbedding = $this->queryEmbedding($workspaceId, $body);
+                $queryEmbedding = $this->queryEmbedding($workspaceId, $retrievalQuestion);
             } catch (\Throwable $e) {
                 if ($throwProviderErrors) {
                     throw $e;
@@ -70,12 +77,18 @@ class ChatbotRunner
         }
 
         // 2. Retrieve top-k relevant chunks
-        $retrieval = ['context' => '', 'candidates' => []];
+        $retrieval = [
+            'context' => '',
+            'candidates' => [],
+            'best_score' => 0.0,
+            'passages_used' => 0,
+            'context_tokens' => 0,
+        ];
         if ($bot->ai_kb_id && ! empty($queryEmbedding)) {
             $retrieval = $this->retrieveContext(
                 (int) $bot->ai_kb_id,
                 $queryEmbedding,
-                $body,
+                $retrievalQuestion,
                 (int) ($bot->max_context_chunks ?? 3),
                 $revisionId,
                 (float) ($bot->retrieval_match_threshold ?? 0.60),
@@ -83,15 +96,17 @@ class ChatbotRunner
             );
         }
 
-        if ($guarded && $bot->ai_kb_id && $retrieval['context'] === '') {
-            $this->recordGap($bot, $workspaceId, $body, (float) ($retrieval['best_score'] ?? 0));
-            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff');
+        if ($knowledgeOnly && $retrieval['context'] === '') {
+            if ($guarded) {
+                $this->recordGap($bot, $workspaceId, $body, (float) ($retrieval['best_score'] ?? 0));
+                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff');
+            }
 
             return $this->unsupportedResult($bot);
         }
 
         // 3. Build prompt
-        $systemPrompt = $this->systemPrompt($bot, $conversation->contact);
+        $systemPrompt = $this->systemPrompt($bot, $conversation->contact, $knowledgeOnly);
         if ($retrieval['context'] !== '') {
             $systemPrompt .= "\n\nVerified business context, ranked by relevance:\n".$retrieval['context'];
         }
@@ -106,27 +121,7 @@ class ChatbotRunner
             $systemPrompt .= "\n\nUse this order information if the customer asks about their order status, shipping, or delivery:\n".$orderSummary;
         }
 
-        // Load recent conversation turns as context (last 20 messages)
-        $history = [];
-        $recentMessages = $conversation->messages()
-            ->whereIn('type', ['text', 'template'])
-            ->where('id', '!=', $inboundMessage->id)
-            ->orderByDesc('sent_at')
-            ->take(20)
-            ->get()
-            ->reverse()
-            ->values();
-
-        foreach ($recentMessages as $m) {
-            if (! $m->body) {
-                continue;
-            }
-            $history[] = [
-                'role' => $m->direction === 'out' ? 'assistant' : 'user',
-                'content' => $m->body,
-            ];
-        }
-        if ($guarded) {
+        if ($guarded || $knowledgeOnly) {
             $history = $this->boundedHistory($history, $body);
         }
 
@@ -146,7 +141,7 @@ class ChatbotRunner
                 $messages,
                 [
                     'max_tokens' => 160,
-                    'response_validator' => fn ($response) => app(ChatReplyOptions::class)->parse($response->content) !== null,
+                    'response_validator' => fn ($response) => $this->validChatResponse($response->content, $knowledgeOnly),
                     'diagnostics' => $selection['diagnostics'],
                     'feature' => 'chatbot_reply',
                     'idempotency_key' => $inboundMessage->exists
@@ -169,6 +164,15 @@ class ChatbotRunner
             }
 
             return $result;
+        } catch (AiOutputRejectedException $e) {
+            if ($knowledgeOnly) {
+                return $this->unsupportedResult($bot);
+            }
+            if ($throwProviderErrors) {
+                throw $e;
+            }
+
+            return ['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources];
         } catch (\Throwable $e) {
             if ($throwProviderErrors) {
                 throw $e;
@@ -305,10 +309,11 @@ class ChatbotRunner
         bool $throwProviderErrors = false,
     ): array {
         $guarded = (bool) config('knowledge_base.guarded_publishing');
-        $kb = $guarded && $bot->ai_kb_id
+        $knowledgeOnly = $this->restrictsToKnowledgeBase($bot);
+        $kb = $bot->ai_kb_id
             ? AiKnowledgeBase::where('workspace_id', $workspaceId)->find($bot->ai_kb_id)
             : null;
-        $revisionId = $kb?->published_revision_id;
+        $revisionId = $guarded ? $kb?->published_revision_id : null;
         if ($guarded && $bot->ai_kb_id && ! $revisionId) {
             return $this->unsupportedResult($bot);
         }
@@ -320,10 +325,14 @@ class ChatbotRunner
         }
 
         // 1. Embed the user query for RAG
+        $promptHistory = ($guarded || $knowledgeOnly) ? $this->boundedHistory($history, $message) : $history;
+        $retrievalQuestion = ($guarded || $knowledgeOnly)
+            ? $this->retrievalQuestion($message, $promptHistory)
+            : $message;
         $queryEmbedding = [];
         if ($bot->ai_kb_id) {
             try {
-                $queryEmbedding = $this->queryEmbedding($workspaceId, $message);
+                $queryEmbedding = $this->queryEmbedding($workspaceId, $retrievalQuestion);
             } catch (\Throwable) {
             }
         }
@@ -332,33 +341,40 @@ class ChatbotRunner
         }
 
         // 2. Retrieve top-k relevant chunks
-        $retrieval = ['context' => '', 'candidates' => []];
+        $retrieval = [
+            'context' => '',
+            'candidates' => [],
+            'best_score' => 0.0,
+            'passages_used' => 0,
+            'context_tokens' => 0,
+        ];
         if ($bot->ai_kb_id && ! empty($queryEmbedding)) {
             $retrieval = $this->retrieveContext(
                 (int) $bot->ai_kb_id,
                 $queryEmbedding,
-                $message,
+                $retrievalQuestion,
                 (int) ($bot->max_context_chunks ?? 3),
                 $revisionId,
                 (float) ($bot->retrieval_match_threshold ?? 0.60),
                 (int) ($bot->max_context_tokens ?? 1200),
             );
         }
-        if ($guarded && $bot->ai_kb_id && $retrieval['context'] === '') {
-            $this->recordGap($bot, $workspaceId, $message, (float) ($retrieval['best_score'] ?? 0));
+        if ($knowledgeOnly && $retrieval['context'] === '') {
+            if ($guarded) {
+                $this->recordGap($bot, $workspaceId, $message, (float) ($retrieval['best_score'] ?? 0));
+            }
 
             return $this->unsupportedResult($bot);
         }
 
         // 3. Build messages array
-        $systemPrompt = $this->systemPrompt($bot);
+        $systemPrompt = $this->systemPrompt($bot, null, $knowledgeOnly);
         if ($retrieval['context'] !== '') {
             $systemPrompt .= "\n\nVerified business context, ranked by relevance:\n".$retrieval['context'];
         }
         $selection = $this->selectVideoResource($retrieval['candidates'], $bot, $workspaceId);
         $resources = $selection['resources'];
 
-        $promptHistory = $guarded ? $this->boundedHistory($history, $message) : $history;
         $messages = array_merge(
             [['role' => 'system', 'content' => $systemPrompt]],
             $promptHistory,
@@ -375,7 +391,7 @@ class ChatbotRunner
                 $messages,
                 [
                     'max_tokens' => 160,
-                    'response_validator' => fn ($response) => app(ChatReplyOptions::class)->parse($response->content) !== null,
+                    'response_validator' => fn ($response) => $this->validChatResponse($response->content, $knowledgeOnly),
                     'diagnostics' => $selection['diagnostics'],
                     'feature' => 'chatbot_reply',
                     'idempotency_key' => $idempotencyKey ?? 'chatbot:api:'.(string) Str::uuid(),
@@ -395,6 +411,15 @@ class ChatbotRunner
             }
 
             return $result;
+        } catch (AiOutputRejectedException $e) {
+            if ($knowledgeOnly) {
+                return $this->unsupportedResult($bot);
+            }
+            if ($throwProviderErrors) {
+                throw $e;
+            }
+
+            return ['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources];
         } catch (\Throwable $e) {
             if ($throwProviderErrors) {
                 throw $e;
@@ -409,7 +434,7 @@ class ChatbotRunner
      * assistant to help with safe general questions that are not covered by the
      * workspace knowledge base.
      */
-    private function systemPrompt(AiChatbot $bot, mixed $contact = null): string
+    private function systemPrompt(AiChatbot $bot, mixed $contact = null, bool $knowledgeOnly = false): string
     {
         $prompt = trim((string) ($bot->system_prompt ?: 'You are a helpful customer support assistant.'));
         $name = trim((string) (($contact?->first_name ?? '').' '.($contact?->last_name ?? '')));
@@ -435,7 +460,26 @@ PROMPT;
             $prompt .= "\n- The customer's name is {$name}. Use it naturally only when it improves the reply.";
         }
 
-        return $prompt.(config('chatbot.quick_replies_enabled') ? ChatReplyOptions::INSTRUCTIONS : '');
+        if (config('chatbot.quick_replies_enabled')) {
+            $prompt .= ChatReplyOptions::INSTRUCTIONS;
+        }
+
+        if ($knowledgeOnly) {
+            $prompt .= <<<'PROMPT'
+
+
+Knowledge scope (strict):
+- Answer only when the verified business context directly supports the current customer request.
+- Do not answer opinions, trivia, politics, news, entertainment, or other general-knowledge topics merely because you know about them.
+- Every factual claim in the reply must be supported by the verified business context. Conversation history may clarify the request but is not verified evidence.
+- For a supported answer, the JSON response must include "grounded": true.
+- If the context is missing, unrelated, or insufficient, return exactly {"reply":"","quick_replies":[],"grounded":false}. Do not provide a general answer or discuss the unrelated topic.
+PROMPT;
+        } elseif ($bot->ai_kb_id) {
+            $prompt .= "\n- Safe general-knowledge help is enabled. Clearly separate it from company-specific facts and never imply that general knowledge came from the business Knowledge Base.";
+        }
+
+        return $prompt;
     }
 
     /**
@@ -443,7 +487,10 @@ PROMPT;
      * customer wording. This reduces near-duplicate and semantically broad
      * passages from diluting the answer while retaining vector-search recall.
      */
-    /** @return array{context:string,candidates:array<int,array<string,mixed>>} */
+    /**
+     * @param  array<int,float|int>  $queryEmbedding
+     * @return array{context:string,candidates:array<int,array<string,mixed>>,best_score:float,passages_used:int,context_tokens:int}
+     */
     private function retrieveContext(
         int $kbId,
         array $queryEmbedding,
@@ -700,11 +747,92 @@ PROMPT;
         return false;
     }
 
+    private function restrictsToKnowledgeBase(AiChatbot $bot): bool
+    {
+        return $bot->ai_kb_id !== null
+            && ($bot->unsupported_answer_action ?? 'clarify_then_handoff') !== 'general';
+    }
+
+    private function validChatResponse(string $content, bool $knowledgeOnly): bool
+    {
+        if (app(ChatReplyOptions::class)->parse($content) === null) {
+            return false;
+        }
+        if (! $knowledgeOnly) {
+            return true;
+        }
+
+        $jsonText = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($content)) ?? trim($content);
+        $decoded = json_decode($jsonText, true);
+
+        return is_array($decoded) && ($decoded['grounded'] ?? null) === true;
+    }
+
+    /** @return array<int,array{role:string,content:string}> */
+    private function conversationHistory(mixed $conversation, Message $inboundMessage): array
+    {
+        $history = [];
+        $recentMessages = $conversation->messages()
+            ->whereIn('type', ['text', 'template'])
+            ->where('id', '!=', $inboundMessage->id)
+            ->orderByDesc('sent_at')
+            ->take(20)
+            ->get()
+            ->reverse()
+            ->values();
+
+        foreach ($recentMessages as $message) {
+            if (! $message->body) {
+                continue;
+            }
+            $history[] = [
+                'role' => $message->direction === 'out' ? 'assistant' : 'user',
+                'content' => $message->body,
+            ];
+        }
+
+        return $history;
+    }
+
+    /**
+     * Short CTA selections and follow-ups need their nearby question to retrieve
+     * the right passage. A substantive new topic must stand alone so an earlier
+     * business conversation cannot make an unrelated request appear relevant.
+     *
+     * @param  array<int,array{role?:string,content?:string}>  $history
+     */
+    private function retrievalQuestion(string $current, array $history): string
+    {
+        if (count($this->meaningfulTerms($current)) >= 3 || mb_strlen(trim($current)) > 90 || $history === []) {
+            return $current;
+        }
+
+        $nearby = array_slice(array_values(array_filter($history, fn ($turn) => in_array($turn['role'] ?? null, ['user', 'assistant'], true)
+            && trim((string) ($turn['content'] ?? '')) !== ''
+        )), -2);
+        if ($nearby === []) {
+            return $current;
+        }
+
+        $context = implode("\n", array_map(
+            fn ($turn) => ucfirst((string) $turn['role']).': '.mb_substr(trim((string) $turn['content']), 0, 300),
+            $nearby,
+        ));
+
+        return $context."\nCustomer follow-up: ".$current;
+    }
+
+    /** @return array{reply:string,tokens_used:int,resources:array<int,array<string,mixed>>} */
     private function unsupportedResult(AiChatbot $bot): array
     {
+        $customFallback = trim((string) $bot->fallback_reply);
+        if ($customFallback !== '') {
+            return ['reply' => $customFallback, 'tokens_used' => 0, 'resources' => []];
+        }
+
         $reply = match ($bot->unsupported_answer_action ?? 'clarify_then_handoff') {
             'handoff' => $bot->fallback_reply ?: 'I do not have a verified answer for that yet. Would you like me to connect you with a person?',
-            default => 'Could you share one more detail so I can find the right verified answer? If needed, I can connect you with a person.',
+            default => 'I can help with questions about this business, but I could not find verified information for that. Could you share a relevant product or service detail, or would you like human help?',
         };
 
         return ['reply' => $reply, 'tokens_used' => 0, 'resources' => []];

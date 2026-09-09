@@ -34,13 +34,18 @@ class AiChatbotApiTest extends TestCase
         $this->enableDeveloperTools($client->id, $user->id);
         $token = $user->createToken('t', ['*'])->plainTextToken;
 
-        AiChatbot::factory()->create(['workspace_id' => $workspace->id]);
+        AiChatbot::factory()->create([
+            'workspace_id' => $workspace->id,
+            'unsupported_answer_action' => 'general',
+        ]);
 
         $res = $this->withToken($token)
             ->getJson('/api/v1/ai/chatbots')
             ->assertOk();
 
         $this->assertCount(1, $res->json('data'));
+        $res->assertJsonPath('data.0.answer_outside_knowledge_base', true)
+            ->assertJsonPath('data.0.unsupported_answer_action', 'general');
     }
 
     public function test_chat_invocation_returns_reply(): void
@@ -53,6 +58,7 @@ class AiChatbotApiTest extends TestCase
         $chatbot = AiChatbot::factory()->create([
             'workspace_id' => $workspace->id,
             'ai_kb_id' => $kb->id,
+            'unsupported_answer_action' => 'general',
             'enabled' => true,
         ]);
         AiProviderConfig::create([

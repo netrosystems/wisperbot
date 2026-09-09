@@ -25,6 +25,8 @@ class AiChatbotApiController extends WorkspaceScopedController
                 'enabled' => $b->enabled,
                 'kb_id' => $b->ai_kb_id,
                 'channels' => $b->channels ?? [],
+                'answer_outside_knowledge_base' => $b->unsupported_answer_action === 'general',
+                'unsupported_answer_action' => $b->unsupported_answer_action ?? 'clarify_then_handoff',
                 'video_match_threshold' => $b->video_match_threshold ?? 0.72,
                 'created_at' => $b->created_at->toIso8601String(),
             ]);

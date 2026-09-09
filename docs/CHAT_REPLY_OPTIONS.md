@@ -18,6 +18,8 @@ Smart Bots may offer two or three short choices when clarification or a next top
 
 The web widget renders compact wrapping buttons. The customer SDK must implement equivalent behavior as part of its separate release. Only the latest support message has active choices; a customer response, pending send, or human handoff disables them. Historical choices remain readable. The agent inbox renders noninteractive choice labels, so agents cannot accidentally submit a customer choice. Smart Bot Playground also supports choices and forwards bounded history so follow-up selections have context.
 
+Knowledge-only answer scope also applies to choice follow-ups. A short selected label may use the nearest two conversation turns to retrieve the business topic that produced it, while a substantive new customer topic is evaluated on its own. Choices and history never become verified evidence. If the Knowledge Base cannot support the next branch, the Smart Bot uses its fallback rather than answering from general knowledge; enabling general answers is an explicit per-bot choice.
+
 ## Additive contract
 
 Outbound message type remains `text`. `body` (or AI API `reply`) retains numbered choices for older clients and external messaging channels:

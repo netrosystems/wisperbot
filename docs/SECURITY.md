@@ -19,6 +19,8 @@ Client notification rows and delivery payloads include the originating `workspac
 
 ### Knowledge Base trust boundary
 
+Smart Bots with an assigned Knowledge Base are knowledge-only unless the workspace explicitly enables general answers. Retrieval failure bypasses chat generation, and strict generated output must affirm grounding before credit finalization. Conversation history can clarify a short follow-up but is never treated as verified evidence; substantive new topics are retrieved independently to prevent unrelated questions from inheriting an earlier business context.
+
 - Draft, blocked, rejected, degraded, disabled, cross-workspace, and non-published revision content is excluded from live retrieval.
 - URL/sitemap ingestion accepts public HTTPS destinations only, rejects credentials, localhost/private/reserved addresses, unsafe redirects, redirect loops, and cross-domain sitemap pages.
 - Deterministic review blocks likely secrets/private keys, excessive personal data, unreadable extraction, and prompt-injection-style instructions before embedding/publishing.

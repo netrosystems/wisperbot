@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Made Smart Bots knowledge-only by default whenever a Knowledge Base is assigned, independent of the guarded-publishing rollout flag. Unrelated or unsupported questions now bypass chat generation when retrieval fails, provider output must pass a grounding contract before credits finalize, and clients can explicitly enable safe general answers with a plain-language setting. Short CTA/follow-up replies retain nearby conversational context without letting prior topics legitimize a substantive unrelated request.
+
 - Scoped client notifications end to end by originating workspace. Web and Sanctum APIs now isolate list/count/read/delete operations, realtime ignores inactive-workspace events, push payloads identify their workspace, and background recipients include owners plus pivot members without leaking notifications across workspaces. Deployment requires the matching notification migration and refreshed backend/frontend/queue processes.
 
 - In-progress analysis remediation: recognize modular database schema and model casts, type model relationships, and remove obsolete baseline suppressions. Harden resumed Messenger selection and sitemap fetch state. Repository-wide analysis and the full test suite are not yet passing; no Main merge is authorized by these results.

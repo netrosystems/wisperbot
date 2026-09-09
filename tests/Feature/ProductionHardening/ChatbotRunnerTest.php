@@ -106,7 +106,11 @@ class ChatbotRunnerTest extends TestCase
                 $capturedMaxTokens = $body['max_tokens'] ?? null;
 
                 return Http::response([
-                    'choices' => [['message' => ['content' => 'Our refund policy is 30 days.']]],
+                    'choices' => [['message' => ['content' => json_encode([
+                        'reply' => 'Our refund policy is 30 days.',
+                        'quick_replies' => [],
+                        'grounded' => true,
+                    ])]]],
                     'usage' => ['prompt_tokens' => 50, 'completion_tokens' => 20],
                     'model' => 'gpt-4o-mini',
                 ], 200);
@@ -141,5 +145,153 @@ class ChatbotRunnerTest extends TestCase
         $this->assertStringContainsString('Never substitute general knowledge for business facts', $capturedSystemPrompt);
         $this->assertStringContainsString('Markdown link', $capturedSystemPrompt);
         $this->assertSame(160, $capturedMaxTokens);
+    }
+
+    public function test_knowledge_only_bot_bypasses_an_unrelated_question_without_calling_chat(): void
+    {
+        $data = $this->createWorkspaceContext();
+        $workspace = $data['workspace'];
+        [$chatbot, $message] = $this->botWithKnowledge(
+            $workspace->id,
+            'clarify_then_handoff',
+            'Barack Obama was the best president ever.',
+        );
+
+        Http::fake([
+            'api.openai.com/v1/embeddings' => Http::response([
+                'data' => [['embedding' => [0.0, 1.0, 0.0]]],
+            ]),
+            'api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => 'A political opinion from general knowledge.']]],
+            ]),
+        ]);
+
+        $result = app(ChatbotRunner::class)->run($chatbot, $message);
+
+        $this->assertSame(0, $result['tokens_used']);
+        $this->assertStringContainsString('this business', $result['reply']);
+        $this->assertStringNotContainsString('president', strtolower($result['reply']));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/chat/completions'));
+    }
+
+    public function test_general_answer_setting_allows_safe_questions_outside_the_knowledge_base(): void
+    {
+        $data = $this->createWorkspaceContext();
+        $workspace = $data['workspace'];
+        [$chatbot, $message] = $this->botWithKnowledge(
+            $workspace->id,
+            'general',
+            'What is the capital of France?',
+        );
+
+        Http::fake([
+            'api.openai.com/v1/embeddings' => Http::response([
+                'data' => [['embedding' => [0.0, 1.0, 0.0]]],
+            ]),
+            'api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => 'Paris is the capital of France.']]],
+                'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 7],
+                'model' => 'gpt-4o-mini',
+            ]),
+        ]);
+
+        $result = app(ChatbotRunner::class)->run($chatbot, $message);
+
+        $this->assertStringContainsString('Paris', $result['reply']);
+        $this->assertSame(27, $result['tokens_used']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/chat/completions'));
+    }
+
+    public function test_knowledge_only_bot_rejects_a_provider_answer_not_marked_as_grounded(): void
+    {
+        $data = $this->createWorkspaceContext();
+        $workspace = $data['workspace'];
+        [$chatbot, $message] = $this->botWithKnowledge(
+            $workspace->id,
+            'handoff',
+            'Tell me whether this unrelated opinion is correct.',
+        );
+
+        Http::fake([
+            'api.openai.com/v1/embeddings' => Http::response([
+                // Simulate an overly broad semantic match so the second guard is exercised.
+                'data' => [['embedding' => [1.0, 0.0, 0.0]]],
+            ]),
+            'api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => json_encode([
+                    'reply' => '',
+                    'quick_replies' => [],
+                    'grounded' => false,
+                ])]]],
+                'usage' => ['prompt_tokens' => 30, 'completion_tokens' => 5],
+                'model' => 'gpt-4o-mini',
+            ]),
+        ]);
+
+        $result = app(ChatbotRunner::class)->run($chatbot, $message);
+
+        $this->assertSame(0, $result['tokens_used']);
+        $this->assertStringContainsString('verified answer', $result['reply']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/chat/completions'));
+    }
+
+    /** @return array{AiChatbot, Message} */
+    private function botWithKnowledge(int $workspaceId, string $unsupportedAction, string $question): array
+    {
+        $kb = AiKnowledgeBase::create([
+            'workspace_id' => $workspaceId,
+            'name' => 'Business knowledge',
+            'embedding_model' => 'text-embedding-3-small',
+            'dimensions' => 3,
+            'status' => 'active',
+        ]);
+        $document = AiKbDocument::create([
+            'kb_id' => $kb->id,
+            'title' => 'Returns guide',
+            'source_type' => 'file',
+            'source_ref' => 'returns.md',
+            'status' => 'indexed',
+        ]);
+        $chunk = AiKbChunk::create([
+            'kb_id' => $kb->id,
+            'document_id' => $document->id,
+            'ord' => 0,
+            'content' => 'Customers may return unopened products within 30 days of delivery.',
+            'tokens' => 10,
+        ]);
+        app(EmbeddingStore::class)->storeEmbedding($chunk, [1.0, 0.0, 0.0]);
+
+        $chatbot = AiChatbot::create([
+            'workspace_id' => $workspaceId,
+            'name' => 'Support Bot',
+            'ai_kb_id' => $kb->id,
+            'retrieval_match_threshold' => 0.60,
+            'unsupported_answer_action' => $unsupportedAction,
+            'enabled' => true,
+        ]);
+        AiProviderConfig::create([
+            'workspace_id' => $workspaceId,
+            'provider' => 'openai',
+            'credentials' => ['api_key' => 'sk-test'],
+            'default_model_chat' => 'gpt-4o-mini',
+            'default_model_embed' => 'text-embedding-3-small',
+            'enabled' => true,
+            'last_tested_at' => now(),
+            'last_test_succeeded_at' => now(),
+        ]);
+
+        $contact = Contact::factory()->create(['workspace_id' => $workspaceId]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspaceId,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+        ]);
+        $message = new Message;
+        $message->body = $question;
+        $message->direction = 'in';
+        $message->channel = 'playground';
+        $message->setRelation('conversation', $conversation);
+
+        return [$chatbot, $message];
     }
 }

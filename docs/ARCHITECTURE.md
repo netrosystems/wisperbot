@@ -112,7 +112,7 @@ Knowledge Base client authoring exposes URL, file, and sitemap ingestion. Text, 
 2. `IndexDocumentJob` runs on the `ai` queue, extracts/chunks text, requests embeddings, and stores vectors.
 3. MySQL vector-like storage is the functional fallback; Qdrant is optional for scale.
    Root website discovery probes sitemaps before homepage content. Crawling distinguishes HTTP access failures from transport timeouts. `LlmGateway` rejects empty generation before credit finalization and records the resolved runtime model for failed attempts.
-4. Smart bots retrieve workspace/knowledge-base scoped context before generating a concise answer.
+4. Smart Bots retrieve workspace/knowledge-base scoped context before generating a concise answer. Unless the client explicitly enables general answers, `unsupported_answer_action` enforces knowledge-only behavior independently of `KB_GUARDED_PUBLISHING`: an empty/low-score retrieval returns the configured fallback before chat generation, and generated JSON must declare a grounded answer before credit finalization. Short replies and CTA selections may include only the nearest two turns in the retrieval query; substantive new topics stand alone so prior business context cannot make an unrelated request appear relevant.
 
 ### Social publishing
 
