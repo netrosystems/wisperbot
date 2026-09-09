@@ -2,11 +2,18 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Notifications\Notification;
 
-class WhatsappConnectionHealthNotification extends Notification
+class WhatsappConnectionHealthNotification extends Notification implements WorkspaceScopedNotification
 {
-    public function __construct(private readonly bool $recovered, private readonly bool $platform = false) {}
+    use HasWorkspaceScope;
+
+    public function __construct(private readonly bool $recovered, private readonly bool $platform = false, ?int $workspaceId = null)
+    {
+        $this->forWorkspace($platform ? null : $workspaceId);
+    }
 
     /** @return list<string> */
     public function via(object $notifiable): array

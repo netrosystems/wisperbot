@@ -2,30 +2,36 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class AiCreditsThresholdNotification extends Notification implements ShouldQueue
+class AiCreditsThresholdNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly int $threshold,
         public readonly int $used,
         public readonly int $allowance,
         public readonly string $resetsAt,
+        ?int $workspaceId = null,
     ) {
+        $this->forWorkspace($workspaceId);
         $this->afterCommit();
     }
 
+    /** @return array<int, string> */
     public function via(object $notifiable): array
     {
         return ['database', 'broadcast', 'mail'];
     }
 
+    /** @return array<string, mixed> */
     public function toArray(object $notifiable): array
     {
         return [

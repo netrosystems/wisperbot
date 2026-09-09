@@ -5,6 +5,8 @@ namespace Tests\Feature\Realtime;
 use App\Events\MessageReceived;
 use App\Listeners\SendNewMessageNotification;
 use App\Models\NotificationPreference;
+use App\Models\User;
+use App\Models\Workspace;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
@@ -82,5 +84,35 @@ class NotificationDeliveryTest extends TestCase
 
             return ! in_array('mail', $via);
         });
+    }
+
+    public function test_workspace_member_receives_notification_when_another_workspace_is_active(): void
+    {
+        Notification::fake();
+
+        $owner = User::factory()->create(['role' => 'client']);
+        $workspace = Workspace::factory()->create(['owner_id' => $owner->id]);
+        $member = User::factory()->create(['role' => 'client']);
+        $otherWorkspace = Workspace::factory()->create(['owner_id' => $member->id]);
+        $member->update(['workspace_id' => $otherWorkspace->id]);
+        $workspace->members()->attach($member->id, ['role' => 'member']);
+        $contact = Contact::factory()->create(['workspace_id' => $workspace->id]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+        ]);
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'in',
+            'channel' => 'whatsapp',
+            'body' => 'Message in shared workspace',
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
+        (new SendNewMessageNotification)->handle(new MessageReceived($message));
+
+        Notification::assertSentTo($member, NewMessageNotification::class, fn ($notification) => $notification->workspaceId($member) === $workspace->id);
     }
 }

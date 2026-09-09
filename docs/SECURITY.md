@@ -15,6 +15,8 @@ Last reviewed against code: 2026-08-21.
 
 Every client-owned query must scope records to a workspace the authenticated user can access. Never authorize only by a model ID supplied in the URL. Broadcast channel authorization, queued jobs, downloads/media, API controllers, and webhooks require the same ownership discipline.
 
+Client notification rows and delivery payloads include the originating `workspace_id`. Bell counts, lists, mark-read, mark-all-read, and deletion are scoped to the active accessible workspace on both session and Sanctum APIs. Realtime clients discard events from other workspaces, while push consumers receive the workspace identifier and must validate/switch workspace before following a deep link. A notification producer must capture scope from its source entity before queueing; mutable `users.workspace_id` is only a legacy fallback for account-level notices.
+
 ### Knowledge Base trust boundary
 
 - Draft, blocked, rejected, degraded, disabled, cross-workspace, and non-published revision content is excluded from live retrieval.

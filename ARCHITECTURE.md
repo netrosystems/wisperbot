@@ -182,6 +182,7 @@ classDiagram
 2. **Channel Asset Exclusivity**: A provider account (e.g. WhatsApp Phone Number ID, Facebook Page ID, Instagram Account ID) is bound exclusively to a single `workspace_id` to prevent cross-tenant message contamination.
 3. **Queue Job Hydration**: Queue jobs pass database IDs (not full serialized models) and re-verify tenant ownership at execution time.
 4. **WebSocket Authorization**: Channel authorization rules in `BroadcastChannelsServiceProvider` authenticate the active user's workspace membership before granting access to `workspace.{id}` or `conversation.{id}` channels.
+5. **Notification Scope**: Every client database, realtime, OneSignal, and web-push notification carries its originating `workspace_id`. Web and mobile list/count/read/delete operations are restricted to the authenticated user's active accessible workspace; producers resolve owners and pivot members, not only the legacy primary-workspace column.
 
 ---
 

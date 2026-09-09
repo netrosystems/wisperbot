@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\NotificationPreference;
+use App\Services\WorkspaceNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,20 +13,19 @@ use Inertia\Response;
 
 class NotificationController extends Controller
 {
+    public function __construct(private readonly WorkspaceNotificationService $notifications) {}
+
     /**
      * List unread notifications + preferences page.
      */
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $workspaceId = $this->notifications->currentWorkspaceId($request);
 
-        $notifications = $user->notifications()->latest()->limit(50)->get()->map(fn ($n) => [
-            'id' => $n->id,
-            'type' => class_basename($n->type),
-            'data' => $n->data,
-            'read_at' => $n->read_at?->toIso8601String(),
-            'created_at' => $n->created_at->toIso8601String(),
-        ]);
+        $notifications = $this->notifications->query($user, $workspaceId)
+            ->latest()->limit(50)->get()
+            ->map(fn ($notification) => $this->notifications->serialize($notification));
 
         $preferences = $user->notificationPreferences->groupBy('event')->map(fn ($group) => $group->mapWithKeys(fn ($p) => [$p->channel => $p->enabled]));
 
@@ -40,12 +40,10 @@ class NotificationController extends Controller
      */
     public function recent(Request $request): JsonResponse
     {
-        $notifications = $request->user()->notifications()->latest()->limit(10)->get()->map(fn ($n) => [
-            'id' => $n->id,
-            'data' => $n->data,
-            'read_at' => $n->read_at?->toIso8601String(),
-            'created_at' => $n->created_at->toIso8601String(),
-        ]);
+        $workspaceId = $this->notifications->currentWorkspaceId($request);
+        $notifications = $this->notifications->query($request->user(), $workspaceId)
+            ->latest()->limit(10)->get()
+            ->map(fn ($notification) => $this->notifications->serialize($notification));
 
         return response()->json($notifications);
     }
@@ -53,7 +51,8 @@ class NotificationController extends Controller
     public function unreadCount(Request $request): JsonResponse
     {
         return response()->json([
-            'count' => $request->user()->unreadNotifications()->count(),
+            'count' => $this->notifications->query($request->user(), $this->notifications->currentWorkspaceId($request))
+                ->whereNull('read_at')->count(),
         ]);
     }
 
@@ -62,7 +61,8 @@ class NotificationController extends Controller
      */
     public function markRead(Request $request, string $notificationId): JsonResponse
     {
-        $notification = $request->user()->notifications()->findOrFail($notificationId);
+        $notification = $this->notifications->query($request->user(), $this->notifications->currentWorkspaceId($request))
+            ->findOrFail($notificationId);
         $notification->markAsRead();
 
         return response()->json(['ok' => true]);
@@ -73,7 +73,8 @@ class NotificationController extends Controller
      */
     public function markAllRead(Request $request): RedirectResponse
     {
-        $request->user()->unreadNotifications->markAsRead();
+        $this->notifications->query($request->user(), $this->notifications->currentWorkspaceId($request))
+            ->whereNull('read_at')->update(['read_at' => now()]);
 
         return back()->with('success', __('All notifications marked as read.'));
     }
@@ -83,7 +84,8 @@ class NotificationController extends Controller
      */
     public function destroy(Request $request, string $notificationId): JsonResponse
     {
-        $request->user()->notifications()->findOrFail($notificationId)->delete();
+        $this->notifications->query($request->user(), $this->notifications->currentWorkspaceId($request))
+            ->findOrFail($notificationId)->delete();
 
         return response()->json(['ok' => true]);
     }

@@ -2,16 +2,21 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
 use App\Notifications\Channels\OneSignalChannel;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class WorkspaceExportReadyNotification extends Notification
+class WorkspaceExportReadyNotification extends Notification implements WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
-    public function __construct(private string $downloadUrl) {}
+    public function __construct(private string $downloadUrl, ?int $workspaceId = null)
+    {
+        $this->forWorkspace($workspaceId);
+    }
 
     public function via(object $notifiable): array
     {

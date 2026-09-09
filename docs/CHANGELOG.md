@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Scoped client notifications end to end by originating workspace. Web and Sanctum APIs now isolate list/count/read/delete operations, realtime ignores inactive-workspace events, push payloads identify their workspace, and background recipients include owners plus pivot members without leaking notifications across workspaces. Deployment requires the matching notification migration and refreshed backend/frontend/queue processes.
+
 - In-progress analysis remediation: recognize modular database schema and model casts, type model relationships, and remove obsolete baseline suppressions. Harden resumed Messenger selection and sitemap fetch state. Repository-wide analysis and the full test suite are not yet passing; no Main merge is authorized by these results.
 
 - Removed stale PHPStan baseline references to deleted Leads/Twitter files. Analysis now executes, but repository-wide findings still block the Main merge gate.

@@ -2,14 +2,16 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class UserWelcomeNotification extends Notification implements ShouldQueue
+class UserWelcomeNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function via(object $notifiable): array
     {
@@ -20,7 +22,7 @@ class UserWelcomeNotification extends Notification implements ShouldQueue
     {
         return [
             'type' => 'user_welcome',
-            'message' => 'Welcome to ' . config('app.name') . '!',
+            'message' => 'Welcome to '.config('app.name').'!',
             'url' => route('client.dashboard'),
         ];
     }

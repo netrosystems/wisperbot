@@ -12,6 +12,7 @@ use App\Modules\AI\Models\AiCreditPeriod;
 use App\Modules\AI\Models\AiWorkspaceSetting;
 use App\Modules\AI\Services\Llm\LlmResponse;
 use App\Notifications\AiCreditsThresholdNotification;
+use App\Services\WorkspaceNotificationRecipients;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -290,7 +291,7 @@ class AiCreditService
 
         if ($warningPeriod && $warnings !== []) {
             try {
-                $this->sendThresholdWarnings($warningPeriod, $warnings);
+                $this->sendThresholdWarnings($warningPeriod, $warnings, (int) $ledger->workspace_id);
             } catch (\Throwable $exception) {
                 // Credit finalization is authoritative. A notification transport outage
                 // must never turn a completed AI response into a customer-visible error.
@@ -535,14 +536,17 @@ class AiCreditService
     }
 
     /** @param array<int, int> $thresholds */
-    private function sendThresholdWarnings(AiCreditPeriod $period, array $thresholds): void
+    private function sendThresholdWarnings(AiCreditPeriod $period, array $thresholds, int $workspaceId): void
     {
-        $recipients = $period->account_type === 'client'
-            ? User::where('client_id', $period->account_id)
-                ->where(function ($query) {
-                    $query->where('client_role', User::CLIENT_ROLE_ADMINISTRATOR)->orWhereNull('client_role');
-                })->get()
-            : User::whereKey($period->account_id)->get();
+        $recipients = app(WorkspaceNotificationRecipients::class)->for($workspaceId)
+            ->filter(function (User $user) use ($period): bool {
+                if ($period->account_type !== 'client') {
+                    return (int) $user->id === (int) $period->account_id;
+                }
+
+                return (int) $user->client_id === (int) $period->account_id
+                    && ($user->client_role === User::CLIENT_ROLE_ADMINISTRATOR || $user->client_role === null);
+            });
 
         foreach ($thresholds as $threshold) {
             Notification::send($recipients, new AiCreditsThresholdNotification(
@@ -550,6 +554,7 @@ class AiCreditService
                 $period->used_credits,
                 max(0, $period->allowance + $period->adjustment_credits),
                 $period->period_end->toIso8601String(),
+                $workspaceId,
             ));
         }
     }

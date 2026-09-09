@@ -15,10 +15,10 @@ class SendPlanChangedNotification
 
         try {
             app(MailService::class)->sendWithTemplate('plan_changed', $user->email, [
-                'app_name'  => config('app.name'),
+                'app_name' => config('app.name'),
                 'user_name' => $user->name,
-                'old_plan'  => $event->oldPlan->name,
-                'new_plan'  => $event->newPlan->name,
+                'old_plan' => $event->oldPlan->name,
+                'new_plan' => $event->newPlan->name,
                 'billing_url' => route('client.billing.index'),
             ]);
         } catch (\Throwable $e) {
@@ -26,7 +26,7 @@ class SendPlanChangedNotification
         }
 
         try {
-            $user->notify(new PlanChangedNotification($event->oldPlan->name, $event->newPlan->name));
+            $user->notify(new PlanChangedNotification($event->oldPlan->name, $event->newPlan->name, (int) $user->workspace_id));
         } catch (\Throwable $e) {
             Log::warning('SendPlanChangedNotification: in-app notification failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
         }

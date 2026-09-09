@@ -18,17 +18,17 @@ class SendSubscriptionCancelledNotification
 
         try {
             app(MailService::class)->sendWithTemplate('subscription_cancelled', $user->email, [
-                'app_name'  => config('app.name'),
+                'app_name' => config('app.name'),
                 'user_name' => $user->name,
                 'plan_name' => $plan->name,
-                'ends_at'   => $endsAt ?? 'immediately',
+                'ends_at' => $endsAt ?? 'immediately',
             ]);
         } catch (\Throwable $e) {
             Log::warning('SendSubscriptionCancelledNotification: mail failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
         }
 
         try {
-            $user->notify(new SubscriptionCancelledNotification($plan->name, $endsAt));
+            $user->notify(new SubscriptionCancelledNotification($plan->name, $endsAt, (int) $user->workspace_id));
         } catch (\Throwable $e) {
             Log::warning('SendSubscriptionCancelledNotification: in-app notification failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
         }

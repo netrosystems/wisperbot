@@ -17,18 +17,18 @@ class SendSubscriptionStartedNotification
 
         try {
             app(MailService::class)->sendWithTemplate('subscription_started', $user->email, [
-                'app_name'     => config('app.name'),
-                'user_name'    => $user->name,
-                'plan_name'    => $plan->name,
+                'app_name' => config('app.name'),
+                'user_name' => $user->name,
+                'plan_name' => $plan->name,
                 'billing_cycle' => $subscription->billing_cycle ?? 'month',
-                'starts_at'    => $subscription->starts_at?->format('M j, Y') ?? now()->format('M j, Y'),
+                'starts_at' => $subscription->starts_at?->format('M j, Y') ?? now()->format('M j, Y'),
             ]);
         } catch (\Throwable $e) {
             Log::warning('SendSubscriptionStartedNotification: mail failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
         }
 
         try {
-            $user->notify(new SubscriptionStartedNotification($plan->name, $subscription->billing_cycle ?? 'month'));
+            $user->notify(new SubscriptionStartedNotification($plan->name, $subscription->billing_cycle ?? 'month', (int) $user->workspace_id));
         } catch (\Throwable $e) {
             Log::warning('SendSubscriptionStartedNotification: in-app notification failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
         }

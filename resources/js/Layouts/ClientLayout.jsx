@@ -8,6 +8,7 @@ import Sidebar from '@/Components/Sidebar';
 import UpgradeModal from '@/Components/UpgradeModal';
 import useClientNav from '@/Layouts/useClientNav';
 import { ChannelBrandIcon } from '@/Components/BrandIcons';
+import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
 import {
     LayoutDashboard,
     CreditCard,
@@ -96,7 +97,7 @@ function ClientLayoutFooter() {
 export default function ClientLayout({ header, children, title }) {
     const { t } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, branding, onesignal } = usePage().props;
+    const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, branding, onesignal, currentWorkspace } = usePage().props;
     const logoUrl = branding?.logo_url;
     const [unreadCount, setUnreadCount] = useState(unreadNotificationsCount ?? 0);
     const clientNavGroups = useClientNav();
@@ -115,6 +116,7 @@ export default function ClientLayout({ header, children, title }) {
 
         window.Echo.private(`App.Models.User.${auth.user.id}`)
             .notification((notification) => {
+                if (!isNotificationForWorkspace(notification, currentWorkspace?.id)) return;
                 setUnreadCount(prev => prev + 1);
                 const msg = notification.snippet ?? notification.name ?? notification.automation ?? notification.error ?? t('ui.notif_new');
                 const title = {
@@ -140,7 +142,7 @@ export default function ClientLayout({ header, children, title }) {
         return () => {
             window.Echo.leave(`App.Models.User.${auth.user.id}`);
         };
-    }, [auth?.user?.id]);
+    }, [auth?.user?.id, currentWorkspace?.id]);
 
     const returnToAdmin = () => {
         router.post(impersonation?.returnUrl ?? route('admin.impersonation.stop'));

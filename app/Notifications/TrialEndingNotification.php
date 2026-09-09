@@ -2,21 +2,27 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
+use App\Models\NotificationPreference;
 use App\Notifications\Channels\OneSignalChannel;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class TrialEndingNotification extends Notification implements ShouldQueue
+class TrialEndingNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly string $planName,
         public readonly int $daysRemaining,
         public readonly string $trialEndsAt,
-    ) {}
+        ?int $workspaceId = null,
+    ) {
+        $this->forWorkspace($workspaceId);
+    }
 
     public function via(object $notifiable): array
     {
@@ -24,18 +30,19 @@ class TrialEndingNotification extends Notification implements ShouldQueue
         if ($this->isEnabled($notifiable, 'one_signal')) {
             $channels[] = OneSignalChannel::class;
         }
+
         return $channels;
     }
 
     public function toArray(object $notifiable): array
     {
         return [
-            'type'           => 'trial_ending',
-            'plan_name'      => $this->planName,
+            'type' => 'trial_ending',
+            'plan_name' => $this->planName,
             'days_remaining' => $this->daysRemaining,
-            'trial_ends_at'  => $this->trialEndsAt,
-            'message'        => "Your {$this->planName} trial ends in {$this->daysRemaining} day(s).",
-            'url'            => route('client.billing.index'),
+            'trial_ends_at' => $this->trialEndsAt,
+            'message' => "Your {$this->planName} trial ends in {$this->daysRemaining} day(s).",
+            'url' => route('client.billing.index'),
         ];
     }
 
@@ -48,17 +55,18 @@ class TrialEndingNotification extends Notification implements ShouldQueue
     {
         return [
             'title' => 'Trial ending soon',
-            'body'  => "Your {$this->planName} trial ends in {$this->daysRemaining} day(s).",
-            'url'   => route('client.billing.index'),
+            'body' => "Your {$this->planName} trial ends in {$this->daysRemaining} day(s).",
+            'url' => route('client.billing.index'),
         ];
     }
 
     private function isEnabled(object $notifiable, string $channel): bool
     {
-        $pref = \App\Models\NotificationPreference::where('user_id', $notifiable->id)
+        $pref = NotificationPreference::where('user_id', $notifiable->id)
             ->where('event', 'trial_ending')
             ->where('channel', $channel)
             ->first();
+
         return $pref === null || $pref->enabled;
     }
 }

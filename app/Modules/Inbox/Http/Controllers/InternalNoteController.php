@@ -7,6 +7,7 @@ use App\Models\InternalNote;
 use App\Models\User;
 use App\Modules\Shared\Models\Conversation;
 use App\Notifications\MentionedInNoteNotification;
+use App\Services\WorkspaceNotificationRecipients;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -36,9 +37,10 @@ class InternalNoteController extends Controller
         $mentionedUsers = collect();
 
         if (! empty($mentionedUsernames)) {
-            $mentionedUsers = User::where('workspace_id', $conversation->workspace_id)
+            $mentionedUsers = app(WorkspaceNotificationRecipients::class)
+                ->for((int) $conversation->workspace_id)
                 ->whereIn('name', $mentionedUsernames)
-                ->get();
+                ->values();
         }
 
         $note = InternalNote::create([

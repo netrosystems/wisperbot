@@ -87,6 +87,11 @@ export default function Topbar({
         }).catch(() => {});
     };
 
+    useEffect(() => {
+        setNotifOpen(false);
+        setRecentNotifs([]);
+    }, [currentWorkspaceId]);
+
     const markAllRead = () => {
         router.post(route('client.notifications.read-all'), {}, { preserveScroll: true, onSuccess: () => setNotifOpen(false) });
     };

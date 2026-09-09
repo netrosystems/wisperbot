@@ -38,6 +38,7 @@ journey
 #### Capabilities
 - **Authentication & Security**: Email/password authentication, Magic Link login, Google/Socialite OAuth, and Google Authenticator 2FA (`TwoFactorController`).
 - **Workspace Switching**: Seamless switching between client-owned workspaces (`WorkspaceController`) with strict scoped sessions.
+- **Workspace Notifications**: Web and mobile notification lists, unread counts, mutations, realtime updates, and push metadata are isolated to the active workspace. Events retain their source workspace even if a user switches workspaces while a queued notification is being delivered.
 - **Role-Based Team Access**: Client administrators can invite team members, assign granular roles (Admin, Agent, Viewer), and inspect audit logs (`TeamController`, `ClientAuditLogController`).
 - **Session Management**: View and revoke active browser sessions remotely (`SessionController`).
 

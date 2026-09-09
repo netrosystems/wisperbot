@@ -132,7 +132,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group
     Route::get('/usage', [SubscriptionApiController::class, 'usage']);
     Route::get('/audit-log', [AuditLogApiController::class, 'index']);
     Route::get('/notifications', [NotificationApiController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationApiController::class, 'unreadCount']);
+    Route::post('/notifications/read-all', [NotificationApiController::class, 'markAllRead']);
     Route::post('/notifications/{notification}/read', [NotificationApiController::class, 'markRead']);
+    Route::delete('/notifications/{notification}', [NotificationApiController::class, 'destroy']);
 
     // Paid external developer API. Mobile auth and mobile inbox routes above
     // remain available without this add-on.

@@ -20,7 +20,7 @@ class DataExportController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        GenerateWorkspaceExportJob::dispatch($request->user()->id)
+        GenerateWorkspaceExportJob::dispatch($request->user()->id, (int) $request->user()->workspace_id)
             ->onQueue('default');
 
         return back()->with('export_status', 'Your export is being generated. You will receive an email with the download link shortly.');

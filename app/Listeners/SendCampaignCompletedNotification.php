@@ -3,13 +3,20 @@
 namespace App\Listeners;
 
 use App\Events\CampaignCompleted;
-use App\Models\User;
 use App\Notifications\CampaignCompletedNotification;
+use App\Services\WorkspaceNotificationRecipients;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 
 class SendCampaignCompletedNotification
 {
+    private readonly WorkspaceNotificationRecipients $recipients;
+
+    public function __construct(?WorkspaceNotificationRecipients $recipients = null)
+    {
+        $this->recipients = $recipients ?? app(WorkspaceNotificationRecipients::class);
+    }
+
     public function handle(CampaignCompleted $event): void
     {
         $campaign = $event->campaign;
@@ -23,7 +30,7 @@ class SendCampaignCompletedNotification
             return;
         }
 
-        $recipients = User::where('workspace_id', $workspaceId)->get();
+        $recipients = $this->recipients->for((int) $workspaceId);
 
         if ($recipients->isEmpty()) {
             return;

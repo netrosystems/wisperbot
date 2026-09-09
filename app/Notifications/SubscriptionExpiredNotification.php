@@ -2,19 +2,25 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
+use App\Models\NotificationPreference;
 use App\Notifications\Channels\OneSignalChannel;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class SubscriptionExpiredNotification extends Notification implements ShouldQueue
+class SubscriptionExpiredNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly string $planName,
-    ) {}
+        ?int $workspaceId = null,
+    ) {
+        $this->forWorkspace($workspaceId);
+    }
 
     public function via(object $notifiable): array
     {
@@ -22,16 +28,17 @@ class SubscriptionExpiredNotification extends Notification implements ShouldQueu
         if ($this->isEnabled($notifiable, 'one_signal')) {
             $channels[] = OneSignalChannel::class;
         }
+
         return $channels;
     }
 
     public function toArray(object $notifiable): array
     {
         return [
-            'type'      => 'subscription_expired',
+            'type' => 'subscription_expired',
             'plan_name' => $this->planName,
-            'message'   => "Your {$this->planName} subscription has expired.",
-            'url'       => route('client.billing.index'),
+            'message' => "Your {$this->planName} subscription has expired.",
+            'url' => route('client.billing.index'),
         ];
     }
 
@@ -44,17 +51,18 @@ class SubscriptionExpiredNotification extends Notification implements ShouldQueu
     {
         return [
             'title' => 'Subscription expired',
-            'body'  => "Your {$this->planName} plan has expired. Renew to restore access.",
-            'url'   => route('client.billing.index'),
+            'body' => "Your {$this->planName} plan has expired. Renew to restore access.",
+            'url' => route('client.billing.index'),
         ];
     }
 
     private function isEnabled(object $notifiable, string $channel): bool
     {
-        $pref = \App\Models\NotificationPreference::where('user_id', $notifiable->id)
+        $pref = NotificationPreference::where('user_id', $notifiable->id)
             ->where('event', 'subscription_expired')
             ->where('channel', $channel)
             ->first();
+
         return $pref === null || $pref->enabled;
     }
 }

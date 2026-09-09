@@ -2,26 +2,30 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
 use App\Models\NotificationPreference;
 use App\Models\User;
 use App\Modules\Shared\Models\Conversation;
 use App\Notifications\Channels\OneSignalChannel;
 use App\Notifications\Channels\WebPushChannel;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class MentionedInNoteNotification extends Notification implements ShouldQueue
+class MentionedInNoteNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly User $mentionedBy,
         public readonly Conversation $conversation,
         public readonly string $noteBody,
-    ) {}
+    ) {
+        $this->forWorkspace($conversation->workspace_id);
+    }
 
     public function via(object $notifiable): array
     {

@@ -15,6 +15,7 @@ use App\Notifications\NewMessageNotification;
 use App\Services\OneSignalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -116,7 +117,8 @@ class OneSignalIntegrationTest extends TestCase
             'device_name' => 'QA iPhone',
             'last_seen_at' => now(),
         ]);
-        $notification = new class extends \Illuminate\Notifications\Notification {
+        $notification = new class extends Notification
+        {
             public function toOneSignal(object $notifiable): array
             {
                 return ['title' => 'New chat', 'body' => 'Hello', 'conversation_id' => 123];
@@ -128,16 +130,19 @@ class OneSignalIntegrationTest extends TestCase
         Http::assertSent(fn (Request $request) => $request->url() === 'https://api.onesignal.com/notifications'
             && ($request['include_subscription_ids'] ?? null) === ['stored-subscription-id']
             && $request['contents']['en'] === 'Hello'
-            && $request['data']['conversation_id'] === 123);
+            && $request['data']['conversation_id'] === 123
+            && $request['data']['workspace_id'] === $context['workspace']->id);
         Http::assertSent(fn (Request $request) => $request->url() === 'https://api.onesignal.com/notifications'
-            && ($request['include_aliases']['external_id'] ?? null) === ['user:'.$user->id]);
+            && ($request['include_aliases']['external_id'] ?? null) === ['user:'.$user->id]
+            && $request['data']['workspace_id'] === $context['workspace']->id);
     }
 
     public function test_super_admins_are_never_sent_onesignal_pushes(): void
     {
         Http::fake();
         $admin = AdminUser::factory()->create();
-        $notification = new class extends \Illuminate\Notifications\Notification {
+        $notification = new class extends Notification
+        {
             public function toOneSignal(object $notifiable): array
             {
                 return ['title' => 'Test', 'body' => 'Test'];

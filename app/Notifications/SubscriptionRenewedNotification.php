@@ -2,21 +2,26 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class SubscriptionRenewedNotification extends Notification implements ShouldQueue
+class SubscriptionRenewedNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly string $planName,
         public readonly string $amount,
         public readonly string $currency,
         public readonly ?string $nextRenewal,
-    ) {}
+        ?int $workspaceId = null,
+    ) {
+        $this->forWorkspace($workspaceId);
+    }
 
     public function via(object $notifiable): array
     {
@@ -26,13 +31,13 @@ class SubscriptionRenewedNotification extends Notification implements ShouldQueu
     public function toArray(object $notifiable): array
     {
         return [
-            'type'         => 'subscription_renewed',
-            'plan_name'    => $this->planName,
-            'amount'       => $this->amount,
-            'currency'     => $this->currency,
+            'type' => 'subscription_renewed',
+            'plan_name' => $this->planName,
+            'amount' => $this->amount,
+            'currency' => $this->currency,
             'next_renewal' => $this->nextRenewal,
-            'message'      => "Your {$this->planName} subscription has been renewed.",
-            'url'          => route('client.billing.index'),
+            'message' => "Your {$this->planName} subscription has been renewed.",
+            'url' => route('client.billing.index'),
         ];
     }
 

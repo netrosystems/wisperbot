@@ -15,8 +15,8 @@ use App\Events\SubscriptionCancelled;
 use App\Events\SubscriptionExpired;
 use App\Events\SubscriptionRenewed;
 use App\Events\SubscriptionStarted;
-use App\Events\TypingChanged;
 use App\Events\TrialEnding;
+use App\Events\TypingChanged;
 use App\Listeners\AutomationTriggerListener;
 use App\Listeners\AutoReplyListener;
 use App\Listeners\BroadcastWidgetRealtimeUpdate;
@@ -33,16 +33,21 @@ use App\Listeners\SendSubscriptionRenewedNotification;
 use App\Listeners\SendSubscriptionStartedNotification;
 use App\Listeners\SendTrialEndingNotification;
 use App\Listeners\SendWelcomeNotification;
-use Illuminate\Auth\Events\Registered;
 use App\Models\Workspace;
 use App\Modules\Shared\Services\ChannelManager;
+use App\Notifications\Channels\WorkspaceBroadcastChannel;
+use App\Notifications\Channels\WorkspaceDatabaseChannel;
 use App\Services\Billing\BillingGatewayRegistry;
+use App\Services\StorageManager;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Channels\BroadcastChannel;
+use Illuminate\Notifications\Channels\DatabaseChannel;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -69,8 +74,10 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $this->app->singleton(BillingGatewayRegistry::class, fn () => new BillingGatewayRegistry);
-        $this->app->singleton(\App\Services\StorageManager::class);
+        $this->app->singleton(StorageManager::class);
         $this->app->singleton(ChannelManager::class, fn () => new ChannelManager);
+        $this->app->bind(DatabaseChannel::class, WorkspaceDatabaseChannel::class);
+        $this->app->bind(BroadcastChannel::class, WorkspaceBroadcastChannel::class);
     }
 
     public function boot(): void

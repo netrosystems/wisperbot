@@ -12,7 +12,7 @@ self.addEventListener('push', function (event) {
         body: data.body || '',
         icon: '/wisperbot-icon-512.png',
         badge: '/wisperbot-icon-512.png',
-        data: { url: data.url || '/' },
+        data: { url: data.url || '/', workspace_id: data.data?.workspace_id ?? null },
     };
 
     event.waitUntil(

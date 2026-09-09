@@ -3,13 +3,20 @@
 namespace App\Listeners;
 
 use App\Events\MessageReceived;
-use App\Models\User;
 use App\Notifications\NewMessageNotification;
+use App\Services\WorkspaceNotificationRecipients;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 
 class SendNewMessageNotification
 {
+    private readonly WorkspaceNotificationRecipients $recipients;
+
+    public function __construct(?WorkspaceNotificationRecipients $recipients = null)
+    {
+        $this->recipients = $recipients ?? app(WorkspaceNotificationRecipients::class);
+    }
+
     public function handle(MessageReceived $event): void
     {
         $msgId = $event->message->id ?? null;
@@ -33,7 +40,7 @@ class SendNewMessageNotification
 
         // Notify all workspace team members for all messages
         $workspaceId = $conversation->workspace_id;
-        $recipients = User::where('workspace_id', $workspaceId)->get();
+        $recipients = $this->recipients->for((int) $workspaceId);
 
         if ($recipients->isEmpty()) {
             return;

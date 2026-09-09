@@ -5,11 +5,12 @@ import { Toaster, toast } from 'sonner';
 import Sidebar from '@/Components/Sidebar';
 import UpgradeModal from '@/Components/UpgradeModal';
 import useClientNav from '@/Layouts/useClientNav';
+import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
 
 export default function InboxLayout({ children }) {
     const { t } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, branding, demo_mode } = usePage().props;
+    const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, branding, demo_mode, currentWorkspace } = usePage().props;
     const logoUrl = branding?.logo_url;
     const [unreadCount, setUnreadCount] = useState(unreadNotificationsCount ?? 0);
     const clientNavGroups = useClientNav();
@@ -22,6 +23,7 @@ export default function InboxLayout({ children }) {
         if (!window.Echo || !auth?.user?.id) return;
         window.Echo.private(`App.Models.User.${auth.user.id}`)
             .notification((notification) => {
+                if (!isNotificationForWorkspace(notification, currentWorkspace?.id)) return;
                 setUnreadCount(prev => prev + 1);
                 const msg = notification.snippet ?? notification.name ?? notification.automation ?? notification.error ?? 'New notification';
                 const title = {
@@ -38,7 +40,7 @@ export default function InboxLayout({ children }) {
                 });
             });
         return () => { window.Echo.leave(`App.Models.User.${auth.user.id}`); };
-    }, [auth?.user?.id]);
+    }, [auth?.user?.id, currentWorkspace?.id]);
 
     const returnToAdmin = () => {
         router.post(impersonation?.returnUrl ?? route('admin.impersonation.stop'));

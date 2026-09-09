@@ -2,20 +2,25 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
 use App\Models\NotificationPreference;
 use App\Modules\Broadcasting\Models\Campaign;
 use App\Notifications\Channels\OneSignalChannel;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class CampaignCompletedNotification extends Notification implements ShouldQueue
+class CampaignCompletedNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
-    public function __construct(public readonly Campaign $campaign) {}
+    public function __construct(public readonly Campaign $campaign)
+    {
+        $this->forWorkspace($campaign->workspace_id);
+    }
 
     public function via(object $notifiable): array
     {

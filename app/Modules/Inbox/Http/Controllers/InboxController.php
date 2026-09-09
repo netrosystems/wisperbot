@@ -23,6 +23,7 @@ use App\Modules\Whatsapp\Services\CloudApiClient;
 use App\Notifications\ConversationHandoverNotification;
 use App\Services\Media\AttachmentService;
 use App\Services\StorageManager;
+use App\Services\WorkspaceNotificationRecipients;
 use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -759,7 +760,7 @@ class InboxController extends Controller
         ConversationAssigned::dispatch($conversation->fresh(), null);
 
         if ($mode === 'human') {
-            $members = User::where('workspace_id', $conversation->workspace_id)->get();
+            $members = app(WorkspaceNotificationRecipients::class)->for((int) $conversation->workspace_id);
             foreach ($members as $member) {
                 $member->notify(new ConversationHandoverNotification($conversation, 'manual'));
             }

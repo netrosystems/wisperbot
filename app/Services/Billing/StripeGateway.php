@@ -19,6 +19,7 @@ use App\Notifications\BillingPaymentFailedNotification;
 use App\Services\AddonEntitlementService;
 use App\Services\Mail\MailService;
 use App\Services\WebhookIdempotencyService;
+use App\Services\WorkspaceNotificationRecipients;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -465,12 +466,12 @@ class StripeGateway implements AddonBillingGatewayInterface, BillingGatewayInter
         // In-app / push notification to every workspace member.
         $workspace = Workspace::where('owner_id', $subscription->user_id)->first();
         $members = $workspace
-            ? User::where('workspace_id', $workspace->id)->get()
+            ? app(WorkspaceNotificationRecipients::class)->for((int) $workspace->id)
             : collect([$subscription->user]);
 
         foreach ($members as $member) {
             try {
-                $member->notify(new BillingPaymentFailedNotification($invoiceId, $amount, $currency));
+                $member->notify(new BillingPaymentFailedNotification($invoiceId, $amount, $currency, $workspace?->id));
             } catch (\Throwable $e) {
                 Log::warning('Stripe: failed to dispatch BillingPaymentFailedNotification', ['user_id' => $member->id, 'error' => $e->getMessage()]);
             }

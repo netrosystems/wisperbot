@@ -19,11 +19,11 @@ class SendSubscriptionRenewedNotification
 
         try {
             app(MailService::class)->sendWithTemplate('subscription_renewed', $user->email, [
-                'app_name'     => config('app.name'),
-                'user_name'    => $user->name,
-                'plan_name'    => $plan->name,
-                'amount'       => $amount,
-                'currency'     => $event->currency,
+                'app_name' => config('app.name'),
+                'user_name' => $user->name,
+                'plan_name' => $plan->name,
+                'amount' => $amount,
+                'currency' => $event->currency,
                 'next_renewal' => $nextRenewal ?? '—',
             ]);
         } catch (\Throwable $e) {
@@ -31,7 +31,7 @@ class SendSubscriptionRenewedNotification
         }
 
         try {
-            $user->notify(new SubscriptionRenewedNotification($plan->name, $amount, $event->currency, $nextRenewal));
+            $user->notify(new SubscriptionRenewedNotification($plan->name, $amount, $event->currency, $nextRenewal, (int) $user->workspace_id));
         } catch (\Throwable $e) {
             Log::warning('SendSubscriptionRenewedNotification: in-app notification failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
         }

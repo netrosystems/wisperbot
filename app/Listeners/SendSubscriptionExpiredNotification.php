@@ -16,7 +16,7 @@ class SendSubscriptionExpiredNotification
 
         try {
             app(MailService::class)->sendWithTemplate('subscription_expired', $user->email, [
-                'app_name'  => config('app.name'),
+                'app_name' => config('app.name'),
                 'user_name' => $user->name,
                 'plan_name' => $plan->name,
                 'billing_url' => route('client.billing.index'),
@@ -26,7 +26,7 @@ class SendSubscriptionExpiredNotification
         }
 
         try {
-            $user->notify(new SubscriptionExpiredNotification($plan->name));
+            $user->notify(new SubscriptionExpiredNotification($plan->name, (int) $user->workspace_id));
         } catch (\Throwable $e) {
             Log::warning('SendSubscriptionExpiredNotification: in-app notification failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
         }

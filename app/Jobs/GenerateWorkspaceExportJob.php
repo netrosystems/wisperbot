@@ -18,17 +18,17 @@ class GenerateWorkspaceExportJob implements ShouldQueue
 
     public int $timeout = 300;
 
-    public function __construct(private int $userId) {}
+    public function __construct(private int $userId, private int $workspaceId) {}
 
     public function handle(WorkspaceExportService $exportService): void
     {
         $user = User::findOrFail($this->userId);
 
-        $storagePath = $exportService->generate($user);
+        $storagePath = $exportService->generate($user, $this->workspaceId);
 
         // Create a 72-hour signed URL so only the requester can download it
         $signedUrl = Storage::temporaryUrl($storagePath, now()->addHours(72));
 
-        $user->notify(new WorkspaceExportReadyNotification($signedUrl));
+        $user->notify(new WorkspaceExportReadyNotification($signedUrl, $this->workspaceId));
     }
 }

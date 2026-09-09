@@ -4,7 +4,7 @@ Suggested reply contracts and Flutter rollout are specified in [Suggested custom
 
 Closed-question generation explicitly requests matching choices. `ChatReplyOptions` can recover limited unambiguous English closed-choice prompts when enabled; both conversation and API runners use the same normalization after generation. No second model call or extra charge is introduced.
 
-Last verified against code: 2026-09-03.
+Last verified against code: 2026-09-09.
 
 ## System shape
 
@@ -64,6 +64,12 @@ Crossing 80% and 100% stores one threshold timestamp per period before dispatchi
 - Provider identities (Page, Instagram account, WABA, seller account) are intentionally prevented from routing to multiple workspaces when that could duplicate or leak messages.
 - Broadcast authorization uses `BroadcastChannelsServiceProvider`, which checks primary/current workspace, pivot membership, ownership, and same-client access.
 - Jobs receive durable record identifiers and must re-check ownership/state when they execute.
+
+### Workspace-scoped notifications
+
+Client notifications carry an immutable `workspace_id` captured from their source record before queueing. The customized Laravel database and broadcast channels add that scope to stored/realtime payloads; OneSignal and web-push payloads carry the same identifier. Web and Sanctum notification list, unread-count, read-all, read-one, and delete operations resolve the active accessible workspace and cannot mutate another workspace's records. Background producers resolve recipients from workspace ownership and pivot membership rather than only `users.workspace_id`, so a user with multiple workspace memberships receives each event under its originating workspace. Account-wide preferences remain user-level.
+
+Mobile clients use `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `POST /api/v1/notifications/read-all`, `POST /api/v1/notifications/{notification}/read`, and `DELETE /api/v1/notifications/{notification}` after selecting the active workspace. Responses and push payloads include `workspace_id`; a client must switch to or validate that accessible workspace before opening a notification deep link.
 
 ## Request and event flow
 

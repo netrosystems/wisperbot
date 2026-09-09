@@ -2,23 +2,27 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
 use App\Models\NotificationPreference;
 use App\Modules\Automation\Models\AutomationRun;
 use App\Notifications\Channels\OneSignalChannel;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class AutomationFailedNotification extends Notification implements ShouldQueue
+class AutomationFailedNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly AutomationRun $run,
         public readonly string $errorMessage,
-    ) {}
+    ) {
+        $this->forWorkspace($run->automation()->value('workspace_id'));
+    }
 
     public function via(object $notifiable): array
     {

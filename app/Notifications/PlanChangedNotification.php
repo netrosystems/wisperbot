@@ -2,19 +2,24 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class PlanChangedNotification extends Notification implements ShouldQueue
+class PlanChangedNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly string $oldPlanName,
         public readonly string $newPlanName,
-    ) {}
+        ?int $workspaceId = null,
+    ) {
+        $this->forWorkspace($workspaceId);
+    }
 
     public function via(object $notifiable): array
     {
@@ -24,11 +29,11 @@ class PlanChangedNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'type'          => 'plan_changed',
+            'type' => 'plan_changed',
             'old_plan_name' => $this->oldPlanName,
             'new_plan_name' => $this->newPlanName,
-            'message'       => "Your plan has changed from {$this->oldPlanName} to {$this->newPlanName}.",
-            'url'           => route('client.billing.index'),
+            'message' => "Your plan has changed from {$this->oldPlanName} to {$this->newPlanName}.",
+            'url' => route('client.billing.index'),
         ];
     }
 

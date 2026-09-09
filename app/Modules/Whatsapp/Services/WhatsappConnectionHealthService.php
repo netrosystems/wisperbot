@@ -14,6 +14,7 @@ use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
 use App\Modules\Whatsapp\Models\WhatsappConnectionHealth;
 use App\Modules\Whatsapp\Models\WhatsappConnectionOperation;
 use App\Notifications\WhatsappConnectionHealthNotification;
+use App\Services\WorkspaceNotificationRecipients;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -215,15 +216,12 @@ class WhatsappConnectionHealthService
         if (! $workspace) {
             return;
         }
-        $recipients = $workspace->members()->wherePivotIn('role', ['owner', 'admin'])->get();
-        if ($workspace->owner) {
-            $recipients->push($workspace->owner);
-        }
-        if ($workspace->client_id) {
-            $recipients = $recipients->merge(User::where('client_id', $workspace->client_id)
-                ->where('client_role', User::CLIENT_ROLE_ADMINISTRATOR)->get());
-        }
-        $recipients->unique('id')->each(fn ($user) => $user->notify(new WhatsappConnectionHealthNotification($key === null)));
+        $managerIds = $workspace->members()->wherePivotIn('role', ['owner', 'admin'])->pluck('users.id');
+        $recipients = app(WorkspaceNotificationRecipients::class)->for((int) $workspace->id)
+            ->filter(fn (User $user) => (int) $workspace->owner_id === (int) $user->id
+                || $user->client_role === User::CLIENT_ROLE_ADMINISTRATOR
+                || $managerIds->contains($user->id));
+        $recipients->unique('id')->each(fn ($user) => $user->notify(new WhatsappConnectionHealthNotification($key === null, false, (int) $workspace->id)));
     }
 
     /** Runs in the scheduler too, so a stopped health worker can still alert admins. */

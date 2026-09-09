@@ -48,7 +48,8 @@ class WebPushService
      * Send a push notification to all subscriptions of the given user.
      * No-op when VAPID is not configured or invalid.
      */
-    public function sendToUser(int $userId, string $title, string $body, ?string $url = null): void
+    /** @param array<string, mixed> $data */
+    public function sendToUser(int $userId, string $title, string $body, ?string $url = null, array $data = []): void
     {
         if (! $this->enabled || ! $this->webPush) {
             return;
@@ -67,6 +68,7 @@ class WebPushService
                 'title' => $title,
                 'body' => $body,
                 'url' => $url,
+                'data' => $data,
             ]);
 
             $this->webPush->queueNotification($subscription, $payload);

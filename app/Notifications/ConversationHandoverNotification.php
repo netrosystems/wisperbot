@@ -2,20 +2,24 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
 use App\Modules\Shared\Models\Conversation;
 use App\Notifications\Channels\OneSignalChannel;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class ConversationHandoverNotification extends Notification
+class ConversationHandoverNotification extends Notification implements WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly Conversation $conversation,
         public readonly string $reason = 'user_request',
-    ) {}
+    ) {
+        $this->forWorkspace($conversation->workspace_id);
+    }
 
     public function via(object $notifiable): array
     {

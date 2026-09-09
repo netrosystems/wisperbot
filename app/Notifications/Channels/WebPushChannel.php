@@ -2,12 +2,13 @@
 
 namespace App\Notifications\Channels;
 
+use App\Services\NotificationWorkspaceResolver;
 use App\Services\WebPushService;
 use Illuminate\Notifications\Notification;
 
 class WebPushChannel
 {
-    public function __construct(private WebPushService $service) {}
+    public function __construct(private WebPushService $service, private NotificationWorkspaceResolver $workspaces) {}
 
     public function send(object $notifiable, Notification $notification): void
     {
@@ -20,6 +21,8 @@ class WebPushChannel
         $body = $data['body'] ?? '';
         $url = $data['url'] ?? null;
 
-        $this->service->sendToUser($notifiable->id, $title, $body, $url);
+        $this->service->sendToUser($notifiable->id, $title, $body, $url, [
+            'workspace_id' => $this->workspaces->forNotification($notification, $notifiable),
+        ]);
     }
 }

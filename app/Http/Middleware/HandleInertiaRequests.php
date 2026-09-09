@@ -326,7 +326,9 @@ class HandleInertiaRequests extends Middleware
             $supportedLocalesMap = ['en' => 'English'];
         }
 
-        $unreadNotificationsCount = $user ? $user->unreadNotifications()->count() : 0;
+        $unreadNotificationsCount = ($user instanceof User && $workspaceId)
+            ? $user->unreadNotifications()->where('workspace_id', $workspaceId)->count()
+            : 0;
 
         $onboardingSummary = null;
         $aiCredits = null;

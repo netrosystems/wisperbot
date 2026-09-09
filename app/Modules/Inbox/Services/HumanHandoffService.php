@@ -6,10 +6,13 @@ use App\Events\ConversationAssigned;
 use App\Models\User;
 use App\Modules\Shared\Models\Conversation;
 use App\Notifications\ConversationHandoverNotification;
+use App\Services\WorkspaceNotificationRecipients;
 use Illuminate\Support\Facades\Log;
 
 class HumanHandoffService
 {
+    public function __construct(private readonly WorkspaceNotificationRecipients $recipients) {}
+
     public function request(Conversation $conversation, string $reason = 'user_request'): Conversation
     {
         if (($conversation->assigned_to ?? 'bot') === 'human') {
@@ -24,7 +27,7 @@ class HumanHandoffService
 
         $conversation->loadMissing('contact');
 
-        User::where('workspace_id', $conversation->workspace_id)
+        $this->recipients->for((int) $conversation->workspace_id)
             ->each(function (User $member) use ($conversation, $reason): void {
                 try {
                     $member->notify(new ConversationHandoverNotification($conversation, $reason));

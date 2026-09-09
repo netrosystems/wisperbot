@@ -19,9 +19,9 @@ class WorkspaceExportService
      * Build the export ZIP and return the relative storage path.
      * Stored under `exports/{workspaceId}/export_{timestamp}.zip`.
      */
-    public function generate(User $user): string
+    public function generate(User $user, ?int $workspaceId = null): string
     {
-        $workspaceId = $user->current_workspace_id ?? $user->workspace_id;
+        $workspaceId ??= (int) ($user->current_workspace_id ?? $user->workspace_id);
 
         $tmpDir = sys_get_temp_dir().'/ws_export_'.$workspaceId.'_'.time();
         mkdir($tmpDir, 0755, true);

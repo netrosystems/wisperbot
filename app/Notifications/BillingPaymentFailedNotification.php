@@ -2,23 +2,28 @@
 
 namespace App\Notifications;
 
+use App\Contracts\WorkspaceScopedNotification;
 use App\Models\NotificationPreference;
 use App\Notifications\Channels\OneSignalChannel;
+use App\Notifications\Concerns\HasWorkspaceScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class BillingPaymentFailedNotification extends Notification implements ShouldQueue
+class BillingPaymentFailedNotification extends Notification implements ShouldQueue, WorkspaceScopedNotification
 {
-    use Queueable;
+    use HasWorkspaceScope, Queueable;
 
     public function __construct(
         public readonly string $invoiceId,
         public readonly string $amount,
         public readonly string $currency = 'USD',
-    ) {}
+        ?int $workspaceId = null,
+    ) {
+        $this->forWorkspace($workspaceId);
+    }
 
     public function via(object $notifiable): array
     {

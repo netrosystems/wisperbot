@@ -1,6 +1,6 @@
 # Current handoff
 
-Snapshot date: 2026-09-05.
+Snapshot date: 2026-09-09.
 
 ## Repository state at documentation creation
 
@@ -12,6 +12,8 @@ Snapshot date: 2026-09-05.
 Always run `git status --short` and inspect recent history before starting; this snapshot will naturally become stale.
 
 ## Current focus
+
+2026-09-09 workspace notification isolation: client database/realtime/push notifications now carry their source `workspace_id`; web and Sanctum list/count/read/delete operations scope to the active accessible workspace; shared-workspace owners/members are resolved independently of their current primary workspace. Mobile clients receive `workspace_id` in notification and push payloads and must switch/validate workspace before deep-link navigation. Deployment requires `2026_09_09_000100_scope_notifications_to_workspaces.php`, matching frontend/backend, cache refresh, and queue restart. Legacy client notification rows are assigned to each user's current workspace during migration; Super Admin notifications remain unscoped. Verification: 57 focused backend tests (181 assertions), all 37 frontend tests, production Vite build, changed-file Pint, and focused notification PHPStan pass. The full backend suite is at 620 passes/74 known unrelated failures, preserving the prior 74-failure baseline rather than introducing a new failure.
 
 2026-09-08 branch promotion: the remediation batch below is being committed through Spiderman-v2 → dev. Main remains at the prior release because the documented static-analysis and full-suite gates are still failing. No migration, production deployment or SDK change is included.
 
