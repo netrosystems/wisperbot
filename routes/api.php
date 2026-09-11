@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\MobileAuthController;
 use App\Http\Controllers\Api\V1\MobileConversationController;
 use App\Http\Controllers\Api\V1\MobileEmailInboxController;
 use App\Http\Controllers\Api\V1\MobileInboxController;
+use App\Http\Controllers\Api\V1\MobileTeamAvailabilityController;
 use App\Http\Controllers\Api\V1\NotificationApiController;
 use App\Http\Controllers\Api\V1\OutboundWebhookApiController;
 use App\Http\Controllers\Api\V1\SegmentApiController;
@@ -84,6 +85,9 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])
     Route::post('/conversations', [MobileConversationController::class, 'start']);
     Route::post('/conversations/{uuid}/reply', [MobileConversationController::class, 'reply']);
     Route::patch('/conversations/{uuid}/assign', [MobileConversationController::class, 'assign']);
+    Route::post('/conversations/{uuid}/join', [MobileConversationController::class, 'join']);
+    Route::post('/conversations/{uuid}/leave', [MobileConversationController::class, 'leave']);
+    Route::post('/conversations/{uuid}/takeover', [MobileConversationController::class, 'takeover']);
     Route::patch('/conversations/{uuid}/status', [MobileConversationController::class, 'updateStatus']);
     Route::post('/conversations/{uuid}/typing', [MobileConversationController::class, 'typing']);
     Route::post('/conversations/{uuid}/handover', [MobileConversationController::class, 'handover']);
@@ -104,6 +108,8 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])
     Route::get('/inbox/templates', [MobileInboxController::class, 'templates']);
     Route::get('/inbox/labels', [MobileInboxController::class, 'labels']);
     Route::get('/inbox/canned-replies', [MobileInboxController::class, 'cannedReplies']);
+    Route::get('/team/availability', [MobileTeamAvailabilityController::class, 'index']);
+    Route::put('/team/{member}/availability', [MobileTeamAvailabilityController::class, 'update']);
 
     // Master Email Inbox (kept separate from the Omni Channel Inbox)
     Route::get('/email/accounts', [MobileEmailInboxController::class, 'accounts']);

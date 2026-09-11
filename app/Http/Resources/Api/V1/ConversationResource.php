@@ -16,6 +16,13 @@ class ConversationResource extends JsonResource
             'contact_id' => $this->contact_id,
             'status' => $this->status,
             'assigned_user_id' => $this->assigned_user_id,
+            'joined_user_id' => $this->joined_user_id,
+            'joined_at' => $this->joined_at?->toIso8601String(),
+            'joined_user' => $this->whenLoaded('joinedUser', fn () => $this->joinedUser ? [
+                'id' => $this->joinedUser->id,
+                'name' => $this->joinedUser->name,
+                'avatar' => $this->joinedUser->avatar,
+            ] : null),
             'unread_count' => (int) $this->unread_count,
             'last_message_at' => $this->last_message_at?->toIso8601String(),
             'workspace_id' => $this->workspace_id,

@@ -71,6 +71,13 @@ class InboxShareProductTest extends TestCase
         ]);
     }
 
+    private function joinedConversation(Conversation $conversation, int $userId): Conversation
+    {
+        $conversation->update(['assigned_user_id' => $userId, 'joined_user_id' => $userId, 'joined_at' => now()]);
+
+        return $conversation;
+    }
+
     /** Open the WhatsApp 24h window by recording a recent inbound message. */
     private function openWindow(Conversation $conversation): void
     {
@@ -120,7 +127,7 @@ class InboxShareProductTest extends TestCase
         ['user' => $user, 'workspace' => $ws] = $this->createWorkspaceContext();
         $store = $this->store($ws->id);
         $product = $this->product($ws->id, $store->id);
-        $conversation = $this->conversation($ws->id, 'whatsapp');
+        $conversation = $this->joinedConversation($this->conversation($ws->id, 'whatsapp'), $user->id);
         $this->openWindow($conversation);
         $this->fakeDriver();
 
@@ -148,7 +155,7 @@ class InboxShareProductTest extends TestCase
         ['user' => $user, 'workspace' => $ws] = $this->createWorkspaceContext();
         $store = $this->store($ws->id);
         $product = $this->product($ws->id, $store->id);
-        $conversation = $this->conversation($ws->id, 'messenger');
+        $conversation = $this->joinedConversation($this->conversation($ws->id, 'messenger'), $user->id);
         $this->fakeDriver();
 
         $res = $this->actingAs($user)->postJson(
@@ -170,7 +177,7 @@ class InboxShareProductTest extends TestCase
         ['user' => $user, 'workspace' => $ws] = $this->createWorkspaceContext();
         $store = $this->store($ws->id);
         $product = $this->product($ws->id, $store->id, ['image_url' => null]);
-        $conversation = $this->conversation($ws->id, 'messenger');
+        $conversation = $this->joinedConversation($this->conversation($ws->id, 'messenger'), $user->id);
         $this->fakeDriver();
 
         $res = $this->actingAs($user)->postJson(
@@ -187,7 +194,7 @@ class InboxShareProductTest extends TestCase
     public function test_messenger_driver_sends_photo_attachment_then_caption(): void
     {
         ['workspace' => $ws] = $this->createWorkspaceContext();
-        $conversation = $this->conversation($ws->id, 'messenger', ['page_access_token' => 'TKN']);
+        $conversation = $this->joinedConversation($this->conversation($ws->id, 'messenger', ['page_access_token' => 'TKN']), $user->id);
 
         $message = Message::create([
             'conversation_id' => $conversation->id,
@@ -218,7 +225,7 @@ class InboxShareProductTest extends TestCase
         ['user' => $user, 'workspace' => $ws] = $this->createWorkspaceContext();
         $store = $this->store($ws->id);
         $product = $this->product($ws->id, $store->id);
-        $conversation = $this->conversation($ws->id, 'whatsapp'); // no inbound -> window closed
+        $conversation = $this->joinedConversation($this->conversation($ws->id, 'whatsapp'), $user->id); // no inbound -> window closed
         $this->fakeDriver();
 
         $res = $this->actingAs($user)->postJson(
@@ -236,7 +243,7 @@ class InboxShareProductTest extends TestCase
     public function test_share_product_rejects_other_workspace_product(): void
     {
         ['user' => $user, 'workspace' => $ws] = $this->createWorkspaceContext();
-        $conversation = $this->conversation($ws->id, 'messenger');
+        $conversation = $this->joinedConversation($this->conversation($ws->id, 'messenger'), $user->id);
 
         ['workspace' => $other] = $this->createWorkspaceContext();
         $otherStore = $this->store($other->id);

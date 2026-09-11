@@ -12,6 +12,7 @@ use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\WebchatGeoService;
 use App\Modules\Inbox\Services\WebchatPresence;
+use App\Modules\Inbox\Services\ConversationOwnershipService;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -20,6 +21,7 @@ use App\Modules\Shared\Services\ChannelManager;
 use App\Modules\Whatsapp\Services\CloudApiClient;
 use App\Services\Media\AttachmentService;
 use App\Services\StorageManager;
+use App\Services\WorkspaceNotificationRecipients;
 use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,6 +36,7 @@ class MobileConversationController extends WorkspaceScopedController
         private StorageManager $storageManager,
         private AttachmentService $attachmentService,
         private VideoResourceService $videos,
+        private ConversationOwnershipService $ownership,
     ) {}
 
     /**
@@ -50,7 +53,7 @@ class MobileConversationController extends WorkspaceScopedController
         $isLiveFolder = $folder === 'live';
 
         $conversations = Conversation::where('workspace_id', $wsId)
-            ->with(['contact', 'channelAccount', 'lastMessage', 'labels', 'assignedUser'])
+            ->with(['contact', 'channelAccount', 'lastMessage', 'labels', 'assignedUser', 'joinedUser'])
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', $liveSince))
@@ -123,7 +126,7 @@ class MobileConversationController extends WorkspaceScopedController
     {
         $conversation = Conversation::where('workspace_id', $this->workspaceId($request))
             ->where('uuid', $uuid)
-            ->with(['contact', 'channelAccount', 'labels', 'assignedUser'])
+            ->with(['contact', 'channelAccount', 'labels', 'assignedUser', 'joinedUser'])
             ->firstOrFail();
 
         $messages = $conversation->messages()
@@ -181,6 +184,9 @@ class MobileConversationController extends WorkspaceScopedController
             ->where('uuid', $uuid)
             ->with('channelAccount')
             ->firstOrFail();
+
+        $conversation->loadMissing('joinedUser');
+        $this->ownership->assertCanReply($conversation, $request->user());
 
         $validated = $request->validate([
             'body' => ['nullable', 'string', 'max:4096'],
@@ -318,14 +324,35 @@ class MobileConversationController extends WorkspaceScopedController
 
         $assignedTo = null;
         if ($request->user_id) {
-            $assignedTo = User::where('workspace_id', $conversation->workspace_id)->find($request->user_id);
+            $assignedTo = app(WorkspaceNotificationRecipients::class)
+                ->for((int) $conversation->workspace_id)
+                ->firstWhere('id', (int) $request->user_id);
             abort_unless($assignedTo, 422, 'User not found in workspace.');
         }
 
-        $conversation->update(['assigned_user_id' => $request->user_id]);
+        $updates = ['assigned_user_id' => $request->user_id];
+        if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
+            $updates += ['joined_user_id' => null, 'joined_at' => null];
+        }
+        $conversation->update($updates);
         ConversationAssigned::dispatch($conversation, $assignedTo);
 
         return response()->json(['ok' => true, 'assigned_user_id' => $request->user_id]);
+    }
+
+    public function join(Request $request, string $uuid): JsonResponse
+    {
+        return $this->ownershipResponse($this->ownership->join($this->conversation($request, $uuid), $request->user()));
+    }
+
+    public function leave(Request $request, string $uuid): JsonResponse
+    {
+        return $this->ownershipResponse($this->ownership->leave($this->conversation($request, $uuid), $request->user()));
+    }
+
+    public function takeover(Request $request, string $uuid): JsonResponse
+    {
+        return $this->ownershipResponse($this->ownership->takeover($this->conversation($request, $uuid), $request->user()));
     }
 
     /**
@@ -339,11 +366,11 @@ class MobileConversationController extends WorkspaceScopedController
 
         $request->validate(['status' => ['required', 'in:open,pending,resolved,snoozed']]);
 
-        $updates = ['status' => $request->status];
-        if ($request->status === 'resolved' && ! $conversation->resolved_at) {
-            $updates['resolved_at'] = now();
+        if ($request->status === 'resolved') {
+            $this->ownership->resolve($conversation);
+        } else {
+            $conversation->update(['status' => $request->status, 'resolved_at' => null]);
         }
-        $conversation->update($updates);
 
         return response()->json(['ok' => true, 'status' => $request->status]);
     }
@@ -377,7 +404,11 @@ class MobileConversationController extends WorkspaceScopedController
         if ($mode === 'human' && ! $conversation->handover_at) {
             $updates['handover_at'] = now();
         }
+        if ($mode === 'bot') {
+            $updates += ['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null, 'handover_at' => null];
+        }
         $conversation->update($updates);
+        \App\Events\ConversationOwnershipChanged::dispatch($conversation->fresh());
 
         return response()->json(['ok' => true, 'assigned_to' => $mode]);
     }
@@ -645,6 +676,21 @@ class MobileConversationController extends WorkspaceScopedController
 
     // ─── Private formatters ───────────────────────────────────────────────────
 
+    private function conversation(Request $request, string $uuid): Conversation
+    {
+        return Conversation::where('workspace_id', $this->workspaceId($request))
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+    }
+
+    private function ownershipResponse(Conversation $conversation): JsonResponse
+    {
+        return response()->json([
+            'ok' => true,
+            'conversation' => $this->formatConversation($conversation->load(['contact', 'channelAccount', 'labels', 'assignedUser', 'joinedUser'])),
+        ]);
+    }
+
     private function formatConversation(Conversation $c, bool $detail = false): array
     {
         $isWebchat = $c->channelAccount?->channel === 'webchat';
@@ -666,6 +712,12 @@ class MobileConversationController extends WorkspaceScopedController
                 'id' => $c->assignedUser->id,
                 'name' => $c->assignedUser->name,
                 'avatar' => $c->assignedUser->avatar ?? null,
+            ] : null,
+            'joined_at' => $c->joined_at?->toIso8601String(),
+            'joined_user' => $c->joinedUser ? [
+                'id' => $c->joinedUser->id,
+                'name' => $c->joinedUser->name,
+                'avatar' => $c->joinedUser->avatar ?? null,
             ] : null,
             'contact' => $c->contact ? [
                 'id' => $c->contact->id,

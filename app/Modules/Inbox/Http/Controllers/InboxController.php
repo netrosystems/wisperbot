@@ -11,6 +11,8 @@ use App\Modules\AI\Services\ChatReplyOptions;
 use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\TypingPresence;
+use App\Modules\Inbox\Services\ConversationOwnershipService;
+use App\Modules\Inbox\Services\TeamAvailabilityService;
 use App\Modules\Inbox\Services\WebchatGeoService;
 use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -55,6 +57,7 @@ class InboxController extends Controller
         private StorageManager $storageManager,
         private AttachmentService $attachmentService,
         private VideoResourceService $videos,
+        private ConversationOwnershipService $ownership,
     ) {}
 
     public function index(Request $request): Response
@@ -67,7 +70,7 @@ class InboxController extends Controller
 
         $conversations = Conversation::where('workspace_id', $workspaceId)
             ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
-            ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
+            ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels', 'joinedUser'])
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', $liveSince))
@@ -211,7 +214,7 @@ class InboxController extends Controller
     {
         $this->authorise($request, $conversation);
 
-        $conversation->load(['contact', 'channelAccount', 'labels']);
+        $conversation->load(['contact', 'channelAccount', 'labels', 'joinedUser']);
         $messages = $conversation->messages()->with(['conversation', 'sender'])->orderBy('sent_at')->get();
         $messages->each(fn (Message $message) => $this->normaliseMessageMediaUrl($message, $request));
 
@@ -229,10 +232,15 @@ class InboxController extends Controller
         $allLabels = InboxLabel::where('workspace_id', $workspaceId)->orderBy('name')->get(['id', 'name', 'color']);
 
         // Team members for agent assignment
-        $teamMembers = User::where('workspace_id', $workspaceId)
-            ->select('id', 'name', 'email')
-            ->orderBy('name')
-            ->get();
+        $teamMembers = app(WorkspaceNotificationRecipients::class)->for((int) $workspaceId)
+            ->sortBy('name')->values()
+            ->map(fn (User $member) => [
+                'id' => $member->id,
+                'name' => $member->name,
+                'email' => $member->email,
+                'avatar' => $member->avatar,
+                'available' => app(TeamAvailabilityService::class)->isAvailable((int) $workspaceId, $member),
+            ]);
 
         // WhatsApp approved templates for the template picker (used when 24h session is closed)
         $whatsappTemplates = $conversation->channelAccount?->channel === 'whatsapp'
@@ -253,7 +261,7 @@ class InboxController extends Controller
             ->whereHas('channelAccount', fn ($account) => $emailOnly
                 ? $account->where('channel', 'email')
                 : $account->whereIn('channel', self::OMNI_CHANNELS))
-            ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels'])
+            ->with(['contact', 'channelAccount', 'lastMessage.sender', 'labels', 'joinedUser'])
             ->when(($filters['folder'] ?? null) === 'live', fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', app(WebchatPresence::class)->onlineSince()))
@@ -393,6 +401,8 @@ class InboxController extends Controller
     public function reply(Request $request, Conversation $conversation): JsonResponse|RedirectResponse
     {
         $this->authorise($request, $conversation);
+        $conversation->loadMissing('joinedUser');
+        $this->ownership->assertCanReply($conversation, $request->user());
 
         $validated = $request->validate([
             'body' => ['nullable', 'string', 'max:4096'],
@@ -559,6 +569,8 @@ class InboxController extends Controller
     public function shareProduct(Request $request, Conversation $conversation): JsonResponse
     {
         $this->authorise($request, $conversation);
+        $conversation->loadMissing('joinedUser');
+        $this->ownership->assertCanReply($conversation, $request->user());
 
         $validated = $request->validate(['product_id' => ['required', 'integer']]);
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
@@ -707,15 +719,41 @@ class InboxController extends Controller
 
         $assignedTo = null;
         if ($request->user_id) {
-            $assignedTo = User::where('workspace_id', $conversation->workspace_id)
-                ->find($request->user_id);
+            $assignedTo = app(WorkspaceNotificationRecipients::class)
+                ->for((int) $conversation->workspace_id)
+                ->firstWhere('id', (int) $request->user_id);
             abort_unless($assignedTo, 422);
         }
 
-        $conversation->update(['assigned_user_id' => $request->user_id]);
+        $updates = ['assigned_user_id' => $request->user_id];
+        if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
+            $updates += ['joined_user_id' => null, 'joined_at' => null];
+        }
+        $conversation->update($updates);
         ConversationAssigned::dispatch($conversation, $assignedTo);
 
         return back()->with('success', 'Conversation assigned.');
+    }
+
+    public function join(Request $request, Conversation $conversation): JsonResponse
+    {
+        $this->authorise($request, $conversation);
+
+        return response()->json(['ok' => true, 'conversation' => $this->ownershipPayload($this->ownership->join($conversation, $request->user()))]);
+    }
+
+    public function leave(Request $request, Conversation $conversation): JsonResponse
+    {
+        $this->authorise($request, $conversation);
+
+        return response()->json(['ok' => true, 'conversation' => $this->ownershipPayload($this->ownership->leave($conversation, $request->user()))]);
+    }
+
+    public function takeover(Request $request, Conversation $conversation): JsonResponse
+    {
+        $this->authorise($request, $conversation);
+
+        return response()->json(['ok' => true, 'conversation' => $this->ownershipPayload($this->ownership->takeover($conversation, $request->user()))]);
     }
 
     public function typing(
@@ -738,13 +776,33 @@ class InboxController extends Controller
         $this->authorise($request, $conversation);
         $request->validate(['status' => ['required', 'in:open,pending,resolved,snoozed']]);
 
-        $updates = ['status' => $request->status];
-        if ($request->status === 'resolved' && ! $conversation->resolved_at) {
-            $updates['resolved_at'] = now();
+        if ($request->status === 'resolved') {
+            $this->ownership->resolve($conversation);
+        } else {
+            $conversation->update([
+                'status' => $request->status,
+                'resolved_at' => null,
+            ]);
         }
-        $conversation->update($updates);
 
         return back()->with('success', 'Status updated.');
+    }
+
+    private function ownershipPayload(Conversation $conversation): array
+    {
+        $conversation->loadMissing('joinedUser');
+
+        return [
+            'id' => $conversation->id,
+            'status' => $conversation->status,
+            'assigned_user_id' => $conversation->assigned_user_id,
+            'joined_at' => $conversation->joined_at?->toIso8601String(),
+            'joined_user' => $conversation->joinedUser ? [
+                'id' => $conversation->joinedUser->id,
+                'name' => $conversation->joinedUser->name,
+                'avatar' => $conversation->joinedUser->avatar,
+            ] : null,
+        ];
     }
 
     public function handover(Request $request, Conversation $conversation): JsonResponse
@@ -756,11 +814,24 @@ class InboxController extends Controller
         if ($mode === 'human' && ! $conversation->handover_at) {
             $updates['handover_at'] = now();
         }
+        if ($mode === 'bot') {
+            $updates += ['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null, 'handover_at' => null];
+        }
         $conversation->update($updates);
         ConversationAssigned::dispatch($conversation->fresh(), null);
+        $widget = \App\Modules\Inbox\Models\ChatWidget::where('channel_account_id', $conversation->channel_account_id)->first();
+        if ($widget) {
+            \App\Events\WidgetHandoffUpdated::dispatch(
+                $conversation->id,
+                app(\App\Modules\Inbox\Services\WidgetPayloadBuilder::class)->handoff($widget, $conversation->fresh()),
+            );
+        }
 
         if ($mode === 'human') {
-            $members = app(WorkspaceNotificationRecipients::class)->for((int) $conversation->workspace_id);
+            $members = app(TeamAvailabilityService::class)->available(
+                (int) $conversation->workspace_id,
+                app(WorkspaceNotificationRecipients::class)->for((int) $conversation->workspace_id),
+            );
             foreach ($members as $member) {
                 $member->notify(new ConversationHandoverNotification($conversation, 'manual'));
             }

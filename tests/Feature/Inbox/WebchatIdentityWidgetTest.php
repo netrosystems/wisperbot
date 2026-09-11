@@ -467,7 +467,7 @@ class WebchatIdentityWidgetTest extends TestCase
         $this->withHeaders($headers)->postJson(route('widget.handoff'), [
             'key' => $widget->widget_key,
         ])->assertOk()
-            ->assertJsonPath('handoff.status', 'connected')
+            ->assertJsonPath('handoff.status', 'waiting')
             ->assertJsonPath('handoff.eligible', false);
 
         $conversation = Conversation::where('workspace_id', $workspace->id)->sole();

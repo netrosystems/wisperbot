@@ -84,7 +84,8 @@ Brand Orange:    #FF762E   Accent Amber:   #FFBF00   Highlight:    #FFF78D   Cor
 ### 4.1 Standard Page Layout (`ClientLayout`)
 - **Used For**: Dashboard, Settings, Team Management, Contacts Directory, Billing, Reports.
 - **Structure**: Centered content container (`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8`). Includes page header with breadcrumb navigation and right-aligned action buttons.
-- **Contextual schedules**: Keep timing controls beside the feature they govern. Widget Appearance places the AI schedule beneath AI answering, uses a plain-language inside/outside-office-hours choice, a searchable timezone control, and compact seven-day rows. Explain disabled-day behavior in text; never rely on color alone.
+- **Contextual schedules**: Keep timing controls beside the feature they govern. Widget Appearance places a compact Permanent/Scheduled choice beneath AI answering. Team availability uses the same searchable timezone and seven-day editor with collapsed split windows, explicit All day and Ends next day labels, and a three-window daily limit. Explain disabled days in text; never rely on color alone.
+- **Conversation ownership**: An unjoined conversation replaces the composer with one primary Join Chat action. Joined ownership uses a compact name/status chip; takeover requires confirmation and disabled actions explain why they are unavailable. Customer widgets use a small waiting/joined status row rather than an agent-style message bubble.
 
 ### 4.2 Viewport-Pinned Layout (`InboxLayout`)
 - **Used For**: Omni-Channel Inbox and Master Email Inbox.

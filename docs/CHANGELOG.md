@@ -4,6 +4,10 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added workspace-specific teammate availability, availability-aware inbox alerts, atomic Join Chat ownership, takeover/leave controls, clean ownership reset on resolution, realtime web/mobile ownership payloads, and customer-visible widget waiting/joined states. Added mobile APIs for ownership and administrator schedule management.
+
+- Simplified Website Widget AI scheduling to Permanent or exact Scheduled active hours with split/overnight windows. Legacy inside/outside schedules are converted without changing effective answering periods. Smart Bot activation is visible on each bot card; Appearance selects only active bots and fails closed when its selected bot is disabled.
+
 - Normalized every automation-run dispatch onto the canonical `automation` queue. The job now owns its queue assignment, and the Developer API no longer strands manually triggered runs on the unused plural queue. Deployments should drain the legacy `automations` queue once after rollout.
 
 - Added optional, timezone-aware Smart Bot scheduling to Website Widget Appearance. Clients can run AI inside or outside per-day office hours; enforcement happens server-side for inbound webchat messages and stays synchronized with public handoff availability. Scheduling defaults off, so existing widgets remain continuously available until configured. Deployment requires the new chat-widget schedule migration and matching frontend/backend.

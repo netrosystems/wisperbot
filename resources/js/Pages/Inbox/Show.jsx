@@ -1549,6 +1549,9 @@ export default function InboxShow({
     const [convLabels, setConvLabels]       = useState(conversation.labels ?? []);
     const [assignedTo, setAssignedTo]       = useState(conversation.assigned_to ?? 'bot');
     const [assignedUserId, setAssignedUserId] = useState(conversation.assigned_user_id ?? null);
+    const [joinedUser, setJoinedUser]         = useState(conversation.joined_user ?? null);
+    const [joinedAt, setJoinedAt]             = useState(conversation.joined_at ?? null);
+    const [ownershipBusy, setOwnershipBusy]   = useState(false);
     const [conversations, setConversations] = useState(initialConversations);
     const [listSearch, setListSearch]       = useState('');
     const [listLoading, setListLoading]     = useState(false);
@@ -1565,6 +1568,8 @@ export default function InboxShow({
         setConvLabels(conversation.labels ?? []);
         setAssignedTo(conversation.assigned_to ?? 'bot');
         setAssignedUserId(conversation.assigned_user_id ?? null);
+        setJoinedUser(conversation.joined_user ?? null);
+        setJoinedAt(conversation.joined_at ?? null);
         setSendError(null);
         setVisitorTyping(false);
         stopAudioTracks();
@@ -1690,6 +1695,11 @@ export default function InboxShow({
             })
             .listen('.ConversationAssigned', () => {
                 router.reload({ only: ['conversation'] });
+            })
+            .listen('.ConversationOwnershipChanged', (e) => {
+                setJoinedUser(e.joined_user ?? null);
+                setJoinedAt(e.joined_at ?? null);
+                setAssignedUserId(e.assigned_user_id ?? null);
             })
             .listen('.TypingChanged', (e) => {
                 if (e.user_id === authUser?.id) return;
@@ -1831,6 +1841,9 @@ export default function InboxShow({
                         ),
                     };
                 });
+            })
+            .listen('.ConversationOwnershipChanged', (e) => {
+                setConversations(prev => !prev?.data ? prev : ({ ...prev, data: prev.data.map(item => item.id === e.conversation_id ? { ...item, joined_user: e.joined_user, joined_at: e.joined_at, assigned_user_id: e.assigned_user_id, status: e.status } : item) }));
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);
@@ -2124,6 +2137,29 @@ export default function InboxShow({
         : conversation.contact?.phone_e164 ?? 'Unknown';
 
     const assignedAgent = teamMembers.find(m => m.id === assignedUserId);
+    const isJoinedByMe = Number(joinedUser?.id) === Number(authUser?.id);
+    const joinedMember = joinedUser ? teamMembers.find(m => Number(m.id) === Number(joinedUser.id)) : null;
+    const currentMember = teamMembers.find(m => Number(m.id) === Number(authUser?.id));
+    const isAdministrator = authUser?.client_role === 'administrator';
+    const canTakeOver = Boolean(joinedUser) && (isAdministrator || (joinedMember?.available === false && currentMember?.available !== false));
+
+    const changeOwnership = async (action) => {
+        if (action === 'takeover' && !confirm(`Take over this chat from ${joinedUser?.name || 'the current agent'}?`)) return;
+        setOwnershipBusy(true);
+        setSendError(null);
+        try {
+            const response = await axios.post(route(`client.inbox.${action}`, conversation.uuid));
+            const next = response.data?.conversation || {};
+            setJoinedUser(next.joined_user ?? null);
+            setJoinedAt(next.joined_at ?? null);
+            setAssignedUserId(next.assigned_user_id ?? null);
+        } catch (error) {
+            setSendError(error.response?.data?.error || 'The chat ownership changed. Refresh and try again.');
+            if (error.response?.data?.joined_user) setJoinedUser(error.response.data.joined_user);
+        } finally {
+            setOwnershipBusy(false);
+        }
+    };
     // Marketing permissions only have meaning when this contact has a usable
     // delivery address. Do not show an anonymous website visitor a misleading
     // Email: Yes row when there is no email address at all.
@@ -2245,6 +2281,12 @@ export default function InboxShow({
                         )}
 
                         {/* Agent assign */}
+                        <div className="hidden items-center gap-1.5 xl:flex">
+                            {joinedUser ? <>
+                                <span title={joinedAt ? `Joined ${new Date(joinedAt).toLocaleString()}` : undefined} className="max-w-[150px] truncate rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">{joinedUser.name} joined</span>
+                                {isJoinedByMe && <button type="button" disabled={ownershipBusy} onClick={() => changeOwnership('leave')} className="text-xs font-medium text-neutral-500 hover:text-red-600">Leave</button>}
+                            </> : <button type="button" disabled={ownershipBusy || conversation.status === 'resolved'} onClick={() => changeOwnership('join')} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-40">Join Chat</button>}
+                        </div>
                         <div className="relative">
                             <button
                                 type="button"
@@ -2406,9 +2448,7 @@ export default function InboxShow({
                                 </button>
                             </div>
                         )}
-
-
-
+                        {isJoinedByMe ? <>
                         {/* Attachment preview */}
                         {attachPreview && (
                             <div className="mb-2 flex items-center gap-2 bg-neutral-50 dark:bg-neutral-800 rounded-xl p-2 border border-neutral-200 dark:border-neutral-700">
@@ -2555,6 +2595,13 @@ export default function InboxShow({
                                 </div>
                             </form>
                         </div>
+                        </> : <div className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-800/60">
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">{joinedUser ? `${joinedUser.name} joined this chat` : 'Join before replying'}</p>
+                                <p className="text-xs text-neutral-500">{joinedUser ? (joinedMember?.available === false ? (currentMember?.available === false && !isAdministrator ? 'You are off shift. An available teammate can take over.' : 'The owner is off shift. You may take over.') : 'Only the joined owner can send replies.') : 'The first teammate to join becomes the active owner.'}</p>
+                            </div>
+                            <button type="button" disabled={ownershipBusy || conversation.status === 'resolved' || (joinedUser && !canTakeOver)} onClick={() => changeOwnership(joinedUser ? 'takeover' : 'join')} className="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">{ownershipBusy ? 'Working…' : joinedUser ? 'Take over' : 'Join Chat'}</button>
+                        </div>}
                     </div>
                     )}
                 </div>

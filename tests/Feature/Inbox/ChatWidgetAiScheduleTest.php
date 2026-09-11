@@ -98,10 +98,11 @@ class ChatWidgetAiScheduleTest extends TestCase
 
         $stored = $widget->fresh()->ai_schedule_json;
         $this->assertTrue($stored['enabled']);
-        $this->assertSame('outside_hours', $stored['mode']);
+        $this->assertSame('scheduled', $stored['mode']);
         $this->assertSame('Asia/Dhaka', $stored['timezone']);
         $this->assertTrue($stored['schedule']['mon']['enabled']);
-        $this->assertFalse($stored['schedule']['sun']['enabled']);
+        $this->assertCount(2, $stored['schedule']['mon']['windows']);
+        $this->assertTrue($stored['schedule']['sun']['all_day']);
     }
 
     public function test_invalid_office_window_is_rejected(): void
@@ -125,7 +126,7 @@ class ChatWidgetAiScheduleTest extends TestCase
             'name' => 'Website chat',
             'position' => 'bottom_right',
             'ai_schedule_json' => $schedule,
-        ])->assertSessionHasErrors('ai_schedule_json.schedule.mon.end');
+        ])->assertSessionHasErrors('ai_schedule_json.schedule');
     }
 
     public function test_listener_does_not_generate_a_webchat_reply_while_ai_is_resting(): void

@@ -250,6 +250,7 @@ class InstagramDriver implements ChannelDriverInterface
             ['status' => 'open', 'external_thread_id' => $senderId]
         );
 
+        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',

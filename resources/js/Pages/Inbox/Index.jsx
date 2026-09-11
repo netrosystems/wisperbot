@@ -228,6 +228,7 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
                         <StatusBadge status={conv.status} />
                         <AnonymousVisitorBadge conversation={conv} />
+                        {conv.joined_user && <span className="inline-flex max-w-[150px] truncate rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">{conv.joined_user.name} joined</span>}
                     </div>
                     {conv.labels?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
@@ -416,6 +417,9 @@ export default function InboxIndex({ conversations: initialConversations, filter
                         : conv
                     ),
                 }));
+            })
+            .listen('.ConversationOwnershipChanged', (e) => {
+                setConversations(prev => ({ ...prev, data: prev.data.map(conv => conv.id === e.conversation_id ? { ...conv, joined_user: e.joined_user, joined_at: e.joined_at, assigned_user_id: e.assigned_user_id, status: e.status } : conv) }));
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);

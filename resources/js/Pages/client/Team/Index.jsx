@@ -3,13 +3,25 @@ import { Button, Modal, PasswordInput } from '@/Components/ui';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, Pencil, Trash2, UserPlus, Mail, X } from 'lucide-react';
+import { Users, Pencil, Trash2, UserPlus, Mail, X, Clock3 } from 'lucide-react';
+import WeeklyScheduleEditor, { defaultWeeklySchedule, SCHEDULE_DAYS } from '@/Components/WeeklyScheduleEditor';
 
 const STATUS_ACTIVE    = 'active';
 const CLIENT_ROLE_ADMIN = 'administrator';
 const CLIENT_ROLE_STAFF = 'staff';
 
-export default function TeamIndex({ users = [], client = {}, invitations = [] }) {
+function availabilitySummary(value) {
+    if (!value?.enabled) return 'Always available';
+    const active = SCHEDULE_DAYS.filter(([key]) => value.schedule?.[key]?.enabled);
+    if (!active.length) return `Unavailable · ${value.timezone}`;
+    const same = active.every(([key]) => JSON.stringify(value.schedule[key]) === JSON.stringify(value.schedule[active[0][0]]));
+    const days = active.length === 5 && active.every(([key]) => ['mon','tue','wed','thu','fri'].includes(key)) ? 'Mon–Fri' : active.map(([, label]) => label.slice(0, 3)).join(', ');
+    const first = value.schedule[active[0][0]];
+    const hours = first.all_day ? 'All day' : (same && first.windows?.length === 1 ? `${first.windows[0].start}–${first.windows[0].end}` : `${active.reduce((n, [key]) => n + (value.schedule[key].windows?.length || 0), 0)} windows`);
+    return `${days} · ${hours} · ${value.timezone}`;
+}
+
+export default function TeamIndex({ users = [], client = {}, workspace = {}, invitations = [] }) {
     const { t } = useTranslation();
     const { flash = {} } = usePage().props;
     const [addOpen, setAddOpen]         = useState(false);
@@ -17,6 +29,22 @@ export default function TeamIndex({ users = [], client = {}, invitations = [] })
     const [editOpen, setEditOpen]       = useState(false);
     const [editUser, setEditUser]       = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const [availabilityUser, setAvailabilityUser] = useState(null);
+    const availabilityForm = useForm(defaultWeeklySchedule(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', false));
+
+    const openAvailability = (user) => {
+        setAvailabilityUser(user);
+        const current = user.availability || defaultWeeklySchedule('UTC', false);
+        availabilityForm.setData({ ...defaultWeeklySchedule(current.timezone || 'UTC', Boolean(current.enabled)), ...current });
+    };
+
+    const submitAvailability = (e) => {
+        e.preventDefault();
+        availabilityForm.put(route('client.team.availability.update', availabilityUser.id), {
+            preserveScroll: true,
+            onSuccess: () => setAvailabilityUser(null),
+        });
+    };
 
     const inviteForm = useForm({ email: '', client_role: CLIENT_ROLE_STAFF });
 
@@ -137,7 +165,7 @@ export default function TeamIndex({ users = [], client = {}, invitations = [] })
                     </div>
                 )}
 
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 overflow-hidden">
+                <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800/50">
                     {users.length > 0 ? (
                         <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
                             <thead className="bg-neutral-50 dark:bg-neutral-800">
@@ -154,6 +182,7 @@ export default function TeamIndex({ users = [], client = {}, invitations = [] })
                                     <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">
                                         {t('client.status') || 'Status'}
                                     </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">Availability</th>
                                     {(
                                         <th className="px-4 py-3 text-right text-xs font-medium text-neutral-500 uppercase">
                                             {t('client.actions') || 'Actions'}
@@ -174,6 +203,11 @@ export default function TeamIndex({ users = [], client = {}, invitations = [] })
                                             <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-900/30 text-brand-800 dark:text-brand-300">
                                                 {u.client_role === CLIENT_ROLE_ADMIN ? (t('admin.administrator') || 'Administrator') : (t('admin.staff') || 'Staff')}
                                             </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <button type="button" onClick={() => openAvailability(u)} className="inline-flex max-w-[260px] items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs text-neutral-600 hover:bg-brand-50 hover:text-brand-700 dark:text-neutral-300 dark:hover:bg-brand-900/20">
+                                                <Clock3 className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{availabilitySummary(u.availability)}</span>
+                                            </button>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -366,6 +400,25 @@ export default function TeamIndex({ users = [], client = {}, invitations = [] })
                 </Modal>
 
                 {/* Delete confirm */}
+                <Modal show={!!availabilityUser} onClose={() => setAvailabilityUser(null)} maxWidth="2xl">
+                    <Modal.Header title={`Availability · ${availabilityUser?.name || ''}`} onClose={() => setAvailabilityUser(null)} />
+                    <Modal.Body>
+                        <form id="availabilityForm" onSubmit={submitAvailability} className="space-y-4">
+                            <p className="text-xs text-neutral-500">Workspace: <span className="font-medium text-neutral-700 dark:text-neutral-200">{workspace.name}</span>. This controls inbox alerts, not the teammate’s access.</p>
+                            <label className="flex items-start gap-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
+                                <input type="checkbox" checked={!availabilityForm.data.enabled} onChange={e => availabilityForm.setData('enabled', !e.target.checked)} className="mt-0.5 rounded text-brand-500 focus:ring-brand-500" />
+                                <span><span className="block text-sm font-medium">Always available</span><span className="block text-xs text-neutral-500">Receive inbox alerts at any time.</span></span>
+                            </label>
+                            {availabilityForm.data.enabled && <WeeklyScheduleEditor value={availabilityForm.data} onChange={value => availabilityForm.setData(value)} />}
+                            {Object.values(availabilityForm.errors).map((error, index) => <p key={index} role="alert" className="text-xs text-red-600">{error}</p>)}
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button type="button" variant="secondary" onClick={() => setAvailabilityUser(null)}>Cancel</Button>
+                        <Button type="submit" form="availabilityForm" variant="primary" disabled={availabilityForm.processing}>Save availability</Button>
+                    </Modal.Footer>
+                </Modal>
+
                 <Modal show={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} maxWidth="sm">
                     <Modal.Body>
                         <p className="text-neutral-700 dark:text-neutral-200">

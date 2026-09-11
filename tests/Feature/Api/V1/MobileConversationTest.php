@@ -14,6 +14,31 @@ class MobileConversationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_mobile_join_and_leave_contract_exposes_joined_agent(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id, 'status' => User::STATUS_ACTIVE]);
+        $workspace->update(['owner_id' => $user->id]);
+        $contact = Contact::create(['workspace_id' => $workspace->id, 'first_name' => 'Mobile']);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'human',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/mobile/conversations/{$conversation->uuid}/join")
+            ->assertOk()
+            ->assertJsonPath('conversation.joined_user.id', $user->id)
+            ->assertJsonPath('conversation.assigned_user_id', $user->id);
+
+        $this->postJson("/api/v1/mobile/conversations/{$conversation->uuid}/leave")
+            ->assertOk()
+            ->assertJsonPath('conversation.joined_user', null)
+            ->assertJsonPath('conversation.assigned_user_id', null);
+    }
+
     public function test_mobile_conversations_index_includes_assigned_fields(): void
     {
         $workspace = Workspace::factory()->create();

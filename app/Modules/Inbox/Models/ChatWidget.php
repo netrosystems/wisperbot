@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Modules\Inbox\Services\WeeklySchedule;
 
 /**
  * A website live-chat widget. Owns one `webchat` channel_account and stores the
@@ -104,6 +105,13 @@ class ChatWidget extends Model
         $schedule = $this->ai_schedule_json;
         if (empty($schedule['enabled'])) {
             return true;
+        }
+
+        if (($schedule['mode'] ?? null) === 'permanent') {
+            return true;
+        }
+        if (($schedule['mode'] ?? null) === 'scheduled') {
+            return app(WeeklySchedule::class)->contains($schedule, $at);
         }
 
         $timezone = (string) ($schedule['timezone'] ?? '');

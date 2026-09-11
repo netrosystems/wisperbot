@@ -167,13 +167,10 @@ class ChatWidgetController extends Controller
             'ai_chatbot_id' => ['nullable', 'integer'],
             'ai_schedule_json' => ['nullable', 'array'],
             'ai_schedule_json.enabled' => ['required_with:ai_schedule_json', 'boolean'],
-            'ai_schedule_json.mode' => ['required_if:ai_schedule_json.enabled,true', 'in:outside_hours,inside_hours'],
+            'ai_schedule_json.mode' => ['required_if:ai_schedule_json.enabled,true', 'in:permanent,scheduled,outside_hours,inside_hours'],
             'ai_schedule_json.timezone' => ['required_if:ai_schedule_json.enabled,true', 'string', 'max:64', 'timezone:all'],
             'ai_schedule_json.schedule' => ['required_if:ai_schedule_json.enabled,true', 'array'],
             'ai_schedule_json.schedule.*' => ['array'],
-            'ai_schedule_json.schedule.*.enabled' => ['required', 'boolean'],
-            'ai_schedule_json.schedule.*.start' => ['required', 'date_format:H:i'],
-            'ai_schedule_json.schedule.*.end' => ['required', 'date_format:H:i'],
             'prechat_fields' => ['nullable', 'array'],
             'offline_message' => ['nullable', 'string', 'max:512'],
             'allowed_domains' => ['nullable', 'array'],
@@ -187,15 +184,6 @@ class ChatWidgetController extends Controller
         $data['enabled'] = $request->has('enabled') ? $request->boolean('enabled') : true;
 
         $data['ai_schedule_json'] = $this->normalizeAiSchedule($data['ai_schedule_json'] ?? null);
-        if (! empty($data['ai_schedule_json']['enabled'])) {
-            foreach ($data['ai_schedule_json']['schedule'] as $day => $hours) {
-                if ($hours['enabled'] && $hours['start'] >= $hours['end']) {
-                    throw ValidationException::withMessages([
-                        "ai_schedule_json.schedule.{$day}.end" => 'Closing time must be later than opening time.',
-                    ]);
-                }
-            }
-        }
 
         unset($data['launcher_logo'], $data['remove_launcher_logo']);
 
@@ -212,22 +200,66 @@ class ChatWidgetController extends Controller
             return null;
         }
 
+        $enabled = filter_var($schedule['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if (! $enabled || ($schedule['mode'] ?? null) === 'permanent') {
+            return ['enabled' => false, 'mode' => 'permanent', 'timezone' => (string) ($schedule['timezone'] ?? 'UTC'), 'schedule' => []];
+        }
+
+        $mode = (string) ($schedule['mode'] ?? 'scheduled');
         $days = [];
         foreach (['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as $day) {
             $value = $schedule['schedule'][$day] ?? [];
+            if (in_array($mode, ['inside_hours', 'outside_hours'], true)) {
+                $days[$day] = $this->convertLegacyAiDay($value, $mode);
+                continue;
+            }
+
+            $windows = array_values(array_slice($value['windows'] ?? [], 0, 3));
+            foreach ($windows as $index => $window) {
+                foreach (['start', 'end'] as $field) {
+                    if (! is_string($window[$field] ?? null) || preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $window[$field]) !== 1) {
+                        throw ValidationException::withMessages(["ai_schedule_json.schedule.{$day}.windows.{$index}.{$field}" => 'Enter a valid time.']);
+                    }
+                }
+                if ($window['start'] === $window['end']) {
+                    throw ValidationException::withMessages(["ai_schedule_json.schedule.{$day}.windows.{$index}.end" => 'Start and end must differ. Use All day for 24-hour answering.']);
+                }
+            }
             $days[$day] = [
                 'enabled' => filter_var($value['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'start' => (string) ($value['start'] ?? '09:00'),
-                'end' => (string) ($value['end'] ?? '17:00'),
+                'all_day' => filter_var($value['all_day'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'windows' => $windows,
             ];
         }
 
-        return [
-            'enabled' => filter_var($schedule['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            'mode' => (string) ($schedule['mode'] ?? 'outside_hours'),
-            'timezone' => (string) ($schedule['timezone'] ?? 'UTC'),
-            'schedule' => $days,
-        ];
+        if (app(\App\Modules\Inbox\Services\WeeklySchedule::class)->hasOverlaps($days)) {
+            throw ValidationException::withMessages(['ai_schedule_json.schedule' => 'AI active windows cannot overlap, including across overnight day boundaries.']);
+        }
+
+        return ['enabled' => true, 'mode' => 'scheduled', 'timezone' => (string) ($schedule['timezone'] ?? 'UTC'), 'schedule' => $days];
+    }
+
+    /** @param array<string,mixed> $value */
+    private function convertLegacyAiDay(array $value, string $mode): array
+    {
+        $open = filter_var($value['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $start = (string) ($value['start'] ?? '09:00');
+        $end = (string) ($value['end'] ?? '17:00');
+        if ($mode === 'inside_hours') {
+            return ['enabled' => $open, 'all_day' => false, 'windows' => $open ? [['start' => $start, 'end' => $end]] : []];
+        }
+        if (! $open) {
+            return ['enabled' => true, 'all_day' => true, 'windows' => []];
+        }
+        $windows = [];
+        if ($start !== '00:00') {
+            $windows[] = ['start' => '00:00', 'end' => $start];
+        }
+        if ($end !== '00:00') {
+            $windows[] = ['start' => $end, 'end' => '00:00'];
+        }
+
+        return ['enabled' => $windows !== [], 'all_day' => false, 'windows' => $windows];
     }
 
     /** @param array<string, mixed> $data */

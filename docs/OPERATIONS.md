@@ -132,6 +132,10 @@ Only for platform-owned accounts, configure `META_OPERATOR_BUSINESS_ID` and comm
 
 Clear/rebuild config caches and restart workers after configuration changes. Verify the operator WABA, then a customer Cloud API account and a Coexistence account. A real incoming message must be processed after a repair before delivery is verified. Monitoring does not send test messages, register phones, replay messages, or restore events Meta never delivered. Stop rollout by disabling `CHANNEL_HEALTH_ENABLED`; existing messaging continues. External uptime monitoring remains necessary to alert when the entire application/scheduler is stopped.
 
+## Team availability and ownership rollout (2026-09-12)
+
+Deploy matching backend, Vite build, and `public/widget/wisperbot-chat-widget.js`, then run `php artisan migrate --force` for `2026_09_12_000100_add_availability_and_join_state.php`. Clear application/config/view caches and restart web, queue, and realtime workers so notification routing and ownership events use the new fields. Verify one web and one Sanctum mobile join/leave flow, a resolved conversation reopening unowned, an off-shift notification route, and widget waiting-to-joined transition. The migration is additive; rollback removes availability and joined-owner state but should be done only after reverting code that reads those columns.
+
 ## Incident triage order
 
 Social comments deployment is separate and off by default: migrate `2026_09_05_150000_create_social_comments_tables`, deploy the matching local-built Vite assets, then restart `social` and `ai` workers. The `social-comments-sync` scheduler runs every 15 minutes. Use worker timeout at least 120 seconds, queue retry_after at least 180 seconds, and a shared lock-capable cache. Set `SOCIAL_COMMENTS_ENABLED=true` only after Meta scope/subscription checks and controlled testing. Detailed limits, rollback, mobile API, and reviewer recording steps are in [Social Comments](SOCIAL_COMMENTS.md). No production deployment is implied by a local build.

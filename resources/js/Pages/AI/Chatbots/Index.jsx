@@ -201,6 +201,14 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
         put(route('client.ai.chatbots.update', chatbot.uuid), { preserveScroll: true });
     };
 
+    const toggleEnabled = (enabled) => {
+        setData('enabled', enabled);
+        router.put(route('client.ai.chatbots.update', chatbot.uuid), { name: chatbot.name, enabled }, {
+            preserveScroll: true,
+            onError: () => setData('enabled', !enabled),
+        });
+    };
+
     const handleDelete = () => {
         if (confirm(t('ai.delete_chatbot_confirm', { name: chatbot.name }))) {
             router.delete(route('client.ai.chatbots.destroy', chatbot.uuid), { preserveScroll: true });
@@ -246,6 +254,10 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
+                    <div className="mr-2 flex items-center gap-1.5" title={data.enabled ? 'Active and available for channel selection' : 'Inactive'}>
+                        <ToggleSwitch checked={data.enabled} onChange={toggleEnabled} label={`${chatbot.name} active`} />
+                        <span className="hidden text-xs text-neutral-500 sm:inline">Active</span>
+                    </div>
                     <button
                         onClick={() => toggleTab('playground')}
                         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${tab === 'playground' ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400' : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300'}`}
@@ -348,10 +360,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('ai.video_match_threshold')}</label>
                                 <input type="number" min={0} max={1} step={0.01} value={data.video_match_threshold} onChange={e => setData('video_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100" />
-                            </div>
-                            <div className="flex items-center gap-3 pt-5">
-                                <ToggleSwitch checked={data.enabled} onChange={v => setData('enabled', v)} label={t('common.active')} />
-                                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('common.active')}</span>
                             </div>
                         </div>
                         {data.ai_kb_id && <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">

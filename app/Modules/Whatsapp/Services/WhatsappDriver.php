@@ -297,6 +297,7 @@ class WhatsappDriver implements ChannelDriverInterface
 
         [$type, $body] = $this->messagePresentation($msg);
 
+        app(\App\Modules\Inbox\Services\ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',

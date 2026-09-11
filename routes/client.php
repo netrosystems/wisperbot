@@ -18,6 +18,7 @@ use App\Http\Controllers\Client\SettingsController as ClientSettingsController;
 use App\Http\Controllers\Client\SubscriptionController as ClientSubscriptionController;
 use App\Http\Controllers\Client\SupportTicketController;
 use App\Http\Controllers\Client\TeamController;
+use App\Http\Controllers\Client\TeamAvailabilityController;
 use App\Http\Controllers\Client\WebhookEndpointController;
 use App\Http\Controllers\Client\WebPushController;
 use App\Http\Controllers\PricingController;
@@ -53,6 +54,7 @@ Route::middleware(['verified'])->group(function () {
     Route::post('/team', [TeamController::class, 'store'])->name('team.store');
     Route::put('/team/{member}', [TeamController::class, 'update'])->name('team.update');
     Route::delete('/team/{member}', [TeamController::class, 'destroy'])->name('team.destroy');
+    Route::put('/team/{member}/availability', [TeamAvailabilityController::class, 'update'])->name('team.availability.update');
 
     // Audit log (client admins only)
     Route::get('/audit-log', [ClientAuditLogController::class, 'index'])->name('audit-log.index');

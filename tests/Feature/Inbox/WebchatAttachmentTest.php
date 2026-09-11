@@ -39,6 +39,9 @@ class WebchatAttachmentTest extends TestCase
             'contact_id' => $contact->id,
             'status' => 'open',
             'external_thread_id' => 'visitor-1',
+            'assigned_user_id' => $user->id,
+            'joined_user_id' => $user->id,
+            'joined_at' => now(),
             'last_message_at' => now(),
         ]);
 
@@ -87,6 +90,9 @@ class WebchatAttachmentTest extends TestCase
             'contact_id' => $contact->id,
             'status' => 'open',
             'external_thread_id' => 'visitor-audio',
+            'assigned_user_id' => $user->id,
+            'joined_user_id' => $user->id,
+            'joined_at' => now(),
             'last_message_at' => now(),
         ]);
 
@@ -128,6 +134,9 @@ class WebchatAttachmentTest extends TestCase
             'contact_id' => $contact->id,
             'status' => 'open',
             'external_thread_id' => 'visitor-doc-1',
+            'assigned_user_id' => $user->id,
+            'joined_user_id' => $user->id,
+            'joined_at' => now(),
             'last_message_at' => now(),
         ]);
 
@@ -177,6 +186,9 @@ class WebchatAttachmentTest extends TestCase
             'contact_id' => $contact->id,
             'status' => 'open',
             'external_thread_id' => 'ig-thread-1',
+            'assigned_user_id' => $user->id,
+            'joined_user_id' => $user->id,
+            'joined_at' => now(),
             'last_message_at' => now(),
         ]);
 
@@ -214,6 +226,9 @@ class WebchatAttachmentTest extends TestCase
             'contact_id' => $contact->id,
             'status' => 'open',
             'external_thread_id' => 'visitor-large-1',
+            'assigned_user_id' => $user->id,
+            'joined_user_id' => $user->id,
+            'joined_at' => now(),
             'last_message_at' => now(),
         ]);
 

@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\MessageReceived;
 use App\Notifications\NewMessageNotification;
+use App\Modules\Inbox\Services\TeamAvailabilityService;
 use App\Services\WorkspaceNotificationRecipients;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
@@ -40,7 +41,18 @@ class SendNewMessageNotification
 
         // Notify all workspace team members for all messages
         $workspaceId = $conversation->workspace_id;
-        $recipients = $this->recipients->for((int) $workspaceId);
+        $allRecipients = $this->recipients->for((int) $workspaceId);
+        $availability = app(TeamAvailabilityService::class);
+        if ($conversation->joined_user_id) {
+            $owner = $allRecipients->firstWhere('id', (int) $conversation->joined_user_id);
+            $recipients = $owner && $availability->isAvailable((int) $workspaceId, $owner)
+                ? new \Illuminate\Database\Eloquent\Collection([$owner])
+                : $availability->available((int) $workspaceId, $allRecipients)
+                    ->reject(fn ($user) => (int) $user->id === (int) $conversation->joined_user_id)
+                    ->values();
+        } else {
+            $recipients = $availability->available((int) $workspaceId, $allRecipients);
+        }
 
         if ($recipients->isEmpty()) {
             return;

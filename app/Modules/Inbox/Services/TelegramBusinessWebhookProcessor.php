@@ -267,6 +267,9 @@ class TelegramBusinessWebhookProcessor
         [$type, $body, $payload] = $this->normalizeMessage($telegramMessage);
         $sentAt = isset($telegramMessage['date']) ? now()->setTimestamp((int) $telegramMessage['date']) : now();
 
+        if ($direction === 'in') {
+            app(ConversationOwnershipService::class)->prepareInbound($conversation);
+        }
         $stored = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => $direction,
