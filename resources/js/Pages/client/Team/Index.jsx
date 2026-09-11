@@ -205,16 +205,16 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
                                             </span>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <button type="button" onClick={() => openAvailability(u)} className="inline-flex max-w-[260px] items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs text-neutral-600 hover:bg-brand-50 hover:text-brand-700 dark:text-neutral-300 dark:hover:bg-brand-900/20">
-                                                <Clock3 className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{availabilitySummary(u.availability)}</span>
-                                            </button>
-                                        </td>
-                                        <td className="px-4 py-3">
                                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                                                 u.status === STATUS_ACTIVE ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400'
                                             }`}>
                                                 {u.status}
                                             </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <button type="button" onClick={() => openAvailability(u)} className="inline-flex max-w-[260px] items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs text-neutral-600 hover:bg-brand-50 hover:text-brand-700 dark:text-neutral-300 dark:hover:bg-brand-900/20">
+                                                <Clock3 className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{availabilitySummary(u.availability)}</span>
+                                            </button>
                                         </td>
                                         {(
                                             <td className="px-4 py-3 text-right">
