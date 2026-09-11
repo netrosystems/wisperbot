@@ -2,11 +2,15 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Events\MessageStatusUpdated;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
+use App\Modules\Shared\Models\Message;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -178,7 +182,7 @@ class MobileConversationTest extends TestCase
     {
         $workspace = Workspace::factory()->create();
         $user = User::factory()->create(['workspace_id' => $workspace->id]);
-        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+        $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'webchat',
             'display_name' => 'Website Widget',
@@ -225,7 +229,7 @@ class MobileConversationTest extends TestCase
     {
         $workspace = Workspace::factory()->create();
         $user = User::factory()->create(['workspace_id' => $workspace->id]);
-        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+        $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'webchat',
             'display_name' => 'Website Widget',
@@ -261,7 +265,7 @@ class MobileConversationTest extends TestCase
     {
         $workspace = Workspace::factory()->create();
         $user = User::factory()->create(['workspace_id' => $workspace->id]);
-        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+        $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'webchat',
             'display_name' => 'Website Widget',
@@ -291,11 +295,11 @@ class MobileConversationTest extends TestCase
 
     public function test_mobile_can_mark_conversation_as_read(): void
     {
-        \Illuminate\Support\Facades\Event::fake([\App\Events\MessageStatusUpdated::class]);
+        Event::fake([MessageStatusUpdated::class]);
 
         $workspace = Workspace::factory()->create();
         $user = User::factory()->create(['workspace_id' => $workspace->id]);
-        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+        $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'webchat',
             'display_name' => 'Website Widget',
@@ -315,7 +319,7 @@ class MobileConversationTest extends TestCase
             'unread_count' => 3,
         ]);
 
-        $msg = \App\Modules\Shared\Models\Message::create([
+        $msg = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',
             'channel' => 'webchat',
@@ -334,6 +338,6 @@ class MobileConversationTest extends TestCase
 
         $this->assertEquals(0, $conversation->fresh()->unread_count);
         $this->assertEquals('read', $msg->fresh()->status);
-        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\MessageStatusUpdated::class);
+        Event::assertDispatched(MessageStatusUpdated::class);
     }
 }

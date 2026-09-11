@@ -6,6 +6,7 @@ use App\Events\MessageStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\HumanHandoffService;
+use App\Modules\Inbox\Services\TeamAvailabilityService;
 use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Inbox\Services\WebchatPresence;
@@ -14,7 +15,9 @@ use App\Modules\Inbox\Services\WidgetVisitorPushService;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Services\Media\AttachmentService;
+use App\Services\PusherPublicConfig;
 use App\Services\StorageManager;
+use App\Services\WorkspaceNotificationRecipients;
 use App\Support\WebchatVisitorToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -344,7 +347,7 @@ class ChatWidgetPublicController extends Controller
         $widget = $this->resolveWidget($widgetKey);
         $this->assertDomainAllowed($widget, $request);
 
-        $cfg = app(\App\Services\PusherPublicConfig::class)->widget();
+        $cfg = app(PusherPublicConfig::class)->widget();
 
         return response()->json([
             'key' => $cfg['key'] ?? '',
@@ -536,9 +539,9 @@ class ChatWidgetPublicController extends Controller
         if ($conversation?->joined_user_id) {
             return true;
         }
-        $recipients = app(\App\Services\WorkspaceNotificationRecipients::class)->for((int) $widget->workspace_id);
+        $recipients = app(WorkspaceNotificationRecipients::class)->for((int) $widget->workspace_id);
 
-        return app(\App\Modules\Inbox\Services\TeamAvailabilityService::class)
+        return app(TeamAvailabilityService::class)
             ->available((int) $widget->workspace_id, $recipients)
             ->isNotEmpty();
     }

@@ -52,6 +52,7 @@ class WeeklySchedule
             }
             if (! empty($day['all_day'])) {
                 $intervals[] = [$index * 1440, ($index + 1) * 1440];
+
                 continue;
             }
             foreach ($day['windows'] ?? [] as $window) {

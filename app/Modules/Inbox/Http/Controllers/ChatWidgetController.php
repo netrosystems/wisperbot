@@ -5,6 +5,7 @@ namespace App\Modules\Inbox\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Models\ChatWidget;
+use App\Modules\Inbox\Services\WeeklySchedule;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\StorageManager;
 use Illuminate\Http\RedirectResponse;
@@ -211,6 +212,7 @@ class ChatWidgetController extends Controller
             $value = $schedule['schedule'][$day] ?? [];
             if (in_array($mode, ['inside_hours', 'outside_hours'], true)) {
                 $days[$day] = $this->convertLegacyAiDay($value, $mode);
+
                 continue;
             }
 
@@ -232,7 +234,7 @@ class ChatWidgetController extends Controller
             ];
         }
 
-        if (app(\App\Modules\Inbox\Services\WeeklySchedule::class)->hasOverlaps($days)) {
+        if (app(WeeklySchedule::class)->hasOverlaps($days)) {
             throw ValidationException::withMessages(['ai_schedule_json.schedule' => 'AI active windows cannot overlap, including across overnight day boundaries.']);
         }
 

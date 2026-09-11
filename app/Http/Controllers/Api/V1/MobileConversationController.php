@@ -3,16 +3,16 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Events\ConversationAssigned;
+use App\Events\ConversationOwnershipChanged;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Events\TypingChanged;
-use App\Models\User;
 use App\Modules\AI\Services\ChatReplyOptions;
 use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\InboxLabel;
+use App\Modules\Inbox\Services\ConversationOwnershipService;
 use App\Modules\Inbox\Services\WebchatGeoService;
 use App\Modules\Inbox\Services\WebchatPresence;
-use App\Modules\Inbox\Services\ConversationOwnershipService;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -408,7 +408,7 @@ class MobileConversationController extends WorkspaceScopedController
             $updates += ['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null, 'handover_at' => null];
         }
         $conversation->update($updates);
-        \App\Events\ConversationOwnershipChanged::dispatch($conversation->fresh());
+        ConversationOwnershipChanged::dispatch($conversation->fresh());
 
         return response()->json(['ok' => true, 'assigned_to' => $mode]);
     }

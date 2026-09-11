@@ -38,6 +38,7 @@ class ConversationAssigned implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         $this->conversation->loadMissing('joinedUser');
+
         return [
             'conversation_id' => $this->conversation->id,
             'mode' => $this->conversation->assigned_to ?? 'bot',

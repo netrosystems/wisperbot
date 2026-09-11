@@ -4,8 +4,8 @@ namespace App\Modules\Inbox\Services;
 
 use App\Events\ConversationAssigned;
 use App\Events\WidgetHandoffUpdated;
-use App\Modules\Inbox\Models\ChatWidget;
 use App\Models\User;
+use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\Conversation;
 use App\Notifications\ConversationHandoverNotification;
 use App\Services\WorkspaceNotificationRecipients;

@@ -3,6 +3,7 @@
 namespace App\Modules\Inbox\Jobs;
 
 use App\Events\MessageReceived;
+use App\Modules\Inbox\Services\ConversationOwnershipService;
 use App\Modules\Inbox\Services\GenericMailboxClient;
 use App\Modules\Inbox\Services\GmailApiClient;
 use App\Modules\Inbox\Services\MicrosoftGraphMailClient;
@@ -104,7 +105,7 @@ class SyncEmailAccountJob implements ShouldBeUnique, ShouldQueue
             ['status' => 'open', 'assigned_to' => 'human'],
         );
         $body = trim(strip_tags((string) data_get($item, 'body.content', $item['bodyPreview'] ?? '')));
-        app(\App\Modules\Inbox\Services\ConversationOwnershipService::class)->prepareInbound($conversation);
+        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',

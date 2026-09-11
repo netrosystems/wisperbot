@@ -35,6 +35,7 @@ class UpdateMemberAvailabilityRequest extends FormRequest
             foreach (($this->input('schedule') ?? []) as $day => $settings) {
                 if (! in_array($day, $allowedDays, true)) {
                     $validator->errors()->add("schedule.{$day}", 'Unknown weekday.');
+
                     continue;
                 }
                 if (empty($settings['enabled']) || ! empty($settings['all_day'])) {
@@ -49,6 +50,7 @@ class UpdateMemberAvailabilityRequest extends FormRequest
                     }
                     if ($start === $end) {
                         $validator->errors()->add("schedule.{$day}.windows.{$index}.end", 'Start and end time must be different. Use All day for 24-hour coverage.');
+
                         continue;
                     }
                     // Split overnight windows at the week/day boundary for overlap checks.

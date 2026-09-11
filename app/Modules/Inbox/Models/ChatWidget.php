@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Models;
 
 use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\Inbox\Services\WeeklySchedule;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\PusherPublicConfig;
 use App\Services\StorageManager;
@@ -13,7 +14,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use App\Modules\Inbox\Services\WeeklySchedule;
 
 /**
  * A website live-chat widget. Owns one `webchat` channel_account and stores the

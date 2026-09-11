@@ -5,16 +5,19 @@ namespace App\Modules\Inbox\Http\Controllers;
 use App\Events\ConversationAssigned;
 use App\Events\MessageSent;
 use App\Events\TypingChanged;
+use App\Events\WidgetHandoffUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\AI\Services\ChatReplyOptions;
 use App\Modules\AI\Services\VideoResourceService;
+use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Models\InboxLabel;
-use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\ConversationOwnershipService;
 use App\Modules\Inbox\Services\TeamAvailabilityService;
+use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\WebchatGeoService;
 use App\Modules\Inbox\Services\WebchatPresence;
+use App\Modules\Inbox\Services\WidgetPayloadBuilder;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -819,11 +822,11 @@ class InboxController extends Controller
         }
         $conversation->update($updates);
         ConversationAssigned::dispatch($conversation->fresh(), null);
-        $widget = \App\Modules\Inbox\Models\ChatWidget::where('channel_account_id', $conversation->channel_account_id)->first();
+        $widget = ChatWidget::where('channel_account_id', $conversation->channel_account_id)->first();
         if ($widget) {
-            \App\Events\WidgetHandoffUpdated::dispatch(
+            WidgetHandoffUpdated::dispatch(
                 $conversation->id,
-                app(\App\Modules\Inbox\Services\WidgetPayloadBuilder::class)->handoff($widget, $conversation->fresh()),
+                app(WidgetPayloadBuilder::class)->handoff($widget, $conversation->fresh()),
             );
         }
 

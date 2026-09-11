@@ -6,6 +6,7 @@ use App\Events\MessageReceived;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Modules\Broadcasting\Models\CampaignRecipient;
+use App\Modules\Inbox\Services\ConversationOwnershipService;
 use App\Modules\Shared\Contracts\ChannelDriverInterface;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -297,7 +298,7 @@ class WhatsappDriver implements ChannelDriverInterface
 
         [$type, $body] = $this->messagePresentation($msg);
 
-        app(\App\Modules\Inbox\Services\ConversationOwnershipService::class)->prepareInbound($conversation);
+        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',
