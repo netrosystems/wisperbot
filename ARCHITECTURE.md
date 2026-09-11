@@ -199,7 +199,7 @@ Background jobs are categorized into dedicated queues to prevent high-volume ope
 | `ai` | Document chunking, vector embedding, smart bot execution | Normal (2) | `IndexKnowledgeDocumentJob`, `GenerateAiResponseJob` |
 | `social` | Scheduled social media post publishing | Normal (3) | `PublishSocialPostJob`, `RefreshSocialTokensJob` |
 | `broadcast` | Bulk SMS campaign batching & dispatching | Low (4) | `DispatchSmsBatchJob`, `ProcessSmsDeliveryCallbackJob` |
-| `automation` | XYFlow visual workflow step evaluation & execution | High (1) | `ExecuteAutomationStepJob`, `ResumeDelayedAutomationJob` |
+| `automation` | XYFlow visual workflow step evaluation & execution | High (1) | `ExecuteAutomationRunJob`; the job owns this queue name so every trigger and resume path is consistent. |
 | `ecommerce` | Store catalog, order, and customer syncing | Low (4) | `SyncStoreOrdersJob`, `ProcessShopifyWebhookJob` |
 
 ---

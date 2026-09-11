@@ -12,10 +12,6 @@ Full backend verification during this cleanup: 617 passed, 74 failed before the 
 
 Website discovery handles safe redirects, declared/common/compressed sitemaps, and a capped same-host link fallback. It cannot index authenticated pages or override a site's WAF, rate limits, DNS/TLS failures, or crawler restrictions. Fully client-rendered sites that return no useful HTML need a future opt-in browser-rendering service; clients should currently expose server-rendered help content or upload reviewed files. The UI reports actionable failures and never bypasses the target site's access controls.
 
-## Queue name mismatch
-
-`App\Http\Controllers\Api\V1\AutomationApiController` dispatches an automation run to `automations` (plural), while the documented/production queue is `automation` (singular). Jobs from that API path may wait indefinitely unless a worker consumes the plural queue. Normalize this in code with a regression test.
-
 ## Meta review and evolving permissions
 
 Meta permission names/products and App Review state are external dependencies. The system may contain working admin/test flows while general users remain blocked until permission approval. Re-verify scopes against current official Meta documentation before each review submission.

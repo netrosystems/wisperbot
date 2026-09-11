@@ -84,7 +84,7 @@ class AutomationTriggerListener
             'started_at' => now(),
         ]);
 
-        dispatch(new ExecuteAutomationRunJob($run->id))->onQueue('automation');
+        dispatch(new ExecuteAutomationRunJob($run->id));
     }
 
     private function fire(string $triggerType, int $workspaceId, int $contactId, array $context = []): void

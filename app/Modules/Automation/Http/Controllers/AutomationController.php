@@ -144,7 +144,7 @@ class AutomationController extends Controller
         abort_unless($run->status === 'paused', 409, 'Only paused automation runs can be retried.');
 
         $run->update(['status' => 'pending', 'error' => null]);
-        dispatch(new ExecuteAutomationRunJob($run->id))->onQueue('automation');
+        dispatch(new ExecuteAutomationRunJob($run->id));
 
         return back()->with('success', 'Automation run queued for retry.');
     }

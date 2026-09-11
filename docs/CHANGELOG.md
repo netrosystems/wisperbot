@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Normalized every automation-run dispatch onto the canonical `automation` queue. The job now owns its queue assignment, and the Developer API no longer strands manually triggered runs on the unused plural queue. Deployments should drain the legacy `automations` queue once after rollout.
+
 - Added optional, timezone-aware Smart Bot scheduling to Website Widget Appearance. Clients can run AI inside or outside per-day office hours; enforcement happens server-side for inbound webchat messages and stays synchronized with public handoff availability. Scheduling defaults off, so existing widgets remain continuously available until configured. Deployment requires the new chat-widget schedule migration and matching frontend/backend.
 
 - Made Smart Bots knowledge-only by default whenever a Knowledge Base is assigned, independent of the guarded-publishing rollout flag. Unrelated or unsupported questions now bypass chat generation when retrieval fails, provider output must pass a grounding contract before credits finalize, and clients can explicitly enable safe general answers with a plain-language setting. Short CTA/follow-up replies retain nearby conversational context without letting prior topics legitimize a substantive unrelated request.

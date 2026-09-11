@@ -12,11 +12,16 @@ class ExecuteAutomationRunJob implements ShouldQueue
 {
     use Queueable;
 
+    public const QUEUE = 'automation';
+
     public int $tries = 3;
 
     public int $timeout = 120;
 
-    public function __construct(public readonly int $runId) {}
+    public function __construct(public readonly int $runId)
+    {
+        $this->onQueue(self::QUEUE);
+    }
 
     public function handle(AutomationEngine $engine): void
     {

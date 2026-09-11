@@ -155,9 +155,7 @@ Production must process:
 - `ai` — document indexing and AI background work.
 - `social` — social publishing, seller/Telegram sync work.
 - `leads` — retained legacy lead jobs.
-- `automation` — automation runs and delayed steps.
-
-There is one inconsistency to avoid extending: one API controller dispatches to `automations` (plural), while production uses `automation` (singular). See `KNOWN_ISSUES.md`.
+- `automation` — automation runs and delayed steps. `ExecuteAutomationRunJob` owns the canonical queue assignment so API, event, retry, sub-flow, and delayed-resume dispatches cannot diverge.
 
 ## Realtime
 

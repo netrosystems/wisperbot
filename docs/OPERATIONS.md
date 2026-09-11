@@ -77,6 +77,14 @@ tail -n 200 storage/logs/laravel.log
 
 Do not retry all failed AI indexing jobs until the provider/model/root cause is corrected.
 
+After deploying the 2026-09-11 automation queue normalization, drain jobs created by the former Developer API typo once, using the deployment's normal queue connection:
+
+```bash
+php artisan queue:work --queue=automations --stop-when-empty --sleep=1 --tries=3 --timeout=1800
+```
+
+Run this only after the corrected code is active, inspect failed jobs afterward, and continue normal operation with workers consuming only the canonical `automation` queue.
+
 ## Frontend builds
 
 Source changes under `resources/js` are not visible in production until Vite creates a new `public/build`.
