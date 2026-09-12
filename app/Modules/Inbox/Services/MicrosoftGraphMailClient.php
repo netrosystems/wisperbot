@@ -67,7 +67,7 @@ class MicrosoftGraphMailClient
     {
         $meta = $account->meta_json ?? [];
         $url = $meta['delta_link'] ?? 'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?'.http_build_query([
-            '$select' => 'id,internetMessageId,conversationId,subject,from,toRecipients,receivedDateTime,sentDateTime,bodyPreview,body,isRead,hasAttachments',
+            '$select' => 'id,internetMessageId,internetMessageHeaders,conversationId,subject,from,toRecipients,receivedDateTime,sentDateTime,bodyPreview,body,isRead,hasAttachments',
             '$top' => 50,
         ]);
         $messages = [];

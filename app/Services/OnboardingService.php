@@ -92,7 +92,6 @@ class OnboardingService
 
             'train_first_chatbot' => $workspaceId !== null &&
                 AiChatbot::where('workspace_id', $workspaceId)
-                    ->where('enabled', true)
                     ->exists(),
 
             'connect_first_social_account' => $workspaceId !== null &&

@@ -1,11 +1,12 @@
 ﻿import { Head, router, usePage, Link } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import WhatsappConnectionHealth from '@/Components/Inbox/WhatsappConnectionHealth';
+import AiAnsweringControl from '@/Components/Inbox/AiAnsweringControl';
 import MetaSignupProgress from '@/Components/Inbox/MetaSignupProgress';
 import {
     Check, AlertTriangle,
     Phone, Inbox, FileText,
-    Trash2, RefreshCw, Bot, ChevronDown, ExternalLink,
+    Trash2, RefreshCw,
     Edit3, Clock, ShieldCheck, ShieldAlert, Wifi, WifiOff, X,
 } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
@@ -121,7 +122,7 @@ function StatusBadge({ status }) {
     );
 }
 
-function ChannelCard({ icon: Icon, iconBg, title, count, children, className = '' }) {
+function ChannelCard({ icon: Icon, iconBg, title, count, children, className = '', emptyText = '' }) {
     const { t } = useTranslation();
     return (
         <div className={`rounded-2xl border bg-white dark:bg-neutral-900 shadow-sm overflow-hidden border-neutral-200 dark:border-neutral-700 ${className}`}>
@@ -153,44 +154,6 @@ function ChannelCard({ icon: Icon, iconBg, title, count, children, className = '
 }
 
 /* â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ chatbot selector â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */
-
-function ChatbotSelector({ channelAccountId, currentChatbotId, chatbots }) {
-    const { t } = useTranslation();
-    const [saving, setSaving] = useState(false);
-    const [value, setValue] = useState(currentChatbotId ? String(currentChatbotId) : '');
-
-    const handleChange = (e) => {
-        const next = e.target.value;
-        setValue(next);
-        setSaving(true);
-        router.patch(
-            route('client.inbox.setup.assign-chatbot', { channelAccount: channelAccountId }),
-            { chatbot_id: next === '' ? null : Number(next) },
-            { preserveScroll: true, onFinish: () => setSaving(false) },
-        );
-    };
-
-    return (
-        <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-neutral-100 dark:border-neutral-700/50">
-            <Bot className="h-3.5 w-3.5 text-brand-500 shrink-0" />
-            <div className="relative flex-1">
-                <select
-                    value={value}
-                    onChange={handleChange}
-                    disabled={saving}
-                    className="w-full appearance-none rounded-lg border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 pl-2.5 pr-7 py-1.5 text-xs disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition"
-                >
-                    <option value="">{t('inbox.no_chatbot')}</option>
-                    {chatbots.map(bot => (
-                        <option key={bot.id} value={String(bot.id)}>{bot.name}</option>
-                    ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-400" />
-            </div>
-            {saving && <span className="text-xs text-neutral-400 shrink-0">{t('inbox.saving')}</span>}
-        </div>
-    );
-}
 
 /* â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ WhatsApp section â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */
 
@@ -241,14 +204,6 @@ function PhoneStatusCard({ num, wabaId, onRefreshed }) {
     const accountMode   = data.account_mode ?? null;
     const codeStatus    = data.code_verification_status ?? null;
 
-    // Auto-fetch from Meta on first render if name_status is unknown
-    useEffect(() => {
-        if (!nameStatus && !refreshing) {
-            refresh();
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [phoneId]);
-
     const overallStatus = (() => {
         if (nameStatus === 'PENDING_REVIEW') return { label: t('inbox.overall_pending_review'), color: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', dot: 'bg-amber-400' };
         if (nameStatus === 'DECLINED')       return { label: t('inbox.overall_name_declined'),  color: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300',         dot: 'bg-red-500'  };
@@ -270,6 +225,15 @@ function PhoneStatusCard({ num, wabaId, onRefreshed }) {
             if (res.ok && json.data) { setLiveData({ ...num, ...json.data }); onRefreshed?.(); }
         } finally { setRefreshing(false); }
     };
+
+    // Auto-fetch from Meta on first render if name_status is unknown
+    useEffect(() => {
+        if (nameStatus || refreshing) return undefined;
+        const timer = window.setTimeout(() => { void refresh(); }, 0);
+
+        return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [phoneId]);
 
     const submitNameChange = async () => {
         if (!newName.trim()) return;
@@ -388,7 +352,7 @@ function PhoneStatusCard({ num, wabaId, onRefreshed }) {
     );
 }
 
-function WabaCard({ waba, channelAccounts, chatbots, onReconnect }) {
+function WabaCard({ waba, channelAccounts, chatbots, canManageAi, onReconnect }) {
     const { t } = useTranslation();
     const [connectionHealth, setConnectionHealth] = useState(waba.connection_health);
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -498,9 +462,6 @@ function WabaCard({ waba, channelAccounts, chatbots, onReconnect }) {
                                                 <span className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400">
                                                     <Inbox className="h-3 w-3" /> {t('inbox.active_in_inbox')}
                                                 </span>
-                                                {chatbots.length > 0 && (
-                                                    <ChatbotSelector channelAccountId={ca.id} currentChatbotId={ca.ai_chatbot_id} chatbots={chatbots} />
-                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -519,7 +480,7 @@ function WabaCard({ waba, channelAccounts, chatbots, onReconnect }) {
     );
 }
 
-function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatbots, showForm, setShowForm, metaConfigIdWhatsapp, metaAppId, className = '', onboardingOnly = false }) {
+function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatbots, canManageAi, showForm, setShowForm, metaConfigIdWhatsapp, metaAppId, className = '', onboardingOnly = false }) {
     const { t } = useTranslation();
     const [waApiError, setWaApiError] = useState(null);
     const [waSubmitting, setWaSubmitting] = useState(false);
@@ -625,6 +586,7 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
                             webhookGlobalUrl={webhookGlobalUrl}
                             channelAccounts={channelAccountsByWaba?.[waba.id] ?? []}
                             chatbots={chatbots}
+                            canManageAi={canManageAi}
                         />
                     ))}
                 </div>
@@ -646,7 +608,7 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
 
 /* â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ Instagram / Messenger sections â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */
 
-function AccountRow({ account, channel, chatbots }) {
+function AccountRow({ account, channel, chatbots, canManageAi }) {
     const { t } = useTranslation();
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -671,13 +633,6 @@ function AccountRow({ account, channel, chatbots }) {
                         <StatusBadge status={account.status} />
                     </div>
                     {pageId && <div className="font-mono text-xs text-neutral-400 mt-0.5">{t('inbox.page_id_label')} {pageId}</div>}
-                    {chatbots.length > 0 && (
-                        <ChatbotSelector
-                            channelAccountId={account.id}
-                            currentChatbotId={account.ai_chatbot_id}
-                            chatbots={chatbots}
-                        />
-                    )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                     {confirmDelete ? (
@@ -709,7 +664,7 @@ function AccountRow({ account, channel, chatbots }) {
     );
 }
 
-function EbayAccountRow({ account, chatbots }) {
+function EbayAccountRow({ account, chatbots, canManageAi }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [working, setWorking] = useState(false);
     const sellerId = account.meta_json?.seller_user_id;
@@ -741,9 +696,6 @@ function EbayAccountRow({ account, chatbots }) {
                     {sellerId && <p className="font-mono text-xs text-neutral-400 mt-0.5">Seller: {sellerId}</p>}
                     {account.meta_json?.last_sync_at && (
                         <p className="text-[11px] text-neutral-400 mt-1">Last synced {new Date(account.meta_json.last_sync_at).toLocaleString()}</p>
-                    )}
-                    {chatbots.length > 0 && (
-                        <ChatbotSelector channelAccountId={account.id} currentChatbotId={account.ai_chatbot_id} chatbots={chatbots} />
                     )}
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -838,7 +790,7 @@ function AmazonAccountRow({ account }) {
     );
 }
 
-function TelegramAccountRow({ account, chatbots }) {
+function TelegramAccountRow({ account, chatbots, canManageAi }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [working, setWorking] = useState(false);
 
@@ -868,9 +820,6 @@ function TelegramAccountRow({ account, chatbots }) {
                     )}
                     {account.business_connection_id && (
                         <p className="mt-1 font-mono text-[11px] text-neutral-400">Connection: {account.business_connection_id}</p>
-                    )}
-                    {account.status === 'active' && chatbots.length > 0 && (
-                        <ChatbotSelector channelAccountId={account.id} currentChatbotId={account.ai_chatbot_id} chatbots={chatbots} />
                     )}
                     {account.status !== 'active' && (
                         <a href={route('client.inbox.setup.telegram.connect')} className="mt-2 inline-flex text-xs font-semibold text-sky-600 hover:underline dark:text-sky-400">
@@ -944,10 +893,10 @@ function waitForWabaSessionInfo(timeout = 15000) {
 function initFbSdk(appId) {
     if (typeof window.FB === 'undefined' || !appId) return false;
     try {
-        FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: 'v20.0' });
+        window.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: 'v20.0' });
         window.__fbSdkReady = true;
         return true;
-    } catch (_) {
+    } catch {
         return false;
     }
 }
@@ -982,8 +931,8 @@ function loadFbSdk(appId) {
         const settle = (fn, val) => {
             if (settled) return;
             settled = true;
-            clearInterval(poll);
-            clearTimeout(timer);
+            window.clearInterval(poll);
+            window.clearTimeout(timer);
             fn(val);
         };
 
@@ -999,7 +948,7 @@ function loadFbSdk(appId) {
             return false;
         };
 
-        const poll = setInterval(() => { tryReady(); }, 100);
+        const poll = window.setInterval(() => { tryReady(); }, 100);
 
         const existingScript = document.querySelector('script[src*="connect.facebook.net"]');
         const alreadyInjected = !!existingScript;
@@ -1389,6 +1338,8 @@ export default function ChannelSetup({
     telegramConfigured = false,
     metaAppId = null, metaConfigIdWhatsapp = null, metaConfigIdSocial = null,
     chatbots = [],
+    aiAnswering = {},
+    canManageAiAnswering = false,
 }) {
     const { t } = useTranslation();
     const { props } = usePage();
@@ -1421,6 +1372,8 @@ export default function ChannelSetup({
                         {t('inbox.channel_setup_subtitle')}
                     </p>
                 </div>
+
+                <AiAnsweringControl segment="omni" policy={aiAnswering} chatbots={chatbots} canManage={canManageAiAnswering} />
 
                 <div className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
                     <p className="mb-3 px-1 text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
@@ -1470,14 +1423,6 @@ export default function ChannelSetup({
                 </div>
             )}
 
-            {/* No chatbots warning */}
-            {chatbots.length === 0 && (
-                <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                    <Bot className="h-4 w-4 shrink-0 mt-0.5" />
-                    <span>{t('inbox.no_chatbots', { defaultValue: 'No Smart Bots found.' })} <Link href={route('client.ai.chatbots.index')} className="underline font-semibold">{t('inbox.create_one')}</Link> {t('inbox.to_configure_ai_replies', { defaultValue: 'to configure AI replies.' })}</span>
-                </div>
-            )}
-
             {/* Connected account management. Empty channels use the setup CTAs above. */}
             {hasConnectedChannels && (
             <div className="grid grid-cols-1 gap-4 mb-6 md:grid-cols-2 xl:grid-cols-6">
@@ -1489,6 +1434,7 @@ export default function ChannelSetup({
                     webhookGlobalUrl={whatsappWebhookGlobalUrl}
                     channelAccountsByWaba={channelAccountsByWaba ?? {}}
                     chatbots={chatbots}
+                    canManageAi={canManageAiAnswering}
                     showForm={false}
                     setShowForm={() => {}}
                     metaConfigIdWhatsapp={metaConfigIdWhatsapp}
@@ -1507,7 +1453,7 @@ export default function ChannelSetup({
                     className="xl:col-span-2"
                 >
                     <div className="space-y-2">
-                        {instagramAccounts.map(a => <AccountRow key={a.id} account={a} channel="instagram" chatbots={chatbots} />)}
+                        {instagramAccounts.map(a => <AccountRow key={a.id} account={a} channel="instagram" chatbots={chatbots} canManageAi={canManageAiAnswering} />)}
                     </div>
                 </ChannelCard>
                 )}
@@ -1522,7 +1468,7 @@ export default function ChannelSetup({
                     className="xl:col-span-2"
                 >
                     <div className="space-y-2">
-                        {messengerAccounts.map(a => <AccountRow key={a.id} account={a} channel="messenger" chatbots={chatbots} />)}
+                        {messengerAccounts.map(a => <AccountRow key={a.id} account={a} channel="messenger" chatbots={chatbots} canManageAi={canManageAiAnswering} />)}
                     </div>
                 </ChannelCard>
                 )}
@@ -1537,7 +1483,7 @@ export default function ChannelSetup({
                     className="xl:col-span-2"
                 >
                     <div className="space-y-2">
-                        {telegramAccounts.map(account => <TelegramAccountRow key={account.id} account={account} chatbots={chatbots} />)}
+                        {telegramAccounts.map(account => <TelegramAccountRow key={account.id} account={account} chatbots={chatbots} canManageAi={canManageAiAnswering} />)}
                     </div>
                 </ChannelCard>
                 )}
@@ -1552,7 +1498,7 @@ export default function ChannelSetup({
                     className="xl:col-span-2"
                 >
                     <div className="space-y-2">
-                        {ebayAccounts.map(account => <EbayAccountRow key={account.id} account={account} chatbots={chatbots} />)}
+                        {ebayAccounts.map(account => <EbayAccountRow key={account.id} account={account} chatbots={chatbots} canManageAi={canManageAiAnswering} />)}
                     </div>
                 </ChannelCard>
                 )}
@@ -1584,6 +1530,7 @@ export default function ChannelSetup({
                     webhookGlobalUrl={whatsappWebhookGlobalUrl}
                     channelAccountsByWaba={channelAccountsByWaba ?? {}}
                     chatbots={chatbots}
+                    canManageAi={canManageAiAnswering}
                     showForm
                     setShowForm={(show) => { if (!show) closeDrawer(); }}
                     metaConfigIdWhatsapp={metaConfigIdWhatsapp}

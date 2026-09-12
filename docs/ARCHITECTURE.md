@@ -89,6 +89,8 @@ Conversation routing and live handling are separate: `assigned_user_id` may be s
 4. The processor resolves a workspace-scoped channel account, contact, conversation, and message.
 5. `MessageReceived` triggers automations, AI/auto-reply behavior, outbound developer webhooks, notifications, and realtime broadcasts.
 
+One workspace-level Omni policy covers WhatsApp, Messenger, Instagram DMs, Telegram Business, and eBay; a separate workspace-level Email policy covers every mailbox. The selected segment policy is evaluated after deterministic rules and handoff detection on every inbound, including threads previously routed to humans only because AI was outside its schedule. Eligible replies are debounced on `ai`, re-check ownership and policy under the final-send lock, and use a durable source-message key. Joining, assignment, handoff, or observed human replies pause AI until resolution. Email additionally applies account connection cutoffs plus loop, authored-body, and attachment-only guards. Amazon order actions, SMS, webchat Appearance, and Social Comments remain separate.
+
 Meta Messenger and Instagram webhook processing currently uses the `whatsapp` queue despite the broader channel name; production workers must include it.
 
 ### Website widget

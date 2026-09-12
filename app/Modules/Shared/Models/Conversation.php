@@ -32,7 +32,7 @@ class Conversation extends Model
 
     protected $fillable = [
         'workspace_id', 'channel_account_id', 'contact_id', 'external_thread_id',
-        'status', 'assigned_user_id', 'joined_user_id', 'joined_at', 'assigned_to', 'handover_at',
+        'status', 'assigned_user_id', 'joined_user_id', 'joined_at', 'assigned_to', 'ai_paused_at', 'ai_pause_reason', 'handover_at',
         'last_message_at', 'webchat_last_seen_at', 'unread_count',
         'first_response_at', 'resolved_at', 'last_inbound_at',
         'unanswered_reminder_sent_at',
@@ -49,6 +49,7 @@ class Conversation extends Model
             'unanswered_reminder_sent_at' => 'datetime',
             'handover_at' => 'datetime',
             'joined_at' => 'datetime',
+            'ai_paused_at' => 'datetime',
             'unread_count' => 'integer',
         ];
     }

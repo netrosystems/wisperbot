@@ -270,40 +270,44 @@ class MobileConversationController extends WorkspaceScopedController
             ], 422);
         }
 
-        $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'direction' => 'out',
-            'channel' => $conversation->channelAccount?->channel ?? 'whatsapp',
-            'type' => $msgType,
-            'body' => $validated['body'],
-            'payload' => $msgPayload,
-            'status' => 'queued',
-            'sent_by' => 'human',
-            'user_id' => $request->user()->id,
-            'sent_at' => now(),
-        ]);
-
-        $sendError = null;
-        try {
-            $driver = $this->channelManager->driver($conversation->channelAccount?->channel ?? 'whatsapp');
-            $messageId = $driver->send($message);
-            $message->update(['status' => 'sent', 'provider_message_id' => $messageId]);
-        } catch (\Throwable $e) {
-            $sendError = $e->getMessage();
-            Log::error('Mobile reply send failed', [
+        [$message, $sendError] = $this->ownership->synchronized($conversation, function () use ($channel, $conversation, $msgPayload, $msgType, $request, $validated): array {
+            $conversation->refresh()->loadMissing('joinedUser');
+            $this->ownership->assertCanReply($conversation, $request->user());
+            $message = Message::create([
                 'conversation_id' => $conversation->id,
-                'error' => $sendError,
+                'direction' => 'out',
+                'channel' => $channel,
+                'type' => $msgType,
+                'body' => $validated['body'],
+                'payload' => $msgPayload,
+                'status' => 'queued',
+                'sent_by' => 'human',
+                'user_id' => $request->user()->id,
+                'sent_at' => now(),
             ]);
-            $message->update(['status' => 'failed', 'error_json' => ['message' => $sendError]]);
-        }
 
-        $conversation->update(['last_message_at' => now()]);
-        if ($conversation->last_inbound_at && ! $conversation->first_response_at) {
-            $conversation->update(['first_response_at' => now()]);
-        }
+            $sendError = null;
+            try {
+                $messageId = $this->channelManager->driver($channel)->send($message);
+                $message->update(['status' => 'sent', 'provider_message_id' => $messageId]);
+            } catch (\Throwable $e) {
+                $sendError = $e->getMessage();
+                Log::error('Mobile reply send failed', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $sendError,
+                ]);
+                $message->update(['status' => 'failed', 'error_json' => ['message' => $sendError]]);
+            }
 
-        $message->load('conversation');
-        MessageSent::dispatch($message);
+            $conversation->update(['last_message_at' => now()]);
+            if ($conversation->last_inbound_at && ! $conversation->first_response_at) {
+                $conversation->update(['first_response_at' => now()]);
+            }
+            $message->load('conversation');
+            MessageSent::dispatch($message);
+
+            return [$message, $sendError];
+        });
 
         return response()->json([
             'message' => $this->formatMessage($message),
@@ -331,10 +335,13 @@ class MobileConversationController extends WorkspaceScopedController
         }
 
         $updates = ['assigned_user_id' => $request->user_id];
+        if ($request->user_id) {
+            $updates += ['assigned_to' => 'human', 'ai_paused_at' => now(), 'ai_pause_reason' => 'assigned'];
+        }
         if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
             $updates += ['joined_user_id' => null, 'joined_at' => null];
         }
-        $conversation->update($updates);
+        $this->ownership->synchronized($conversation, fn () => $conversation->update($updates));
         ConversationAssigned::dispatch($conversation, $assignedTo);
 
         return response()->json(['ok' => true, 'assigned_user_id' => $request->user_id]);
@@ -369,7 +376,7 @@ class MobileConversationController extends WorkspaceScopedController
         if ($request->status === 'resolved') {
             $this->ownership->resolve($conversation);
         } else {
-            $conversation->update(['status' => $request->status, 'resolved_at' => null]);
+            $this->ownership->synchronized($conversation, fn () => $conversation->update(['status' => $request->status, 'resolved_at' => null]));
         }
 
         return response()->json(['ok' => true, 'status' => $request->status]);
@@ -399,15 +406,18 @@ class MobileConversationController extends WorkspaceScopedController
             ->where('uuid', $uuid)
             ->firstOrFail();
 
+        $request->validate(['mode' => ['nullable', 'in:human,bot']]);
         $mode = $request->input('mode', 'human');
         $updates = ['assigned_to' => $mode];
         if ($mode === 'human' && ! $conversation->handover_at) {
             $updates['handover_at'] = now();
+            $updates['ai_paused_at'] = $conversation->ai_paused_at ?: now();
+            $updates['ai_pause_reason'] = 'handoff';
         }
         if ($mode === 'bot') {
             $updates += ['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null, 'handover_at' => null];
         }
-        $conversation->update($updates);
+        $this->ownership->synchronized($conversation, fn () => $conversation->update($updates));
         ConversationOwnershipChanged::dispatch($conversation->fresh());
 
         return response()->json(['ok' => true, 'assigned_to' => $mode]);

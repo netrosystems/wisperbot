@@ -6,8 +6,10 @@ use App\Events\MessageReceived;
 use App\Events\MessageSent;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Services\ChatbotRunner;
+use App\Modules\Inbox\Jobs\ProcessChannelAiReplyJob;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\HumanHandoffService;
+use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Modules\Shared\Services\ChannelManager;
@@ -32,6 +34,7 @@ class AutoReplyListener
         private readonly ChatbotRunner $runner,
         private readonly ChannelManager $channelManager,
         private readonly HumanHandoffService $humanHandoff,
+        private readonly SegmentAiPolicyService $aiPolicy,
     ) {}
 
     public function handle(MessageReceived $event): void
@@ -71,7 +74,7 @@ class AutoReplyListener
             return;
         }
 
-        if (($conversation->assigned_to ?? 'bot') === 'human') {
+        if ($conversation->ai_paused_at || $conversation->assigned_user_id || $conversation->joined_user_id || $conversation->handover_at) {
             return;
         }
 
@@ -101,6 +104,32 @@ class AutoReplyListener
         }
 
         // ── 3. AI chatbot (only if one is linked to this channel account) ─────
+        if ($message->channel !== 'webchat') {
+            $reason = $this->aiPolicy->decision($channelAccount, $message->sent_at);
+            if ($reason === 'eligible') {
+                if ($conversation->assigned_to !== 'bot') {
+                    $conversation->update(['assigned_to' => 'bot']);
+                }
+                ProcessChannelAiReplyJob::dispatch($conversation->id)
+                    ->onQueue('ai')
+                    ->delay(now()->addSeconds(max(0, (int) config('inbox.ai_reply_debounce_seconds', 2))));
+            } else {
+                if ($conversation->assigned_to !== 'human') {
+                    $conversation->update(['assigned_to' => 'human']);
+                }
+                Log::info('inbox.ai_reply.decision', [
+                    'reason' => $reason,
+                    'workspace_id' => $conversation->workspace_id,
+                    'channel_account_id' => $channelAccount->id,
+                    'conversation_id' => $conversation->id,
+                    'message_id' => $message->id,
+                    'channel' => $message->channel,
+                ]);
+            }
+
+            return;
+        }
+
         $chatbotId = $channelAccount->meta_json['ai_chatbot_id'] ?? null;
         if (! $chatbotId) {
             return;

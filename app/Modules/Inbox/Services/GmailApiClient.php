@@ -152,7 +152,7 @@ class GmailApiClient
                 $attParts .= "--{$boundary}\r\n"
                     ."Content-Type: {$mimeType}; name=\"".addslashes($filename)."\"\r\n"
                     ."Content-Transfer-Encoding: base64\r\n"
-                    ."Content-Disposition: attachment; filename=\"".addslashes($filename)."\"\r\n\r\n"
+                    .'Content-Disposition: attachment; filename="'.addslashes($filename)."\"\r\n\r\n"
                     .$encodedFile;
             }
 
@@ -190,6 +190,11 @@ class GmailApiClient
             'body' => ['content' => $this->body((array) ($message['payload'] ?? []))],
             'isRead' => ! in_array('UNREAD', $message['labelIds'] ?? [], true),
             'hasAttachments' => $this->hasAttachment((array) ($message['payload'] ?? [])),
+            'autoSubmitted' => (string) $headers->get('auto-submitted', ''),
+            'precedence' => (string) $headers->get('precedence', ''),
+            'listId' => (string) $headers->get('list-id', ''),
+            'isSpam' => in_array('SPAM', $message['labelIds'] ?? [], true),
+            'isTrash' => in_array('TRASH', $message['labelIds'] ?? [], true),
         ];
     }
 

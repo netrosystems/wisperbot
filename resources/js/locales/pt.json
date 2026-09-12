@@ -35,7 +35,11 @@
         "deleting": "Excluindo…",
         "dismiss": "Dispensar",
         "view": "Visualizar",
-        "settings": "Configurações"
+        "settings": "Configurações",
+        "error": "Error",
+        "off": "Off",
+        "paused": "Paused",
+        "pagination": "Pagination"
     },
     "nav": {
         "home": "Início",
@@ -119,7 +123,32 @@
         "addons": "Addons",
         "website_widget": "Website Widget",
         "group_assets": "Group Assets",
-        "sign_in": "Sign In"
+        "sign_in": "Sign In",
+        "tutorials": "Tutorials",
+        "subscriptions": "Subscriptions",
+        "sms_campaigns": "SMS Campaigns",
+        "omni_channel_inbox": "Omni Channel Inbox",
+        "inbox_channel_setup": "Inbox Channel Setup",
+        "wa_chatbot": "WA Chatbot",
+        "smart_bots": "Smart Bots",
+        "connected_stores": "Connected Stores",
+        "inbox_agents": "Inbox & Agents",
+        "group_landing": "Landing",
+        "group_wa_messaging": "WA Messaging",
+        "group_ai_automations": "AI Automations",
+        "master_email_inbox": "Master Email Inbox",
+        "email_setup": "Email Setup",
+        "appearance": "Appearance",
+        "social_media_automation": "Social Media Automation",
+        "group_chatbot_widget": "Chatbot Widget",
+        "website_chatbot": "Chatbot Widget",
+        "widgets": "Widgets",
+        "widget_settings": "Widget Settings",
+        "app_integration": "App Integration",
+        "post_automation": "Post Automation",
+        "calendar_view": "Calendar View",
+        "connected_social_media": "Connected Social Media",
+        "group_chatbot_setup": "Chatbot Setup"
     },
     "welcome": {
         "title": "Crie sites com IA.",
@@ -180,13 +209,8 @@
     "client": {
         "profile": {
             "edit": "Editar",
-            "2fa": {
-                "enable": "Enable",
-                "disable": "Disable"
-            },
-            "sessions": {
-                "destroy": "Destroy"
-            },
+            "2fa": "2Fa",
+            "sessions": "Sessions",
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -350,10 +374,7 @@
             "index": "Lista",
             "store": "Salvar",
             "destroy": "Excluir",
-            "contacts": {
-                "attach": "Attach",
-                "detach": "Detach"
-            }
+            "contacts": "Contacts"
         },
         "whatsapp": {
             "templates": {
@@ -375,7 +396,10 @@
                 "create": "Criar",
                 "edit": "Editar"
             },
-            "setup": "Setup"
+            "setup": {
+                "health": "Health",
+                "destroy": "Destroy"
+            }
         },
         "broadcasts": {
             "campaigns": {
@@ -407,14 +431,41 @@
             "templates": "Modelos",
             "assign": "Atribuir",
             "setup": {
-                "destroy": "Destroy"
-            }
+                "ebay": {
+                    "sync": "Sync",
+                    "connect": "Connect"
+                },
+                "amazon": {
+                    "actions": "Actions",
+                    "connect": "Connect"
+                },
+                "telegram": {
+                    "connect": "Connect"
+                }
+            },
+            "email": {
+                "index": "Index",
+                "compose": "Compose",
+                "sync": "Sync",
+                "destroy": "Destroy",
+                "generic": {
+                    "store": "Store"
+                },
+                "google": {
+                    "connect": "Connect"
+                },
+                "microsoft": {
+                    "connect": "Connect"
+                }
+            },
+            "messages": "Messages"
         },
         "ai": {
             "providers": {
                 "index": "Lista",
                 "update": "Atualizar",
-                "test": "Test"
+                "test": "Test",
+                "mode": "Mode"
             },
             "chatbots": {
                 "index": "Lista",
@@ -425,7 +476,11 @@
             },
             "documents": {
                 "destroy": "Excluir",
-                "reindex": "Reindexar"
+                "reindex": "Reindexar",
+                "update": "Update",
+                "approve": "Approve",
+                "reject": "Reject",
+                "toggle": "Toggle"
             }
         },
         "social": {
@@ -444,6 +499,13 @@
                 "edit": "Editar",
                 "cancel": "Cancelar",
                 "destroy": "Excluir"
+            },
+            "automation": {
+                "index": "Index",
+                "schedule": "Schedule"
+            },
+            "comments": {
+                "index": "Index"
             }
         },
         "leads": {
@@ -457,7 +519,9 @@
             "store": "Salvar",
             "destroy": "Excluir",
             "edit": "Editar",
-            "runs": "Execuções",
+            "runs": {
+                "retry": "Retry"
+            },
             "generate": "Gerar",
             "test": "Testar"
         },
@@ -559,7 +623,11 @@
                 "connect": "Conectar"
             }
         },
-        "workspaces": "Workspaces",
+        "workspaces": {
+            "switch": "Switch",
+            "index": "Index",
+            "store": "Store"
+        },
         "settings": {
             "update": "Atualizar",
             "notifications": "Notificações",
@@ -569,7 +637,10 @@
             "store": "Salvar",
             "update": "Atualizar",
             "destroy": "Excluir",
-            "index": "Lista"
+            "index": "Lista",
+            "availability": {
+                "update": "Update"
+            }
         },
         "subscription": {
             "destroy": "Excluir",
@@ -821,7 +892,11 @@
         "tax_rates": "Alíquotas de impostos",
         "landing_page": "Conteúdo do site",
         "cms_pages": "Páginas do CMS",
-        "license": "License",
+        "license": {
+            "index": "Index",
+            "deactivate": "Deactivate",
+            "activate": "Activate"
+        },
         "cron_setup": "Configuração do cron",
         "support": {
             "index": "Lista",
@@ -936,38 +1011,40 @@
         "secret_key_hint": "Chave secreta do servidor — mantenha-a privada",
         "stripe_webhook_hint": "Segredo de assinatura do webhook (whsec_…) no painel do Stripe",
         "webhook_hint": "Segredo do webhook usado para verificar eventos recebidos do gateway",
-        "clients": "Clients",
-        "subscriptions": {
+        "clients": {
             "index": "Index",
+            "users": {
+                "index": "Index",
+                "store": "Store",
+                "update": "Update",
+                "destroy": "Destroy"
+            },
+            "impersonate": "Impersonate",
+            "destroy": "Destroy",
+            "export": "Export",
             "store": "Store",
-            "export": "Export"
+            "update": "Update"
         },
-        "payments": "Payments",
-        "plans": "Plans",
-        "currencies": {
+        "subscriptions": "Subscriptions",
+        "payments": {
+            "index": "Index"
+        },
+        "plans": {
             "index": "Index",
             "update": "Update",
-            "store": "Store"
+            "store": "Store",
+            "duplicate": "Duplicate",
+            "destroy": "Destroy",
+            "reorder": "Reorder"
         },
-        "admins": "Admins",
-        "settings": {
+        "currencies": "Currencies",
+        "admins": {
             "index": "Index",
-            "general": {
-                "update": "Update"
-            },
-            "logo": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "favicon": {
-                "upload": "Upload",
-                "delete": "Delete"
-            },
-            "update": "Update",
-            "firebase": {
-                "update": "Update"
-            }
+            "destroy": "Destroy",
+            "store": "Store",
+            "update": "Update"
         },
+        "settings": "Settings",
         "ai": {
             "index": "Lista"
         },
@@ -1020,7 +1097,28 @@
         "tax_type": "Tipo",
         "tax_type_inclusive": "Inclusivo",
         "tax_type_exclusive": "Exclusivo",
-        "add_currency": "Add Currency"
+        "add_currency": "Add Currency",
+        "blog": {
+            "upload": "Upload",
+            "index": "Index",
+            "update": "Update",
+            "store": "Store",
+            "revisions": {
+                "restore": "Restore"
+            },
+            "bulk": "Bulk",
+            "create": "Create",
+            "edit": "Edit",
+            "destroy": "Destroy",
+            "categories": {
+                "store": "Store",
+                "destroy": "Destroy"
+            },
+            "tags": {
+                "store": "Store",
+                "destroy": "Destroy"
+            }
+        }
     },
     "open_menu": "Abrir menu",
     "app": {
@@ -1273,7 +1371,8 @@
         "refunded_note": "(-{{amount}} reembolsado)",
         "view_full_billing": "Ver histórico de faturamento completo",
         "billing": "Faturamento",
-        "checkout_success": "Pagamento realizado com sucesso. Sua assinatura está ativa."
+        "checkout_success": "Pagamento realizado com sucesso. Sua assinatura está ativa.",
+        "upgrade_plan": "Upgrade plan"
     },
     "payment": {
         "succeeded": "Concluído",
@@ -1660,7 +1759,12 @@
         },
         "status_${schedulerStatus}": "Status ${Schedulerstatus}",
         "worker_queues": "Queues covered by this worker",
-        "verify_queues": "Check whether any background jobs have failed:"
+        "verify_queues": "Check whether any background jobs have failed:",
+        "whatsapp_health": "WhatsApp connection health",
+        "health_worker_help": "Run a separate worker for connection checks so customer messages keep priority.",
+        "health_accounts": "Connections to review (up to 50)",
+        "health_no_issues": "No recorded account issues. Delivery still requires a real incoming message.",
+        "health_workspace": "Workspace"
     },
     "settings": {
         "tab_general": "Geral",
@@ -2465,7 +2569,11 @@
         "revoke": "Revoke",
         "revoke_confirm": "Revoke this token? It will stop working immediately.",
         "no_tokens": "No tokens yet.",
-        "view_docs": "View Docs"
+        "view_docs": "View Docs",
+        "ep_kb_approve_doc": "Approve a reviewed Knowledge Base source",
+        "ep_kb_toggle_doc": "Enable or disable a Knowledge Base source",
+        "ep_kb_test": "Test retrieval against the current safe revision",
+        "ep_kb_publish": "Publish a validated and tested Knowledge Base revision"
     },
     "contacts_page": {
         "title": "Contacts",
@@ -2612,7 +2720,15 @@
         "browse": "browse",
         "max_size_mb": "max {{max}} MB",
         "file_exceeds_limit": "File exceeds {{max}} MB limit.",
-        "upload_failed_retry": "Upload failed. Please try again."
+        "upload_failed_retry": "Upload failed. Please try again.",
+        "cookie_title": "Cookie Title",
+        "cookie_policy": "Cookie Policy",
+        "cookie_manage_note": "Cookie Manage Note",
+        "cookie_accept_all": "Cookie Accept All",
+        "cookie_reject_all": "Cookie Reject All",
+        "cookie_manage": "Cookie Manage",
+        "remove_upload_failed": "The uploaded file could not be removed. Please try again.",
+        "remove_uploaded_file": "Remove uploaded file"
     },
     "inbox_ui": {
         "new_conversation": "New Conversation",
@@ -2874,7 +2990,58 @@
         "status_${s}": "Status ${S}",
         "status_${conversation": {
             "status}": "Status}"
-        }
+        },
+        "health_refresh_failed": "Connection status could not be refreshed. Try again.",
+        "health_not_yet": "Not yet",
+        "health_reconnect": "Reconnect WhatsApp",
+        "health_repair": "Repair connection",
+        "health_check": "Check connection",
+        "health_title": "Connection health",
+        "health_admin_help": "Your service administrator needs to review this connection.",
+        "health_delivery_verified": "A real incoming message has been processed.",
+        "health_send_test": "Connection checks passed. Send a message to your business number to verify delivery.",
+        "health_reconnect_hint": "Health Reconnect Hint",
+        "health_repair_hint": "Health Repair Hint",
+        "health_delayed_hint": "Health Delayed Hint",
+        "health_last_checked": "Last checked",
+        "health_last_message": "Last incoming message processed",
+        "meta_setup_inline_progress": "Complete authorization in the Meta window. Keep this panel open; setup will continue here automatically.",
+        "online_user": "Online User",
+        "online_users": "Online Users",
+        "live_view_map": "Live View Map",
+        "reset_map_view": "Reset Map View",
+        "zoom_in": "Zoom In",
+        "zoom_out": "Zoom Out",
+        "choose_smart_bot": "Choose Smart Bot",
+        "scheduled": "Scheduled",
+        "always_on": "Always On",
+        "needs_bot": "Needs Bot",
+        "manage_ai_answering": "Manage Ai Answering",
+        "ai_send_failed": "Ai Send Failed",
+        "ai_answering": "Ai Answering",
+        "smart_bot": "Smart Bot",
+        "choose_bot": "Choose Bot",
+        "edit_schedule": "Edit Schedule",
+        "manage_bots": "Manage Bots",
+        "ai_schedule": "Ai Schedule",
+        "whatsapp_window_title": "Whatsapp Window Title",
+        "whatsapp_account_label": "Whatsapp Account Label",
+        "connect_whatsapp_business_app": "Connect existing WhatsApp Business app",
+        "whatsapp_coexistence_help": "Keep using the WhatsApp Business app while WisperBot syncs contacts, recent history, and future messages.",
+        "connect_whatsapp_cloud_api": "Set up a Cloud API number",
+        "folder_live_users": "Live Users",
+        "filter_visitors": "Filter Visitors",
+        "no_live_visitors": "No Live Visitors",
+        "no_live_visitors_desc": "No Live Visitors Desc",
+        "suggested_replies": "Suggested customer replies",
+        "health_ready": "Ready",
+        "health_needs_attention": "Needs attention",
+        "health_reconnect_required": "Reconnect required",
+        "health_checking": "Checking",
+        "health_check_delayed": "Check delayed",
+        "health_details": "Connection details",
+        "health_webhook_details": "Webhook details",
+        "health_phone": "Phone"
     },
     "notifications": {
         "preferences_title": "Notification Preferences",
@@ -3327,7 +3494,22 @@
         "save_before_testing": "Save the API key and model settings before testing.",
         "connection_failed": "The provider could not be reached. Check the server connection and try again.",
         "testing": "Testing…",
-        "test_connection": "Test Connection"
+        "test_connection": "Test Connection",
+        "preview_video": "Preview video",
+        "edit_video": "Edit video resource",
+        "video_url": "Video URL",
+        "video_transcript": "Description or transcript",
+        "thumbnail_url": "Thumbnail URL (optional)",
+        "trigger_phrases": "Trigger phrases (optional)",
+        "video_transcript_hint": "Explain what the video answers. This text is used to match customer questions.",
+        "source_video": "Video",
+        "video_match_threshold": "Video Match Threshold",
+        "answer_outside_kb": "Answer outside the Knowledge Base",
+        "answer_outside_kb_on_hint": "On: the Smart Bot may answer safe general questions. Business-specific facts still require Knowledge Base support.",
+        "answer_outside_kb_off_hint": "Off (recommended): unsupported or unrelated questions use your fallback instead of general AI knowledge.",
+        "when_no_verified_answer": "When no verified answer exists",
+        "unsupported_clarify": "Ask for a relevant detail, then offer human help",
+        "unsupported_handoff": "Offer human help immediately"
     },
     "whatsapp": {
         "setup_title": "WhatsApp Setup",
@@ -3848,7 +4030,57 @@
         "network_error": "Network error. Please try again.",
         "select_one_post": "Select at least one post to schedule.",
         "plan_limit_reached": "Plan limit reached. Please upgrade your plan.",
-        "scheduling_failed": "Scheduling failed. Please try again."
+        "scheduling_failed": "Scheduling failed. Please try again.",
+        "workspace_navigation": "Social media workspace",
+        "comments_platform_availability": "Comments Platform Availability",
+        "comments_connection_not_permission": "Comments Connection Not Permission",
+        "schedule_time_required": "Choose a future date and time before scheduling this post.",
+        "back_to_automation": "Back to Social Media Automation",
+        "delivery": "When should this publish?",
+        "edit_published_facebook_subtitle": "Update the text on the live Facebook Page post.",
+        "published_facebook_update_notice": "This post is already live on Facebook. WisperBot will update every published Facebook Page copy before saving the local change. Connected Pages and media stay locked to prevent inconsistent content.",
+        "update_facebook_post": "Update Facebook Post",
+        "confirm_delete_remote_post": "Delete this post from the supported connected social networks and WisperBot? This cannot be undone.",
+        "confirm_remove_local": "Remove this post record from WisperBot? The remote post may remain available.",
+        "edit_post": "Edit post",
+        "post_actions": "Post actions",
+        "remove_from_wisperbot": "Remove from WisperBot",
+        "post": "Post",
+        "channels": "Channels",
+        "date": "Date",
+        "status": "Status",
+        "actions": "Actions",
+        "no_date": "No date",
+        "previous_month": "Previous month",
+        "next_month": "Next month",
+        "account_actions": "Actions for {{name}}",
+        "reconnect": "Reconnect",
+        "connect_account": "Connect account",
+        "choose_provider": "Choose the social platform you want to connect.",
+        "connected_accounts": "Connected accounts",
+        "connected_accounts_hint": "Accounts available for publishing and scheduling.",
+        "connect_first_account": "Connect an account to start publishing.",
+        "not_connected": "Not connected",
+        "inactive": "Inactive",
+        "show_less": "Show less",
+        "more_accounts": "+{{count}} more",
+        "automation_title": "Social Media Automation",
+        "automation_subtitle": "Connect accounts, plan content, and manage every scheduled post in one place.",
+        "schedule_post": "Schedule Post",
+        "connect_before_scheduling": "Connect an active social account before scheduling a post.",
+        "posts_workspace": "Posts",
+        "posts_workspace_hint": "Review upcoming work, drafts, published posts, and failures.",
+        "list_view": "List",
+        "calendar_view": "Calendar",
+        "search_posts": "Search posts",
+        "filter_network": "Filter by platform",
+        "filter_account": "Filter by account",
+        "clear_filters": "Clear post filters",
+        "no_posts_for_view": "No posts found",
+        "no_posts_for_view_hint": "Schedule a post or adjust the current filters.",
+        "no_posts_yet_compact": "No posts scheduled yet",
+        "no_posts_ready_hint": "Create your first post when you are ready.",
+        "no_posts_connect_hint": "Connect an account above before creating your first post."
     },
     "leads": {
         "title": "Lead Scraper",
@@ -4063,7 +4295,51 @@
         "5": "5"
     },
     "1": {
-        "6": "6"
+        "6": "6",
+        "8": "8",
+        "4": "4"
+    },
+    "facebook": {
+        "com": "Com"
+    },
+    "ai_credits": {
+        "short_label": "AI",
+        "title": "WisperBot AI Credits",
+        "used": "Used",
+        "processing": "Processing",
+        "remaining": "Remaining",
+        "not_configured": "Your plan’s monthly AI credit allowance has not been configured. Please contact your administrator.",
+        "no_active_subscription": "An active subscription is required to use WisperBot AI credits.",
+        "not_included": "This plan does not include WisperBot AI credits. You can use your own configured AI provider.",
+        "exhausted_help": "You have used this month’s WisperBot AI credits. A valid personal provider can continue AI actions according to your AI provider setting.",
+        "view_usage": "View credit usage",
+        "header_label": "AI credits: {{remaining}} remaining from {{limit}}",
+        "remaining_of_total": "{{remaining}} remaining of {{total}} monthly credits",
+        "resets_on": "Resets {{date}}",
+        "mode_managed": "WisperBot AI credits are used for managed AI actions",
+        "mode_byok": "AI actions use your configured provider and do not consume WisperBot credits",
+        "mode_auto_fallback": "WisperBot credits are used first, then your configured provider",
+        "manage_provider": "Manage AI provider",
+        "monthly_limit": "Monthly limit",
+        "warning_help": "You have used at least 80% of this month’s WisperBot AI credits.",
+        "usage_by_action": "Usage by action",
+        "action": "Action",
+        "cost_each": "Credits each",
+        "actions": "Actions",
+        "credits_used": "Credits used",
+        "no_usage": "No WisperBot-managed AI actions have used credits in this period.",
+        "how_charged": "How credits are charged",
+        "recent_activity": "Recent activity",
+        "your_provider": "Your provider",
+        "credit_adjustment": "Credit adjustment",
+        "wisperbot_managed": "WisperBot managed AI",
+        "refunded": "Refunded",
+        "no_charge": "No charge",
+        "progress_label": "{{percent}}% of monthly AI credits committed",
+        "credit_count": "{{count}} credits"
+    },
+    "setup": {
+        "repair": "Repair"
     },
     "127": [
         [
@@ -4072,10 +4348,20 @@
             }
         ]
     ],
-    "facebook": {
-        "com": "Com"
-    },
     "v20": [
         "0"
-    ]
+    ],
+    "window": {
+        "WisperBotSettings": "Wisperbotsettings"
+    },
+    "widget_appearance": {
+        "smart_bot_first": "Let a Smart Bot answer first",
+        "smart_bot": "Smart Bot",
+        "select_smart_bot": "Select a Smart Bot…",
+        "no_smart_bots": "No active Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here."
+    },
+    "blog": {
+        "index": "Index",
+        "show": "Show"
+    }
 }

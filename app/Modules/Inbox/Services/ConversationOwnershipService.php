@@ -8,15 +8,19 @@ use App\Models\User;
 use App\Modules\Inbox\Exceptions\ConversationOwnershipException;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\Conversation;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ConversationOwnershipService
 {
-    public function __construct(private readonly TeamAvailabilityService $availability) {}
+    public function __construct(
+        private readonly TeamAvailabilityService $availability,
+        private readonly SegmentAiPolicyService $aiPolicy,
+    ) {}
 
     public function join(Conversation $conversation, User $user): Conversation
     {
-        $updated = DB::transaction(function () use ($conversation, $user) {
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user) {
             $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
             $this->assertMember($locked, $user);
 
@@ -35,19 +39,21 @@ class ConversationOwnershipService
                     'joined_user_id' => $user->id,
                     'joined_at' => now(),
                     'assigned_to' => 'human',
+                    'ai_paused_at' => now(),
+                    'ai_pause_reason' => 'joined',
                     'status' => 'open',
                 ]);
             }
 
             return $locked->fresh(['joinedUser', 'channelAccount']);
-        });
+        }));
 
         return $this->broadcast($updated);
     }
 
     public function leave(Conversation $conversation, User $user): Conversation
     {
-        $updated = DB::transaction(function () use ($conversation, $user) {
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user) {
             $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
             $this->assertMember($locked, $user);
             if (! $locked->joined_user_id) {
@@ -59,14 +65,14 @@ class ConversationOwnershipService
             $locked->update(['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null]);
 
             return $locked->fresh(['joinedUser', 'channelAccount']);
-        });
+        }));
 
         return $this->broadcast($updated);
     }
 
     public function takeover(Conversation $conversation, User $user): Conversation
     {
-        $updated = DB::transaction(function () use ($conversation, $user) {
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user) {
             $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
             $this->assertMember($locked, $user);
             if ($locked->status === 'resolved') {
@@ -88,14 +94,14 @@ class ConversationOwnershipService
             }
 
             return $this->joinLocked($locked, $user);
-        });
+        }));
 
         return $this->broadcast($updated);
     }
 
     public function resolve(Conversation $conversation): Conversation
     {
-        $updated = DB::transaction(function () use ($conversation) {
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation) {
             $locked = Conversation::query()->with('channelAccount')->lockForUpdate()->findOrFail($conversation->id);
             $locked->update([
                 'status' => 'resolved',
@@ -105,10 +111,12 @@ class ConversationOwnershipService
                 'joined_at' => null,
                 'handover_at' => null,
                 'assigned_to' => $this->initialHandler($locked),
+                'ai_paused_at' => null,
+                'ai_pause_reason' => null,
             ]);
 
             return $locked->fresh(['joinedUser', 'channelAccount']);
-        });
+        }));
 
         return $this->broadcast($updated);
     }
@@ -120,8 +128,13 @@ class ConversationOwnershipService
             ->when($workspaceId, fn ($query) => $query->where('workspace_id', $workspaceId))
             ->get()
             ->each(function (Conversation $conversation): void {
-                $conversation->update(['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null]);
-                $this->broadcast($conversation->fresh(['joinedUser', 'channelAccount']));
+                $updated = $this->synchronized($conversation, function () use ($conversation): Conversation {
+                    $conversation->refresh();
+                    $conversation->update(['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null]);
+
+                    return $conversation->fresh(['joinedUser', 'channelAccount']);
+                });
+                $this->broadcast($updated);
             });
     }
 
@@ -140,6 +153,8 @@ class ConversationOwnershipService
             'joined_at' => null,
             'handover_at' => null,
             'assigned_to' => $this->initialHandler($conversation),
+            'ai_paused_at' => null,
+            'ai_pause_reason' => null,
         ];
     }
 
@@ -148,9 +163,15 @@ class ConversationOwnershipService
         if ($conversation->status !== 'resolved') {
             return;
         }
-        $conversation->update($this->reopenUpdates($conversation));
-        $conversation->refresh();
-        $this->broadcast($conversation->load(['joinedUser', 'channelAccount']));
+        $updated = $this->synchronized($conversation, function () use ($conversation): Conversation {
+            $conversation->refresh();
+            if ($conversation->status === 'resolved') {
+                $conversation->update($this->reopenUpdates($conversation));
+            }
+
+            return $conversation->fresh(['joinedUser', 'channelAccount']);
+        });
+        $this->broadcast($updated);
     }
 
     public function assertCanReply(Conversation $conversation, User $user): void
@@ -169,6 +190,8 @@ class ConversationOwnershipService
             'joined_user_id' => $user->id,
             'joined_at' => now(),
             'assigned_to' => 'human',
+            'ai_paused_at' => now(),
+            'ai_pause_reason' => 'joined',
             'status' => 'open',
         ]);
 
@@ -184,7 +207,15 @@ class ConversationOwnershipService
     {
         $widget = ChatWidget::query()->where('channel_account_id', $conversation->channel_account_id)->first();
 
-        return $widget?->hasActiveAiChatbot() ? 'bot' : 'human';
+        if ($widget) {
+            return $widget->hasActiveAiChatbot() ? 'bot' : 'human';
+        }
+
+        $account = $conversation->relationLoaded('channelAccount')
+            ? $conversation->channelAccount
+            : $conversation->channelAccount()->first();
+
+        return $account ? $this->aiPolicy->initialHandler($account) : 'human';
     }
 
     private function broadcast(Conversation $conversation): Conversation
@@ -201,5 +232,10 @@ class ConversationOwnershipService
     private function publicUser(?User $user): ?array
     {
         return $user ? ['id' => $user->id, 'name' => $user->name, 'avatar' => $user->avatar] : null;
+    }
+
+    public function synchronized(Conversation $conversation, callable $callback): mixed
+    {
+        return Cache::lock('conversation-ai-reply:'.$conversation->id, 150)->block(30, $callback);
     }
 }

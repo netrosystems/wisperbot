@@ -504,46 +504,45 @@ class InboxController extends Controller
             return back()->with('error', 'WhatsApp 24-hour session is closed. Use an approved template to re-engage this contact.');
         }
 
-        $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'direction' => 'out',
-            'channel' => $conversation->channelAccount?->channel ?? 'whatsapp',
-            'type' => $msgType,
-            'body' => $validated['body'],
-            'payload' => $msgPayload,
-            'status' => 'queued',
-            'sent_by' => 'human',
-            'user_id' => $request->user()->id,
-            'sent_at' => now(),
-        ]);
-
-        // Send via the channel driver
-        $sendError = null;
-        try {
-            $driver = $this->channelManager->driver($channel);
-            $messageId = $driver->send($message);
-            $message->update(['status' => 'sent', 'provider_message_id' => $messageId]);
-        } catch (\Throwable $e) {
-            $sendError = $e->getMessage();
-            Log::error('Inbox reply send failed', [
+        [$message, $sendError] = $this->ownership->synchronized($conversation, function () use ($channel, $conversation, $msgPayload, $msgType, $request, $validated): array {
+            $conversation->refresh()->loadMissing('joinedUser');
+            $this->ownership->assertCanReply($conversation, $request->user());
+            $message = Message::create([
                 'conversation_id' => $conversation->id,
+                'direction' => 'out',
                 'channel' => $channel,
-                'error' => $sendError,
+                'type' => $msgType,
+                'body' => $validated['body'],
+                'payload' => $msgPayload,
+                'status' => 'queued',
+                'sent_by' => 'human',
+                'user_id' => $request->user()->id,
+                'sent_at' => now(),
             ]);
-            $message->update(['status' => 'failed', 'error_json' => ['message' => $sendError]]);
-        }
 
-        $conversation->update(['last_message_at' => now()]);
+            $sendError = null;
+            try {
+                $messageId = $this->channelManager->driver($channel)->send($message);
+                $message->update(['status' => 'sent', 'provider_message_id' => $messageId]);
+            } catch (\Throwable $e) {
+                $sendError = $e->getMessage();
+                Log::error('Inbox reply send failed', [
+                    'conversation_id' => $conversation->id,
+                    'channel' => $channel,
+                    'error' => $sendError,
+                ]);
+                $message->update(['status' => 'failed', 'error_json' => ['message' => $sendError]]);
+            }
 
-        // SLA: set first_response_at on first outbound after inbound
-        if ($conversation->last_inbound_at && ! $conversation->first_response_at) {
-            $conversation->update(['first_response_at' => now()]);
-        }
+            $conversation->update(['last_message_at' => now()]);
+            if ($conversation->last_inbound_at && ! $conversation->first_response_at) {
+                $conversation->update(['first_response_at' => now()]);
+            }
+            $message->load(['conversation', 'sender']);
+            MessageSent::dispatch($message);
 
-        // Re-load the relation so the broadcast event can resolve workspace_id
-        $message->load(['conversation', 'sender']);
-
-        MessageSent::dispatch($message);
+            return [$message, $sendError];
+        });
 
         if ($request->wantsJson()) {
             // Always return 200 so the UI can display the queued/failed bubble
@@ -611,40 +610,45 @@ class InboxController extends Controller
         // Send the product photo as a real image on every channel (drivers handle the
         // per-channel rendering); fall back to text only when there is no photo.
         $useImage = (bool) $image;
-        $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'direction' => 'out',
-            'channel' => $channel,
-            'type' => $useImage ? 'image' : 'text',
-            'body' => $caption,
-            'payload' => $useImage ? ['link' => $image, 'preview_url' => $image, 'caption' => $caption] : null,
-            'status' => 'queued',
-            'sent_by' => 'human',
-            'user_id' => $request->user()->id,
-            'sent_at' => now(),
-        ]);
-
-        $sendError = null;
-        try {
-            $messageId = $this->channelManager->driver($channel)->send($message);
-            $message->update(['status' => 'sent', 'provider_message_id' => $messageId]);
-        } catch (\Throwable $e) {
-            $sendError = $e->getMessage();
-            Log::error('Inbox shareProduct send failed', [
+        [$message, $sendError] = $this->ownership->synchronized($conversation, function () use ($caption, $channel, $conversation, $image, $request, $useImage): array {
+            $conversation->refresh()->loadMissing('joinedUser');
+            $this->ownership->assertCanReply($conversation, $request->user());
+            $message = Message::create([
                 'conversation_id' => $conversation->id,
+                'direction' => 'out',
                 'channel' => $channel,
-                'error' => $sendError,
+                'type' => $useImage ? 'image' : 'text',
+                'body' => $caption,
+                'payload' => $useImage ? ['link' => $image, 'preview_url' => $image, 'caption' => $caption] : null,
+                'status' => 'queued',
+                'sent_by' => 'human',
+                'user_id' => $request->user()->id,
+                'sent_at' => now(),
             ]);
-            $message->update(['status' => 'failed', 'error_json' => ['message' => $sendError]]);
-        }
 
-        $conversation->update(['last_message_at' => now()]);
-        if ($conversation->last_inbound_at && ! $conversation->first_response_at) {
-            $conversation->update(['first_response_at' => now()]);
-        }
+            $sendError = null;
+            try {
+                $messageId = $this->channelManager->driver($channel)->send($message);
+                $message->update(['status' => 'sent', 'provider_message_id' => $messageId]);
+            } catch (\Throwable $e) {
+                $sendError = $e->getMessage();
+                Log::error('Inbox shareProduct send failed', [
+                    'conversation_id' => $conversation->id,
+                    'channel' => $channel,
+                    'error' => $sendError,
+                ]);
+                $message->update(['status' => 'failed', 'error_json' => ['message' => $sendError]]);
+            }
 
-        $message->load(['conversation', 'sender']);
-        MessageSent::dispatch($message);
+            $conversation->update(['last_message_at' => now()]);
+            if ($conversation->last_inbound_at && ! $conversation->first_response_at) {
+                $conversation->update(['first_response_at' => now()]);
+            }
+            $message->load(['conversation', 'sender']);
+            MessageSent::dispatch($message);
+
+            return [$message, $sendError];
+        });
 
         return response()->json(['message' => $message, 'error' => $sendError]);
     }
@@ -728,11 +732,17 @@ class InboxController extends Controller
             abort_unless($assignedTo, 422);
         }
 
-        $updates = ['assigned_user_id' => $request->user_id];
-        if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
-            $updates += ['joined_user_id' => null, 'joined_at' => null];
-        }
-        $conversation->update($updates);
+        $this->ownership->synchronized($conversation, function () use ($conversation, $request): void {
+            $conversation->refresh();
+            $updates = ['assigned_user_id' => $request->user_id];
+            if ($request->user_id) {
+                $updates += ['assigned_to' => 'human', 'ai_paused_at' => now(), 'ai_pause_reason' => 'assigned'];
+            }
+            if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
+                $updates += ['joined_user_id' => null, 'joined_at' => null];
+            }
+            $conversation->update($updates);
+        });
         ConversationAssigned::dispatch($conversation, $assignedTo);
 
         return back()->with('success', 'Conversation assigned.');
@@ -782,10 +792,10 @@ class InboxController extends Controller
         if ($request->status === 'resolved') {
             $this->ownership->resolve($conversation);
         } else {
-            $conversation->update([
+            $this->ownership->synchronized($conversation, fn () => $conversation->update([
                 'status' => $request->status,
                 'resolved_at' => null,
-            ]);
+            ]));
         }
 
         return back()->with('success', 'Status updated.');
@@ -816,11 +826,13 @@ class InboxController extends Controller
         $updates = ['assigned_to' => $mode];
         if ($mode === 'human' && ! $conversation->handover_at) {
             $updates['handover_at'] = now();
+            $updates['ai_paused_at'] = $conversation->ai_paused_at ?: now();
+            $updates['ai_pause_reason'] = 'handoff';
         }
         if ($mode === 'bot') {
             $updates += ['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null, 'handover_at' => null];
         }
-        $conversation->update($updates);
+        $this->ownership->synchronized($conversation, fn () => $conversation->update($updates));
         ConversationAssigned::dispatch($conversation->fresh(), null);
         $widget = ChatWidget::where('channel_account_id', $conversation->channel_account_id)->first();
         if ($widget) {

@@ -79,7 +79,11 @@
         "deleting": "Deleting…",
         "dismiss": "Dismiss",
         "view": "View",
-        "settings": "Settings"
+        "settings": "Settings",
+        "error": "Error",
+        "off": "Off",
+        "paused": "Paused",
+        "pagination": "Pagination"
     },
     "nav": {
         "home": "Home",
@@ -130,9 +134,8 @@
         "wa_chatbot": "WA Chatbot",
         "website_chatbot": "Chatbot Widget",
         "appearance": "Appearance",
-        "integrations": "Integrations",
-        "widget_settings": "Appearance",
-        "app_integration": "Integrations",
+        "widget_settings": "Widget Settings",
+        "app_integration": "App Integration",
         "group_chatbot_widget": "Chatbot Widget",
         "campaigns": "Campaigns",
         "sms_campaigns": "SMS Campaigns",
@@ -185,7 +188,11 @@
         "website_widget": "Website Widget",
         "addons": "Addons",
         "group_assets": "Group Assets",
-        "sign_in": "Sign In"
+        "sign_in": "Sign In",
+        "tutorials": "Tutorials",
+        "master_email_inbox": "Master Email Inbox",
+        "email_setup": "Email Setup",
+        "widgets": "Widgets"
     },
     "welcome": {
         "title": "Build websites with AI.",
@@ -246,8 +253,13 @@
     "client": {
         "profile": {
             "edit": "Edit",
-            "2fa": "2Fa",
-            "sessions": "Sessions",
+            "2fa": {
+                "enable": "Enable",
+                "disable": "Disable"
+            },
+            "sessions": {
+                "destroy": "Destroy"
+            },
             "update": "Update",
             "destroy": "Destroy"
         },
@@ -411,7 +423,10 @@
             "index": "Index",
             "store": "Store",
             "destroy": "Destroy",
-            "contacts": "Contacts"
+            "contacts": {
+                "attach": "Attach",
+                "detach": "Detach"
+            }
         },
         "whatsapp": {
             "templates": {
@@ -433,9 +448,7 @@
                 "create": "Create",
                 "edit": "Edit"
             },
-            "setup": {
-                "destroy": "Destroy"
-            }
+            "setup": "Setup"
         },
         "broadcasts": {
             "campaigns": {
@@ -466,13 +479,43 @@
             "start": "Start",
             "templates": "Templates",
             "assign": "Assign",
-            "setup": "Setup"
+            "setup": {
+                "destroy": "Destroy",
+                "ebay": {
+                    "sync": "Sync",
+                    "connect": "Connect"
+                },
+                "amazon": {
+                    "actions": "Actions",
+                    "connect": "Connect"
+                },
+                "telegram": {
+                    "connect": "Connect"
+                }
+            },
+            "email": {
+                "index": "Index",
+                "compose": "Compose",
+                "sync": "Sync",
+                "destroy": "Destroy",
+                "generic": {
+                    "store": "Store"
+                },
+                "google": {
+                    "connect": "Connect"
+                },
+                "microsoft": {
+                    "connect": "Connect"
+                }
+            },
+            "messages": "Messages"
         },
         "ai": {
             "providers": {
                 "index": "Index",
                 "update": "Update",
-                "test": "Test"
+                "test": "Test",
+                "mode": "Mode"
             },
             "chatbots": {
                 "index": "Index",
@@ -483,7 +526,11 @@
             },
             "documents": {
                 "destroy": "Destroy",
-                "reindex": "Reindex"
+                "reindex": "Reindex",
+                "update": "Update",
+                "approve": "Approve",
+                "reject": "Reject",
+                "toggle": "Toggle"
             }
         },
         "social": {
@@ -502,6 +549,13 @@
                 "edit": "Edit",
                 "cancel": "Cancel",
                 "destroy": "Destroy"
+            },
+            "automation": {
+                "index": "Index",
+                "schedule": "Schedule"
+            },
+            "comments": {
+                "index": "Index"
             }
         },
         "leads": {
@@ -515,7 +569,9 @@
             "store": "Store",
             "destroy": "Destroy",
             "edit": "Edit",
-            "runs": "Runs",
+            "runs": {
+                "retry": "Retry"
+            },
             "generate": "Generate",
             "test": "Test"
         },
@@ -617,11 +673,7 @@
                 "connect": "Connect"
             }
         },
-        "workspaces": {
-            "switch": "Switch",
-            "index": "Index",
-            "store": "Store"
-        },
+        "workspaces": "Workspaces",
         "settings": {
             "update": "Update",
             "notifications": "Notifications",
@@ -631,7 +683,10 @@
             "store": "Store",
             "update": "Update",
             "destroy": "Destroy",
-            "index": "Index"
+            "index": "Index",
+            "availability": {
+                "update": "Update"
+            }
         },
         "subscription": {
             "destroy": "Destroy",
@@ -883,11 +938,7 @@
         "tax_rates": "Tax Rates",
         "landing_page": "Site Content",
         "cms_pages": "CMS Pages",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
+        "license": "License",
         "cron_setup": "Cron Setup",
         "support": {
             "index": "Index",
@@ -1002,40 +1053,38 @@
         "secret_key_hint": "Server-side secret key — keep this private",
         "stripe_webhook_hint": "Webhook signing secret (whsec_…) from the Stripe dashboard",
         "webhook_hint": "Webhook secret used to verify incoming gateway events",
-        "clients": {
+        "clients": "Clients",
+        "subscriptions": {
             "index": "Index",
-            "users": {
-                "index": "Index",
-                "store": "Store",
-                "update": "Update",
-                "destroy": "Destroy"
-            },
-            "impersonate": "Impersonate",
-            "destroy": "Destroy",
-            "export": "Export",
             "store": "Store",
-            "update": "Update"
+            "export": "Export"
         },
-        "subscriptions": "Subscriptions",
-        "payments": {
-            "index": "Index"
-        },
-        "plans": {
+        "payments": "Payments",
+        "plans": "Plans",
+        "currencies": {
             "index": "Index",
             "update": "Update",
-            "store": "Store",
-            "duplicate": "Duplicate",
-            "destroy": "Destroy",
-            "reorder": "Reorder"
+            "store": "Store"
         },
-        "currencies": "Currencies",
-        "admins": {
+        "admins": "Admins",
+        "settings": {
             "index": "Index",
-            "destroy": "Destroy",
-            "store": "Store",
-            "update": "Update"
+            "general": {
+                "update": "Update"
+            },
+            "logo": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "favicon": {
+                "upload": "Upload",
+                "delete": "Delete"
+            },
+            "update": "Update",
+            "firebase": {
+                "update": "Update"
+            }
         },
-        "settings": "Settings",
         "ai": {
             "index": "Index"
         },
@@ -1088,7 +1137,28 @@
         "tax_type": "Type",
         "tax_type_inclusive": "Inclusive",
         "tax_type_exclusive": "Exclusive",
-        "add_currency": "Add Currency"
+        "add_currency": "Add Currency",
+        "blog": {
+            "upload": "Upload",
+            "index": "Index",
+            "update": "Update",
+            "store": "Store",
+            "revisions": {
+                "restore": "Restore"
+            },
+            "bulk": "Bulk",
+            "create": "Create",
+            "edit": "Edit",
+            "destroy": "Destroy",
+            "categories": {
+                "store": "Store",
+                "destroy": "Destroy"
+            },
+            "tags": {
+                "store": "Store",
+                "destroy": "Destroy"
+            }
+        }
     },
     "open_menu": "Open menu",
     "app": {
@@ -1765,7 +1835,12 @@
             "hours_ago": "{{count}}h ago",
             "days_ago": "{{count}}d ago"
         },
-        "status_${schedulerStatus}": "Status ${Schedulerstatus}"
+        "status_${schedulerStatus}": "Status ${Schedulerstatus}",
+        "whatsapp_health": "WhatsApp connection health",
+        "health_worker_help": "Run a separate worker for connection checks so customer messages keep priority.",
+        "health_accounts": "Connections to review (up to 50)",
+        "health_no_issues": "No recorded account issues. Delivery still requires a real incoming message.",
+        "health_workspace": "Workspace"
     },
     "settings": {
         "tab_general": "General",
@@ -2723,7 +2798,13 @@
         "file_exceeds_limit": "File exceeds {{max}} MB limit.",
         "upload_failed_retry": "Upload failed. Please try again.",
         "remove_uploaded_file": "Remove uploaded file",
-        "remove_upload_failed": "The uploaded file could not be removed. Please try again."
+        "remove_upload_failed": "The uploaded file could not be removed. Please try again.",
+        "cookie_title": "Cookie Title",
+        "cookie_policy": "Cookie Policy",
+        "cookie_manage_note": "Cookie Manage Note",
+        "cookie_accept_all": "Cookie Accept All",
+        "cookie_reject_all": "Cookie Reject All",
+        "cookie_manage": "Cookie Manage"
     },
     "inbox_ui": {
         "new_conversation": "New Conversation",
@@ -2829,7 +2910,7 @@
         "continue_meta_messenger": "Continue with Meta — Connect Messenger",
         "connecting_pages": "Connecting pages…",
         "channel_setup": "Channel Setup",
-        "channel_setup_subtitle": "Connect WhatsApp, Instagram, and Messenger to this workspace.",
+        "channel_setup_subtitle": "Connect and manage customer messaging channels.",
         "connect_whatsapp": "Connect WhatsApp",
         "connect_messenger": "Connect Messenger",
         "connect_instagram": "Connect Instagram",
@@ -2996,7 +3077,52 @@
         "status_${s}": "Status ${S}",
         "status_${conversation": {
             "status}": "Status}"
-        }
+        },
+        "health_refresh_failed": "Connection status could not be refreshed. Try again.",
+        "health_not_yet": "Not yet",
+        "health_reconnect": "Reconnect WhatsApp",
+        "health_repair": "Repair connection",
+        "health_check": "Check connection",
+        "health_title": "Connection health",
+        "health_admin_help": "Your service administrator needs to review this connection.",
+        "health_delivery_verified": "A real incoming message has been processed.",
+        "health_send_test": "Connection checks passed. Send a message to your business number to verify delivery.",
+        "health_reconnect_hint": "Health Reconnect Hint",
+        "health_repair_hint": "Health Repair Hint",
+        "health_delayed_hint": "Health Delayed Hint",
+        "health_last_checked": "Last checked",
+        "health_last_message": "Last incoming message processed",
+        "online_user": "Online User",
+        "online_users": "Online Users",
+        "live_view_map": "Live View Map",
+        "reset_map_view": "Reset Map View",
+        "zoom_in": "Zoom In",
+        "zoom_out": "Zoom Out",
+        "choose_smart_bot": "Choose Smart Bot",
+        "scheduled": "Scheduled",
+        "always_on": "Always On",
+        "needs_bot": "Needs Bot",
+        "manage_ai_answering": "Manage AI Answering",
+        "ai_send_failed": "AI Send Failed",
+        "ai_answering": "AI Answering",
+        "smart_bot": "Smart Bot",
+        "choose_bot": "Choose Bot",
+        "edit_schedule": "Edit Schedule",
+        "manage_bots": "Manage Bots",
+        "ai_schedule": "AI Schedule",
+        "whatsapp_window_title": "Whatsapp Window Title",
+        "whatsapp_account_label": "Whatsapp Account Label",
+        "filter_visitors": "Filter Visitors",
+        "no_live_visitors": "No Live Visitors",
+        "no_live_visitors_desc": "No Live Visitors Desc",
+        "health_ready": "Ready",
+        "health_needs_attention": "Needs attention",
+        "health_reconnect_required": "Reconnect required",
+        "health_checking": "Checking",
+        "health_check_delayed": "Check delayed",
+        "health_details": "Connection details",
+        "health_webhook_details": "Webhook details",
+        "health_phone": "Phone"
     },
     "notifications": {
         "preferences_title": "Notification Preferences",
@@ -4071,7 +4197,9 @@
         "network_error": "Network error. Please try again.",
         "select_one_post": "Select at least one post to schedule.",
         "plan_limit_reached": "Plan limit reached. Please upgrade your plan.",
-        "scheduling_failed": "Scheduling failed. Please try again."
+        "scheduling_failed": "Scheduling failed. Please try again.",
+        "comments_platform_availability": "Comments Platform Availability",
+        "comments_connection_not_permission": "Comments Connection Not Permission"
     },
     "leads": {
         "title": "Lead Scraper",
@@ -4261,10 +4389,15 @@
         "5": "5"
     },
     "1": {
-        "6": "6"
+        "6": "6",
+        "8": "8",
+        "4": "4"
     },
     "facebook": {
         "com": "Com"
+    },
+    "setup": {
+        "repair": "Repair"
     },
     "127": [
         [
@@ -4273,5 +4406,14 @@
             }
         ]
     ],
-    "v20": ["0"]
+    "v20": [
+        "0"
+    ],
+    "window": {
+        "WisperBotSettings": "Wisperbotsettings"
+    },
+    "blog": {
+        "index": "Index",
+        "show": "Show"
+    }
 }

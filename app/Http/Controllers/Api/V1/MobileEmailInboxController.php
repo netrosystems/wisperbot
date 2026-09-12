@@ -3,17 +3,20 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Events\MessageSent;
+use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Jobs\SyncEmailAccountJob;
+use App\Modules\Inbox\Services\ConversationOwnershipService;
 use App\Modules\Inbox\Services\EmailInboxSyncDispatcher;
+use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Modules\Shared\Services\ChannelManager;
-use App\Support\Demo;
-use Illuminate\Http\JsonResponse;
 use App\Services\Media\AttachmentService;
 use App\Services\StorageManager;
+use App\Support\Demo;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -25,6 +28,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
         private readonly EmailInboxSyncDispatcher $syncDispatcher,
         private readonly AttachmentService $attachmentService,
         private readonly StorageManager $storageManager,
+        private readonly ConversationOwnershipService $ownership,
     ) {}
 
     /** GET /api/v1/mobile/email/accounts */
@@ -39,6 +43,8 @@ class MobileEmailInboxController extends WorkspaceScopedController
 
         return response()->json([
             'data' => $accounts->map(fn (ChannelAccount $account) => $this->formatAccount($account)),
+            'ai_answering' => app(SegmentAiPolicyService::class)->payload($this->workspaceId($request), 'email'),
+            'ai_chatbots' => AiChatbot::where('workspace_id', $this->workspaceId($request))->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -189,6 +195,8 @@ class MobileEmailInboxController extends WorkspaceScopedController
         }
 
         $conversation = $this->emailConversation($request, $uuid, ['channelAccount', 'contact']);
+        $conversation->loadMissing('joinedUser');
+        $this->ownership->assertCanReply($conversation, $request->user());
 
         $payload = [];
         $msgType = 'text';
@@ -218,38 +226,44 @@ class MobileEmailInboxController extends WorkspaceScopedController
 
         $bodyText = $validated['body'] ?? ($request->hasFile('attachment') ? $upload['filename'] : '');
 
-        $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'direction' => 'out',
-            'channel' => 'email',
-            'type' => $msgType,
-            'body' => $bodyText,
-            'payload' => $payload,
-            'status' => 'queued',
-            'sent_by' => 'human',
-            'user_id' => $request->user()->id,
-            'sent_at' => now(),
-        ]);
-
-        $sendError = null;
-        try {
-            $providerMessageId = $this->channelManager->driver('email')->send($message);
-            $message->update(['status' => 'sent', 'provider_message_id' => $providerMessageId]);
-        } catch (\Throwable $exception) {
-            $sendError = $exception->getMessage();
-            $message->update(['status' => 'failed', 'error_json' => ['message' => $sendError]]);
-            Log::error('Mobile email reply failed', [
+        [$message, $sendError] = $this->ownership->synchronized($conversation, function () use ($bodyText, $conversation, $msgType, $payload, $request): array {
+            $conversation->refresh()->loadMissing('joinedUser');
+            $this->ownership->assertCanReply($conversation, $request->user());
+            $message = Message::create([
                 'conversation_id' => $conversation->id,
-                'error' => $sendError,
+                'direction' => 'out',
+                'channel' => 'email',
+                'type' => $msgType,
+                'body' => $bodyText,
+                'payload' => $payload,
+                'status' => 'queued',
+                'sent_by' => 'human',
+                'user_id' => $request->user()->id,
+                'sent_at' => now(),
             ]);
-        }
 
-        $conversation->update(['last_message_at' => now()]);
-        if ($conversation->last_inbound_at && ! $conversation->first_response_at) {
-            $conversation->update(['first_response_at' => now()]);
-        }
-        $message->load(['conversation', 'user:id,name,avatar']);
-        MessageSent::dispatch($message);
+            $sendError = null;
+            try {
+                $providerMessageId = $this->channelManager->driver('email')->send($message);
+                $message->update(['status' => 'sent', 'provider_message_id' => $providerMessageId]);
+            } catch (\Throwable $exception) {
+                $sendError = $exception->getMessage();
+                $message->update(['status' => 'failed', 'error_json' => ['message' => $sendError]]);
+                Log::error('Mobile email reply failed', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $sendError,
+                ]);
+            }
+
+            $conversation->update(['last_message_at' => now()]);
+            if ($conversation->last_inbound_at && ! $conversation->first_response_at) {
+                $conversation->update(['first_response_at' => now()]);
+            }
+            $message->load(['conversation', 'user:id,name,avatar']);
+            MessageSent::dispatch($message);
+
+            return [$message, $sendError];
+        });
 
         return response()->json([
             'message' => $this->formatMessage($message),

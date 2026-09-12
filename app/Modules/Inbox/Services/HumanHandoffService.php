@@ -27,6 +27,8 @@ class HumanHandoffService
         $conversation->update([
             'assigned_to' => 'human',
             'handover_at' => $conversation->handover_at ?: now(),
+            'ai_paused_at' => $conversation->ai_paused_at ?: now(),
+            'ai_pause_reason' => 'handoff',
             'status' => 'open',
         ]);
 

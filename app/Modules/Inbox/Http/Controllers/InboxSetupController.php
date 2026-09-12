@@ -3,7 +3,9 @@
 namespace App\Modules\Inbox\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Inbox\Services\TelegramBusinessClient;
 use App\Modules\Integrations\Services\CredentialResolver;
 use App\Modules\Integrations\Services\MetaPageDiscoveryService;
@@ -22,7 +24,10 @@ use Inertia\Response;
 
 class InboxSetupController extends Controller
 {
-    public function __construct(private readonly MetaPageDiscoveryService $metaPages) {}
+    public function __construct(
+        private readonly MetaPageDiscoveryService $metaPages,
+        private readonly SegmentAiPolicyService $aiPolicy,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -36,7 +41,7 @@ class InboxSetupController extends Controller
         $whatsappChannelAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('channel', 'whatsapp')
             ->whereNotNull('phone_number_id')
-            ->get(['id', 'phone_number_id', 'display_name', 'status', 'meta_json', 'business_account_id']);
+            ->get(['id', 'workspace_id', 'phone_number_id', 'display_name', 'status', 'meta_json', 'business_account_id']);
 
         $webhookTokensByWaba = [];
         $channelAccountPhoneIdsByWaba = [];
@@ -52,25 +57,21 @@ class InboxSetupController extends Controller
                 'phone_number_id' => $a->phone_number_id,
                 'display_name' => $a->display_name,
                 'status' => $a->status,
-                'ai_chatbot_id' => $a->meta_json['ai_chatbot_id'] ?? null,
             ])->all();
         }
 
         // Instagram / Messenger
         $instagramAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('channel', 'instagram')
-            ->get(['id', 'display_name', 'status', 'meta_json', 'created_at'])
-            ->map(fn ($a) => array_merge($a->toArray(), ['ai_chatbot_id' => $a->meta_json['ai_chatbot_id'] ?? null]));
+            ->get(['id', 'workspace_id', 'display_name', 'status', 'meta_json', 'created_at']);
 
         $messengerAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('channel', 'messenger')
-            ->get(['id', 'display_name', 'status', 'meta_json', 'created_at'])
-            ->map(fn ($a) => array_merge($a->toArray(), ['ai_chatbot_id' => $a->meta_json['ai_chatbot_id'] ?? null]));
+            ->get(['id', 'workspace_id', 'display_name', 'status', 'meta_json', 'created_at']);
 
         $ebayAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('channel', 'ebay')
-            ->get(['id', 'display_name', 'status', 'meta_json', 'created_at'])
-            ->map(fn ($a) => array_merge($a->toArray(), ['ai_chatbot_id' => $a->meta_json['ai_chatbot_id'] ?? null]));
+            ->get(['id', 'workspace_id', 'display_name', 'status', 'meta_json', 'created_at']);
 
         $amazonAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('channel', 'amazon')
@@ -78,7 +79,7 @@ class InboxSetupController extends Controller
 
         $telegramAccounts = ChannelAccount::where('workspace_id', $workspaceId)
             ->where('channel', 'telegram')
-            ->get(['id', 'display_name', 'status', 'phone_number_id', 'business_account_id', 'meta_json', 'created_at'])
+            ->get(['id', 'workspace_id', 'display_name', 'status', 'phone_number_id', 'business_account_id', 'meta_json', 'created_at'])
             ->map(fn (ChannelAccount $account) => [
                 'id' => $account->id,
                 'display_name' => $account->display_name,
@@ -86,7 +87,6 @@ class InboxSetupController extends Controller
                 'business_connection_id' => $account->phone_number_id,
                 'telegram_user_id' => $account->business_account_id,
                 'pairing_expires_at' => $account->meta_json['pairing_expires_at'] ?? null,
-                'ai_chatbot_id' => $account->meta_json['ai_chatbot_id'] ?? null,
                 'created_at' => $account->created_at,
             ]);
 
@@ -113,6 +113,8 @@ class InboxSetupController extends Controller
             'telegramConfigured' => TelegramBusinessClient::configured() !== null,
             'telegramWebhookUrl' => route('webhooks.telegram.receive'),
             'chatbots' => $chatbots,
+            'aiAnswering' => $this->aiPolicy->payload((int) $workspaceId, 'omni'),
+            'canManageAiAnswering' => $this->canManageAi($request),
             'metaWebhookUrl' => $metaWebhookUrl,
             'metaAppId' => $metaCreds?->appId() ?: null,
             'metaConfigIdWhatsapp' => $metaCreds?->configIdWhatsapp() ?: null,
@@ -979,36 +981,19 @@ class InboxSetupController extends Controller
         }
     }
 
-    public function assignChatbot(Request $request, ChannelAccount $channelAccount): RedirectResponse
+    private function canManageAi(Request $request): bool
     {
-        $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
-        abort_unless((int) $channelAccount->workspace_id === (int) $workspaceId, 403);
-
-        $validated = $request->validate([
-            'chatbot_id' => ['nullable', 'integer'],
-        ]);
-
-        $chatbotId = $validated['chatbot_id'] ?? null;
-
-        if ($chatbotId !== null) {
-            $exists = AiChatbot::where('id', $chatbotId)
-                ->where('workspace_id', $workspaceId)
-                ->where('enabled', true)
-                ->exists();
-            abort_unless($exists, 422, 'Chatbot not found or not enabled.');
+        $user = $request->user();
+        $workspaceId = (int) ($user->current_workspace_id ?? $user->workspace_id);
+        $workspace = Workspace::find($workspaceId);
+        if (! $workspace) {
+            return false;
         }
 
-        $meta = $channelAccount->meta_json ?? [];
-        if ($chatbotId === null) {
-            unset($meta['ai_chatbot_id']);
-        } else {
-            $meta['ai_chatbot_id'] = $chatbotId;
-        }
-        $channelAccount->update(['meta_json' => $meta]);
-
-        $label = $chatbotId ? 'Chatbot assigned.' : 'Chatbot removed.';
-
-        return back()->with('success', $label);
+        return (int) $workspace->owner_id === (int) $user->id
+            || $user->isClientAdministrator()
+            || $workspace->members()->where('user_id', $user->id)
+                ->wherePivotIn('role', ['owner', 'admin', 'administrator'])->exists();
     }
 
     public function destroy(Request $request, ChannelAccount $channelAccount): RedirectResponse

@@ -9,6 +9,7 @@ use App\Modules\Inbox\Http\Controllers\InboxController;
 use App\Modules\Inbox\Http\Controllers\InboxSetupController;
 use App\Modules\Inbox\Http\Controllers\InternalNoteController;
 use App\Modules\Inbox\Http\Controllers\LabelController;
+use App\Modules\Inbox\Http\Controllers\SegmentAiAnsweringController;
 use App\Modules\Inbox\Http\Controllers\TelegramBusinessSetupController;
 use Illuminate\Support\Facades\Route;
 
@@ -80,7 +81,7 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
         ->name('setup.amazon.actions');
     Route::post('/setup/embedded-signup/instagram', [InboxSetupController::class, 'embeddedSignupInstagram'])->name('setup.embedded-signup.instagram');
     Route::post('/setup/embedded-signup/messenger', [InboxSetupController::class, 'embeddedSignupMessenger'])->name('setup.embedded-signup.messenger');
-    Route::patch('/setup/{channelAccount}/chatbot', [InboxSetupController::class, 'assignChatbot'])->name('setup.assign-chatbot');
+    Route::patch('/ai-answering/{segment}', [SegmentAiAnsweringController::class, 'update'])->name('ai-answering.update');
     Route::delete('/setup/{channelAccount}', [InboxSetupController::class, 'destroy'])->name('setup.destroy');
 
     Route::get('/email-setup', [EmailAccountController::class, 'index'])->name('email.index');

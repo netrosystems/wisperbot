@@ -261,7 +261,12 @@ class TelegramBusinessWebhookProcessor
                 'contact_id' => $contact->id,
                 'external_thread_id' => $chatId,
             ],
-            ['status' => 'open', 'assigned_to' => 'bot'],
+            [
+                'status' => 'open',
+                'assigned_to' => $direction === 'in'
+                    ? app(SegmentAiPolicyService::class)->initialHandler($account)
+                    : 'human',
+            ],
         );
 
         [$type, $body, $payload] = $this->normalizeMessage($telegramMessage);
@@ -290,6 +295,8 @@ class TelegramBusinessWebhookProcessor
                 'last_inbound_at' => $sentAt,
                 'unread_count' => (int) $conversation->unread_count + 1,
             ];
+        } else {
+            $changes += ['assigned_to' => 'human', 'handover_at' => $conversation->handover_at ?: $sentAt, 'ai_paused_at' => $conversation->ai_paused_at ?: $sentAt, 'ai_pause_reason' => 'human_reply'];
         }
         $conversation->update($changes);
 

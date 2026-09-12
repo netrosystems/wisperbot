@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Services;
 
 use App\Events\ContactCreated;
 use App\Events\MessageReceived;
+use App\Events\MessageSent;
 use App\Modules\Shared\Contracts\ChannelDriverInterface;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -111,18 +112,15 @@ class MessengerDriver implements ChannelDriverInterface
                         continue;
                     }
 
-                    if ($event['message']['is_echo'] ?? false) {
-                        Log::info('Messenger webhook: echo (outbound) event skipped', [
-                            'entry_id' => $entryId,
-                            'mid' => $event['message']['mid'] ?? null,
-                        ]);
+                    $mid = $event['message']['mid'] ?? null;
+                    if ($mid && ! $idempotency->isNewEvent('messenger', $mid)) {
+                        Log::info('Messenger webhook: duplicate message skipped', ['mid' => $mid]);
 
                         continue;
                     }
 
-                    $mid = $event['message']['mid'] ?? null;
-                    if ($mid && ! $idempotency->isNewEvent('messenger', $mid)) {
-                        Log::info('Messenger webhook: duplicate message skipped', ['mid' => $mid]);
+                    if ($event['message']['is_echo'] ?? false) {
+                        $this->processEchoMessage($entryId, $event);
 
                         continue;
                     }
@@ -144,6 +142,49 @@ class MessengerDriver implements ChannelDriverInterface
         Log::info('Messenger webhook: done', ['processed_count' => count($processed)]);
 
         return $processed;
+    }
+
+    private function processEchoMessage(string $pageId, array $event): ?Message
+    {
+        $recipientId = (string) ($event['recipient']['id'] ?? '');
+        $providerId = $event['message']['mid'] ?? null;
+        if ($recipientId === '' || ($providerId && Message::where('provider_message_id', $providerId)->exists())) {
+            return null;
+        }
+        $account = ChannelAccount::where('channel', 'messenger')
+            ->whereJsonContains('meta_json->page_id', $pageId)
+            ->first();
+        if (! $account) {
+            return null;
+        }
+        $contact = $this->resolveMessengerContact((int) $account->workspace_id, $recipientId, $account);
+        $conversation = Conversation::firstOrCreate(
+            ['workspace_id' => $account->workspace_id, 'contact_id' => $contact->id, 'channel_account_id' => $account->id],
+            ['status' => 'open', 'external_thread_id' => $recipientId, 'assigned_to' => 'human'],
+        );
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'out',
+            'channel' => 'messenger',
+            'type' => 'text',
+            'payload' => $event,
+            'body' => (string) ($event['message']['text'] ?? ''),
+            'status' => 'sent',
+            'provider_message_id' => $providerId,
+            'sent_by' => 'human',
+            'sent_at' => now(),
+        ]);
+        $conversation->update([
+            'last_message_at' => $message->sent_at,
+            'status' => 'open',
+            'assigned_to' => 'human',
+            'handover_at' => $conversation->handover_at ?: $message->sent_at,
+            'ai_paused_at' => $conversation->ai_paused_at ?: $message->sent_at,
+            'ai_pause_reason' => 'human_reply',
+        ]);
+        MessageSent::dispatch($message);
+
+        return $message;
     }
 
     public function verifyCreds(): bool
@@ -192,7 +233,11 @@ class MessengerDriver implements ChannelDriverInterface
 
         $conversation = Conversation::firstOrCreate(
             ['workspace_id' => $workspaceId, 'contact_id' => $contact->id, 'channel_account_id' => $channelAccount->id],
-            ['status' => 'open', 'external_thread_id' => $senderId]
+            [
+                'status' => 'open',
+                'external_thread_id' => $senderId,
+                'assigned_to' => app(SegmentAiPolicyService::class)->initialHandler($channelAccount),
+            ]
         );
 
         app(ConversationOwnershipService::class)->prepareInbound($conversation);

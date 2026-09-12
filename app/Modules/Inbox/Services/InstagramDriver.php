@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Services;
 
 use App\Events\ContactCreated;
 use App\Events\MessageReceived;
+use App\Events\MessageSent;
 use App\Modules\Shared\Contracts\ChannelDriverInterface;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -247,7 +248,11 @@ class InstagramDriver implements ChannelDriverInterface
 
         $conversation = Conversation::firstOrCreate(
             ['workspace_id' => $workspaceId, 'contact_id' => $contact->id, 'channel_account_id' => $channelAccount->id],
-            ['status' => 'open', 'external_thread_id' => $senderId]
+            [
+                'status' => 'open',
+                'external_thread_id' => $senderId,
+                'assigned_to' => app(SegmentAiPolicyService::class)->initialHandler($channelAccount),
+            ]
         );
 
         app(ConversationOwnershipService::class)->prepareInbound($conversation);
@@ -333,7 +338,7 @@ class InstagramDriver implements ChannelDriverInterface
 
         $conversation = Conversation::firstOrCreate(
             ['workspace_id' => $workspaceId, 'contact_id' => $contact->id, 'channel_account_id' => $channelAccount->id],
-            ['status' => 'open', 'external_thread_id' => $recipientId]
+            ['status' => 'open', 'external_thread_id' => $recipientId, 'assigned_to' => 'human']
         );
 
         $message = Message::create([
@@ -350,9 +355,16 @@ class InstagramDriver implements ChannelDriverInterface
         ]);
 
         // Outbound: refresh the thread timestamp but do not bump unread_count.
-        $conversation->update(['last_message_at' => now(), 'status' => 'open']);
+        $conversation->update([
+            'last_message_at' => now(),
+            'status' => 'open',
+            'assigned_to' => 'human',
+            'handover_at' => $conversation->handover_at ?: now(),
+            'ai_paused_at' => $conversation->ai_paused_at ?: now(),
+            'ai_pause_reason' => 'human_reply',
+        ]);
 
-        MessageReceived::dispatch($message);
+        MessageSent::dispatch($message);
 
         Log::info('Instagram webhook: echo message stored', [
             'message_id' => $message->id,

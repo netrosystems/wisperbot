@@ -7,6 +7,7 @@ use App\Modules\Inbox\Services\ConversationOwnershipService;
 use App\Modules\Inbox\Services\GenericMailboxClient;
 use App\Modules\Inbox\Services\GmailApiClient;
 use App\Modules\Inbox\Services\MicrosoftGraphMailClient;
+use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -102,9 +103,11 @@ class SyncEmailAccountJob implements ShouldBeUnique, ShouldQueue
                 'contact_id' => $contact->id,
                 'external_thread_id' => substr($thread, 0, 128),
             ],
-            ['status' => 'open', 'assigned_to' => 'human'],
+            ['status' => 'open', 'assigned_to' => app(SegmentAiPolicyService::class)->initialHandler($account)],
         );
         $body = trim(strip_tags((string) data_get($item, 'body.content', $item['bodyPreview'] ?? '')));
+        $headers = collect($item['internetMessageHeaders'] ?? [])
+            ->mapWithKeys(fn (array $header) => [strtolower((string) ($header['name'] ?? '')) => (string) ($header['value'] ?? '')]);
         app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
@@ -117,6 +120,12 @@ class SyncEmailAccountJob implements ShouldBeUnique, ShouldQueue
                 'internet_message_id' => (string) ($item['internetMessageId'] ?? ''),
                 'thread_id' => (string) ($item['conversationId'] ?? ''),
                 'has_attachments' => (bool) ($item['hasAttachments'] ?? false),
+                'from_address' => $address,
+                'auto_submitted' => (string) ($item['autoSubmitted'] ?? $headers->get('auto-submitted', '')),
+                'precedence' => (string) ($item['precedence'] ?? $headers->get('precedence', '')),
+                'list_id' => (string) ($item['listId'] ?? $headers->get('list-id', '')),
+                'is_spam' => (bool) ($item['isSpam'] ?? false),
+                'is_trash' => (bool) ($item['isTrash'] ?? false),
             ],
             'status' => 'delivered',
             'provider_message_id' => $providerId,

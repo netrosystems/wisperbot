@@ -4,10 +4,13 @@ namespace App\Modules\Inbox\Http\Controllers;
 
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
+use App\Models\Workspace;
+use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Jobs\SyncEmailAccountJob;
 use App\Modules\Inbox\Services\GenericMailboxClient;
 use App\Modules\Inbox\Services\GmailApiClient;
 use App\Modules\Inbox\Services\MicrosoftGraphMailClient;
+use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -27,6 +30,8 @@ use Throwable;
 
 class EmailAccountController extends Controller
 {
+    public function __construct(private readonly SegmentAiPolicyService $aiPolicy) {}
+
     public function index(Request $request): Response
     {
         $workspaceId = $this->workspaceId($request);
@@ -45,10 +50,11 @@ class EmailAccountController extends Controller
                     'last_synced_at' => $account->meta_json['last_synced_at'] ?? null,
                     'last_sync_error' => $account->meta_json['last_sync_error'] ?? null,
                 ]),
+            'chatbots' => AiChatbot::where('workspace_id', $workspaceId)->get(['id', 'name']),
+            'aiAnswering' => $this->aiPolicy->payload($workspaceId, 'email'),
+            'canManageAiAnswering' => $this->canManageAi($request),
             'microsoftEnabled' => (bool) ($microsoft?->enabled && $microsoft?->credential('client_id') && $microsoft?->credential('client_secret')),
-            'microsoftCallbackUrl' => route('client.inbox.email.microsoft.callback'),
             'googleEnabled' => (bool) ($google?->enabled && $google?->credential('client_id') && $google?->credential('client_secret')),
-            'googleCallbackUrl' => route('client.inbox.email.google.callback'),
             'imapExtensionAvailable' => function_exists('imap_open'),
         ]);
     }
@@ -161,24 +167,22 @@ class EmailAccountController extends Controller
             if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 throw new \RuntimeException('Microsoft did not return a usable mailbox email address.');
             }
-            $account = ChannelAccount::updateOrCreate(
-                [
-                    'workspace_id' => (int) $pending['workspace_id'],
-                    'channel' => 'email',
-                    'provider' => 'microsoft_365',
-                    'business_account_id' => (string) $profile['id'],
+            $account = ChannelAccount::firstOrNew([
+                'workspace_id' => (int) $pending['workspace_id'],
+                'channel' => 'email',
+                'provider' => 'microsoft_365',
+                'business_account_id' => (string) $profile['id'],
+            ]);
+            $account->fill([
+                'display_name' => (string) ($profile['displayName'] ?: $email),
+                'status' => 'active',
+                'credentials' => [
+                    'access_token' => $tokens['access_token'],
+                    'refresh_token' => $tokens['refresh_token'] ?? (($account->credentials ?? [])['refresh_token'] ?? null),
+                    'expires_at' => now()->addSeconds(max(60, ((int) ($tokens['expires_in'] ?? 3600)) - 60))->toIso8601String(),
                 ],
-                [
-                    'display_name' => (string) ($profile['displayName'] ?: $email),
-                    'status' => 'active',
-                    'credentials' => [
-                        'access_token' => $tokens['access_token'],
-                        'refresh_token' => $tokens['refresh_token'] ?? null,
-                        'expires_at' => now()->addSeconds(max(60, ((int) ($tokens['expires_in'] ?? 3600)) - 60))->toIso8601String(),
-                    ],
-                    'meta_json' => ['email' => $email, 'last_sync_error' => null],
-                ],
-            );
+                'meta_json' => array_merge($account->meta_json ?? [], ['email' => $email, 'last_sync_error' => null]),
+            ])->save();
             SyncEmailAccountJob::dispatch($account->id)->onQueue('default');
 
             return to_route('client.inbox.email.index')->with('success', 'Microsoft 365 mailbox connected. Initial sync has started.');
@@ -208,15 +212,18 @@ class EmailAccountController extends Controller
         $provider = $validated['provider'] ?? 'imap_smtp';
         $credentials = collect($validated)->except(['email', 'display_name', 'provider'])->all();
         $credentials['verify_tls'] = $validated['verify_tls'] ?? true;
-        $account = ChannelAccount::updateOrCreate(
-            ['workspace_id' => $workspaceId, 'channel' => 'email', 'provider' => $provider, 'business_account_id' => $email],
-            [
-                'display_name' => $validated['display_name'] ?: $email,
-                'status' => 'inactive',
-                'credentials' => $credentials,
-                'meta_json' => ['email' => $email],
-            ],
-        );
+        $account = ChannelAccount::firstOrNew([
+            'workspace_id' => $workspaceId,
+            'channel' => 'email',
+            'provider' => $provider,
+            'business_account_id' => $email,
+        ]);
+        $account->fill([
+            'display_name' => $validated['display_name'] ?: $email,
+            'status' => 'inactive',
+            'credentials' => $credentials,
+            'meta_json' => array_merge($account->meta_json ?? [], ['email' => $email]),
+        ])->save();
 
         try {
             $client->verify($account);
@@ -225,7 +232,7 @@ class EmailAccountController extends Controller
 
             return back()->with('success', 'IMAP and SMTP connected. Initial sync has started.');
         } catch (Throwable $e) {
-            $account->update(['status' => 'error', 'meta_json' => ['email' => $email, 'last_sync_error' => $e->getMessage()]]);
+            $account->update(['status' => 'error', 'meta_json' => array_merge($account->meta_json ?? [], ['email' => $email, 'last_sync_error' => $e->getMessage()])]);
 
             return back()->with('error', $e->getMessage());
         }
@@ -348,6 +355,19 @@ class EmailAccountController extends Controller
     private function workspaceId(Request $request): int
     {
         return (int) ($request->user()->current_workspace_id ?? $request->user()->workspace_id);
+    }
+
+    private function canManageAi(Request $request): bool
+    {
+        $user = $request->user();
+        $workspace = Workspace::find($this->workspaceId($request));
+
+        return (bool) $workspace && (
+            (int) $workspace->owner_id === (int) $user->id
+            || $user->isClientAdministrator()
+            || $workspace->members()->where('user_id', $user->id)
+                ->wherePivotIn('role', ['owner', 'admin', 'administrator'])->exists()
+        );
     }
 
     private function emailList(string $value): array

@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\SocialPostApiController;
 use App\Http\Controllers\Api\V1\SubscriptionApiController;
 use App\Http\Controllers\Api\V1\TokenController;
 use App\Http\Controllers\Api\V1\WorkspaceApiController;
+use App\Modules\Inbox\Http\Controllers\SegmentAiAnsweringController;
 use App\Modules\Social\Http\Controllers\SocialCommentController;
 use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Support\Facades\Route;
@@ -104,6 +105,8 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])
 
     // Inbox setup data
     Route::get('/inbox/setup', [MobileInboxController::class, 'setup']);
+    Route::get('/inbox/ai-answering', [SegmentAiAnsweringController::class, 'index']);
+    Route::patch('/inbox/ai-answering/{segment}', [SegmentAiAnsweringController::class, 'update']);
     Route::get('/inbox/counts', [MobileInboxController::class, 'counts']);
     Route::get('/inbox/templates', [MobileInboxController::class, 'templates']);
     Route::get('/inbox/labels', [MobileInboxController::class, 'labels']);

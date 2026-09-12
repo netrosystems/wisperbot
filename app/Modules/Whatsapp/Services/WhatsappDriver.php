@@ -7,6 +7,7 @@ use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Modules\Broadcasting\Models\CampaignRecipient;
 use App\Modules\Inbox\Services\ConversationOwnershipService;
+use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Shared\Contracts\ChannelDriverInterface;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -293,7 +294,11 @@ class WhatsappDriver implements ChannelDriverInterface
 
         $conversation = Conversation::firstOrCreate(
             ['workspace_id' => $workspaceId, 'contact_id' => $contact->id, 'channel_account_id' => $channelAccount?->id],
-            ['status' => 'open', 'external_thread_id' => $fromPhone]
+            [
+                'status' => 'open',
+                'external_thread_id' => $fromPhone,
+                'assigned_to' => app(SegmentAiPolicyService::class)->initialHandler($channelAccount),
+            ]
         );
 
         [$type, $body] = $this->messagePresentation($msg);
@@ -366,7 +371,13 @@ class WhatsappDriver implements ChannelDriverInterface
         ], false);
         $conversation = Conversation::firstOrCreate(
             ['workspace_id' => $workspaceId, 'contact_id' => $contact->id, 'channel_account_id' => $channelAccount->id],
-            ['status' => 'open', 'external_thread_id' => $contactPhone]
+            [
+                'status' => 'open',
+                'external_thread_id' => $contactPhone,
+                'assigned_to' => $direction === 'in'
+                    ? app(SegmentAiPolicyService::class)->initialHandler($channelAccount)
+                    : 'human',
+            ]
         );
 
         [$type, $body] = $this->messagePresentation($msg);
@@ -399,6 +410,9 @@ class WhatsappDriver implements ChannelDriverInterface
         }
         if ($direction === 'in' && (! $conversation->last_inbound_at || $sentAt->greaterThan($conversation->last_inbound_at))) {
             $updates['last_inbound_at'] = $sentAt;
+        }
+        if ($direction === 'out') {
+            $updates += ['assigned_to' => 'human', 'handover_at' => $conversation->handover_at ?: $sentAt, 'ai_paused_at' => $conversation->ai_paused_at ?: $sentAt, 'ai_pause_reason' => 'human_reply'];
         }
         $conversation->update($updates);
 
