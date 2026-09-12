@@ -1474,7 +1474,7 @@ export default function ChannelSetup({
             {chatbots.length === 0 && (
                 <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
                     <Bot className="h-4 w-4 shrink-0 mt-0.5" />
-                    <span>{t('inbox.no_active_chatbots')} <Link href={route('client.ai.chatbots.index')} className="underline font-semibold">{t('inbox.create_one')}</Link> {t('inbox.to_enable_ai_replies')}</span>
+                    <span>{t('inbox.no_chatbots', { defaultValue: 'No Smart Bots found.' })} <Link href={route('client.ai.chatbots.index')} className="underline font-semibold">{t('inbox.create_one')}</Link> {t('inbox.to_configure_ai_replies', { defaultValue: 'to configure AI replies.' })}</span>
                 </div>
             )}
 

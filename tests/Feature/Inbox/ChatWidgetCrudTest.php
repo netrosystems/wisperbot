@@ -3,11 +3,13 @@
 namespace Tests\Feature\Inbox;
 
 use App\Models\Plan;
+use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\ChannelAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class ChatWidgetCrudTest extends TestCase
@@ -47,6 +49,26 @@ class ChatWidgetCrudTest extends TestCase
             'id' => $channelAccount->id,
             'status' => 'inactive',
         ]);
+    }
+
+    public function test_appearance_lists_every_workspace_bot_without_activation_gating(): void
+    {
+        $workspace = $this->ctx['workspace'];
+        $chatbot = AiChatbot::factory()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Legacy disabled bot',
+            'enabled' => false,
+        ]);
+        $other = $this->createWorkspaceContext();
+        AiChatbot::factory()->create(['workspace_id' => $other['workspace']->id]);
+
+        $this->actingAs($this->ctx['user'])
+            ->get(route('client.inbox.chat-widgets.settings'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Chat/Widgets/Settings')
+                ->has('chatbots', 1)
+                ->where('chatbots.0.id', $chatbot->id));
     }
 
     public function test_cannot_delete_another_workspaces_chat_widget(): void

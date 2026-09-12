@@ -117,7 +117,7 @@ class AutoReplyListener
         }
 
         $chatbot = AiChatbot::find($chatbotId);
-        if (! $chatbot || ! $chatbot->enabled) {
+        if (! $chatbot) {
             return;
         }
 

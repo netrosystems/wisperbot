@@ -86,7 +86,6 @@ class AiDashboardController extends Controller
             ->toArray();
 
         $chatbotCount = AiChatbot::count();
-        $activeChatbotCount = AiChatbot::where('enabled', true)->count();
 
         return Inertia::render('Admin/AI/Dashboard', [
             'providerStats' => $providerStats,
@@ -107,7 +106,6 @@ class AiDashboardController extends Controller
             'kbCount' => $kbCount,
             'documentStats' => $documentStats,
             'chatbotCount' => $chatbotCount,
-            'activeChatbotCount' => $activeChatbotCount,
         ]);
     }
 }

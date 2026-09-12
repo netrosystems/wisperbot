@@ -515,8 +515,8 @@ class AutomationEngine
                 ->where('workspace_id', $workspaceId)
                 ->first();
 
-            if (! $bot || ! $bot->enabled) {
-                return ['status' => 'error', 'message' => 'Chatbot not found or disabled.'];
+            if (! $bot) {
+                return ['status' => 'error', 'message' => 'Chatbot not found.'];
             }
 
             $prompt = $userMessage !== ''
@@ -1164,8 +1164,8 @@ class AutomationEngine
             return ['status' => 'error', 'message' => 'No chatbot selected.'];
         }
         $bot = AiChatbot::where('id', $data['chatbot_id'])->where('workspace_id', $workspaceId)->first();
-        if (! $bot || ! $bot->enabled) {
-            return ['status' => 'error', 'message' => 'Chatbot not found or disabled.'];
+        if (! $bot) {
+            return ['status' => 'error', 'message' => 'Chatbot not found.'];
         }
 
         $message = (string) ($context['message_body'] ?? '');

@@ -22,7 +22,9 @@ class AiChatbotApiController extends WorkspaceScopedController
             ->map(fn ($b) => [
                 'id' => $b->id,
                 'name' => $b->name,
-                'enabled' => $b->enabled,
+                // Kept for older clients; selection on a channel/widget is now
+                // the only activation state for a Smart Bot.
+                'enabled' => true,
                 'kb_id' => $b->ai_kb_id,
                 'channels' => $b->channels ?? [],
                 'answer_outside_knowledge_base' => $b->unsupported_answer_action === 'general',

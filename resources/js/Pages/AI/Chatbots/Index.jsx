@@ -1,7 +1,7 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import EmptyState from '@/Components/EmptyState';
-import { Plus, Bot, Trash2, Play, Settings, Send, X, BookOpen, Zap, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Plus, Bot, Trash2, Play, Settings, Send, X, BookOpen, MessageSquare, AlertTriangle } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarkdownLite from '@/Components/MarkdownLite';
@@ -185,7 +185,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
         video_match_threshold: chatbot.video_match_threshold ?? 0.72,
         fallback_reply: chatbot.fallback_reply ?? '',
         ai_kb_id: chatbot.ai_kb_id ?? '',
-        enabled: chatbot.enabled,
     });
     const [unsupportedFallbackAction, setUnsupportedFallbackAction] = useState(
         chatbot.unsupported_answer_action === 'handoff' ? 'handoff' : 'clarify_then_handoff',
@@ -199,14 +198,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
     const save = (e) => {
         e.preventDefault();
         put(route('client.ai.chatbots.update', chatbot.uuid), { preserveScroll: true });
-    };
-
-    const toggleEnabled = (enabled) => {
-        setData('enabled', enabled);
-        router.put(route('client.ai.chatbots.update', chatbot.uuid), { name: chatbot.name, enabled }, {
-            preserveScroll: true,
-            onError: () => setData('enabled', !enabled),
-        });
     };
 
     const handleDelete = () => {
@@ -230,9 +221,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-neutral-900 dark:text-neutral-100 truncate">{chatbot.name}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${chatbot.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'}`}>
-                            {chatbot.enabled ? t('common.active') : t('ai.disabled')}
-                        </span>
                         {chatbot.tone && (
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_COLORS[chatbot.tone] ?? 'bg-neutral-100 text-neutral-500'}`}>
                                 {t(`ai.tone_${chatbot.tone}`)}
@@ -254,10 +242,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                    <div className="mr-2 flex items-center gap-1.5" title={data.enabled ? 'Active and available for channel selection' : 'Inactive'}>
-                        <ToggleSwitch checked={data.enabled} onChange={toggleEnabled} label={`${chatbot.name} active`} />
-                        <span className="hidden text-xs text-neutral-500 sm:inline">Active</span>
-                    </div>
                     <button
                         onClick={() => toggleTab('playground')}
                         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${tab === 'playground' ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400' : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300'}`}
@@ -459,10 +443,9 @@ export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = 
 
                 {/* Stats bar */}
                 {chatbots.length > 0 && (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         {[
                             { label: t('ai.stat_total_bots'), value: chatbots.length, icon: Bot, color: 'text-brand-600 dark:text-brand-400', bg: 'bg-brand-50 dark:bg-brand-900/20' },
-                            { label: t('common.active'), value: chatbots.filter(c => c.enabled).length, icon: Zap, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
                             { label: t('ai.stat_with_kb'), value: chatbots.filter(c => c.ai_kb_id).length, icon: BookOpen, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                         ].map(stat => (
                             <div key={stat.label} className="rounded-xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 flex items-center gap-3">

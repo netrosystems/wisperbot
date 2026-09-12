@@ -336,7 +336,6 @@ class ChatWidgetController extends Controller
     private function chatbots(Request $request)
     {
         return AiChatbot::where('workspace_id', $this->workspaceId($request))
-            ->where('enabled', true)
             ->get(['id', 'name']);
     }
 

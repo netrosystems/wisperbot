@@ -209,15 +209,15 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                                 <Field label={t('widget_appearance.smart_bot', 'Smart Bot')}>
                                     <select className={inputCls} value={data.ai_chatbot_id ?? ''} onChange={(e) => setData('ai_chatbot_id', e.target.value)}>
                                         <option value="">{t('widget_appearance.select_smart_bot', 'Select a Smart Bot…')}</option>
-                                        {chatbots.map((b) => <option key={b.id} value={b.id}>{b.name} · Active</option>)}
+                                        {chatbots.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                                     </select>
                                 </Field>
                             ) : (
                                 <p className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                                    {t('widget_appearance.no_smart_bots', 'No active Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here.')}
+                                    {t('widget_appearance.no_smart_bots', 'No Smart Bots yet. Create one under AI Automations → Smart Bots, then select it here.')}
                                 </p>
                             )}
-                            {selectedBotUnavailable && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">The previously selected Smart Bot is inactive or unavailable. AI will not answer until you select an active bot.</p>}
+                            {selectedBotUnavailable && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">The previously selected Smart Bot is no longer available. AI will not answer until you select another bot.</p>}
                             <a href={route('client.ai.chatbots.index')} className="inline-flex text-xs font-semibold text-brand-600 hover:text-brand-700">Manage Smart Bots</a>
 
                             <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">

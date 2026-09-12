@@ -92,7 +92,6 @@ class ChatWidget extends Model
             : $this->aiChatbot()->first();
 
         return (bool) $chatbot
-            && $chatbot->enabled
             && (int) $chatbot->workspace_id === (int) $this->workspace_id;
     }
 

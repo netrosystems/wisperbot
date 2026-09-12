@@ -91,7 +91,6 @@ class InboxSetupController extends Controller
             ]);
 
         $chatbots = AiChatbot::where('workspace_id', $workspaceId)
-            ->where('enabled', true)
             ->get(['id', 'name']);
 
         $meta = CredentialResolver::system()->meta();

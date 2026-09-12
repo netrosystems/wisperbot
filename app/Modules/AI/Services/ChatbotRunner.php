@@ -24,10 +24,6 @@ class ChatbotRunner
     /** @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>} */
     public function run(AiChatbot $bot, Message $inboundMessage, bool $throwProviderErrors = false): array
     {
-        if (! $bot->enabled) {
-            return ['reply' => null, 'tokens_used' => 0, 'resources' => []];
-        }
-
         $conversation = $inboundMessage->conversation;
         $body = $inboundMessage->body ?? '';
         $workspaceId = $conversation->workspace_id;
@@ -241,7 +237,7 @@ class ChatbotRunner
     public function runForPublicComment(AiChatbot $bot, string $question, int $workspaceId, string $key): array
     {
         $unsupported = ['decision' => 'handoff', 'reply' => null, 'tokens_used' => 0];
-        if ((int) $bot->workspace_id !== $workspaceId || ! $bot->enabled || ! $this->publicCommentSafe($question)) {
+        if ((int) $bot->workspace_id !== $workspaceId || ! $this->publicCommentSafe($question)) {
             return $unsupported;
         }
         $kb = AiKnowledgeBase::where('workspace_id', $workspaceId)->find($bot->ai_kb_id);

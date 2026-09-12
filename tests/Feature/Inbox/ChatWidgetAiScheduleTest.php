@@ -62,6 +62,14 @@ class ChatWidgetAiScheduleTest extends TestCase
         $this->assertTrue($widget->fresh()->shouldAiAnswerNow(CarbonImmutable::parse('2026-09-07 12:00:00 UTC')));
     }
 
+    public function test_selected_bot_remains_available_regardless_of_legacy_enabled_flag(): void
+    {
+        [$widget, , $chatbot] = $this->scheduledWidget('inside_hours', 'UTC');
+        $chatbot->update(['enabled' => false]);
+
+        $this->assertTrue($widget->fresh()->shouldAiAnswerNow(CarbonImmutable::parse('2026-09-07 12:00:00 UTC')));
+    }
+
     public function test_invalid_enabled_schedule_fails_closed(): void
     {
         [$widget] = $this->scheduledWidget('outside_hours', 'UTC');

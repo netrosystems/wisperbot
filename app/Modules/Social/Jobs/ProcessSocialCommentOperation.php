@@ -66,7 +66,7 @@ class ProcessSocialCommentOperation implements ShouldQueue
             }
             $settings = $service->settings($comment->account);
             if ($op->kind === 'suggest' || $op->source === 'automatic') {
-                $bot = AiChatbot::with('knowledgeBase')->where('workspace_id', $this->workspaceId)->where('enabled', true)->find($settings->chatbot_id);
+                $bot = AiChatbot::with('knowledgeBase')->where('workspace_id', $this->workspaceId)->find($settings->chatbot_id);
                 if (! $bot || ! $settings->public_kb_confirmed_at || ! $bot->knowledgeBase
                     || (int) $settings->public_kb_revision_id !== (int) $bot->knowledgeBase->published_revision_id
                     || ($op->kind === 'reply' && (int) ($op->diagnostics['revision_id'] ?? 0) !== (int) $bot->knowledgeBase->published_revision_id)) {
@@ -98,7 +98,7 @@ class ProcessSocialCommentOperation implements ShouldQueue
             }
             try {
                 if ($op->kind === 'suggest') {
-                    $bot = AiChatbot::where('workspace_id', $this->workspaceId)->where('enabled', true)->find($settings->chatbot_id);
+                    $bot = AiChatbot::where('workspace_id', $this->workspaceId)->find($settings->chatbot_id);
                     if (! $bot || ! $settings->public_kb_confirmed_at) {
                         $op->update(['status' => 'needs_attention', 'reason' => 'choose_public_knowledge_base']);
 
