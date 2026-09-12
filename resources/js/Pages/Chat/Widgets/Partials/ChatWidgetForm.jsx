@@ -233,7 +233,7 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                                         className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold transition ${(data.ai_schedule_json?.enabled ? 'scheduled' : 'permanent') === mode ? 'bg-white text-brand-700 shadow-sm dark:bg-neutral-900 dark:text-brand-300' : 'text-neutral-500'}`}
                                     >{label}</button>)}
                                 </div>
-                                <p className="mt-2 text-xs text-neutral-500">Permanent answers whenever this Smart Bot is enabled. Scheduled answers only inside the selected windows.</p>
+                                <p className="mt-2 text-xs text-neutral-500">Permanent answers whenever AI answering is on. Scheduled answers only inside the selected windows.</p>
 
                                 {data.ai_schedule_json?.enabled && <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
                                     <div className="mb-3 flex items-center gap-2"><CalendarClock className="h-4 w-4 text-brand-500" /><p className="text-sm font-semibold">AI active hours</p></div>
