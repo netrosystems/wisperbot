@@ -4,7 +4,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, Pencil, Trash2, UserPlus, Mail, X, Clock3 } from 'lucide-react';
-import WeeklyScheduleEditor, { defaultWeeklySchedule, SCHEDULE_DAYS } from '@/Components/WeeklyScheduleEditor';
+import WeeklyScheduleEditor, { defaultWeeklySchedule, normalizeWeeklySchedule, SCHEDULE_DAYS } from '@/Components/WeeklyScheduleEditor';
 
 const STATUS_ACTIVE    = 'active';
 const CLIENT_ROLE_ADMIN = 'administrator';
@@ -35,7 +35,7 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
     const openAvailability = (user) => {
         setAvailabilityUser(user);
         const current = user.availability || defaultWeeklySchedule('UTC', false);
-        availabilityForm.setData({ ...defaultWeeklySchedule(current.timezone || 'UTC', Boolean(current.enabled)), ...current });
+        availabilityForm.setData(normalizeWeeklySchedule(current, current.timezone || 'UTC'));
     };
 
     const submitAvailability = (e) => {

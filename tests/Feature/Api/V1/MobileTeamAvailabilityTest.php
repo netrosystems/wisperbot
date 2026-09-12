@@ -42,4 +42,24 @@ class MobileTeamAvailabilityTest extends TestCase
             'timezone' => 'Asia/Dhaka',
         ]);
     }
+
+    public function test_omitted_all_day_values_are_normalized_to_false(): void
+    {
+        ['user' => $admin] = $this->createWorkspaceContext();
+        Sanctum::actingAs($admin);
+        $schedule = collect(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+            ->mapWithKeys(fn (string $day) => [$day => [
+                'enabled' => true,
+                'windows' => [['start' => '10:00', 'end' => '23:00']],
+            ]])
+            ->all();
+
+        $this->putJson("/api/v1/mobile/team/{$admin->id}/availability", [
+            'enabled' => true,
+            'timezone' => 'Asia/Dhaka',
+            'schedule' => $schedule,
+        ])->assertOk()
+            ->assertJsonPath('availability.schedule.mon.all_day', false)
+            ->assertJsonPath('availability.schedule.sun.all_day', false);
+    }
 }

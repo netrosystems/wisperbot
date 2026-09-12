@@ -8,6 +8,22 @@ use Illuminate\Validation\Validator;
 
 class UpdateMemberAvailabilityRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $schedule = $this->input('schedule');
+        if (! is_array($schedule)) {
+            return;
+        }
+
+        foreach ($schedule as $day => $settings) {
+            if (is_array($settings) && ! array_key_exists('all_day', $settings)) {
+                $schedule[$day]['all_day'] = false;
+            }
+        }
+
+        $this->merge(['schedule' => $schedule]);
+    }
+
     public function authorize(): bool
     {
         return (bool) $this->user()?->isClientAdministrator();

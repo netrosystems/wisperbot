@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultWeeklySchedule, normalizeAiSchedule } from '@/Components/WeeklyScheduleEditor';
+import { defaultWeeklySchedule, normalizeAiSchedule, normalizeWeeklySchedule } from '@/Components/WeeklyScheduleEditor';
 
 describe('weekly schedule adapters', () => {
     it('creates compact weekday defaults', () => {
@@ -30,5 +30,17 @@ describe('weekly schedule adapters', () => {
     it('maps a missing or disabled legacy schedule to permanent', () => {
         expect(normalizeAiSchedule(null, 'UTC').mode).toBe('permanent');
         expect(normalizeAiSchedule({ enabled: false, timezone: 'Asia/Tokyo' }).enabled).toBe(false);
+    });
+
+    it('fills every weekday field when a member has no saved schedule', () => {
+        const normalized = normalizeWeeklySchedule({ enabled: false, timezone: 'Asia/Dhaka', schedule: [] });
+
+        expect(normalized.schedule.mon).toEqual({
+            enabled: true,
+            all_day: false,
+            windows: [{ start: '09:00', end: '17:00' }],
+        });
+        expect(normalized.schedule.sun).toEqual({ enabled: false, all_day: false, windows: [] });
+        expect(Object.values(normalized.schedule).every(day => typeof day.all_day === 'boolean')).toBe(true);
     });
 });

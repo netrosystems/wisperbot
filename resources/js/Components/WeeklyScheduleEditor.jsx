@@ -19,6 +19,30 @@ export function defaultWeeklySchedule(timezone = 'UTC', enabled = true) {
     };
 }
 
+export function normalizeWeeklySchedule(value, timezone = 'UTC') {
+    const defaults = defaultWeeklySchedule(value?.timezone || timezone, Boolean(value?.enabled));
+    const suppliedSchedule = value?.schedule;
+    const hasSuppliedDays = suppliedSchedule && typeof suppliedSchedule === 'object' && Object.keys(suppliedSchedule).length > 0;
+
+    return {
+        ...defaults,
+        ...value,
+        timezone: value?.timezone || timezone,
+        schedule: Object.fromEntries(SCHEDULE_DAYS.map(([key]) => {
+            const fallback = hasSuppliedDays
+                ? { enabled: false, all_day: false, windows: [] }
+                : defaults.schedule[key];
+            const day = suppliedSchedule?.[key] || fallback;
+
+            return [key, {
+                enabled: Boolean(day.enabled),
+                all_day: Boolean(day.all_day),
+                windows: Array.isArray(day.windows) ? day.windows : [],
+            }];
+        })),
+    };
+}
+
 export function normalizeAiSchedule(value, timezone = 'UTC') {
     if (!value || !value.enabled || value.mode === 'permanent') return defaultWeeklySchedule(value?.timezone || timezone, false);
     if (value.mode === 'scheduled') return { ...defaultWeeklySchedule(value.timezone || timezone), ...value };
@@ -43,7 +67,13 @@ export function normalizeAiSchedule(value, timezone = 'UTC') {
 const control = 'rounded-lg border border-neutral-300 bg-white px-2.5 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 disabled:opacity-40';
 
 export default function WeeklyScheduleEditor({ value, onChange, timezoneLabel = 'Timezone', showTimezone = true }) {
-    const updateDay = (key, patch) => onChange({ ...value, schedule: { ...value.schedule, [key]: { ...value.schedule?.[key], ...patch } } });
+    const updateDay = (key, patch) => onChange({
+        ...value,
+        schedule: {
+            ...value.schedule,
+            [key]: { enabled: false, all_day: false, windows: [], ...value.schedule?.[key], ...patch },
+        },
+    });
     const copyWeekdays = (source) => {
         const schedule = { ...value.schedule };
         ['mon', 'tue', 'wed', 'thu', 'fri'].forEach(day => { schedule[day] = JSON.parse(JSON.stringify(source)); });
