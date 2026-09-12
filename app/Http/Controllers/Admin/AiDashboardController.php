@@ -10,6 +10,7 @@ use App\Modules\AI\Models\AiRun;
 use App\Modules\Integrations\Services\CredentialResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -36,7 +37,7 @@ class AiDashboardController extends Controller
         $qdrantHealthy = false;
         if ($qdrantConfigured) {
             try {
-                $request = \Illuminate\Support\Facades\Http::timeout(3);
+                $request = Http::timeout(3);
                 if (filled($qdrantCredentials['api_key'] ?? null)) {
                     $request = $request->withHeaders(['api-key' => $qdrantCredentials['api_key']]);
                 }
