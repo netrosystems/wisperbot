@@ -32,6 +32,16 @@ use Illuminate\Validation\ValidationException;
 
 class MobileConversationController extends WorkspaceScopedController
 {
+    private const OMNI_CHANNELS = [
+        'whatsapp',
+        'instagram',
+        'messenger',
+        'telegram',
+        'ebay',
+        'amazon',
+        'webchat',
+    ];
+
     public function __construct(
         private ChannelManager $channelManager,
         private StorageManager $storageManager,
@@ -55,6 +65,7 @@ class MobileConversationController extends WorkspaceScopedController
         $isLiveFolder = $folder === 'live';
 
         $conversations = Conversation::where('workspace_id', $wsId)
+            ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
             ->with(['contact', 'channelAccount', 'lastMessage', 'labels', 'assignedUser', 'joinedUser'])
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
