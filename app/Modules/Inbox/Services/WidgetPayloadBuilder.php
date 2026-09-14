@@ -64,13 +64,20 @@ class WidgetPayloadBuilder
      */
     public function handoff(ChatWidget $widget, Conversation $conversation): array
     {
+        $conversation->loadMissing('joinedUser');
         $enabled = $widget->shouldAiAnswerNow();
-        $connected = ($conversation->assigned_to ?? 'bot') === 'human';
+        $waiting = ($conversation->assigned_to ?? 'bot') === 'human';
+        $joined = $conversation->joinedUser;
 
         return [
             'enabled' => $enabled,
-            'eligible' => $enabled && ! $connected && $this->hasTwoCustomerMessages($conversation),
-            'status' => $enabled && $connected ? 'connected' : 'bot',
+            'eligible' => $enabled && ! $waiting && ! $joined && $this->hasTwoCustomerMessages($conversation),
+            'status' => $joined ? 'connected' : ($waiting ? 'waiting' : 'bot'),
+            'agent' => $joined ? [
+                'name' => $joined->name,
+                'avatar_url' => $this->browserSafePublicUrl($joined->avatar),
+            ] : null,
+            'joined_at' => $joined ? $conversation->joined_at?->toIso8601String() : null,
         ];
     }
 

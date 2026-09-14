@@ -55,6 +55,10 @@ Before claiming completion, verify multiple unrelated client domains and languag
 
 External WhatsApp/Messenger/Instagram messages retain the numbered text fallback in this release; native provider interactive-button support is not claimed. Selecting a choice does not trigger payment, booking, cancellation, or human handoff.
 
+## Joined-agent handoff state
+
+The private customer contract may additionally return `handoff.status` as `bot`, `waiting`, or `connected`, with public `agent` fields `{name, avatar_url}` and `joined_at` only when connected. `waiting` means a human was requested but no teammate has joined and must never be rendered as connected. Native SDKs should use a compact status treatment and ignore internal user IDs, email, roles, and schedules. The server and JavaScript widget release does not publish a native SDK update.
+
 ## Rollout
 
 Deploy matching backend, `public/widget/wisperbot-chat-widget.js`, and a locally built dashboard bundle. Restart `ai`/message workers and refresh config caches. No database migration is required. `CHATBOT_QUICK_REPLIES_ENABLED=false` disables requesting choices for new generations; existing history remains compatible. Keep the package release and host-app rollout separate from the server deployment. Never upload a broad dirty-worktree build without reviewing the unrelated pending features.

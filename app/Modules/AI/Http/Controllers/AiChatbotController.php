@@ -103,13 +103,6 @@ class AiChatbotController extends Controller
             'history.*.content' => ['required', 'string', 'max:4000'],
         ]);
 
-        if (! $chatbot->enabled) {
-            return response()->json([
-                'error' => 'Enable this chatbot before testing it.',
-                'error_code' => 'chatbot_disabled',
-            ], 422);
-        }
-
         try {
             $result = app(ChatbotRunner::class)->runForApi(
                 $chatbot, $validated['message'], $this->workspaceId($request),

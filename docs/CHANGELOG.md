@@ -4,6 +4,18 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Redesigned the shared Omni and Email AI Answering control as a compact operational settings row with clear mode, bot, and timezone context. Configuration now uses a focused, responsive drawer with progressive disclosure and an explicit Save step, reducing page clutter and accidental changes.
+
+- Removed OAuth callback URLs and provider-configuration diagnostics from client Email Setup; those operational details remain a Super Admin responsibility.
+
+- Replaced per-account AI configuration with one workspace-wide Omni policy on Channel Setup and one independent workspace-wide Email policy on Email Setup. Each compact control applies to all present and future accounts in its segment, supports exact scheduled active hours, and remains visible before accounts are connected. Human ownership pauses AI until resolution; historical mailbox imports remain protected by account eligibility cutoffs.
+
+- Added workspace-specific teammate availability, availability-aware inbox alerts, atomic Join Chat ownership, takeover/leave controls, clean ownership reset on resolution, realtime web/mobile ownership payloads, and customer-visible widget waiting/joined states. Added mobile APIs for ownership and administrator schedule management.
+
+- Simplified Website Widget AI scheduling to Permanent or exact Scheduled active hours with split/overnight windows. Legacy inside/outside schedules are converted without changing effective answering periods. Removed the redundant global Smart Bot activation switch: explicit widget/channel/workflow selection is now the only activation state, and a missing or deleted selection fails closed.
+
+- Normalized every automation-run dispatch onto the canonical `automation` queue. The job now owns its queue assignment, and the Developer API no longer strands manually triggered runs on the unused plural queue. Deployments should drain the legacy `automations` queue once after rollout.
+
 - Added optional, timezone-aware Smart Bot scheduling to Website Widget Appearance. Clients can run AI inside or outside per-day office hours; enforcement happens server-side for inbound webchat messages and stays synchronized with public handoff availability. Scheduling defaults off, so existing widgets remain continuously available until configured. Deployment requires the new chat-widget schedule migration and matching frontend/backend.
 
 - Made Smart Bots knowledge-only by default whenever a Knowledge Base is assigned, independent of the guarded-publishing rollout flag. Unrelated or unsupported questions now bypass chat generation when retrieval fails, provider output must pass a grounding contract before credits finalize, and clients can explicitly enable safe general answers with a plain-language setting. Short CTA/follow-up replies retain nearby conversational context without letting prior topics legitimize a substantive unrelated request.

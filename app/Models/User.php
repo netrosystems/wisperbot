@@ -162,6 +162,39 @@ class User extends Authenticatable implements MustVerifyEmail
         return $owned->merge($member)->unique('id');
     }
 
+    public function workspaceRole(int|Workspace $workspace): ?string
+    {
+        $workspaceId = $workspace instanceof Workspace ? $workspace->id : $workspace;
+
+        if ($workspace instanceof Workspace && (int) $workspace->owner_id === (int) $this->id) {
+            return 'owner';
+        }
+
+        if (! ($workspace instanceof Workspace)) {
+            $workspace = Workspace::find($workspaceId);
+        }
+
+        if ($workspace && (int) $workspace->owner_id === (int) $this->id) {
+            return 'owner';
+        }
+
+        $role = $this->workspaces()->whereKey($workspaceId)->value('workspace_user.role');
+        if ($role !== null) {
+            return $role;
+        }
+
+        if ($workspace && $this->client_id && (int) $workspace->client_id === (int) $this->client_id) {
+            return $this->isClientAdministrator() ? 'administrator' : 'member';
+        }
+
+        return null;
+    }
+
+    public function canAccessWorkspace(int|Workspace $workspace): bool
+    {
+        return $this->workspaceRole($workspace) !== null;
+    }
+
     // -------------------------------------------------------------------------
     // Subscriptions
     // -------------------------------------------------------------------------

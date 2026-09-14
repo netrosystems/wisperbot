@@ -6,6 +6,7 @@ use App\Events\MessageStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\HumanHandoffService;
+use App\Modules\Inbox\Services\TeamAvailabilityService;
 use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Inbox\Services\WebchatPresence;
@@ -14,7 +15,9 @@ use App\Modules\Inbox\Services\WidgetVisitorPushService;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Services\Media\AttachmentService;
+use App\Services\PusherPublicConfig;
 use App\Services\StorageManager;
+use App\Services\WorkspaceNotificationRecipients;
 use App\Support\WebchatVisitorToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -104,7 +107,7 @@ class ChatWidgetPublicController extends Controller
             'conversation_id' => $conversation->id,
             'token' => $token,
             'config' => $widget->publicConfig(),
-            'online' => $this->isOnline($widget),
+            'online' => $this->isOnline($widget, $conversation),
             'messages' => $this->payloads->messages($conversation->id, $widget, 0),
             'handoff' => $this->payloads->handoff($widget, $conversation),
         ]);
@@ -219,7 +222,7 @@ class ChatWidgetPublicController extends Controller
 
         return response()->json([
             'messages' => $messages,
-            'online' => $this->isOnline($widget),
+            'online' => $this->isOnline($widget, $conversation),
             'handoff' => $this->payloads->handoff($widget, $conversation),
             'agent_typing' => [
                 'is_typing' => $agentTyping !== null,
@@ -344,7 +347,7 @@ class ChatWidgetPublicController extends Controller
         $widget = $this->resolveWidget($widgetKey);
         $this->assertDomainAllowed($widget, $request);
 
-        $cfg = app(\App\Services\PusherPublicConfig::class)->widget();
+        $cfg = app(PusherPublicConfig::class)->widget();
 
         return response()->json([
             'key' => $cfg['key'] ?? '',
@@ -530,30 +533,16 @@ class ChatWidgetPublicController extends Controller
         return $url;
     }
 
-    /** Whether the widget is inside its configured working hours (default: always). */
-    private function isOnline(ChatWidget $widget): bool
+    /** Human coverage is derived from member schedules; an active joined chat remains online. */
+    private function isOnline(ChatWidget $widget, ?Conversation $conversation = null): bool
     {
-        $wh = $widget->working_hours_json;
-        if (empty($wh) || empty($wh['enabled'])) {
+        if ($conversation?->joined_user_id) {
             return true;
         }
+        $recipients = app(WorkspaceNotificationRecipients::class)->for((int) $widget->workspace_id);
 
-        try {
-            $now = now()->setTimezone($wh['timezone'] ?? 'UTC');
-        } catch (\Throwable) {
-            $now = now();
-        }
-
-        $dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][(int) $now->format('w')];
-        $sched = $wh['schedule'][$dayKey] ?? null;
-        if (empty($sched) || empty($sched['enabled'])) {
-            return false;
-        }
-
-        $cur = (int) $now->format('H') * 60 + (int) $now->format('i');
-        [$oh, $om] = array_pad(explode(':', (string) ($sched['open'] ?? '00:00')), 2, '0');
-        [$ch, $cm] = array_pad(explode(':', (string) ($sched['close'] ?? '23:59')), 2, '0');
-
-        return $cur >= ((int) $oh * 60 + (int) $om) && $cur < ((int) $ch * 60 + (int) $cm);
+        return app(TeamAvailabilityService::class)
+            ->available((int) $widget->workspace_id, $recipients)
+            ->isNotEmpty();
     }
 }

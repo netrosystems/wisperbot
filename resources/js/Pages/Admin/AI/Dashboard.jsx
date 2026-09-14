@@ -35,7 +35,7 @@ function StatusBadge({ ok, label, sublabel }) {
     );
 }
 
-export default function AiDashboard({ providerStats = {}, configuredWorkspaces = 0, qdrant, usage, topModels = [], dailyUsage = [], kbCount = 0, documentStats = {}, chatbotCount = 0, activeChatbotCount = 0 }) {
+export default function AiDashboard({ providerStats = {}, configuredWorkspaces = 0, qdrant, usage, topModels = [], dailyUsage = [], kbCount = 0, documentStats = {}, chatbotCount = 0 }) {
     const { t } = useTranslation();
 
     const totalTokensFormatted = usage.total_tokens >= 1_000_000
@@ -62,7 +62,7 @@ export default function AiDashboard({ providerStats = {}, configuredWorkspaces =
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard icon={Zap} label={t('ai_dashboard.tokens_used_30d')} value={totalTokensFormatted} sub={`${usage.total_runs.toLocaleString()} ${t('ai_dashboard.runs')}`} color="brand" />
                     <StatCard icon={Activity} label={t('ai_dashboard.avg_latency')} value={`${usage.avg_latency_ms}ms`} sub={`${errorRate}% ${t('ai_dashboard.error_rate')}`} color={parseFloat(errorRate) > 5 ? 'red' : 'green'} />
-                    <StatCard icon={Bot} label={t('ai_dashboard.chatbots')} value={chatbotCount} sub={`${activeChatbotCount} ${t('ai_dashboard.active')}`} color="blue" />
+                    <StatCard icon={Bot} label={t('ai_dashboard.chatbots')} value={chatbotCount} color="blue" />
                     <StatCard icon={BookOpen} label={t('ai_dashboard.knowledge_bases')} value={kbCount} sub={`${docIndexed}/${docTotal} ${t('ai_dashboard.docs_indexed')}`} color={docError > 0 ? 'yellow' : 'green'} />
                 </div>
 

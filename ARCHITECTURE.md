@@ -66,7 +66,7 @@ flowchart TD
    - Mobile apps and external developer APIs use Laravel Sanctum Bearer tokens.
 2. **Encrypted Credentials**: External API keys, OAuth refresh tokens, and provider secrets are encrypted in the database (`Crypt::encryptString`) and never returned unmasked to the browser.
 3. **Public Widget Isolation**: Visitor conversations from `/widget/v1/*` are pinned to a unique session token. Unsigned identities remain anonymous; signed identities require server-side HMAC validation (`hash_hmac`).
-4. **Scheduled Widget AI**: `chat_widgets.ai_schedule_json` stores workspace-owned weekly office hours, an IANA timezone, and inside/outside mode. `ChatWidget::shouldAiAnswerNow()` is the single runtime decision used by inbound webchat generation, public configuration, and handoff payloads. Invalid enabled schedules fail closed; other channels and deterministic auto-reply rules remain independent.
+4. **Scheduled Widget AI**: `chat_widgets.ai_schedule_json` stores Permanent or Scheduled active hours, an IANA timezone, and up to three split/overnight windows per day. `ChatWidget::shouldAiAnswerNow()` is the single runtime decision used by inbound webchat generation, public configuration, and handoff payloads. Legacy inside/outside schedules remain readable and convert to equivalent active windows when saved. Invalid enabled schedules fail closed; other channels and deterministic auto-reply rules remain independent.
 5. **Idempotent Webhook Processing**: Inbound webhooks (`/webhooks/*`) undergo cryptographic signature verification and payload deduplication before dispatching jobs onto background queues.
 
 ---
@@ -184,6 +184,7 @@ classDiagram
 3. **Queue Job Hydration**: Queue jobs pass database IDs (not full serialized models) and re-verify tenant ownership at execution time.
 4. **WebSocket Authorization**: Channel authorization rules in `BroadcastChannelsServiceProvider` authenticate the active user's workspace membership before granting access to `workspace.{id}` or `conversation.{id}` channels.
 5. **Notification Scope**: Every client database, realtime, OneSignal, and web-push notification carries its originating `workspace_id`. Web and mobile list/count/read/delete operations are restricted to the authenticated user's active accessible workspace; producers resolve owners and pivot members, not only the legacy primary-workspace column.
+6. **Availability and ownership**: `workspace_member_availabilities` controls only new-message and handoff notification recipients. Missing/disabled schedules mean always available. `conversations.assigned_user_id` remains routing intent while `joined_user_id`/`joined_at` is the atomic live reply owner. Resolution clears both states without deleting history; external providers never receive synthetic join messages.
 
 ---
 
@@ -199,7 +200,7 @@ Background jobs are categorized into dedicated queues to prevent high-volume ope
 | `ai` | Document chunking, vector embedding, smart bot execution | Normal (2) | `IndexKnowledgeDocumentJob`, `GenerateAiResponseJob` |
 | `social` | Scheduled social media post publishing | Normal (3) | `PublishSocialPostJob`, `RefreshSocialTokensJob` |
 | `broadcast` | Bulk SMS campaign batching & dispatching | Low (4) | `DispatchSmsBatchJob`, `ProcessSmsDeliveryCallbackJob` |
-| `automation` | XYFlow visual workflow step evaluation & execution | High (1) | `ExecuteAutomationStepJob`, `ResumeDelayedAutomationJob` |
+| `automation` | XYFlow visual workflow step evaluation & execution | High (1) | `ExecuteAutomationRunJob`; the job owns this queue name so every trigger and resume path is consistent. |
 | `ecommerce` | Store catalog, order, and customer syncing | Low (4) | `SyncStoreOrdersJob`, `ProcessShopifyWebhookJob` |
 
 ---
@@ -221,6 +222,8 @@ Knowledge video resources are stored as validated metadata on `ai_kb_documents`,
 Managed AI usage is enforced at `LlmGateway`, not in individual controllers. The active plan's explicit `limits.ai_credits_per_month` value is the sole entitlement source; price never determines credits. `ai_credit_periods` pools that finite monthly allowance by Client organization or standalone workspace owner, while `ai_credit_ledgers` records immutable reservations, completions, refunds, BYOK calls, action/rate versions, token counts, micro-USD cost estimates, and audited adjustments. Fixed action rates and client labels share `config/ai_credits.php` as one catalog. `ai_workspace_settings.provider_mode` selects `managed`, `byok`, or `auto_fallback`. A unique account-scoped idempotency hash prevents browser, queue, and webhook retries from charging twice. Provider tests and embeddings bypass credit charging; customer OpenAI/Gemini embeddings take precedence before the managed embedding provider.
 
 Smart Bots with a Knowledge Base default to knowledge-only answers through `unsupported_answer_action`. This scope is enforced even when guarded publishing is disabled: retrieval must find relevant workspace-scoped evidence, and generated output must pass a grounded-response contract before AI credits finalize. Clients may explicitly choose `general` to allow safe general knowledge; business-specific facts remain constrained to verified context.
+
+`workspace_ai_answering_policies` owns one workspace-wide `omni` policy and one independent `email` policy. Each policy selects Off, Always on, or Scheduled plus one Smart Bot; every supported account in that segment inherits it. `SegmentAiPolicyService` maps accounts to policies and evaluates exact active hours on every inbound. `channel_accounts.ai_eligible_from_at` prevents historical imports, while conversation pause state keeps human-controlled threads paused until resolution. Non-widget Smart Bot work is coalesced on `ai`; `messages.ai_source_message_id` provides durable idempotency and the final-send lock prevents AI/human double replies. Website widgets retain their Appearance-owned policy, while comments retain their separate guarded workflow.
 | **SMS Gateways** | REST / HTTP Callbacks | Bulk SMS campaigns | Pluggable gateway adapters (Twilio, MessageBird, SMSBD, REVE, BulkSMS, ProSMS, SNS). |
 | **Payment Gateways** | Webhooks / SDKs | Subscriptions, add-ons, invoices | Stripe, PayPal, and Paddle supported with signature validation. |
 

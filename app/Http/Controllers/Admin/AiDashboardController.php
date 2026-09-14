@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Models\AiProviderConfig;
@@ -11,6 +10,7 @@ use App\Modules\AI\Models\AiRun;
 use App\Modules\Integrations\Services\CredentialResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -37,7 +37,7 @@ class AiDashboardController extends Controller
         $qdrantHealthy = false;
         if ($qdrantConfigured) {
             try {
-                $request = \Illuminate\Support\Facades\Http::timeout(3);
+                $request = Http::timeout(3);
                 if (filled($qdrantCredentials['api_key'] ?? null)) {
                     $request = $request->withHeaders(['api-key' => $qdrantCredentials['api_key']]);
                 }
@@ -86,7 +86,6 @@ class AiDashboardController extends Controller
             ->toArray();
 
         $chatbotCount = AiChatbot::count();
-        $activeChatbotCount = AiChatbot::where('enabled', true)->count();
 
         return Inertia::render('Admin/AI/Dashboard', [
             'providerStats' => $providerStats,
@@ -107,7 +106,6 @@ class AiDashboardController extends Controller
             'kbCount' => $kbCount,
             'documentStats' => $documentStats,
             'chatbotCount' => $chatbotCount,
-            'activeChatbotCount' => $activeChatbotCount,
         ]);
     }
 }

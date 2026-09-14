@@ -77,6 +77,7 @@ class WebchatDriver implements ChannelDriverInterface
      */
     public function recordInboundMessage(Conversation $conversation, string $visitorId, string $body, string $type = 'text', array $payload = []): Message
     {
+        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',

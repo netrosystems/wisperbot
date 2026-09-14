@@ -321,6 +321,39 @@ class AiCreditService
         }, 3);
     }
 
+    /** Refund a successfully generated response that was cancelled before delivery. */
+    public function refundCompleted(int $workspaceId, string $feature, string $idempotencyKey, string $errorCode): void
+    {
+        $workspace = Workspace::with(['owner', 'client'])->find($workspaceId);
+        if (! $workspace) {
+            return;
+        }
+        $identity = $this->accountIdentity($workspace);
+        $stableKey = hash('sha256', $identity['type'].':'.$identity['id'].':'.$idempotencyKey);
+
+        DB::transaction(function () use ($stableKey, $feature, $errorCode): void {
+            $ledger = AiCreditLedger::where('idempotency_key', $stableKey)
+                ->where('feature', $feature)
+                ->lockForUpdate()
+                ->first();
+            if (! $ledger || $ledger->status !== 'succeeded') {
+                return;
+            }
+            if ($ledger->period_id && $ledger->credits > 0) {
+                $period = AiCreditPeriod::lockForUpdate()->find($ledger->period_id);
+                if ($period) {
+                    $period->used_credits = max(0, $period->used_credits - $ledger->credits);
+                    $period->save();
+                }
+            }
+            $ledger->update([
+                'status' => 'refunded',
+                'error_code' => Str::limit($errorCode, 64, ''),
+                'finalized_at' => now(),
+            ]);
+        }, 3);
+    }
+
     public function reconcileStaleReservations(): int
     {
         $cutoff = now()->subMinutes((int) config('ai_credits.reservation_ttl_minutes', 10));

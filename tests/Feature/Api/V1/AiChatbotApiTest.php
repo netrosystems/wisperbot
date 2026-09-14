@@ -37,6 +37,7 @@ class AiChatbotApiTest extends TestCase
         AiChatbot::factory()->create([
             'workspace_id' => $workspace->id,
             'unsupported_answer_action' => 'general',
+            'enabled' => false,
         ]);
 
         $res = $this->withToken($token)
@@ -45,7 +46,8 @@ class AiChatbotApiTest extends TestCase
 
         $this->assertCount(1, $res->json('data'));
         $res->assertJsonPath('data.0.answer_outside_knowledge_base', true)
-            ->assertJsonPath('data.0.unsupported_answer_action', 'general');
+            ->assertJsonPath('data.0.unsupported_answer_action', 'general')
+            ->assertJsonPath('data.0.enabled', true);
     }
 
     public function test_chat_invocation_returns_reply(): void

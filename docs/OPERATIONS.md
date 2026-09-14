@@ -42,6 +42,8 @@ Run Laravel's scheduler every minute:
 
 Long-running `schedule:work` is also valid where process supervision exists. Important tasks include social dispatch (ten-second cadence within the scheduler process), campaign launch, email sync, eBay sync, token refresh, billing reconciliation, trial expiry, digests, unanswered reminders, and cleanup.
 
+Workspace-segment Omni/email Smart Bot replies run on `ai`; inbound Meta/WhatsApp work still requires `whatsapp`, and mailbox sync requires `default` plus the scheduler. `OMNICHANNEL_AI_ANSWERING_ENABLED` and `EMAIL_AI_ANSWERING_ENABLED` pause delivery without deleting the two saved segment policies. `INBOX_AI_REPLY_DEBOUNCE_SECONDS` defaults to 2. Deploy both the original channel-policy migration and the corrective segment-policy migration before restarting matching workers.
+
 The scheduler also runs `reconcile-ai-credit-reservations` every five minutes. It refunds reservations older than `config/ai_credits.php`'s configured ten-minute window; a stopped scheduler can therefore leave managed credits temporarily reserved.
 
 The Super Admin Cron Setup heartbeat confirms scheduler activity; it does not prove every queue is being consumed.
@@ -77,6 +79,14 @@ tail -n 200 storage/logs/laravel.log
 
 Do not retry all failed AI indexing jobs until the provider/model/root cause is corrected.
 
+After deploying the 2026-09-11 automation queue normalization, drain jobs created by the former Developer API typo once, using the deployment's normal queue connection:
+
+```bash
+php artisan queue:work --queue=automations --stop-when-empty --sleep=1 --tries=3 --timeout=1800
+```
+
+Run this only after the corrected code is active, inspect failed jobs afterward, and continue normal operation with workers consuming only the canonical `automation` queue.
+
 ## Frontend builds
 
 Source changes under `resources/js` are not visible in production until Vite creates a new `public/build`.
@@ -99,6 +109,38 @@ Laravel validation, PHP `upload_max_filesize`, PHP `post_max_size`, web-server/p
 - `git log -1 --oneline` — deployed backend revision.
 - `git status --short` — should be clean except explicitly understood runtime artifacts.
 - Sidebar version — deployment finalizer version, not proof of a current frontend bundle by itself.
+
+## Mobile API request diagnostics
+
+For short-lived production diagnosis of mobile rate limits or duplicate app requests, enable the sanitized ring-buffer logger:
+
+```env
+MOBILE_REQUEST_LOGGING=true
+MOBILE_REQUEST_LOG_LIMIT=100
+```
+
+Clear the config cache if the deployment caches environment values, then watch:
+
+```bash
+tail -f storage/logs/mobile-api-live.log
+```
+
+Each JSON line includes method, path, safe query metadata, response status, duration, user/workspace IDs, a hashed IP, and request ID. It never records request bodies, authorization headers, message text, tokens, phone numbers, or emails. Disable `MOBILE_REQUEST_LOGGING` after the incident is understood.
+
+For the public website widget/SDK surface, use the separate sanitized logger:
+
+```env
+WIDGET_REQUEST_LOGGING=true
+WIDGET_REQUEST_LOG_LIMIT=100
+```
+
+Then watch:
+
+```bash
+tail -f storage/logs/widget-api-live.log
+```
+
+Widget diagnostics include method, normalized path, safe query metadata, response status, duration, hashed widget key, hashed visitor token when present, origin/referer hosts, hashed IP, and request ID. They do not store widget keys, visitor tokens, message text, identity payloads, request bodies, phone numbers, or emails.
 
 ## Managed AI rollout
 
@@ -123,6 +165,10 @@ The queue connection's `retry_after` must exceed 120 seconds (use at least 180 s
 Only for platform-owned accounts, configure `META_OPERATOR_BUSINESS_ID` and comma-separated `META_OPERATOR_WABA_IDS`. The checker verifies the WABA owner against that business before using the system token for subscription repair. Customer WABAs always use their stored account credential; these environment settings never belong in a customer form.
 
 Clear/rebuild config caches and restart workers after configuration changes. Verify the operator WABA, then a customer Cloud API account and a Coexistence account. A real incoming message must be processed after a repair before delivery is verified. Monitoring does not send test messages, register phones, replay messages, or restore events Meta never delivered. Stop rollout by disabling `CHANNEL_HEALTH_ENABLED`; existing messaging continues. External uptime monitoring remains necessary to alert when the entire application/scheduler is stopped.
+
+## Team availability and ownership rollout (2026-09-12)
+
+Deploy matching backend, Vite build, and `public/widget/wisperbot-chat-widget.js`, then run `php artisan migrate --force` for `2026_09_12_000100_add_availability_and_join_state.php`. Clear application/config/view caches and restart web, queue, and realtime workers so notification routing and ownership events use the new fields. Verify one web and one Sanctum mobile join/leave flow, a resolved conversation reopening unowned, an off-shift notification route, and widget waiting-to-joined transition. The migration is additive; rollback removes availability and joined-owner state but should be done only after reverting code that reads those columns.
 
 ## Incident triage order
 

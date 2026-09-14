@@ -1208,13 +1208,10 @@
   function updateStatus() {
     if (!statusEl) return;
     if (handoff.status === 'connected') {
-      statusEl.innerHTML = teamPresenceMarkup('Connected to a human agent');
+      statusEl.innerHTML = teamPresenceMarkup((handoff.agent && handoff.agent.name ? handoff.agent.name : 'A teammate') + ' joined the chat');
       return;
     }
-    // Presence is intentionally always shown as active. Working-hours rules can
-    // still control automated behaviour, but the launcher/header consistently
-    // communicate that the team can receive a message.
-    statusEl.innerHTML = teamPresenceMarkup(CFG.subtitle || 'Team available');
+    statusEl.innerHTML = teamPresenceMarkup(online ? (CFG.subtitle || 'Team available') : 'Team away · Leave a message');
   }
 
   function teamPresenceMarkup(label) {
@@ -1236,11 +1233,13 @@
 
   function applyHandoff(next) {
     if (!next) return;
-    if (handoff.status === 'connecting' && next.status !== 'connected') return;
+    if (handoff.status === 'connecting' && next.status === 'bot') return;
     handoff = {
       enabled: next.enabled === true,
       eligible: next.eligible === true,
-      status: next.status || 'bot'
+      status: next.status || 'bot',
+      agent: next.agent || null,
+      joined_at: next.joined_at || null
     };
     renderHandoff();
     updateStatus();
@@ -1259,7 +1258,9 @@
     if (handoff.status === 'connecting') {
       handoffEl.innerHTML = '<span class="wb-handoff-dot wb-handoff-pulse"></span><span>Connecting to a human agent…</span>';
     } else if (handoff.status === 'connected') {
-      handoffEl.innerHTML = '<span class="wb-handoff-dot"></span><strong>Connected</strong><span>to a human agent</span>';
+      handoffEl.innerHTML = '<span class="wb-handoff-dot"></span><strong>' + esc(handoff.agent && handoff.agent.name ? handoff.agent.name : 'A teammate') + '</strong><span>joined the chat</span>';
+    } else if (handoff.status === 'waiting') {
+      handoffEl.innerHTML = '<span class="wb-handoff-dot wb-handoff-pulse"></span><span>Waiting for a teammate…</span>';
     } else {
       handoffEl.innerHTML = '<span>Prefer a person?</span><button class="wb-handoff-btn" type="button">Human Agent</button>';
     }
@@ -1299,7 +1300,7 @@
         applyHandoff(data && data.handoff ? data.handoff : {
           enabled: true,
           eligible: false,
-          status: 'connected'
+          status: 'waiting'
         });
       }, wait);
     }).catch(function () {

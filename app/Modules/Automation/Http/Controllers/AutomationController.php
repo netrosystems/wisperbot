@@ -89,7 +89,7 @@ class AutomationController extends Controller
             'campaigns' => Campaign::where('workspace_id', $workspaceId)
                 ->latest()->limit(100)->get(['id', 'name'])->values(),
             'chatbots' => AiChatbot::where('workspace_id', $workspaceId)
-                ->where('enabled', true)->orderBy('name')->get(['id', 'name'])->values(),
+                ->orderBy('name')->get(['id', 'name'])->values(),
             'subflows' => Automation::where('workspace_id', $workspaceId)
                 ->where('id', '!=', $currentAutomationId)
                 ->orderBy('name')->get(['uuid', 'name', 'status'])->values(),
@@ -144,7 +144,7 @@ class AutomationController extends Controller
         abort_unless($run->status === 'paused', 409, 'Only paused automation runs can be retried.');
 
         $run->update(['status' => 'pending', 'error' => null]);
-        dispatch(new ExecuteAutomationRunJob($run->id))->onQueue('automation');
+        dispatch(new ExecuteAutomationRunJob($run->id));
 
         return back()->with('success', 'Automation run queued for retry.');
     }

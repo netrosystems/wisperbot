@@ -82,7 +82,7 @@ class AutomationApiTest extends TestCase
             'status' => 'pending',
         ]);
 
-        Queue::assertPushed(ExecuteAutomationRunJob::class);
+        Queue::assertPushedOn(ExecuteAutomationRunJob::QUEUE, ExecuteAutomationRunJob::class);
     }
 
     public function test_trigger_automation_invalid_contact_returns_404(): void

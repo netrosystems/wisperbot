@@ -57,7 +57,7 @@ class AutomationEngineTest extends TestCase
         $engine->triggerForContact($automation, $contact->id);
 
         // Initial dispatch should be on 'automation' queue
-        Queue::assertPushedOn('automation', ExecuteAutomationRunJob::class);
+        Queue::assertPushedOn(ExecuteAutomationRunJob::QUEUE, ExecuteAutomationRunJob::class);
 
         // Get the created run and execute it directly (synchronously, queue is still faked)
         $run = AutomationRun::where('automation_id', $automation->id)->first();
@@ -73,7 +73,7 @@ class AutomationEngineTest extends TestCase
         ]);
 
         // Wakeup job should have been dispatched with a delay (total 2 jobs on automation queue)
-        Queue::assertPushedOn('automation', ExecuteAutomationRunJob::class);
+        Queue::assertPushedOn(ExecuteAutomationRunJob::QUEUE, ExecuteAutomationRunJob::class);
     }
 
     public function test_trigger_listener_fires_automation_on_message_received(): void
@@ -119,7 +119,7 @@ class AutomationEngineTest extends TestCase
         MessageReceived::dispatch($message);
 
         // AutomationTriggerListener should have dispatched ExecuteAutomationRunJob
-        Queue::assertPushedOn('automation', ExecuteAutomationRunJob::class);
+        Queue::assertPushedOn(ExecuteAutomationRunJob::QUEUE, ExecuteAutomationRunJob::class);
 
         $this->assertDatabaseHas('automation_runs', [
             'automation_id' => $automation->id,

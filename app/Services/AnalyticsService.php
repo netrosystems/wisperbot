@@ -85,21 +85,25 @@ class AnalyticsService
      */
     public function campaignDeliveryOverTime(int $campaignId): array
     {
+        $sentHour = $this->dateHourExpression('sent_at');
+        $deliveredHour = $this->dateHourExpression('delivered_at');
+        $readHour = $this->dateHourExpression('read_at');
+
         $sent = CampaignRecipient::where('campaign_id', $campaignId)
             ->whereNotNull('sent_at')
-            ->selectRaw("DATE_FORMAT(sent_at, '%Y-%m-%d %H:00') as hour, COUNT(*) as total")
+            ->selectRaw("{$sentHour} as hour, COUNT(*) as total")
             ->groupBy('hour')->orderBy('hour')
             ->pluck('total', 'hour')->toArray();
 
         $delivered = CampaignRecipient::where('campaign_id', $campaignId)
             ->whereNotNull('delivered_at')
-            ->selectRaw("DATE_FORMAT(delivered_at, '%Y-%m-%d %H:00') as hour, COUNT(*) as total")
+            ->selectRaw("{$deliveredHour} as hour, COUNT(*) as total")
             ->groupBy('hour')->orderBy('hour')
             ->pluck('total', 'hour')->toArray();
 
         $read = CampaignRecipient::where('campaign_id', $campaignId)
             ->whereNotNull('read_at')
-            ->selectRaw("DATE_FORMAT(read_at, '%Y-%m-%d %H:00') as hour, COUNT(*) as total")
+            ->selectRaw("{$readHour} as hour, COUNT(*) as total")
             ->groupBy('hour')->orderBy('hour')
             ->pluck('total', 'hour')->toArray();
 
@@ -124,15 +128,18 @@ class AnalyticsService
      */
     public function campaignDeliveryLag(int $campaignId): array
     {
+        $sentToDelivered = $this->secondsBetweenExpression('sent_at', 'delivered_at');
+        $deliveredToRead = $this->secondsBetweenExpression('delivered_at', 'read_at');
+        $sentToRead = $this->secondsBetweenExpression('sent_at', 'read_at');
         $row = CampaignRecipient::where('campaign_id', $campaignId)
-            ->selectRaw('
+            ->selectRaw("
                 AVG(CASE WHEN sent_at IS NOT NULL AND delivered_at IS NOT NULL
-                    THEN TIMESTAMPDIFF(SECOND, sent_at, delivered_at) END) as sent_to_delivered,
+                    THEN {$sentToDelivered} END) as sent_to_delivered,
                 AVG(CASE WHEN delivered_at IS NOT NULL AND read_at IS NOT NULL
-                    THEN TIMESTAMPDIFF(SECOND, delivered_at, read_at) END) as delivered_to_read,
+                    THEN {$deliveredToRead} END) as delivered_to_read,
                 AVG(CASE WHEN sent_at IS NOT NULL AND read_at IS NOT NULL
-                    THEN TIMESTAMPDIFF(SECOND, sent_at, read_at) END) as sent_to_read
-            ')
+                    THEN {$sentToRead} END) as sent_to_read
+            ")
             ->first();
 
         return [
@@ -545,20 +552,36 @@ class AnalyticsService
      */
     public function newClientsPerWeek(int $weeks = 12): array
     {
-        $rows = Client::selectRaw("DATE_FORMAT(created_at, '%Y-%u') as week, COUNT(*) as clients")
+        $rows = Client::query()
             ->where('created_at', '>=', now()->subWeeks($weeks))
-            ->groupBy('week')
-            ->orderBy('week')
-            ->pluck('clients', 'week')
-            ->toArray();
+            ->get(['created_at'])
+            ->countBy(fn (Client $client): string => $client->created_at->format('o-W'));
 
         $result = [];
         for ($i = $weeks - 1; $i >= 0; $i--) {
-            $week = now()->subWeeks($i)->format('Y-W');
+            $week = now()->subWeeks($i)->format('o-W');
             $result[] = ['week' => $week, 'clients' => (int) ($rows[$week] ?? 0)];
         }
 
         return $result;
+    }
+
+    private function dateHourExpression(string $column): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "strftime('%Y-%m-%d %H:00', {$column})",
+            'pgsql' => "to_char({$column}, 'YYYY-MM-DD HH24:00')",
+            default => "DATE_FORMAT({$column}, '%Y-%m-%d %H:00')",
+        };
+    }
+
+    private function secondsBetweenExpression(string $start, string $end): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "(julianday({$end}) - julianday({$start})) * 86400",
+            'pgsql' => "EXTRACT(EPOCH FROM ({$end} - {$start}))",
+            default => "TIMESTAMPDIFF(SECOND, {$start}, {$end})",
+        };
     }
 
     /**

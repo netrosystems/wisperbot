@@ -3,6 +3,7 @@
 namespace Tests\Feature\ProductionHardening;
 
 use App\Modules\Inbox\Http\Controllers\InboxSetupController;
+use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Integrations\Services\Credentials\MetaCredentials;
 use App\Modules\Integrations\Services\MetaPageDiscoveryService;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -294,7 +295,10 @@ class WhatsappEmbeddedSignupTest extends TestCase
         $method = new \ReflectionMethod(InboxSetupController::class, 'filterPagesToSelectedTargets');
         $method->setAccessible(true);
 
-        $filtered = $method->invoke(new InboxSetupController(app(MetaPageDiscoveryService::class)), $pages, ['PAGE_B'], ['IG_C']);
+        $filtered = $method->invoke(new InboxSetupController(
+            app(MetaPageDiscoveryService::class),
+            app(SegmentAiPolicyService::class),
+        ), $pages, ['PAGE_B'], ['IG_C']);
 
         $this->assertSame(['PAGE_B', 'PAGE_C'], array_column($filtered, 'id'));
     }

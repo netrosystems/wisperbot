@@ -71,7 +71,7 @@ class AutomationEngine
             'started_at' => now(),
         ]);
 
-        dispatch(new ExecuteAutomationRunJob($run->id))->onQueue('automation');
+        dispatch(new ExecuteAutomationRunJob($run->id));
     }
 
     /**
@@ -97,7 +97,7 @@ class AutomationEngine
             unset($context['_awaiting_reply'], $context['_reply_var']);
             $run->update(['context' => $context]);
 
-            dispatch(new ExecuteAutomationRunJob($run->id))->onQueue('automation');
+            dispatch(new ExecuteAutomationRunJob($run->id));
         }
     }
 
@@ -515,8 +515,8 @@ class AutomationEngine
                 ->where('workspace_id', $workspaceId)
                 ->first();
 
-            if (! $bot || ! $bot->enabled) {
-                return ['status' => 'error', 'message' => 'Chatbot not found or disabled.'];
+            if (! $bot) {
+                return ['status' => 'error', 'message' => 'Chatbot not found.'];
             }
 
             $prompt = $userMessage !== ''
@@ -669,8 +669,7 @@ class AutomationEngine
 
         // Schedule the wakeup
         dispatch(new ExecuteAutomationRunJob($run->id))
-            ->delay(now()->addMinutes($delay))
-            ->onQueue('automation');
+            ->delay(now()->addMinutes($delay));
 
         return ['status' => 'waiting', 'message' => "Waiting {$amount} {$unit}."];
     }
@@ -1165,8 +1164,8 @@ class AutomationEngine
             return ['status' => 'error', 'message' => 'No chatbot selected.'];
         }
         $bot = AiChatbot::where('id', $data['chatbot_id'])->where('workspace_id', $workspaceId)->first();
-        if (! $bot || ! $bot->enabled) {
-            return ['status' => 'error', 'message' => 'Chatbot not found or disabled.'];
+        if (! $bot) {
+            return ['status' => 'error', 'message' => 'Chatbot not found.'];
         }
 
         $message = (string) ($context['message_body'] ?? '');

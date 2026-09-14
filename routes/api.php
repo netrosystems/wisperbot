@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\MobileAuthController;
 use App\Http\Controllers\Api\V1\MobileConversationController;
 use App\Http\Controllers\Api\V1\MobileEmailInboxController;
 use App\Http\Controllers\Api\V1\MobileInboxController;
+use App\Http\Controllers\Api\V1\MobileTeamAvailabilityController;
 use App\Http\Controllers\Api\V1\NotificationApiController;
 use App\Http\Controllers\Api\V1\OutboundWebhookApiController;
 use App\Http\Controllers\Api\V1\SegmentApiController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Api\V1\SocialPostApiController;
 use App\Http\Controllers\Api\V1\SubscriptionApiController;
 use App\Http\Controllers\Api\V1\TokenController;
 use App\Http\Controllers\Api\V1\WorkspaceApiController;
+use App\Modules\Inbox\Http\Controllers\SegmentAiAnsweringController;
 use App\Modules\Social\Http\Controllers\SocialCommentController;
 use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Support\Facades\Route;
@@ -59,7 +61,7 @@ Route::post('v1/broadcasting/auth', [BroadcastController::class, 'authenticate']
 // ─── Mobile Inbox API (agent-facing: full conversation + inbox actions) ───────
 // `demo` blocks writes (POST/PATCH/DELETE) in demo mode while GET reads pass,
 // keeping the mobile app a consistent read-only showcase like the web app.
-Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group(function () {
+Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 'throttle:api', 'demo'])->group(function () {
     Route::prefix('social/comments')->group(function () {
         $controller = SocialCommentController::class;
         Route::get('/', [$controller, 'index']);
@@ -84,6 +86,9 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])
     Route::post('/conversations', [MobileConversationController::class, 'start']);
     Route::post('/conversations/{uuid}/reply', [MobileConversationController::class, 'reply']);
     Route::patch('/conversations/{uuid}/assign', [MobileConversationController::class, 'assign']);
+    Route::post('/conversations/{uuid}/join', [MobileConversationController::class, 'join']);
+    Route::post('/conversations/{uuid}/leave', [MobileConversationController::class, 'leave']);
+    Route::post('/conversations/{uuid}/takeover', [MobileConversationController::class, 'takeover']);
     Route::patch('/conversations/{uuid}/status', [MobileConversationController::class, 'updateStatus']);
     Route::post('/conversations/{uuid}/typing', [MobileConversationController::class, 'typing']);
     Route::post('/conversations/{uuid}/handover', [MobileConversationController::class, 'handover']);
@@ -100,10 +105,14 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])
 
     // Inbox setup data
     Route::get('/inbox/setup', [MobileInboxController::class, 'setup']);
+    Route::get('/inbox/ai-answering', [SegmentAiAnsweringController::class, 'index']);
+    Route::patch('/inbox/ai-answering/{segment}', [SegmentAiAnsweringController::class, 'update']);
     Route::get('/inbox/counts', [MobileInboxController::class, 'counts']);
     Route::get('/inbox/templates', [MobileInboxController::class, 'templates']);
     Route::get('/inbox/labels', [MobileInboxController::class, 'labels']);
     Route::get('/inbox/canned-replies', [MobileInboxController::class, 'cannedReplies']);
+    Route::get('/team/availability', [MobileTeamAvailabilityController::class, 'index']);
+    Route::put('/team/{member}/availability', [MobileTeamAvailabilityController::class, 'update']);
 
     // Master Email Inbox (kept separate from the Omni Channel Inbox)
     Route::get('/email/accounts', [MobileEmailInboxController::class, 'accounts']);

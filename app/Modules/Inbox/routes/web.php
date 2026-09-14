@@ -9,6 +9,7 @@ use App\Modules\Inbox\Http\Controllers\InboxController;
 use App\Modules\Inbox\Http\Controllers\InboxSetupController;
 use App\Modules\Inbox\Http\Controllers\InternalNoteController;
 use App\Modules\Inbox\Http\Controllers\LabelController;
+use App\Modules\Inbox\Http\Controllers\SegmentAiAnsweringController;
 use App\Modules\Inbox\Http\Controllers\TelegramBusinessSetupController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +28,9 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
     Route::post('/conversations/{conversation}/reply', [InboxController::class, 'reply'])->name('reply')->middleware('limit:whatsapp_messages_per_month,whatsapp_messages');
     Route::post('/conversations/{conversation}/share-product', [InboxController::class, 'shareProduct'])->name('share-product')->middleware('limit:whatsapp_messages_per_month,whatsapp_messages');
     Route::post('/conversations/{conversation}/assign', [InboxController::class, 'assign'])->name('assign');
+    Route::post('/conversations/{conversation}/join', [InboxController::class, 'join'])->name('join');
+    Route::post('/conversations/{conversation}/leave', [InboxController::class, 'leave'])->name('leave');
+    Route::post('/conversations/{conversation}/takeover', [InboxController::class, 'takeover'])->name('takeover');
     Route::post('/conversations/{conversation}/status', [InboxController::class, 'updateStatus'])->name('status');
     Route::post('/conversations/{conversation}/typing', [InboxController::class, 'typing'])->name('typing');
     Route::post('/conversations/{conversation}/open-widget', [InboxController::class, 'openWidget'])->name('open-widget');
@@ -77,7 +81,7 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
         ->name('setup.amazon.actions');
     Route::post('/setup/embedded-signup/instagram', [InboxSetupController::class, 'embeddedSignupInstagram'])->name('setup.embedded-signup.instagram');
     Route::post('/setup/embedded-signup/messenger', [InboxSetupController::class, 'embeddedSignupMessenger'])->name('setup.embedded-signup.messenger');
-    Route::patch('/setup/{channelAccount}/chatbot', [InboxSetupController::class, 'assignChatbot'])->name('setup.assign-chatbot');
+    Route::patch('/ai-answering/{segment}', [SegmentAiAnsweringController::class, 'update'])->name('ai-answering.update');
     Route::delete('/setup/{channelAccount}', [InboxSetupController::class, 'destroy'])->name('setup.destroy');
 
     Route::get('/email-setup', [EmailAccountController::class, 'index'])->name('email.index');

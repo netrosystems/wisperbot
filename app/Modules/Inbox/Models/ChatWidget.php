@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Models;
 
 use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\Inbox\Services\WeeklySchedule;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\PusherPublicConfig;
 use App\Services\StorageManager;
@@ -91,7 +92,6 @@ class ChatWidget extends Model
             : $this->aiChatbot()->first();
 
         return (bool) $chatbot
-            && $chatbot->enabled
             && (int) $chatbot->workspace_id === (int) $this->workspace_id;
     }
 
@@ -104,6 +104,13 @@ class ChatWidget extends Model
         $schedule = $this->ai_schedule_json;
         if (empty($schedule['enabled'])) {
             return true;
+        }
+
+        if (($schedule['mode'] ?? null) === 'permanent') {
+            return true;
+        }
+        if (($schedule['mode'] ?? null) === 'scheduled') {
+            return app(WeeklySchedule::class)->contains($schedule, $at);
         }
 
         $timezone = (string) ($schedule['timezone'] ?? '');

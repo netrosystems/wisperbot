@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Models\User;
+use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Models\CannedReply;
 use App\Modules\Inbox\Models\InboxLabel;
+use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -50,6 +52,8 @@ class MobileInboxController extends WorkspaceScopedController
             ->count('contact_id');
 
         return response()->json([
+            'ai_answering' => app(SegmentAiPolicyService::class)->payload($wsId, 'omni'),
+            'ai_chatbots' => AiChatbot::where('workspace_id', $wsId)->orderBy('name')->get(['id', 'name']),
             'labels' => $labels,
             'canned_replies' => $cannedReplies,
             'channel_accounts' => $channelAccounts->map(fn ($ca) => [

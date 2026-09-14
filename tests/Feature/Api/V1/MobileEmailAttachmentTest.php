@@ -6,7 +6,6 @@ use App\Modules\Shared\Contracts\ChannelDriverInterface;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
-use App\Modules\Shared\Models\Message;
 use App\Modules\Shared\Services\ChannelManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -86,6 +85,10 @@ class MobileEmailAttachmentTest extends TestCase
             'channel_account_id' => $account->id,
             'contact_id' => $contact->id,
             'status' => 'open',
+            'assigned_to' => 'human',
+            'assigned_user_id' => $context['user']->id,
+            'joined_user_id' => $context['user']->id,
+            'joined_at' => now(),
         ]);
 
         $mockDriver = Mockery::mock(ChannelDriverInterface::class);

@@ -31,6 +31,8 @@ class GenericMailboxClient
                 continue;
             }
             $header = imap_headerinfo($imap, imap_msgno($imap, $uid));
+            $rawHeaders = (string) imap_fetchheader($imap, (string) $uid, FT_UID);
+            $content = $this->messageContent($imap, (int) $uid);
             $from = $header->from[0] ?? null;
             $messages[] = [
                 'id' => 'imap:'.$account->id.':'.$uid,
@@ -42,9 +44,13 @@ class GenericMailboxClient
                     'name' => $from?->personal ? imap_utf8($from->personal) : '',
                 ]],
                 'receivedDateTime' => isset($overview->date) ? date(DATE_ATOM, strtotime($overview->date)) : now()->toIso8601String(),
-                'bodyPreview' => trim(strip_tags(quoted_printable_decode((string) imap_body($imap, $uid, FT_UID | FT_PEEK)))),
-                'body' => ['content' => quoted_printable_decode((string) imap_body($imap, $uid, FT_UID | FT_PEEK))],
+                'bodyPreview' => mb_substr(trim(strip_tags($content['body'])), 0, 500),
+                'body' => ['content' => $content['body']],
                 'isRead' => ! empty($overview->seen),
+                'hasAttachments' => $content['has_attachments'],
+                'autoSubmitted' => $this->headerValue($rawHeaders, 'Auto-Submitted'),
+                'precedence' => $this->headerValue($rawHeaders, 'Precedence'),
+                'listId' => $this->headerValue($rawHeaders, 'List-Id'),
             ];
         }
         imap_close($imap);
@@ -135,5 +141,68 @@ class GenericMailboxClient
             'timeout' => 20,
             'verify_peer' => (bool) ($c['verify_tls'] ?? true),
         ]);
+    }
+
+    private function headerValue(string $headers, string $name): string
+    {
+        return preg_match('/^'.preg_quote($name, '/').':\s*(.+(?:\R[ \t].+)*)/mi', $headers, $matches)
+            ? trim((string) preg_replace('/\R[ \t]+/', ' ', $matches[1]))
+            : '';
+    }
+
+    /** @return array{body:string,has_attachments:bool} */
+    private function messageContent(mixed $imap, int $uid): array
+    {
+        $structure = imap_fetchstructure($imap, (string) $uid, FT_UID);
+        if (! $structure) {
+            return ['body' => '', 'has_attachments' => false];
+        }
+
+        $plain = '';
+        $html = '';
+        $hasAttachments = false;
+        $this->collectContent($imap, $uid, $structure, '', $plain, $html, $hasAttachments);
+
+        return ['body' => $plain !== '' ? $plain : $html, 'has_attachments' => $hasAttachments];
+    }
+
+    private function collectContent(mixed $imap, int $uid, object $part, string $partNumber, string &$plain, string &$html, bool &$hasAttachments): void
+    {
+        $parameters = array_merge($part->parameters ?? [], $part->dparameters ?? []);
+        $named = collect($parameters)->contains(fn ($parameter) => in_array(strtolower((string) ($parameter->attribute ?? '')), ['filename', 'name'], true));
+        $disposition = strtolower((string) ($part->disposition ?? ''));
+        if ($named || in_array($disposition, ['attachment', 'inline'], true) && (int) ($part->bytes ?? 0) > 0) {
+            $hasAttachments = true;
+            if ($named || $disposition === 'attachment') {
+                return;
+            }
+        }
+
+        if (! empty($part->parts)) {
+            foreach ($part->parts as $index => $child) {
+                $number = $partNumber === '' ? (string) ($index + 1) : $partNumber.'.'.($index + 1);
+                $this->collectContent($imap, $uid, $child, $number, $plain, $html, $hasAttachments);
+            }
+
+            return;
+        }
+
+        if ((int) ($part->type ?? -1) !== 0) {
+            return;
+        }
+        $raw = $partNumber === ''
+            ? (string) imap_body($imap, $uid, FT_UID | FT_PEEK)
+            : (string) imap_fetchbody($imap, $uid, $partNumber, FT_UID | FT_PEEK);
+        $decoded = match ((int) ($part->encoding ?? 0)) {
+            3 => (string) base64_decode($raw, true),
+            4 => quoted_printable_decode($raw),
+            default => $raw,
+        };
+        $subtype = strtolower((string) ($part->subtype ?? 'plain'));
+        if ($subtype === 'plain' && $plain === '') {
+            $plain = $decoded;
+        } elseif ($subtype === 'html' && $html === '') {
+            $html = $decoded;
+        }
     }
 }

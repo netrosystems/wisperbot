@@ -2,17 +2,46 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Events\MessageStatusUpdated;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
+use App\Modules\Shared\Models\Message;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class MobileConversationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_mobile_join_and_leave_contract_exposes_joined_agent(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id, 'status' => User::STATUS_ACTIVE]);
+        $workspace->update(['owner_id' => $user->id]);
+        $contact = Contact::create(['workspace_id' => $workspace->id, 'first_name' => 'Mobile']);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'human',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/v1/mobile/conversations/{$conversation->uuid}/join")
+            ->assertOk()
+            ->assertJsonPath('conversation.joined_user.id', $user->id)
+            ->assertJsonPath('conversation.assigned_user_id', $user->id);
+
+        $this->postJson("/api/v1/mobile/conversations/{$conversation->uuid}/leave")
+            ->assertOk()
+            ->assertJsonPath('conversation.joined_user', null)
+            ->assertJsonPath('conversation.assigned_user_id', null);
+    }
 
     public function test_mobile_conversations_index_includes_assigned_fields(): void
     {
@@ -153,7 +182,7 @@ class MobileConversationTest extends TestCase
     {
         $workspace = Workspace::factory()->create();
         $user = User::factory()->create(['workspace_id' => $workspace->id]);
-        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+        $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'webchat',
             'display_name' => 'Website Widget',
@@ -200,7 +229,7 @@ class MobileConversationTest extends TestCase
     {
         $workspace = Workspace::factory()->create();
         $user = User::factory()->create(['workspace_id' => $workspace->id]);
-        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+        $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'webchat',
             'display_name' => 'Website Widget',
@@ -236,7 +265,7 @@ class MobileConversationTest extends TestCase
     {
         $workspace = Workspace::factory()->create();
         $user = User::factory()->create(['workspace_id' => $workspace->id]);
-        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+        $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'webchat',
             'display_name' => 'Website Widget',
@@ -266,11 +295,11 @@ class MobileConversationTest extends TestCase
 
     public function test_mobile_can_mark_conversation_as_read(): void
     {
-        \Illuminate\Support\Facades\Event::fake([\App\Events\MessageStatusUpdated::class]);
+        Event::fake([MessageStatusUpdated::class]);
 
         $workspace = Workspace::factory()->create();
         $user = User::factory()->create(['workspace_id' => $workspace->id]);
-        $channelAccount = \App\Modules\Shared\Models\ChannelAccount::create([
+        $channelAccount = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'webchat',
             'display_name' => 'Website Widget',
@@ -290,7 +319,7 @@ class MobileConversationTest extends TestCase
             'unread_count' => 3,
         ]);
 
-        $msg = \App\Modules\Shared\Models\Message::create([
+        $msg = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',
             'channel' => 'webchat',
@@ -309,6 +338,6 @@ class MobileConversationTest extends TestCase
 
         $this->assertEquals(0, $conversation->fresh()->unread_count);
         $this->assertEquals('read', $msg->fresh()->status);
-        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\MessageStatusUpdated::class);
+        Event::assertDispatched(MessageStatusUpdated::class);
     }
 }

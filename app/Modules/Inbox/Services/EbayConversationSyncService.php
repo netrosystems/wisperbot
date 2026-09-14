@@ -69,7 +69,12 @@ class EbayConversationSyncService
                         'channel_account_id' => $account->id,
                         'external_thread_id' => $conversationId,
                     ],
-                    ['contact_id' => $contact->id, 'status' => 'open', 'unread_count' => 0]
+                    [
+                        'contact_id' => $contact->id,
+                        'status' => 'open',
+                        'unread_count' => 0,
+                        'assigned_to' => app(SegmentAiPolicyService::class)->initialHandler($account),
+                    ]
                 );
 
                 foreach (is_array($messages) ? $messages : [] as $remoteMessage) {
@@ -81,6 +86,10 @@ class EbayConversationSyncService
                     $sender = (string) ($remoteMessage['senderUserName'] ?? $remoteMessage['senderUsername'] ?? $remoteMessage['sender'] ?? '');
                     $direction = $sellerId !== '' && strcasecmp($sender, $sellerId) === 0 ? 'out' : 'in';
                     $sentAt = $remoteMessage['createdDate'] ?? $remoteMessage['creationDate'] ?? $remoteMessage['sentDate'] ?? now();
+
+                    if ($direction === 'in') {
+                        app(ConversationOwnershipService::class)->prepareInbound($conversation);
+                    }
 
                     $message = Message::create([
                         'conversation_id' => $conversation->id,
@@ -101,6 +110,8 @@ class EbayConversationSyncService
                         $updates['last_inbound_at'] = $message->sent_at;
                         $updates['unread_count'] = $conversation->unread_count + 1;
                         MessageReceived::dispatch($message);
+                    } else {
+                        $updates += ['assigned_to' => 'human', 'handover_at' => $conversation->handover_at ?: $message->sent_at, 'ai_paused_at' => $conversation->ai_paused_at ?: $message->sent_at, 'ai_pause_reason' => 'human_reply'];
                     }
                     $conversation->update($updates);
                     $conversation->refresh();

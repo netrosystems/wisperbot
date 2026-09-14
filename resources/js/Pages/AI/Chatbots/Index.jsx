@@ -1,7 +1,7 @@
 import { Head, useForm, router, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import EmptyState from '@/Components/EmptyState';
-import { Plus, Bot, Trash2, Play, Settings, Send, X, BookOpen, Zap, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Plus, Bot, Trash2, Play, Settings, Send, X, BookOpen, MessageSquare, AlertTriangle } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarkdownLite from '@/Components/MarkdownLite';
@@ -185,7 +185,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
         video_match_threshold: chatbot.video_match_threshold ?? 0.72,
         fallback_reply: chatbot.fallback_reply ?? '',
         ai_kb_id: chatbot.ai_kb_id ?? '',
-        enabled: chatbot.enabled,
     });
     const [unsupportedFallbackAction, setUnsupportedFallbackAction] = useState(
         chatbot.unsupported_answer_action === 'handoff' ? 'handoff' : 'clarify_then_handoff',
@@ -222,9 +221,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-neutral-900 dark:text-neutral-100 truncate">{chatbot.name}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${chatbot.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'}`}>
-                            {chatbot.enabled ? t('common.active') : t('ai.disabled')}
-                        </span>
                         {chatbot.tone && (
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_COLORS[chatbot.tone] ?? 'bg-neutral-100 text-neutral-500'}`}>
                                 {t(`ai.tone_${chatbot.tone}`)}
@@ -349,10 +345,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                                 <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('ai.video_match_threshold')}</label>
                                 <input type="number" min={0} max={1} step={0.01} value={data.video_match_threshold} onChange={e => setData('video_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100" />
                             </div>
-                            <div className="flex items-center gap-3 pt-5">
-                                <ToggleSwitch checked={data.enabled} onChange={v => setData('enabled', v)} label={t('common.active')} />
-                                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{t('common.active')}</span>
-                            </div>
                         </div>
                         {data.ai_kb_id && <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
                             <div className="flex items-start justify-between gap-4">
@@ -451,10 +443,9 @@ export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = 
 
                 {/* Stats bar */}
                 {chatbots.length > 0 && (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         {[
                             { label: t('ai.stat_total_bots'), value: chatbots.length, icon: Bot, color: 'text-brand-600 dark:text-brand-400', bg: 'bg-brand-50 dark:bg-brand-900/20' },
-                            { label: t('common.active'), value: chatbots.filter(c => c.enabled).length, icon: Zap, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
                             { label: t('ai.stat_with_kb'), value: chatbots.filter(c => c.ai_kb_id).length, icon: BookOpen, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                         ].map(stat => (
                             <div key={stat.label} className="rounded-xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 flex items-center gap-3">

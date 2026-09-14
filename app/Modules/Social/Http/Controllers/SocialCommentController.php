@@ -77,7 +77,7 @@ class SocialCommentController extends Controller
         $manager = (int) $workspace->owner_id === (int) $user->id || in_array($role, ['owner', 'admin', 'administrator'], true);
         $data = ['commentPlatforms' => SocialCommentCapabilities::catalog(), 'comments' => $comments, 'counts' => $counts, 'filters' => $filters, 'accounts' => $accounts,
             'canManage' => $manager, 'canReply' => $manager || $role === 'agent', 'workspaceId' => $workspace->id,
-            'chatbots' => $manager ? AiChatbot::where('workspace_id', $workspace->id)->where('enabled', true)->get(['id', 'name', 'ai_kb_id']) : []];
+            'chatbots' => $manager ? AiChatbot::where('workspace_id', $workspace->id)->get(['id', 'name', 'ai_kb_id']) : []];
 
         return $request->is('api/*') || $request->wantsJson() ? response()->json($data) : Inertia::render('Social/Comments/Index', $data);
     }
@@ -182,7 +182,7 @@ class SocialCommentController extends Controller
         $data = $request->validate(['mode' => ['required', Rule::in(['off', 'suggestions', 'automatic'])], 'chatbot_id' => ['nullable', 'integer'], 'public_kb_confirmed' => ['boolean']]);
         $settings = $this->service->settings($account);
         if ($data['mode'] !== 'off') {
-            $bot = AiChatbot::with('knowledgeBase')->where('workspace_id', $workspace->id)->where('enabled', true)->whereKey($data['chatbot_id'] ?? 0)->firstOrFail();
+            $bot = AiChatbot::with('knowledgeBase')->where('workspace_id', $workspace->id)->whereKey($data['chatbot_id'] ?? 0)->firstOrFail();
             abort_unless($bot->knowledgeBase && (int) $bot->knowledgeBase->workspace_id === $workspace->id && $bot->knowledgeBase->published_revision_id, 422, 'Publish the chatbot Knowledge Base before enabling public replies.');
             abort_unless($request->boolean('public_kb_confirmed'), 422, 'Confirm that this Knowledge Base is appropriate for public replies.');
             if ($data['mode'] === 'automatic') {

@@ -71,6 +71,10 @@ Client notifications carry an immutable `workspace_id` captured from their sourc
 
 Mobile clients use `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `POST /api/v1/notifications/read-all`, `POST /api/v1/notifications/{notification}/read`, and `DELETE /api/v1/notifications/{notification}` after selecting the active workspace. Responses and push payloads include `workspace_id`; a client must switch to or validate that accessible workspace before opening a notification deep link.
 
+Workspace member availability is stored separately per workspace and evaluated in each member's IANA timezone. It filters only inbox new-message and human-handoff notifications. An available joined owner receives the alert alone; when that owner is off shift, other available members receive it. Realtime inbox updates and unread counts are never suppressed.
+
+Conversation routing and live handling are separate: `assigned_user_id` may be set by a manager or automation, while `joined_user_id` is acquired atomically through Join Chat. Only the joined owner may send human replies. Resolve clears assignment, joined ownership, and handoff state while retaining the transcript. Mobile parity is provided by `/api/v1/mobile/conversations/{uuid}/join`, `/leave`, and `/takeover`.
+
 ## Request and event flow
 
 ### WhatsApp health operations
@@ -84,6 +88,8 @@ Mobile clients use `GET /api/v1/notifications`, `GET /api/v1/notifications/unrea
 3. Expensive parsing is dispatched to a named queue.
 4. The processor resolves a workspace-scoped channel account, contact, conversation, and message.
 5. `MessageReceived` triggers automations, AI/auto-reply behavior, outbound developer webhooks, notifications, and realtime broadcasts.
+
+One workspace-level Omni policy covers WhatsApp, Messenger, Instagram DMs, Telegram Business, and eBay; a separate workspace-level Email policy covers every mailbox. The selected segment policy is evaluated after deterministic rules and handoff detection on every inbound, including threads previously routed to humans only because AI was outside its schedule. Eligible replies are debounced on `ai`, re-check ownership and policy under the final-send lock, and use a durable source-message key. Joining, assignment, handoff, or observed human replies pause AI until resolution. Email additionally applies account connection cutoffs plus loop, authored-body, and attachment-only guards. Amazon order actions, SMS, webchat Appearance, and Social Comments remain separate.
 
 Meta Messenger and Instagram webhook processing currently uses the `whatsapp` queue despite the broader channel name; production workers must include it.
 
@@ -155,9 +161,7 @@ Production must process:
 - `ai` — document indexing and AI background work.
 - `social` — social publishing, seller/Telegram sync work.
 - `leads` — retained legacy lead jobs.
-- `automation` — automation runs and delayed steps.
-
-There is one inconsistency to avoid extending: one API controller dispatches to `automations` (plural), while production uses `automation` (singular). See `KNOWN_ISSUES.md`.
+- `automation` — automation runs and delayed steps. `ExecuteAutomationRunJob` owns the canonical queue assignment so API, event, retry, sub-flow, and delayed-resume dispatches cannot diverge.
 
 ## Realtime
 
