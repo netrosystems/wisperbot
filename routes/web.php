@@ -112,7 +112,7 @@ Route::middleware('throttle:webhooks')->group(function () {
 // ─── Health / readiness probes ───────────────────────────────────────────────
 // Protected by a shared secret token (HEALTHZ_TOKEN env var). Set to a random
 // string in production and pass via Authorization: Bearer <token> header.
-Route::middleware('throttle:30,1')->group(function () {
+Route::middleware('throttle:60,1')->group(function () {
     $guardHealthz = function (Request $request): bool {
         $token = config('app.healthz_token');
 

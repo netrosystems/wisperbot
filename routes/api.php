@@ -65,15 +65,15 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 't
     Route::prefix('social/comments')->group(function () {
         $controller = SocialCommentController::class;
         Route::get('/', [$controller, 'index']);
-        Route::post('/accounts/{account}/settings', [$controller, 'settings'])->middleware('throttle:30,1');
-        Route::post('/accounts/{account}/sync', [$controller, 'sync'])->middleware('throttle:10,1');
-        Route::post('/operations/{operation}/retry', [$controller, 'retry'])->middleware('throttle:30,1');
+        Route::post('/accounts/{account}/settings', [$controller, 'settings'])->middleware('throttle:60,1');
+        Route::post('/accounts/{account}/sync', [$controller, 'sync'])->middleware('throttle:20,1');
+        Route::post('/operations/{operation}/retry', [$controller, 'retry'])->middleware('throttle:60,1');
         Route::get('/{comment}', [$controller, 'show'])->whereNumber('comment');
         Route::post('/{comment}/read', [$controller, 'read'])->whereNumber('comment');
-        Route::post('/{comment}/reply', [$controller, 'reply'])->whereNumber('comment')->middleware('throttle:30,1');
-        Route::post('/{comment}/suggest', [$controller, 'suggest'])->whereNumber('comment')->middleware('throttle:10,1');
-        Route::post('/{comment}/suggestions/{operation}/review', [$controller, 'reviewSuggestion'])->whereNumber('comment')->middleware('throttle:10,1');
-        Route::post('/{comment}/moderate', [$controller, 'moderate'])->whereNumber('comment')->middleware('throttle:30,1');
+        Route::post('/{comment}/reply', [$controller, 'reply'])->whereNumber('comment')->middleware('throttle:60,1');
+        Route::post('/{comment}/suggest', [$controller, 'suggest'])->whereNumber('comment')->middleware('throttle:20,1');
+        Route::post('/{comment}/suggestions/{operation}/review', [$controller, 'reviewSuggestion'])->whereNumber('comment')->middleware('throttle:20,1');
+        Route::post('/{comment}/moderate', [$controller, 'moderate'])->whereNumber('comment')->middleware('throttle:60,1');
         Route::patch('/{comment}', [$controller, 'update'])->whereNumber('comment');
     });
     // Workspace context
@@ -192,7 +192,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group
 
         // ─── Messages (messages:write) ────────────────────────────────────────────
         Route::post('/messages/send', [MessageApiController::class, 'send'])
-            ->middleware(['api.ability:messages:write', 'throttle:60,1']);
+            ->middleware(['api.ability:messages:write', 'throttle:120,1']);
 
         // ─── Conversations (conversations:read) ───────────────────────────────────
         Route::get('/conversations', [ConversationApiController::class, 'index'])

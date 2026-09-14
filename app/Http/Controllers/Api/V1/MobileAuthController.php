@@ -38,7 +38,7 @@ class MobileAuthController extends Controller
         $email = Str::lower(trim($validated['email']));
         $throttleKey = $this->failedLoginThrottleKey($email, $request->ip());
 
-        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
             return $this->rateLimitedResponse(
                 RateLimiter::availableIn($throttleKey),
             );
@@ -85,7 +85,7 @@ class MobileAuthController extends Controller
             'retry_after' => $retryAfter,
         ], 429, [
             'Retry-After' => (string) $retryAfter,
-            'X-RateLimit-Limit' => '5',
+            'X-RateLimit-Limit' => '10',
             'X-RateLimit-Remaining' => '0',
         ]);
     }

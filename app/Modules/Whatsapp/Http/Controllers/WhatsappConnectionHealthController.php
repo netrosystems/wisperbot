@@ -57,7 +57,7 @@ class WhatsappConnectionHealthController extends Controller
         // Return the running operation before applying the new-operation throttle.
         $summary = $service->summary($waba);
         if (! $summary['operation_id']) {
-            abort_if(RateLimiter::tooManyAttempts($key, 3), 429, 'Please wait a minute before checking again.');
+            abort_if(RateLimiter::tooManyAttempts($key, 6), 429, 'Please wait a minute before checking again.');
             RateLimiter::hit($key, 60);
         }
         $operation = $service->enqueue($waba, $kind);
