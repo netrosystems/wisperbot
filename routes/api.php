@@ -61,7 +61,7 @@ Route::post('v1/broadcasting/auth', [BroadcastController::class, 'authenticate']
 // ─── Mobile Inbox API (agent-facing: full conversation + inbox actions) ───────
 // `demo` blocks writes (POST/PATCH/DELETE) in demo mode while GET reads pass,
 // keeping the mobile app a consistent read-only showcase like the web app.
-Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group(function () {
+Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 'throttle:api', 'demo'])->group(function () {
     Route::prefix('social/comments')->group(function () {
         $controller = SocialCommentController::class;
         Route::get('/', [$controller, 'index']);

@@ -14,10 +14,11 @@ use Illuminate\Support\Facades\Route;
 
 // One-line embed script the client drops on their site.
 Route::get('/widgets/chat/{key}.js', [ChatWidgetEmbedController::class, 'script'])
+    ->middleware('widget.request_log')
     ->name('chat-widget.embed');
 
 // Visitor API (JSON, polling).
-Route::prefix('widget/v1')->name('widget.')->group(function () {
+Route::prefix('widget/v1')->middleware('widget.request_log')->name('widget.')->group(function () {
     Route::post('/session', [ChatWidgetPublicController::class, 'session'])
         ->middleware('throttle:30,1')->name('session');
     Route::post('/messages', [ChatWidgetPublicController::class, 'send'])
