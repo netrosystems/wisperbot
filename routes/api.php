@@ -61,19 +61,19 @@ Route::post('v1/broadcasting/auth', [BroadcastController::class, 'authenticate']
 // ─── Mobile Inbox API (agent-facing: full conversation + inbox actions) ───────
 // `demo` blocks writes (POST/PATCH/DELETE) in demo mode while GET reads pass,
 // keeping the mobile app a consistent read-only showcase like the web app.
-Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:mobile-api', 'demo'])->group(function () {
+Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 'throttle:mobile-api', 'demo'])->group(function () {
     Route::prefix('social/comments')->group(function () {
         $controller = SocialCommentController::class;
         Route::get('/', [$controller, 'index']);
-        Route::post('/accounts/{account}/settings', [$controller, 'settings'])->middleware('throttle:30,1');
-        Route::post('/accounts/{account}/sync', [$controller, 'sync'])->middleware('throttle:10,1');
-        Route::post('/operations/{operation}/retry', [$controller, 'retry'])->middleware('throttle:30,1');
+        Route::post('/accounts/{account}/settings', [$controller, 'settings'])->middleware('throttle:60,1');
+        Route::post('/accounts/{account}/sync', [$controller, 'sync'])->middleware('throttle:20,1');
+        Route::post('/operations/{operation}/retry', [$controller, 'retry'])->middleware('throttle:60,1');
         Route::get('/{comment}', [$controller, 'show'])->whereNumber('comment');
         Route::post('/{comment}/read', [$controller, 'read'])->whereNumber('comment');
-        Route::post('/{comment}/reply', [$controller, 'reply'])->whereNumber('comment')->middleware('throttle:30,1');
-        Route::post('/{comment}/suggest', [$controller, 'suggest'])->whereNumber('comment')->middleware('throttle:10,1');
-        Route::post('/{comment}/suggestions/{operation}/review', [$controller, 'reviewSuggestion'])->whereNumber('comment')->middleware('throttle:10,1');
-        Route::post('/{comment}/moderate', [$controller, 'moderate'])->whereNumber('comment')->middleware('throttle:30,1');
+        Route::post('/{comment}/reply', [$controller, 'reply'])->whereNumber('comment')->middleware('throttle:60,1');
+        Route::post('/{comment}/suggest', [$controller, 'suggest'])->whereNumber('comment')->middleware('throttle:20,1');
+        Route::post('/{comment}/suggestions/{operation}/review', [$controller, 'reviewSuggestion'])->whereNumber('comment')->middleware('throttle:20,1');
+        Route::post('/{comment}/moderate', [$controller, 'moderate'])->whereNumber('comment')->middleware('throttle:60,1');
         Route::patch('/{comment}', [$controller, 'update'])->whereNumber('comment');
     });
     // Workspace context
@@ -83,6 +83,8 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'throttle:mobile-api', '
     Route::get('/conversations', [MobileConversationController::class, 'index']);
     Route::get('/conversations/{uuid}', [MobileConversationController::class, 'show']);
     Route::get('/conversations/{uuid}/messages', [MobileConversationController::class, 'messages']);
+    Route::get('/conversations/{uuid}/messages/{message}/media', [MobileConversationController::class, 'media'])
+        ->name('api.v1.mobile.conversations.messages.media');
     Route::post('/conversations', [MobileConversationController::class, 'start']);
     Route::post('/conversations/{uuid}/reply', [MobileConversationController::class, 'reply']);
     Route::patch('/conversations/{uuid}/assign', [MobileConversationController::class, 'assign']);
@@ -192,7 +194,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group
 
         // ─── Messages (messages:write) ────────────────────────────────────────────
         Route::post('/messages/send', [MessageApiController::class, 'send'])
-            ->middleware(['api.ability:messages:write', 'throttle:60,1']);
+            ->middleware(['api.ability:messages:write', 'throttle:120,1']);
 
         // ─── Conversations (conversations:read) ───────────────────────────────────
         Route::get('/conversations', [ConversationApiController::class, 'index'])

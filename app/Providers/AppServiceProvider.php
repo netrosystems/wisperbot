@@ -121,7 +121,7 @@ class AppServiceProvider extends ServiceProvider
 
         // ── Named rate limiters ─────────────────────────────────────────────
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(60)
+            return Limit::perMinute(120)
                 ->by(optional($request->user())->id ?: $request->ip());
         });
 
@@ -144,7 +144,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('mobile-login', function (Request $request) {
-            return Limit::perMinute(30)
+            return Limit::perMinute(60)
                 ->by('mobile-login:ip:'.$request->ip())
                 ->response(function (Request $request, array $headers) {
                     $retryAfter = max(1, (int) ($headers['Retry-After'] ?? 60));
@@ -161,13 +161,13 @@ class AppServiceProvider extends ServiceProvider
             // Use the real client IP (respects X-Forwarded-For when trusted proxies are set).
             // Limit is intentionally high: a single Meta app services multiple workspaces and
             // all their traffic arrives from a small pool of Meta egress IPs.
-            return Limit::perMinute(1000)->by($request->getClientIp());
+            return Limit::perMinute(2000)->by($request->getClientIp());
         });
 
         RateLimiter::for('ai-runs', function (Request $request) {
             $workspaceId = $request->user()?->current_workspace_id ?? $request->ip();
             $workspace = $workspaceId ? Workspace::with('client.activePlan')->find($workspaceId) : null;
-            $perMinute = $workspace?->client?->activePlan?->limits['ai_runs_per_minute'] ?? 10;
+            $perMinute = $workspace?->client?->activePlan?->limits['ai_runs_per_minute'] ?? 20;
 
             return Limit::perMinute((int) $perMinute)->by((string) $workspaceId);
         });

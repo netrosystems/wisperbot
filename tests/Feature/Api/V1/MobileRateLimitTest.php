@@ -67,12 +67,12 @@ class MobileRateLimitTest extends TestCase
     public function test_mobile_budget_is_separate_from_the_unchanged_generic_api_budget(): void
     {
         $request = $this->requestForUser(2);
-        for ($attempt = 0; $attempt < 60; $attempt++) {
+        for ($attempt = 0; $attempt < 120; $attempt++) {
             $this->hit($request, 'api');
         }
         try {
             $this->hit($request, 'api');
-            $this->fail('Expected generic API throttling after 60 requests.');
+            $this->fail('Expected generic API throttling after 120 requests.');
         } catch (ThrottleRequestsException $exception) {
             $this->assertSame(429, $exception->getStatusCode());
         }
@@ -116,7 +116,7 @@ class MobileRateLimitTest extends TestCase
                 $this->assertContains('throttle:mobile-login', $route->gatherMiddleware());
             }
             if ($uri === 'api/v1/mobile/social/comments/{comment}/reply') {
-                $this->assertContains('throttle:30,1', $route->gatherMiddleware());
+                $this->assertContains('throttle:60,1', $route->gatherMiddleware());
             }
             if ($uri === 'api/v1/me') {
                 $this->assertContains('throttle:api', $route->gatherMiddleware());

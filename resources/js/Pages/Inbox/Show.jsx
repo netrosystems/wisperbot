@@ -95,15 +95,33 @@ function templatePreview(components) {
     return body?.text ?? '';
 }
 
+function decodeTextEntities(value) {
+    if (typeof document === 'undefined') return value;
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = value;
+    return textarea.value;
+}
+
+function normaliseMessageText(value) {
+    return decodeTextEntities(String(value ?? ''))
+        .replace(/\u00a0/g, ' ');
+}
+
+function normaliseMessageLinkPart(value) {
+    return String(value ?? '')
+        .replace(/\\([\\`*_{}\[\]()#+\-.!&=?:/])/g, '$1')
+        .replace(/\u00a0/g, ' ');
+}
+
 /** Parse WhatsApp formatting: *bold*, _italic_, ~strike~, `code`, newlines */
 function WaText({ text, className = '' }) {
     if (!text) return null;
-    const parts = [];
-    let remaining = text;
-    let key = 0;
+    const textValue = normaliseMessageText(text);
 
     // Replace patterns iteratively
     const patterns = [
+        { re: /\[([^\]\n]+)\]\((https?:\/\/[^\s<>"')]+)\)/g, Tag: 'a', cls: 'underline underline-offset-2 break-words' },
+        { re: /(https?:\/\/[^\s<>"')]+)/g, Tag: 'a', cls: 'underline underline-offset-2 break-words' },
         { re: /\*([^*\n]+)\*/g,   Tag: 'strong', cls: 'font-semibold' },
         { re: /_([^_\n]+)_/g,     Tag: 'em',     cls: 'italic' },
         { re: /~([^~\n]+)~/g,     Tag: 'del',    cls: 'line-through' },
@@ -112,9 +130,8 @@ function WaText({ text, className = '' }) {
 
     // Build segments with React elements
     const segments = [];
-    let src = text;
     // Simple approach: split on newlines first, then process each line
-    const lines = src.split('\n');
+    const lines = textValue.split('\n');
     lines.forEach((line, li) => {
         if (li > 0) segments.push(<br key={`br-${li}`} />);
         // Process inline patterns on each line
@@ -140,7 +157,17 @@ function WaText({ text, className = '' }) {
                 lineSegs.push(<span key={lk++}>{rest.slice(0, earliest.match.index)}</span>);
             }
             const { Tag, cls, match } = earliest;
-            lineSegs.push(<Tag key={lk++} className={cls}>{match[1]}</Tag>);
+            if (Tag === 'a') {
+                const href = normaliseMessageLinkPart(match[2] || match[1]);
+                const label = normaliseMessageLinkPart(match[1]);
+                lineSegs.push(
+                    <a key={lk++} href={href} target="_blank" rel="noopener noreferrer" className={cls}>
+                        {label}
+                    </a>
+                );
+            } else {
+                lineSegs.push(<Tag key={lk++} className={cls}>{match[1]}</Tag>);
+            }
             rest = rest.slice(earliest.match.index + match[0].length);
         }
         segments.push(...lineSegs);

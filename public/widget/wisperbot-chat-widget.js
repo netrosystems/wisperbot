@@ -1333,7 +1333,7 @@
   }
 
   function formatMessageText(value) {
-    var source = value == null ? '' : String(value);
+    var source = decodeMessageEntities(value == null ? '' : String(value));
     var pattern = /\[([^\]\n]+)\]\((https?:\/\/[^\s<>"')]+)\)|(https?:\/\/[^\s<>"')]+)/g;
     var html = '';
     var cursor = 0;
@@ -1341,13 +1341,25 @@
 
     while ((match = pattern.exec(source)) !== null) {
       html += esc(source.slice(cursor, match.index)).replace(/\n/g, '<br>');
-      var label = match[1] || match[3];
-      var url = match[2] || match[3];
+      var label = normaliseMessageLinkPart(match[1] || match[3]);
+      var url = normaliseMessageLinkPart(match[2] || match[3]);
       html += '<a href="' + escAttr(url) + '" target="_blank" rel="noopener noreferrer">' + esc(label) + '</a>';
       cursor = match.index + match[0].length;
     }
 
     return html + esc(source.slice(cursor)).replace(/\n/g, '<br>');
+  }
+
+  function decodeMessageEntities(value) {
+    var textarea = document.createElement('textarea');
+    textarea.innerHTML = value;
+    return textarea.value.replace(/\u00a0/g, ' ');
+  }
+
+  function normaliseMessageLinkPart(value) {
+    return String(value || '')
+      .replace(/\\([\\`*_{}\[\]()#+\-.!&=?:/])/g, '$1')
+      .replace(/\u00a0/g, ' ');
   }
 
   function updateBadge() {

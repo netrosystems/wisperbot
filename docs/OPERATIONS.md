@@ -112,6 +112,38 @@ Laravel validation, PHP `upload_max_filesize`, PHP `post_max_size`, web-server/p
 - `git status --short` — should be clean except explicitly understood runtime artifacts.
 - Sidebar version — deployment finalizer version, not proof of a current frontend bundle by itself.
 
+## Mobile API request diagnostics
+
+For short-lived production diagnosis of mobile rate limits or duplicate app requests, enable the sanitized ring-buffer logger:
+
+```env
+MOBILE_REQUEST_LOGGING=true
+MOBILE_REQUEST_LOG_LIMIT=100
+```
+
+Clear the config cache if the deployment caches environment values, then watch:
+
+```bash
+tail -f storage/logs/mobile-api-live.log
+```
+
+Each JSON line includes method, path, safe query metadata, response status, duration, user/workspace IDs, a hashed IP, and request ID. It never records request bodies, authorization headers, message text, tokens, phone numbers, or emails. Disable `MOBILE_REQUEST_LOGGING` after the incident is understood.
+
+For the public website widget/SDK surface, use the separate sanitized logger:
+
+```env
+WIDGET_REQUEST_LOGGING=true
+WIDGET_REQUEST_LOG_LIMIT=100
+```
+
+Then watch:
+
+```bash
+tail -f storage/logs/widget-api-live.log
+```
+
+Widget diagnostics include method, normalized path, safe query metadata, response status, duration, hashed widget key, hashed visitor token when present, origin/referer hosts, hashed IP, and request ID. They do not store widget keys, visitor tokens, message text, identity payloads, request bodies, phone numbers, or emails.
+
 ## Managed AI rollout
 
 AI-credit enforcement defaults to enabled. `AI_CREDITS_ENFORCE=false` is an explicit diagnostic shadow mode: the ledger records completed managed demand and provider cost, but over-limit actions are not blocked or allowed to create a negative visible balance. Configure each plan's finite `ai_credits_per_month` value, validate the selected managed integration, compare ledger totals with provider billing, and confirm the stale-reservation scheduler before deployment. Restart queue workers and clear/rebuild configuration caches after changing the flag. Hard enforcement returns `402 ai_credits_exhausted`; automatic mode uses only a successfully tested workspace provider.

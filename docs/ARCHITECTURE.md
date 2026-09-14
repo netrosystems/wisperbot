@@ -59,7 +59,8 @@ Crossing 80% and 100% stores one threshold timestamp per period before dispatchi
 ## Tenancy and ownership
 
 - A client may have multiple workspaces and team members.
-- The active workspace is derived from the authenticated user's current/primary workspace and membership.
+- Browser web requests may carry a session-scoped `current_workspace_id` selected by the workspace switcher. `ResolveWebWorkspace` overlays that value onto the in-memory request user so existing web controllers can read `workspace_id`, but switching in the web UI must not persistently overwrite `users.workspace_id`.
+- Mobile and developer API requests use `users.workspace_id` as their active workspace until the API workspace selector explicitly changes it.
 - Workspace-owned records must always be scoped by `workspace_id`, directly or through an owned parent.
 - Provider identities (Page, Instagram account, WABA, seller account) are intentionally prevented from routing to multiple workspaces when that could duplicate or leak messages.
 - Broadcast authorization uses `BroadcastChannelsServiceProvider`, which checks primary/current workspace, pivot membership, ownership, and same-client access.
@@ -135,7 +136,7 @@ The optional Comments page `/app/social/automation/comments` and `/api/v1/mobile
 
 ## Route organization
 
-Authenticated `/api/v1/mobile/*`, `/api/v1/auth/*`, and `/api/v1/broadcasting/auth` use `throttle:mobile-api`, with a separate per-user budget (default 300/minute, `rate_limits.mobile_api_per_minute` / `MOBILE_API_RATE_LIMIT_PER_MINUTE`). Login uses `mobile-login`; generic/developer routes retain `throttle:api` (60/minute). Mobile action-specific throttles are still applied in addition. Multiple devices for the same user share the mobile budget. Mobile HTTP 429 responses add `code: mobile_api_rate_limited` and `retry_after`, preserving `Retry-After` and rate-limit headers; clients must back off rather than immediately retrying writes.
+Authenticated `/api/v1/mobile/*`, `/api/v1/auth/*`, and `/api/v1/broadcasting/auth` use `throttle:mobile-api`, with a separate per-user budget (default 300/minute, `rate_limits.mobile_api_per_minute` / `MOBILE_API_RATE_LIMIT_PER_MINUTE`). Login uses `mobile-login`; generic/developer routes retain the upstream `throttle:api` allowance (120/minute). Mobile action-specific throttles are still applied in addition. Multiple devices for the same user share the mobile budget. Mobile HTTP 429 responses add `code: mobile_api_rate_limited` and `retry_after`, preserving `Retry-After` and rate-limit headers; clients must back off rather than immediately retrying writes.
 
 - `routes/web.php`: public site, blog/CMS, billing webhooks, health endpoints.
 - `routes/client.php`: client account, workspace, billing, settings, developer add-on.

@@ -20,7 +20,10 @@ class MessengerDriver implements ChannelDriverInterface
 {
     private const BASE = 'https://graph.facebook.com/v25.0';
 
-    public function __construct(private ContactService $contactService) {}
+    public function __construct(
+        private ContactService $contactService,
+        private MetaMessageAttachmentNormalizer $attachmentNormalizer,
+    ) {}
 
     public function send(Message $message): string
     {
@@ -125,9 +128,9 @@ class MessengerDriver implements ChannelDriverInterface
                         continue;
                     }
 
-                    $message = $this->processInboundMessage($entryId, $event);
+                    $messages = $this->processInboundMessage($entryId, $event);
 
-                    if ($message !== null) {
+                    foreach ($messages as $message) {
                         $processed[] = $message;
                     }
                 } catch (\Throwable $e) {
@@ -192,10 +195,12 @@ class MessengerDriver implements ChannelDriverInterface
         return true;
     }
 
-    private function processInboundMessage(string $pageId, array $event): ?Message
+    /**
+     * @return array<int, Message>
+     */
+    private function processInboundMessage(string $pageId, array $event): array
     {
         $senderId = $event['sender']['id'] ?? '';
-        $msgBody = $event['message']['text'] ?? '';
 
         // The webhook entry.id is the Facebook Page id. Match it against the page_id
         // we persist when the page was connected (InboxSetupController).
@@ -216,7 +221,7 @@ class MessengerDriver implements ChannelDriverInterface
                     ->filter()->values()->all(),
             ]);
 
-            return null;
+            return [];
         }
 
         $workspaceId = $channelAccount->workspace_id;
@@ -241,30 +246,43 @@ class MessengerDriver implements ChannelDriverInterface
         );
 
         app(ConversationOwnershipService::class)->prepareInbound($conversation);
-        $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'direction' => 'in',
-            'channel' => 'messenger',
-            'type' => 'text',
-            'payload' => $event,
-            'body' => $msgBody,
-            'status' => 'delivered',
-            'provider_message_id' => $event['message']['mid'] ?? null,
-            'sent_by' => 'human',
-            'sent_at' => now(),
+        $presentedMessages = $this->attachmentNormalizer->messagesFromEvent($event, 'messenger');
+        $messages = [];
+
+        foreach ($presentedMessages as $presented) {
+            $messages[] = Message::create([
+                'conversation_id' => $conversation->id,
+                'direction' => 'in',
+                'channel' => 'messenger',
+                'type' => $presented['type'],
+                'payload' => $presented['payload'],
+                'body' => $presented['body'],
+                'status' => 'delivered',
+                'provider_message_id' => $presented['provider_message_id'],
+                'sent_by' => 'human',
+                'sent_at' => now(),
+            ]);
+        }
+
+        $lastMessage = end($messages) ?: null;
+        $conversation->update([
+            'last_message_at' => $lastMessage?->sent_at ?? now(),
+            'status' => 'open',
+            'unread_count' => $conversation->unread_count + count($messages),
         ]);
 
-        $conversation->update(['last_message_at' => now(), 'status' => 'open', 'unread_count' => $conversation->unread_count + 1]);
-
-        MessageReceived::dispatch($message);
+        foreach ($messages as $message) {
+            MessageReceived::dispatch($message);
+        }
 
         Log::info('Messenger webhook: message stored', [
-            'message_id' => $message->id,
+            'message_id' => $lastMessage?->id,
+            'message_count' => count($messages),
             'conversation_id' => $conversation->id,
             'workspace_id' => $workspaceId,
         ]);
 
-        return $message;
+        return $messages;
     }
 
     /**

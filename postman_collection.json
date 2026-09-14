@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "2638f947-6770-4a61-9461-9f89c42e9189",
     "name": "WisperBot API Collection",
-    "description": "Complete Postman collection for WisperBot REST API.\n\nIncludes Mobile Staff App API, Mobile Master Email Inbox, and Developer Tools API.\n\n### \ud83d\udd10 Authentication Flow\n1. Run the **01. Authentication & Profile -> Login (Saves Token)** request with your credentials.\n2. A Postman test script automatically extracts `token` and saves it to the `{bearer_token}` collection variable.\n3. All protected requests automatically inherit Bearer token authentication.",
+    "description": "Complete Postman collection for WisperBot REST API.\n\nIncludes Mobile Staff App API, Mobile Master Email Inbox, and Developer Tools API.\n\n### 🔐 Authentication Flow\n1. Run the **01. Authentication & Profile -> Login (Saves Token)** request with your credentials.\n2. A Postman test script automatically extracts `token` and saves it to the `{bearer_token}` collection variable.\n3. All protected requests automatically inherit Bearer token authentication.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -18,7 +18,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "http://localhost:8000",
+      "value": "http://127.0.0.1:8000",
       "type": "string"
     },
     {
@@ -104,13 +104,17 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "// Automatically extract and store token upon successful login",
+                  "// Automatically extract and store token & workspace_id upon successful login",
                   "var jsonData = pm.response.json();",
                   "if (jsonData && jsonData.token) {",
                   "    pm.collectionVariables.set('bearer_token', jsonData.token);",
-                  "    console.log('\u2705 Bearer token successfully saved to collection variable: bearer_token');",
+                  "    console.log('✅ Bearer token saved to collection variable: bearer_token');",
                   "} else {",
-                  "    console.warn('\u26a0\ufe0f No token found in login response payload');",
+                  "    console.warn('⚠️ No token found in login response payload');",
+                  "}",
+                  "if (jsonData && jsonData.user && jsonData.user.workspace_id) {",
+                  "    pm.collectionVariables.set('workspace_id', String(jsonData.user.workspace_id));",
+                  "    console.log('✅ Active workspace_id saved: ' + jsonData.user.workspace_id);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -713,7 +717,30 @@
                   ]
                 },
                 "description": "List conversations with full filtering: folder (all, mine, unassigned, resolved, snoozed, live), channel, account_id, label_id, and search query."
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Auto-populate conversation_uuid and contact_id from the first item in the list",
+                      "var jsonData = pm.response.json();",
+                      "if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0) {",
+                      "    var first = jsonData.data[0];",
+                      "    if (first.uuid) {",
+                      "        pm.collectionVariables.set('conversation_uuid', first.uuid);",
+                      "        console.log('✅ Updated conversation_uuid: ' + first.uuid);",
+                      "    }",
+                      "    if (first.contact && first.contact.id) {",
+                      "        pm.collectionVariables.set('contact_id', String(first.contact.id));",
+                      "        console.log('✅ Updated contact_id: ' + first.contact.id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Start New Conversation",
@@ -753,7 +780,23 @@
                     }
                   }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Auto-populate conversation_uuid when a new thread is created",
+                      "var jsonData = pm.response.json();",
+                      "if (jsonData && jsonData.conversation && jsonData.conversation.uuid) {",
+                      "    pm.collectionVariables.set('conversation_uuid', jsonData.conversation.uuid);",
+                      "    console.log('✅ Updated conversation_uuid: ' + jsonData.conversation.uuid);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Conversation Details",
@@ -849,6 +892,55 @@
                       "language": "json"
                     }
                   }
+                }
+              }
+            },
+            {
+              "name": "Reply to Conversation (Media Attachment)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/conversations/{{conversation_uuid}}/reply",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "mobile",
+                    "conversations",
+                    "{{conversation_uuid}}",
+                    "reply"
+                  ]
+                },
+                "description": "Send a media message (image, document, audio, video) via multipart/form-data upload.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "attachment",
+                      "type": "file",
+                      "description": "File upload (image, document, audio, video)"
+                    },
+                    {
+                      "key": "body",
+                      "value": "Here is the attachment.",
+                      "type": "text"
+                    },
+                    {
+                      "key": "type",
+                      "value": "image",
+                      "type": "text",
+                      "description": "image, document, audio, or video"
+                    }
+                  ]
                 }
               }
             },
@@ -1409,7 +1501,26 @@
               ]
             },
             "description": "Returns list of active connected mailboxes (Gmail, M365, IMAP/SMTP) with sync status."
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Auto-populate email_account_id from first mailbox account",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0) {",
+                  "    var first = jsonData.data[0];",
+                  "    if (first.id) {",
+                  "        pm.collectionVariables.set('email_account_id', String(first.id));",
+                  "        console.log('✅ Updated email_account_id: ' + first.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "List Email Threads",
@@ -1458,7 +1569,26 @@
               ]
             },
             "description": "Returns paginated email threads with folder filter (inbox, unread, sent, resolved, all), search, account_id, and sync status."
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Auto-populate email_thread_uuid from the first thread",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0) {",
+                  "    var first = jsonData.data[0];",
+                  "    if (first.uuid) {",
+                  "        pm.collectionVariables.set('email_thread_uuid', first.uuid);",
+                  "        console.log('✅ Updated email_thread_uuid: ' + first.uuid);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Get Email Thread Details",
@@ -1766,7 +1896,7 @@
                       "var jsonData = pm.response.json();",
                       "if (jsonData && jsonData.token) {",
                       "    pm.collectionVariables.set('bearer_token', jsonData.token);",
-                      "    console.log('\u2705 Developer token successfully saved to collection variable: bearer_token');",
+                      "    console.log('✅ Developer token successfully saved to collection variable: bearer_token');",
                       "}"
                     ],
                     "type": "text/javascript"

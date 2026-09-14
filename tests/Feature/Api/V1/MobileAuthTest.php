@@ -49,7 +49,7 @@ class MobileAuthTest extends TestCase
             'status' => User::STATUS_ACTIVE,
         ]);
 
-        for ($attempt = 0; $attempt < 5; $attempt++) {
+        for ($attempt = 0; $attempt < 10; $attempt++) {
             $this->fromIp('203.0.113.11')->postJson('/api/v1/auth/login', [
                 'email' => 'agent@example.com',
                 'password' => 'wrong-password',
@@ -75,7 +75,7 @@ class MobileAuthTest extends TestCase
             'status' => User::STATUS_ACTIVE,
         ]);
 
-        for ($attempt = 0; $attempt < 4; $attempt++) {
+        for ($attempt = 0; $attempt < 9; $attempt++) {
             $this->fromIp('203.0.113.12')->postJson('/api/v1/auth/login', [
                 'email' => 'agent@example.com',
                 'password' => 'wrong-password',
@@ -87,7 +87,7 @@ class MobileAuthTest extends TestCase
             'password' => 'password',
         ])->assertOk();
 
-        for ($attempt = 0; $attempt < 5; $attempt++) {
+        for ($attempt = 0; $attempt < 10; $attempt++) {
             $this->fromIp('203.0.113.12')->postJson('/api/v1/auth/login', [
                 'email' => 'agent@example.com',
                 'password' => 'wrong-password',
@@ -102,7 +102,7 @@ class MobileAuthTest extends TestCase
             'status' => User::STATUS_ACTIVE,
         ]);
 
-        for ($attempt = 0; $attempt < 5; $attempt++) {
+        for ($attempt = 0; $attempt < 10; $attempt++) {
             $this->fromIp('203.0.113.13')->postJson('/api/v1/auth/login', [
                 'email' => 'first@example.com',
                 'password' => 'wrong-password',
@@ -117,7 +117,7 @@ class MobileAuthTest extends TestCase
 
     public function test_ip_abuse_guard_returns_structured_rate_limit_response(): void
     {
-        for ($attempt = 0; $attempt < 30; $attempt++) {
+        for ($attempt = 0; $attempt < 60; $attempt++) {
             $this->fromIp('203.0.113.14')->postJson('/api/v1/auth/login', [])
                 ->assertUnprocessable();
         }

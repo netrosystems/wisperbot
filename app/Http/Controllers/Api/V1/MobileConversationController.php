@@ -11,6 +11,7 @@ use App\Modules\AI\Services\ChatReplyOptions;
 use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\ConversationOwnershipService;
+use App\Modules\Inbox\Services\MessageMediaResolver;
 use App\Modules\Inbox\Services\WebchatGeoService;
 use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -31,12 +32,23 @@ use Illuminate\Validation\ValidationException;
 
 class MobileConversationController extends WorkspaceScopedController
 {
+    private const OMNI_CHANNELS = [
+        'whatsapp',
+        'instagram',
+        'messenger',
+        'telegram',
+        'ebay',
+        'amazon',
+        'webchat',
+    ];
+
     public function __construct(
         private ChannelManager $channelManager,
         private StorageManager $storageManager,
         private AttachmentService $attachmentService,
         private VideoResourceService $videos,
         private ConversationOwnershipService $ownership,
+        private MessageMediaResolver $mediaResolver,
     ) {}
 
     /**
@@ -53,6 +65,7 @@ class MobileConversationController extends WorkspaceScopedController
         $isLiveFolder = $folder === 'live';
 
         $conversations = Conversation::where('workspace_id', $wsId)
+            ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
             ->with(['contact', 'channelAccount', 'lastMessage', 'labels', 'assignedUser', 'joinedUser'])
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
@@ -172,6 +185,17 @@ class MobileConversationController extends WorkspaceScopedController
                 'last_page' => 1,
             ],
         ]);
+    }
+
+    public function media(Request $request, string $uuid, Message $message): \Symfony\Component\HttpFoundation\Response
+    {
+        $conversation = Conversation::where('workspace_id', $this->workspaceId($request))
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        abort_unless((int) $message->conversation_id === (int) $conversation->id, 404);
+
+        return $this->mediaResolver->response($message, $request);
     }
 
     /**
@@ -775,6 +799,8 @@ class MobileConversationController extends WorkspaceScopedController
 
     private function formatMessage(Message $m): array
     {
+        $m->loadMissing('conversation');
+
         return [
             'id' => $m->id,
             'conversation_id' => $m->conversation_id,
@@ -782,7 +808,7 @@ class MobileConversationController extends WorkspaceScopedController
             'channel' => $m->channel,
             'type' => $m->type,
             'body' => Demo::text($m->body),
-            'payload' => $this->safeMessagePayload($m->payload),
+            'payload' => $this->safeMessagePayload($m),
             'status' => $m->status,
             'sent_by' => $m->sent_by,
             'sent_at' => $m->sent_at?->toIso8601String(),
@@ -790,8 +816,10 @@ class MobileConversationController extends WorkspaceScopedController
         ];
     }
 
-    private function safeMessagePayload(?array $payload): ?array
+    private function safeMessagePayload(Message $message): ?array
     {
+        $payload = $this->mediaResolver->augmentPayload($message, request(), 'api.v1.mobile.conversations.messages.media');
+
         if (! $payload) {
             return $payload;
         }
