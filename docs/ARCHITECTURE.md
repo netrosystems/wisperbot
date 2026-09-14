@@ -135,6 +135,8 @@ The optional Comments page `/app/social/automation/comments` and `/api/v1/mobile
 
 ## Route organization
 
+Authenticated `/api/v1/mobile/*`, `/api/v1/auth/*`, and `/api/v1/broadcasting/auth` use `throttle:mobile-api`, with a separate per-user budget (default 300/minute, `rate_limits.mobile_api_per_minute` / `MOBILE_API_RATE_LIMIT_PER_MINUTE`). Login uses `mobile-login`; generic/developer routes retain `throttle:api` (60/minute). Mobile action-specific throttles are still applied in addition. Multiple devices for the same user share the mobile budget. Mobile HTTP 429 responses add `code: mobile_api_rate_limited` and `retry_after`, preserving `Retry-After` and rate-limit headers; clients must back off rather than immediately retrying writes.
+
 - `routes/web.php`: public site, blog/CMS, billing webhooks, health endpoints.
 - `routes/client.php`: client account, workspace, billing, settings, developer add-on.
 - `routes/admin.php`: Super Admin and system configuration.

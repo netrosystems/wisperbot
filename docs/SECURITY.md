@@ -4,6 +4,8 @@ Last reviewed against code: 2026-08-21.
 
 ## Trust boundaries
 
+Authenticated dedicated mobile routes have an isolated, bounded per-user rate limit: `mobile-api`, default 300/minute, configured with `MOBILE_API_RATE_LIMIT_PER_MINUTE`. This does not relax authorization, workspace isolation, login throttles, developer API limits, or lower action-specific limits. Device tokens do not grant separate budgets. A higher allowance can amplify polling/database load from a buggy or abusive authenticated client; monitor 429 frequency and request volume, and keep client background polling bounded.
+
 - Public browser: marketing site and widget JavaScript.
 - Authenticated browser: session cookie, CSRF, verified user, client/workspace middleware.
 - Mobile/external clients: Sanctum bearer tokens and explicit abilities.

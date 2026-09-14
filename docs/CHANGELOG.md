@@ -4,6 +4,10 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Raised dedicated authenticated mobile API headroom from a shared 60 to an isolated configurable 300 requests/minute/user, including mobile profile and private-channel authorization. Login, generic/developer API, and stricter action-specific limits remain unchanged. Mobile throttling now provides a structured 429 reason and retry delay.
+
+- Moved the mobile inbox menu from a floating composer overlay to a compact top bar shared by Omni chat and Email MasterBox. Mobile chat now uses the full width with a return-to-inbox link, narrow-screen lists retain collapsible filters, and the send button has a 44px touch target. No API changes.
+
 - Redesigned the shared Omni and Email AI Answering control as a compact operational settings row with clear mode, bot, and timezone context. Configuration now uses a focused, responsive drawer with progressive disclosure and an explicit Save step, reducing page clutter and accidental changes.
 
 - Removed OAuth callback URLs and provider-configuration diagnostics from client Email Setup; those operational details remain a Super Admin responsibility.

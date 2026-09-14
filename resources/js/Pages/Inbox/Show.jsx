@@ -2170,13 +2170,13 @@ export default function InboxShow({
     ].filter(Boolean);
 
     return (
-        <InboxLayout>
+        <InboxLayout mobileTitle={emailOnly ? 'Email MasterBox' : t('inbox.title')} mobileBackHref={emailOnly ? route('client.inbox.email-inbox') : route('client.inbox.index', filters)}>
             <Head title={t('inbox.show_title', { name: contactName })} />
             {showNewModal && <NewConversationModal onClose={() => setShowNewModal(false)} />}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
 
                 {/* ── Filter sidebar ── */}
-                <aside className="w-48 shrink-0 border-r border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col overflow-hidden">
+                <aside className="hidden w-48 shrink-0 border-r border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 lg:flex flex-col overflow-hidden">
                     <div className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-1">
                         <Link href={emailOnly ? route('client.inbox.email-inbox') : route('client.inbox.index')} className="text-sm font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-2 hover:text-brand-600 transition">
                             <Inbox className="h-4 w-4 text-brand-600" />{emailOnly ? 'Email MasterBox' : t('inbox.title')}
@@ -2203,7 +2203,7 @@ export default function InboxShow({
                 </aside>
 
                 {/* ── Conversation list ── */}
-                <div className="w-72 shrink-0 border-r border-neutral-200 dark:border-neutral-700 flex flex-col bg-white dark:bg-neutral-900">
+                <div className="hidden w-72 shrink-0 border-r border-neutral-200 dark:border-neutral-700 lg:flex flex-col bg-white dark:bg-neutral-900">
                     <div className="px-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800 space-y-2">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1 flex-wrap">
@@ -2242,10 +2242,10 @@ export default function InboxShow({
                 </div>
 
                 {/* ── Main thread ── */}
-                <div className="flex-1 flex flex-col min-w-0 bg-neutral-50 dark:bg-neutral-950">
+                <div className="min-h-0 flex-1 flex flex-col min-w-0 bg-neutral-50 dark:bg-neutral-950">
 
                     {/* Header */}
-                    <div className="flex items-center gap-3 px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shrink-0">
+                    <div className="flex items-center gap-2 px-3 sm:gap-3 sm:px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shrink-0">
                         <div className="relative shrink-0">
                             <div className="h-9 w-9 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center text-sm font-semibold text-brand-700 dark:text-brand-300">
                                 {contactName[0]?.toUpperCase() ?? '?'}
@@ -2291,11 +2291,12 @@ export default function InboxShow({
                             <button
                                 type="button"
                                 onClick={() => setShowAgentDrop(v => !v)}
+                                aria-label={t('inbox.assign')}
                                 className="flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2.5 py-1.5 text-xs text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition"
                             >
                                 <UserCheck className="h-3.5 w-3.5 shrink-0" />
-                                <span className="truncate max-w-[80px]">{assignedAgent?.name ?? t('inbox.assign')}</span>
-                                <ChevronDown className="h-3 w-3 shrink-0" />
+                                <span className="hidden sm:inline truncate max-w-[80px]">{assignedAgent?.name ?? t('inbox.assign')}</span>
+                                <ChevronDown className="hidden sm:block h-3 w-3 shrink-0" />
                             </button>
                             {showAgentDrop && (
                                 <AgentDropdown
@@ -2342,7 +2343,7 @@ export default function InboxShow({
 
                     {/* Messages tab */}
                     {activeTab === 'messages' && (
-                        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-1">
+                        <div ref={messagesContainerRef} className="min-h-0 flex-1 overflow-y-auto p-4 space-y-1">
                             {groupMessagesForRender(messages).map(item => (
                                 item.kind === 'album'
                                     ? <ImageGallery key={item.key} messages={item.messages} conversationId={conversation.uuid} />
@@ -2515,7 +2516,7 @@ export default function InboxShow({
 
                             <form onSubmit={handleSend}>
                                 {/* Toolbar */}
-                                <div className="flex items-center gap-1 mb-1.5">
+                                <div className="flex flex-wrap items-center gap-1 mb-1.5">
                                     {/* Emoji */}
                                     <button type="button" onClick={() => setShowEmoji(v => !v)}
                                         title={t('inbox.emoji')}
@@ -2584,12 +2585,13 @@ export default function InboxShow({
                                         }
                                         rows={2}
                                         disabled={isWhatsApp && !isWindowOpen && !attachPreview}
-                                        className="flex-1 rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        className="min-w-0 flex-1 rounded-xl border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 disabled:cursor-not-allowed"
                                     />
                                     <button
                                         type="submit"
+                                        aria-label={t('inbox.send')}
                                         disabled={sending || (!data.body.trim() && !attachPreview) || (isWhatsApp && !isWindowOpen && !attachPreview)}
-                                        className="self-end rounded-xl bg-brand-600 p-2.5 text-white hover:bg-brand-700 disabled:opacity-50 transition">
+                                        className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-50 transition">
                                         {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                     </button>
                                 </div>

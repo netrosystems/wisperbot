@@ -1,0 +1,93 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import axios from 'axios';
+import InboxShow from '@/Pages/Inbox/Show';
+import InboxIndex from '@/Pages/Inbox/Index';
+
+vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: key => key }) }));
+vi.mock('@/Layouts/useClientNav', () => ({ default: () => [] }));
+vi.mock('@/Components/Sidebar', () => ({ default: () => null }));
+vi.mock('@/Components/UpgradeModal', () => ({ default: () => null }));
+vi.mock('sonner', () => ({ Toaster: () => null, toast: vi.fn() }));
+vi.mock('@inertiajs/react', async () => {
+    const { useState } = await import('react');
+    return {
+        Head: () => null,
+        Link: ({ href, children, ...props }) => <a href={href} {...props}>{children}</a>,
+        router: { reload: vi.fn(), visit: vi.fn() },
+        usePage: () => ({ props: { auth: { user: { id: 7, name: 'Agent', timezone: 'UTC' } }, timezone: 'UTC', flash: {} } }),
+        useForm: initial => {
+            const [data, update] = useState(initial);
+            return {
+                data,
+                setData: (key, value) => update(previous => ({ ...previous, [key]: value })),
+                reset: () => update(initial),
+            };
+        },
+    };
+});
+
+const conversation = {
+    id: 1, uuid: 'test-chat', status: 'open', assigned_to: 'human',
+    joined_user: { id: 7, name: 'Agent' },
+    contact: { first_name: 'Customer', custom_fields: {} },
+    channel_account: { channel: 'webchat', name: 'Website' },
+};
+const props = { conversation, messages: [], conversations: { data: [], total: 0 }, filters: { folder: 'mine' } };
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    axios.get.mockResolvedValue({ data: { messages: [] } });
+    axios.post.mockResolvedValue({ data: {} });
+});
+
+describe('Mobile chat reply layout', () => {
+    it('keeps the composer usable and sends the joined owner’s reply', async () => {
+        render(<InboxShow {...props} />);
+        const reply = screen.getByPlaceholderText('inbox.type_message_placeholder');
+        const send = screen.getByRole('button', { name: 'inbox.send' });
+
+        expect(reply).toHaveClass('min-w-0');
+        expect(send).toHaveClass('h-11', 'w-11', 'shrink-0');
+        expect(send).toBeDisabled();
+        fireEvent.change(reply, { target: { value: 'Hello, how can I help?' } });
+        expect(send).toBeEnabled();
+        fireEvent.click(send);
+
+        await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+            '/client.inbox.reply/"test-chat"',
+            { body: 'Hello, how can I help?', type: 'text', payload: null },
+            { headers: { Accept: 'application/json' } },
+        ));
+        await waitFor(() => expect(reply).toHaveValue(''));
+    });
+
+    it('keeps desktop-only side columns out of mobile detail and preserves the return filter', () => {
+        const { container } = render(<InboxShow {...props} />);
+
+        expect(container.querySelector('aside')).toHaveClass('hidden', 'lg:flex');
+        expect(container.querySelector('.w-72')).toHaveClass('hidden', 'lg:flex');
+        const header = screen.getByRole('banner');
+        expect(header.querySelector('a')).toHaveAttribute('href', '/client.inbox.index/{"folder":"mine"}');
+    });
+
+    it('does not bypass the join requirement while making more mobile space', () => {
+        render(<InboxShow {...props} conversation={{ ...conversation, joined_user: null }} />);
+
+        expect(screen.queryByPlaceholderText('inbox.type_message_placeholder')).not.toBeInTheDocument();
+        expect(screen.getByText('Join before replying')).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: 'Join Chat' }).length).toBeGreaterThan(0);
+    });
+
+    it('retains filters and a new-conversation action on the full-width mobile list', () => {
+        const { container } = render(<InboxIndex conversations={{ data: [], total: 0 }} filters={{}} />);
+        const filters = container.querySelector('details');
+
+        expect(filters).not.toHaveAttribute('open');
+        expect(filters.querySelector('summary')).toHaveTextContent('common.filter');
+        expect(filters.parentElement).toHaveClass('md:hidden');
+        expect(within(filters.parentElement).getByRole('button', { name: 'inbox.new_conversation' })).toHaveClass('h-11', 'w-11');
+        expect(container.querySelector('.md\\:w-80')).toHaveClass('flex-1', 'min-w-0');
+    });
+});
