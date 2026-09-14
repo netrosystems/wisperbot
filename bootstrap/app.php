@@ -20,6 +20,7 @@ use App\Http\Middleware\MobileRequestLogger;
 use App\Http\Middleware\RedirectIfAdminAuthenticated;
 use App\Http\Middleware\RequestIdMiddleware;
 use App\Http\Middleware\RequirePermission;
+use App\Http\Middleware\ResolveWebWorkspace;
 use App\Http\Middleware\SecureHeaders;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\WidgetRequestLogger;
@@ -115,6 +116,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // redirected to /install without touching the (empty) database.
             EnsureInstalled::class,
             AddLinkHeadersForPreloadedAssets::class,
+            ResolveWebWorkspace::class,
             SetLocale::class,
             HandleInertiaRequests::class,
             SecureHeaders::class,

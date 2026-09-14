@@ -59,7 +59,8 @@ Crossing 80% and 100% stores one threshold timestamp per period before dispatchi
 ## Tenancy and ownership
 
 - A client may have multiple workspaces and team members.
-- The active workspace is derived from the authenticated user's current/primary workspace and membership.
+- Browser web requests may carry a session-scoped `current_workspace_id` selected by the workspace switcher. `ResolveWebWorkspace` overlays that value onto the in-memory request user so existing web controllers can read `workspace_id`, but switching in the web UI must not persistently overwrite `users.workspace_id`.
+- Mobile and developer API requests use `users.workspace_id` as their active workspace until the API workspace selector explicitly changes it.
 - Workspace-owned records must always be scoped by `workspace_id`, directly or through an owned parent.
 - Provider identities (Page, Instagram account, WABA, seller account) are intentionally prevented from routing to multiple workspaces when that could duplicate or leak messages.
 - Broadcast authorization uses `BroadcastChannelsServiceProvider`, which checks primary/current workspace, pivot membership, ownership, and same-client access.

@@ -13,6 +13,7 @@ use App\Modules\AI\Services\VideoResourceService;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Models\InboxLabel;
 use App\Modules\Inbox\Services\ConversationOwnershipService;
+use App\Modules\Inbox\Services\MessageMediaResolver;
 use App\Modules\Inbox\Services\TeamAvailabilityService;
 use App\Modules\Inbox\Services\TypingPresence;
 use App\Modules\Inbox\Services\WebchatGeoService;
@@ -61,6 +62,7 @@ class InboxController extends Controller
         private AttachmentService $attachmentService,
         private VideoResourceService $videos,
         private ConversationOwnershipService $ownership,
+        private MessageMediaResolver $mediaResolver,
     ) {}
 
     public function index(Request $request): Response
@@ -365,7 +367,7 @@ class InboxController extends Controller
                 'channel' => $message->channel,
                 'type' => $message->type,
                 'body' => $message->body,
-                'payload' => $this->normalisedMessagePayload($message->payload, $request),
+                'payload' => $this->normalisedMessagePayload($message, $request),
                 'status' => $message->status,
                 'provider_message_id' => $message->provider_message_id,
                 'sent_by' => $message->sent_by,
@@ -856,66 +858,16 @@ class InboxController extends Controller
     }
 
     /**
-     * Proxy / lazy-download inbound WhatsApp media.
-     * Checks payload.preview_url first, then downloads from WhatsApp Graph API,
-     * caches to local storage, updates the message, and redirects.
+     * Proxy / lazy-download inbound message media.
+     * Checks local cached media first, then resolves provider media, caches it,
+     * updates the message, and redirects.
      */
     public function serveMedia(Request $request, Conversation $conversation, Message $message): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorise($request, $conversation);
         abort_unless((int) $message->conversation_id === (int) $conversation->id, 404);
 
-        $payload = $message->payload ?? [];
-
-        // Already cached locally — verify the file still exists before redirecting
-        if (! empty($payload['preview_url'])) {
-            $storagePath = "message-media/{$message->id}";
-            $disk = $this->storageManager->disk();
-            $files = $disk->files($this->storageManager->prefixedPath('message-media'));
-            $cached = collect($files)->first(fn ($f) => str_starts_with($f, $this->storageManager->prefixedPath($storagePath)));
-
-            if ($cached && $disk->exists($cached)) {
-                return redirect($disk->url($cached));
-            }
-
-            // File missing — clear stale preview_url and fall through to re-download
-            $payload = array_merge($payload, ['preview_url' => null]);
-            $message->update(['payload' => $payload]);
-        }
-
-        // Resolve media ID from raw WhatsApp webhook payload
-        $type = $message->type ?? 'image';
-        $mediaId = $payload[$type]['id'] ?? $payload['media_id'] ?? null;
-
-        if (! $mediaId) {
-            abort(404, 'No media available.');
-        }
-
-        $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
-        $client = CloudApiClient::forWorkspace($workspaceId);
-
-        if (! $client) {
-            abort(503, 'WhatsApp account not configured.');
-        }
-
-        try {
-            ['url' => $downloadUrl, 'mime_type' => $mimeType] = $client->getMediaUrl($mediaId);
-            $bytes = $client->downloadMedia($downloadUrl);
-            $ext = explode('/', $mimeType)[1] ?? 'bin';
-            $ext = str_replace(['jpeg'], ['jpg'], $ext);
-            $filename = "message-media/{$message->id}.{$ext}";
-
-            $filename = $this->storageManager->prefixedPath($filename);
-            $this->storageManager->disk()->put($filename, $bytes);
-            $previewUrl = $this->browserSafePublicUrl($this->storageManager->disk()->url($filename), $request);
-
-            // Cache for next request
-            $message->update(['payload' => array_merge($payload, ['preview_url' => $previewUrl, 'mime_type' => $mimeType])]);
-
-            return redirect($previewUrl);
-        } catch (\Throwable $e) {
-            abort(502, 'Could not fetch media: '.$e->getMessage());
-        }
+        return $this->mediaResolver->response($message, $request);
     }
 
     /** Upload a media file to WhatsApp and return the media_id */
@@ -956,8 +908,10 @@ class InboxController extends Controller
      * @param  array<string, mixed>|null  $payload
      * @return array<string, mixed>|null
      */
-    private function normalisedMessagePayload(?array $payload, Request $request): ?array
+    private function normalisedMessagePayload(Message $message, Request $request): ?array
     {
+        $payload = $this->mediaResolver->augmentPayload($message, $request);
+
         if (! $payload) {
             return $payload;
         }
@@ -977,7 +931,7 @@ class InboxController extends Controller
 
     private function normaliseMessageMediaUrl(Message $message, Request $request): void
     {
-        $payload = $this->normalisedMessagePayload($message->payload, $request);
+        $payload = $this->normalisedMessagePayload($message, $request);
 
         if ($payload !== $message->payload) {
             $message->setAttribute('payload', $payload);
