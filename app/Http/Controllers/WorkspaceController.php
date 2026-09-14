@@ -28,7 +28,7 @@ class WorkspaceController extends Controller
     }
 
     /**
-     * Switch current workspace (set session and update user.workspace_id).
+     * Switch the current web workspace for this browser session.
      */
     public function switch(Request $request): RedirectResponse
     {
@@ -41,7 +41,6 @@ class WorkspaceController extends Controller
         $this->authorize('view', $workspace);
 
         $request->session()->put('current_workspace_id', $workspace->id);
-        $request->user()->update(['workspace_id' => $workspace->id]);
 
         return redirect()->intended(route('client.dashboard'));
     }
@@ -68,7 +67,6 @@ class WorkspaceController extends Controller
         $workspace->members()->attach($request->user()->id, ['role' => 'owner']);
 
         $request->session()->put('current_workspace_id', $workspace->id);
-        $request->user()->update(['workspace_id' => $workspace->id]);
 
         return redirect()->route('client.dashboard')->with('success', __('Workspace created.'));
     }

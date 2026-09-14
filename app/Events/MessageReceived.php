@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use App\Modules\Shared\Models\Message;
+use App\Modules\Inbox\Services\MessageMediaResolver;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -43,7 +44,10 @@ class MessageReceived implements ShouldBroadcastNow
             'channel' => $this->message->channel,
             'type' => $this->message->type,
             'body' => $this->message->body,
-            'payload' => $this->message->payload,
+            'payload' => app(MessageMediaResolver::class)->augmentPayloadForRoute(
+                $this->message,
+                'api.v1.mobile.conversations.messages.media',
+            ),
             'status' => $this->message->status,
             'sent_at' => $this->message->sent_at?->toIso8601String(),
             'created_at' => $this->message->created_at?->toIso8601String(),

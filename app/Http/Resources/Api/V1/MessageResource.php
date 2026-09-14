@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Support\Demo;
+use App\Modules\Inbox\Services\MessageMediaResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -10,6 +11,8 @@ class MessageResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $payload = app(MessageMediaResolver::class)->augmentPayload($this->resource, $request);
+
         return [
             'id' => $this->id,
             'conversation_id' => $this->conversation_id,
@@ -17,6 +20,7 @@ class MessageResource extends JsonResource
             'channel' => $this->channel,
             'type' => $this->type,
             'body' => Demo::text($this->body),
+            'payload' => $payload,
             'status' => $this->status,
             'provider_message_id' => $this->provider_message_id,
             'sent_by' => $this->sent_by,
