@@ -2,8 +2,8 @@
 
 namespace App\Http\Resources\Api\V1;
 
-use App\Support\Demo;
 use App\Modules\Inbox\Services\MessageMediaResolver;
+use App\Support\Demo;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 

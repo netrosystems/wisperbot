@@ -2,8 +2,8 @@
 
 namespace App\Events;
 
-use App\Modules\Shared\Models\Message;
 use App\Modules\Inbox\Services\MessageMediaResolver;
+use App\Modules\Shared\Models\Message;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
