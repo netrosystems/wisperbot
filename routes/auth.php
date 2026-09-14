@@ -30,14 +30,14 @@ Route::middleware('guest')->group(function () {
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->middleware('throttle:5,1')->name('password.email');
+    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->middleware('throttle:10,1')->name('password.email');
 
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
-    Route::post('reset-password', [NewPasswordController::class, 'store'])->middleware('throttle:5,1')->name('password.store');
+    Route::post('reset-password', [NewPasswordController::class, 'store'])->middleware('throttle:10,1')->name('password.store');
 
     // Magic link
     Route::get('magic-link', [MagicLinkController::class, 'show'])->name('auth.magic-link');
-    Route::post('magic-link', [MagicLinkController::class, 'send'])->middleware('throttle:5,1')->name('auth.magic-link.send');
+    Route::post('magic-link', [MagicLinkController::class, 'send'])->middleware('throttle:10,1')->name('auth.magic-link.send');
     Route::get('magic-link/{token}', [MagicLinkController::class, 'verify'])->name('auth.magic-link.verify');
 
     // 2FA challenge (shown after login when 2FA is enabled)
@@ -53,10 +53,10 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)->name('verification.notice');
     Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
-        ->middleware(['signed', 'throttle:6,1'])
+        ->middleware(['signed', 'throttle:12,1'])
         ->name('verification.verify');
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
-        ->middleware('throttle:6,1')
+        ->middleware('throttle:12,1')
         ->name('verification.send');
 
     Route::get('confirm-password', [ConfirmablePasswordController::class, 'show'])->name('password.confirm');
@@ -75,7 +75,7 @@ Route::get('auth/{provider}/redirect', [SocialLoginController::class, 'redirect'
 Route::get('auth/{provider}/callback', [SocialLoginController::class, 'callback'])->name('auth.social.callback');
 
 // Firebase authentication
-Route::middleware(['guest', 'throttle:10,1'])->post('auth/firebase', [FirebaseLoginController::class, 'login'])->name('auth.firebase');
+Route::middleware(['guest', 'throttle:20,1'])->post('auth/firebase', [FirebaseLoginController::class, 'login'])->name('auth.firebase');
 
 /*
 |--------------------------------------------------------------------------
