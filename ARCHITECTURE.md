@@ -180,6 +180,7 @@ classDiagram
 
 ### Tenancy Enforcement Invariants
 1. **Mandatory Query Scoping**: Every database lookup must scope by the active `workspace_id`.
+   Browser web workspace switching is session-scoped through `current_workspace_id`; `ResolveWebWorkspace` overlays it onto the in-memory request user and must not mutate `users.workspace_id`. Mobile and developer APIs use `users.workspace_id` until their own workspace selector changes it.
 2. **Channel Asset Exclusivity**: A provider account (e.g. WhatsApp Phone Number ID, Facebook Page ID, Instagram Account ID) is bound exclusively to a single `workspace_id` to prevent cross-tenant message contamination.
 3. **Queue Job Hydration**: Queue jobs pass database IDs (not full serialized models) and re-verify tenant ownership at execution time.
 4. **WebSocket Authorization**: Channel authorization rules in `BroadcastChannelsServiceProvider` authenticate the active user's workspace membership before granting access to `workspace.{id}` or `conversation.{id}` channels.

@@ -51,6 +51,12 @@ class MobileConversationTest extends TestCase
             'workspace_id' => $workspace->id,
             'first_name' => 'Alice',
         ]);
+        $channelAccount = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website Widget',
+            'status' => 'active',
+        ]);
 
         $assignedAgent = User::factory()->create([
             'workspace_id' => $workspace->id,
@@ -60,6 +66,7 @@ class MobileConversationTest extends TestCase
         $conversation = Conversation::create([
             'workspace_id' => $workspace->id,
             'contact_id' => $contact->id,
+            'channel_account_id' => $channelAccount->id,
             'assigned_user_id' => $assignedAgent->id,
             'assigned_to' => 'human',
             'status' => 'open',
@@ -75,6 +82,60 @@ class MobileConversationTest extends TestCase
             ->assertJsonPath('data.0.assigned_to', 'human')
             ->assertJsonPath('data.0.assigned_user.id', $assignedAgent->id)
             ->assertJsonPath('data.0.assigned_user.name', 'John Agent');
+    }
+
+    public function test_mobile_omni_inbox_excludes_email_and_sms_conversations(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+
+        foreach (['webchat', 'email', 'sms'] as $channel) {
+            $account = ChannelAccount::create([
+                'workspace_id' => $workspace->id,
+                'channel' => $channel,
+                'display_name' => ucfirst($channel),
+                'status' => 'active',
+            ]);
+            $contact = Contact::create([
+                'workspace_id' => $workspace->id,
+                'source' => $channel,
+                'first_name' => ucfirst($channel),
+            ]);
+            $conversation = Conversation::create([
+                'workspace_id' => $workspace->id,
+                'channel_account_id' => $account->id,
+                'contact_id' => $contact->id,
+                'status' => 'open',
+                'unread_count' => 1,
+                'last_message_at' => now(),
+            ]);
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'direction' => 'in',
+                'channel' => $channel,
+                'type' => 'text',
+                'body' => 'Hello from '.$channel,
+                'status' => 'delivered',
+                'sent_at' => now(),
+            ]);
+        }
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/mobile/conversations')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.channel', 'webchat');
+
+        $this->getJson('/api/v1/mobile/inbox/setup')
+            ->assertOk()
+            ->assertJsonCount(1, 'channel_accounts')
+            ->assertJsonPath('channel_accounts.0.channel', 'webchat');
+
+        $this->getJson('/api/v1/mobile/inbox/counts')
+            ->assertOk()
+            ->assertJsonPath('all', 1)
+            ->assertJsonPath('unread', 1);
     }
 
     public function test_mobile_conversation_show_returns_all_messages(): void

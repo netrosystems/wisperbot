@@ -13,10 +13,25 @@ import React from 'react';
 
 const SAFE_HREF = /^(https?:|mailto:)/i;
 
+function decodeEntities(value) {
+    if (typeof document === 'undefined') return value;
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = value;
+    return textarea.value;
+}
+
+function decodeMarkdownText(value) {
+    return decodeEntities(String(value)).replace(/\u00a0/g, ' ');
+}
+
+function normaliseMarkdownLinkPart(value) {
+    return decodeMarkdownText(value).replace(/\\([\\`*_{}\[\]()#+\-.!&=?:/])/g, '$1');
+}
+
 // Parse inline tokens (**bold**, *italic*, `code`, [text](url)) into React nodes.
 function parseInline(text, keyPrefix) {
     const nodes = [];
-    let remaining = String(text);
+    let remaining = decodeMarkdownText(text);
     let key = 0;
 
     const patterns = [
@@ -55,11 +70,11 @@ function parseInline(text, keyPrefix) {
                 </code>
             );
         } else if (p.type === 'link') {
-            const href = SAFE_HREF.test(m[2]) ? m[2] : undefined;
+            const href = SAFE_HREF.test(m[2]) ? normaliseMarkdownLinkPart(m[2]) : undefined;
             nodes.push(
                 href
-                    ? <a key={k} href={href} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 break-words">{m[1]}</a>
-                    : <span key={k}>{m[1]}</span>
+                    ? <a key={k} href={href} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 break-words">{normaliseMarkdownLinkPart(m[1])}</a>
+                    : <span key={k}>{normaliseMarkdownLinkPart(m[1])}</span>
             );
         } else {
             nodes.push(<em key={k}>{m[1]}</em>);

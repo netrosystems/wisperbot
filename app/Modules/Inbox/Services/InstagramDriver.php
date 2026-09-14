@@ -20,7 +20,10 @@ class InstagramDriver implements ChannelDriverInterface
 {
     private const BASE = 'https://graph.facebook.com/v25.0';
 
-    public function __construct(private ContactService $contactService) {}
+    public function __construct(
+        private ContactService $contactService,
+        private MetaMessageAttachmentNormalizer $attachmentNormalizer,
+    ) {}
 
     public function send(Message $message): string
     {
@@ -179,11 +182,17 @@ class InstagramDriver implements ChannelDriverInterface
                     // Echo = a message the business sent from the Instagram app (or
                     // another tool) — record it as an outbound message so the thread
                     // stays complete. Otherwise it's an inbound customer message.
-                    $message = $isEcho
-                        ? $this->processEchoMessage($entryId, $event)
-                        : $this->processInboundMessage($entryId, $event);
+                    if ($isEcho) {
+                        $message = $this->processEchoMessage($entryId, $event);
+                        if ($message !== null) {
+                            $processed[] = $message;
+                        }
 
-                    if ($message !== null) {
+                        continue;
+                    }
+
+                    $messages = $this->processInboundMessage($entryId, $event);
+                    foreach ($messages as $message) {
                         $processed[] = $message;
                     }
                 } catch (\Throwable $e) {
@@ -205,10 +214,12 @@ class InstagramDriver implements ChannelDriverInterface
         return true;
     }
 
-    private function processInboundMessage(string $pageId, array $event): ?Message
+    /**
+     * @return array<int, Message>
+     */
+    private function processInboundMessage(string $pageId, array $event): array
     {
         $senderId = $event['sender']['id'] ?? '';
-        $msgBody = $event['message']['text'] ?? '';
 
         // The webhook entry.id is the Instagram account id. Match it against either
         // key we persist (instagram_page_id holds the IG account id for embedded-signup
@@ -231,7 +242,7 @@ class InstagramDriver implements ChannelDriverInterface
                     ->filter()->values()->all(),
             ]);
 
-            return null;
+            return [];
         }
 
         $workspaceId = $channelAccount->workspace_id;
@@ -256,30 +267,43 @@ class InstagramDriver implements ChannelDriverInterface
         );
 
         app(ConversationOwnershipService::class)->prepareInbound($conversation);
-        $message = Message::create([
-            'conversation_id' => $conversation->id,
-            'direction' => 'in',
-            'channel' => 'instagram',
-            'type' => 'text',
-            'payload' => $event,
-            'body' => $msgBody,
-            'status' => 'delivered',
-            'provider_message_id' => $event['message']['mid'] ?? null,
-            'sent_by' => 'human',
-            'sent_at' => now(),
+        $presentedMessages = $this->attachmentNormalizer->messagesFromEvent($event, 'instagram');
+        $messages = [];
+
+        foreach ($presentedMessages as $presented) {
+            $messages[] = Message::create([
+                'conversation_id' => $conversation->id,
+                'direction' => 'in',
+                'channel' => 'instagram',
+                'type' => $presented['type'],
+                'payload' => $presented['payload'],
+                'body' => $presented['body'],
+                'status' => 'delivered',
+                'provider_message_id' => $presented['provider_message_id'],
+                'sent_by' => 'human',
+                'sent_at' => now(),
+            ]);
+        }
+
+        $lastMessage = end($messages) ?: null;
+        $conversation->update([
+            'last_message_at' => $lastMessage?->sent_at ?? now(),
+            'status' => 'open',
+            'unread_count' => $conversation->unread_count + count($messages),
         ]);
 
-        $conversation->update(['last_message_at' => now(), 'status' => 'open', 'unread_count' => $conversation->unread_count + 1]);
-
-        MessageReceived::dispatch($message);
+        foreach ($messages as $message) {
+            MessageReceived::dispatch($message);
+        }
 
         Log::info('Instagram webhook: message stored', [
-            'message_id' => $message->id,
+            'message_id' => $lastMessage?->id,
+            'message_count' => count($messages),
             'conversation_id' => $conversation->id,
             'workspace_id' => $workspaceId,
         ]);
 
-        return $message;
+        return $messages;
     }
 
     /**

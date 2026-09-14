@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 const source = readFileSync('public/widget/wisperbot-chat-widget.js', 'utf8');
 const bubble = source.slice(source.indexOf('  function addBubble(message)'), source.indexOf('  function videoCardMarkup'));
 const update = source.slice(source.indexOf('  function updateQuickReplies()'), source.indexOf('  function activateVideoCard'));
+const format = source.slice(source.indexOf('  function formatMessageText(value)'), source.indexOf('  function updateBadge()'));
 
 function widget(thread) {
     const body = document.createElement('div');
@@ -12,10 +13,11 @@ function widget(thread) {
     const escape = text => { const el = document.createElement('span'); el.textContent = text ?? ''; return el.innerHTML; };
     const runtime = new Function('body', 'thread', 'send', 'handoff', 'esc', `
         var CFG = {agent_name: 'Support'}, input = null, sendingText = false;
-        var escAttr = esc, initial = () => 'S', scrollDown = () => {}, formatMessageText = esc;
+        var escAttr = esc, initial = () => 'S', scrollDown = () => {};
+        ${format}
         ${bubble}
         ${update}
-        return { addBubble, updateQuickReplies, busy: value => {sendingText=value; updateQuickReplies();} };
+        return { addBubble, updateQuickReplies, formatMessageText, busy: value => {sendingText=value; updateQuickReplies();} };
     `)(body, thread, send, handoff, escape);
     thread.forEach(runtime.addBubble);
     return { ...runtime, body, send, handoff };
@@ -55,5 +57,15 @@ describe('widget suggested replies', () => {
         const groups = view.body.querySelectorAll('.wb-quick-replies');
         expect(groups[0].querySelector('button').disabled).toBe(false);
         expect(groups[1].querySelector('button').disabled).toBe(true);
+    });
+    it('normalises markdown-escaped package links before rendering', () => {
+        const input = '[https://www.telzen.net/packages/6911a730a56d9a0dcf383fe5?countryid=68fa05df73ed268e692de22e&countryname=Dominica&plan\\_type=esim](https://www.telzen.net/packages/6911a730a56d9a0dcf383fe5?countryid=68fa05df73ed268e692de22e\\&countryname=Dominica\\&plan_type=esim)';
+        const view = widget([]);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = view.formatMessageText(input);
+        const link = wrapper.querySelector('a');
+        expect(link).not.toBeNull();
+        expect(link.textContent).toBe('https://www.telzen.net/packages/6911a730a56d9a0dcf383fe5?countryid=68fa05df73ed268e692de22e&countryname=Dominica&plan_type=esim');
+        expect(link.getAttribute('href')).toBe('https://www.telzen.net/packages/6911a730a56d9a0dcf383fe5?countryid=68fa05df73ed268e692de22e&countryname=Dominica&plan_type=esim');
     });
 });

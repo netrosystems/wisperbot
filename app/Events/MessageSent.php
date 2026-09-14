@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Modules\Inbox\Services\MessageMediaResolver;
 use App\Modules\Shared\Models\Message;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -45,7 +46,10 @@ class MessageSent implements ShouldBroadcastNow
             'channel' => $this->message->channel,
             'type' => $this->message->type,
             'body' => $this->message->body,
-            'payload' => $this->message->payload,
+            'payload' => app(MessageMediaResolver::class)->augmentPayloadForRoute(
+                $this->message,
+                'api.v1.mobile.conversations.messages.media',
+            ),
             'status' => $this->message->status,
             'sent_by' => $this->message->sent_by,
             'user_id' => $this->message->user_id,
