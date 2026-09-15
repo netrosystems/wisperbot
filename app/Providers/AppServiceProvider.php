@@ -125,6 +125,24 @@ class AppServiceProvider extends ServiceProvider
                 ->by(optional($request->user())->id ?: $request->ip());
         });
 
+        RateLimiter::for('mobile-api', function (Request $request) {
+            $identity = $request->user()
+                ? 'user:'.$request->user()->getAuthIdentifier()
+                : 'ip:'.$request->ip();
+
+            return Limit::perMinute(max(1, (int) config('rate_limits.mobile_api_per_minute', 300)))
+                ->by('mobile-api:'.$identity)
+                ->response(function (Request $request, array $headers) {
+                    $retryAfter = max(1, (int) ($headers['Retry-After'] ?? 60));
+
+                    return response()->json([
+                        'code' => 'mobile_api_rate_limited',
+                        'message' => 'Too many requests. Please wait before trying again.',
+                        'retry_after' => $retryAfter,
+                    ], 429, $headers);
+                });
+        });
+
         RateLimiter::for('mobile-login', function (Request $request) {
             return Limit::perMinute(60)
                 ->by('mobile-login:ip:'.$request->ip())

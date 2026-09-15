@@ -472,7 +472,7 @@ export default function EmailMasterBox({
     const selectedMailbox = selectedConversation?.channel_account;
 
     return (
-        <InboxLayout>
+        <InboxLayout mobileTitle="Email MasterBox">
             <Head title="Email MasterBox" />
             <div className="flex min-h-0 flex-1 overflow-hidden bg-white dark:bg-neutral-950">
                 {/* 1. Folder Sidebar */}
@@ -816,4 +816,3 @@ export default function EmailMasterBox({
         </InboxLayout>
     );
 }
-
