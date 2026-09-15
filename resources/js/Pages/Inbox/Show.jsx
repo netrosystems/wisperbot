@@ -469,12 +469,12 @@ function MediaDocument({ src, filename, conversationId, messageId, isOut }) {
     const ext = (filename || '').split('.').pop().toUpperCase();
     return (
         <a href={proxyUrl} target="_blank" rel="noopener noreferrer" download={filename || 'document'}
-            className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 mb-1 transition ${isOut ? 'bg-white/20 hover:bg-white/30' : 'bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600'}`}>
+            className={`flex max-w-full min-w-0 items-center gap-2.5 rounded-xl px-3 py-2.5 mb-1 transition ${isOut ? 'bg-white/20 hover:bg-white/30' : 'bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600'}`}>
             <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 font-bold text-[10px] uppercase ${isOut ? 'bg-white/20 text-white' : 'bg-neutral-200 dark:bg-neutral-600 text-neutral-700 dark:text-neutral-200'}`}>
                 {ext ? (ext.length > 4 ? ext.slice(0, 4) : ext) : <Paperclip className="h-4 w-4" />}
             </div>
             <div className="min-w-0 flex-1">
-                <p className="break-all text-xs font-medium leading-snug">{filename || t('inbox.document')}</p>
+                <p className="break-all text-xs font-medium leading-snug [overflow-wrap:anywhere]">{filename || t('inbox.document')}</p>
                 <p className="text-[10px] opacity-60">{t('inbox.tap_to_open')}</p>
             </div>
             <Download className="h-3.5 w-3.5 opacity-60 shrink-0" />
@@ -800,7 +800,7 @@ function MessageBubble({ msg, conversationId }) {
         /\.(wav|mp3|m4a|aac|ogg|oga|webm|amr)$/i.test(rawCaption)
     ) ? '' : rawCaption;
 
-    const bubbleBase = `max-w-[70%] rounded-2xl overflow-hidden text-sm ${isOut
+    const bubbleBase = `max-w-[70%] min-w-0 rounded-2xl overflow-hidden text-sm ${isOut
         ? 'bg-brand-600 text-white rounded-br-sm'
         : 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-bl-sm border border-neutral-200 dark:border-neutral-700'}`;
 
@@ -864,7 +864,7 @@ function MessageBubble({ msg, conversationId }) {
                     <TemplateHeaderMedia components={templateComponents} conversationId={conversationId} messageId={msg.id} />
                 )}
 
-                <div className="px-3 py-2.5">
+                <div className="min-w-0 px-3 py-2.5">
                     {(Array.isArray(p.resources) ? p.resources : []).filter(r => r?.kind === 'video').map((resource, index) => (
                         <VideoResourceCard key={`${msg.id}-video-${index}`} resource={resource} />
                     ))}
@@ -949,7 +949,9 @@ function MessageBubble({ msg, conversationId }) {
 
                     {/* Caption below media */}
                     {['image','video','document','audio'].includes(mediaType) && caption && (
-                        <p className="mt-1 max-w-full break-all text-xs leading-snug opacity-90"><WaText text={caption} /></p>
+                        <p className="mt-1 max-w-full break-all text-xs leading-snug opacity-90 [overflow-wrap:anywhere]">
+                            <WaText text={caption} className="block max-w-full break-all [overflow-wrap:anywhere]" />
+                        </p>
                     )}
 
                     {timeRow}
