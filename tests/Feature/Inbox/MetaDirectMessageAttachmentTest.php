@@ -78,14 +78,20 @@ class MetaDirectMessageAttachmentTest extends TestCase
 
         $mediaUrl = $response->json('messages.0.payload.media_url');
         $this->assertIsString($mediaUrl);
-        $this->assertStringContainsString("/api/v1/mobile/conversations/{$conversation->uuid}/messages/{$message->id}/media/signed", $mediaUrl);
-        $this->assertStringContainsString('signature=', $mediaUrl);
+        $this->assertStringContainsString("/api/v1/mobile/conversations/{$conversation->uuid}/messages/{$message->id}/media", $mediaUrl);
+        $this->assertStringNotContainsString('signature=', $mediaUrl);
         $this->assertSame($mediaUrl, $response->json('messages.0.payload.preview_url'));
         $this->assertSame($mediaUrl, $response->json('messages.0.payload.attachment_url'));
+        $this->assertSame($mediaUrl, $response->json('messages.0.payload.url'));
+        $this->assertSame($mediaUrl, $response->json('messages.0.payload.link'));
         $this->assertSame($mediaUrl, $response->json('messages.0.payload.image.url'));
         $this->assertSame($mediaUrl, $response->json('messages.0.payload.image.preview_url'));
+        $this->assertSame($mediaUrl, $response->json('messages.0.payload.image.link'));
 
-        $uri = (string) parse_url($mediaUrl, PHP_URL_PATH).'?'.(string) parse_url($mediaUrl, PHP_URL_QUERY);
+        $secondResponse = $this->getJson("/api/v1/mobile/conversations/{$conversation->uuid}");
+        $this->assertSame($mediaUrl, $secondResponse->json('messages.0.payload.media_url'));
+
+        $uri = (string) parse_url($mediaUrl, PHP_URL_PATH);
         $this->get($uri)
             ->assertOk()
             ->assertHeader('Content-Type', 'image/jpeg')
@@ -222,7 +228,7 @@ class MetaDirectMessageAttachmentTest extends TestCase
 
         $response = $this->getJson("/api/v1/mobile/conversations/{$message->conversation->uuid}");
         $mediaUrl = (string) $response->json('messages.0.payload.media_url');
-        $uri = (string) parse_url($mediaUrl, PHP_URL_PATH).'?'.(string) parse_url($mediaUrl, PHP_URL_QUERY);
+        $uri = (string) parse_url($mediaUrl, PHP_URL_PATH);
 
         $this->get($uri)->assertOk()->assertHeader('Content-Type', 'image/jpeg');
 

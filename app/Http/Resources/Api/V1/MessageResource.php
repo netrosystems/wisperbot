@@ -15,7 +15,7 @@ class MessageResource extends JsonResource
         $payload = $mediaResolver->augmentPayload(
             $this->resource,
             $request,
-            'api.v1.mobile.conversations.messages.media.signed',
+            'api.v1.mobile.conversations.messages.media',
         );
 
         return [
