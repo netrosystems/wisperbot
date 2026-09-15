@@ -43,7 +43,7 @@ class MessageReceived implements ShouldBroadcastNow
             'direction' => $this->message->direction,
             'channel' => $this->message->channel,
             'type' => $this->message->type,
-            'body' => $this->message->body,
+            'body' => app(MessageMediaResolver::class)->displayBody($this->message),
             'payload' => app(MessageMediaResolver::class)->augmentPayloadForRoute(
                 $this->message,
                 'api.v1.mobile.conversations.messages.media.signed',

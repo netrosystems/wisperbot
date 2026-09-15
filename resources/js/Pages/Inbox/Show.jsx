@@ -113,6 +113,30 @@ function normaliseMessageLinkPart(value) {
         .replace(/\u00a0/g, ' ');
 }
 
+function isGenericMediaCaption(value, mediaType) {
+    const text = String(value ?? '').trim();
+    const plain = text.replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+    const generic = {
+        image: ['image', 'image attachment'],
+        video: ['video', 'video attachment'],
+        audio: ['audio', 'voice message', 'audio attachment'],
+        sticker: ['sticker'],
+    };
+
+    return (generic[mediaType] ?? []).includes(plain);
+}
+
+function mediaCaption(payload, mediaType, body) {
+    const explicitCaption = payload?.caption ?? payload?.[mediaType]?.caption ?? null;
+    if (explicitCaption) return explicitCaption;
+
+    if (!body || body === '(media)' || isGenericMediaCaption(body, mediaType)) {
+        return '';
+    }
+
+    return body;
+}
+
 /** Parse WhatsApp formatting: *bold*, _italic_, ~strike~, `code`, newlines */
 function WaText({ text, className = '' }) {
     if (!text) return null;
@@ -190,7 +214,7 @@ function MediaImage({ src, alt, conversationId, messageId, isOut }) {
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="relative block rounded-xl overflow-hidden mb-1 bg-black/10 min-h-[80px] cursor-zoom-in"
+                className="relative block max-w-full rounded-xl overflow-hidden mb-1 bg-black/10 min-h-[80px] cursor-zoom-in"
                 title={t('inbox.view_full_size')}
             >
                 {!loaded && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin opacity-40" /></div>}
@@ -343,7 +367,7 @@ function ImageGallery({ messages, conversationId }) {
     const images = messages.map((m) => ({
         id: m.id,
         src: galleryImageSrc(m, conversationId),
-        caption: m.payload?.caption ?? (m.body && m.body !== '(media)' ? m.body : ''),
+        caption: mediaCaption(m.payload ?? {}, m.type ?? 'text', m.body),
     }));
 
     const shown = images.slice(0, 4);
@@ -422,7 +446,7 @@ function ImageLightbox({ images, index, onClose, onIndex }) {
             <figure className="flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
                 <img src={current.src} alt="image" className="max-w-[90vw] max-h-[80vh] object-contain rounded" />
                 {current.caption && (
-                    <figcaption className="mt-3 text-sm text-white/80 max-w-[80vw] text-center">{current.caption}</figcaption>
+                    <figcaption className="mt-3 max-w-[80vw] break-words text-center text-sm text-white/80">{current.caption}</figcaption>
                 )}
                 {images.length > 1 && <div className="mt-2 text-xs text-white/50">{index + 1} / {images.length}</div>}
             </figure>
@@ -450,7 +474,7 @@ function MediaDocument({ src, filename, conversationId, messageId, isOut }) {
                 {ext ? (ext.length > 4 ? ext.slice(0, 4) : ext) : <Paperclip className="h-4 w-4" />}
             </div>
             <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium truncate">{filename || t('inbox.document')}</p>
+                <p className="break-all text-xs font-medium leading-snug">{filename || t('inbox.document')}</p>
                 <p className="text-[10px] opacity-60">{t('inbox.tap_to_open')}</p>
             </div>
             <Download className="h-3.5 w-3.5 opacity-60 shrink-0" />
@@ -768,7 +792,7 @@ function MessageBubble({ msg, conversationId }) {
     const contacts = p.contacts;
     const reaction = p.reaction;
     const sticker  = mediaType === 'sticker';
-    const rawCaption = p.caption ?? p[mediaType]?.caption ?? (msg.body && msg.body !== '(media)' ? msg.body : '');
+    const rawCaption = mediaCaption(p, mediaType, msg.body);
     const caption = mediaType === 'audio' && (
         !rawCaption ||
         rawCaption === p.filename ||
@@ -925,7 +949,7 @@ function MessageBubble({ msg, conversationId }) {
 
                     {/* Caption below media */}
                     {['image','video','document','audio'].includes(mediaType) && caption && (
-                        <p className="text-xs mt-1 opacity-90"><WaText text={caption} /></p>
+                        <p className="mt-1 max-w-full break-all text-xs leading-snug opacity-90"><WaText text={caption} /></p>
                     )}
 
                     {timeRow}

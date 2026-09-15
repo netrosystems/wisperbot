@@ -11,7 +11,8 @@ class MessageResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $payload = app(MessageMediaResolver::class)->augmentPayload($this->resource, $request);
+        $mediaResolver = app(MessageMediaResolver::class);
+        $payload = $mediaResolver->augmentPayload($this->resource, $request);
 
         return [
             'id' => $this->id,
@@ -19,7 +20,7 @@ class MessageResource extends JsonResource
             'direction' => $this->direction,
             'channel' => $this->channel,
             'type' => $this->type,
-            'body' => Demo::text($this->body),
+            'body' => Demo::text($mediaResolver->displayBody($this->resource)),
             'payload' => $payload,
             'status' => $this->status,
             'provider_message_id' => $this->provider_message_id,
