@@ -372,6 +372,7 @@ class MessageMediaResolver
     private function routeShouldOwnPreview(?string $routeName): bool
     {
         return in_array($routeName, [
+            'api.v1.mobile.conversations.messages.media',
             'api.v1.mobile.conversations.messages.media.signed',
             'client.inbox.message-media',
         ], true);
