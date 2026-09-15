@@ -8,7 +8,7 @@ import {
     MessageSquare, Inbox, CheckCircle, Clock, User, RefreshCw,
     Search, Plus, Radio, Globe2,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
 import { formatTimeTz } from '@/Utils/datetime';
@@ -347,7 +347,8 @@ function FilterSidebar({ filters, labels, channelAccounts = [], onFolder, onChan
 
 export default function InboxIndex({ conversations: initialConversations, filters, labels = [], channelAccounts = [], liveUsersCount = 0 }) {
     const { t } = useTranslation();
-    const { props } = usePage();
+    const page = usePage();
+    const { props, version } = page;
     const authUser = props.auth?.user;
     const workspaceId = props.currentWorkspace?.id ?? authUser?.workspace_id;
     const userTz = props.timezone || 'Asia/Dhaka';
@@ -355,15 +356,27 @@ export default function InboxIndex({ conversations: initialConversations, filter
     const [conversations, setConversations] = useState(initialConversations);
     const [flashingIds, setFlashingIds]     = useState(new Set());
     const [loading, setLoading]             = useState(false);
+    const [loadingMore, setLoadingMore]     = useState(false);
     const [search, setSearch]               = useState('');
     const [showNewModal, setShowNewModal]   = useState(false);
     const [selectedVisitorId, setSelectedVisitorId] = useState(null);
+    const loadingMoreRef = useRef(false);
+    const lastLoadScrollTopRef = useRef(-1);
+    const userScrolledListRef = useRef(false);
+    const lastUserScrollGestureAtRef = useRef(0);
+    const listScrolledAwayRef = useRef(false);
+    const gentleRefreshInFlightRef = useRef(false);
 
     const isLiveFolder = filters.folder === 'live';
 
     useEffect(() => {
         setConversations(initialConversations);
         setLoading(false);
+        setLoadingMore(false);
+        loadingMoreRef.current = false;
+        lastLoadScrollTopRef.current = -1;
+        userScrolledListRef.current = false;
+        lastUserScrollGestureAtRef.current = 0;
     }, [initialConversations]);
 
     // Select first live visitor automatically if none selected
@@ -424,26 +437,6 @@ export default function InboxIndex({ conversations: initialConversations, filter
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);
 
-    useEffect(() => {
-        let refreshing = false;
-        const refreshList = () => {
-            if (document.hidden || refreshing) return;
-            refreshing = true;
-            router.reload({
-                only: ['conversations', 'liveUsersCount'],
-                preserveScroll: true,
-                preserveState: true,
-                onFinish: () => { refreshing = false; },
-            });
-        };
-        const timer = window.setInterval(refreshList, 6000);
-        document.addEventListener('visibilitychange', refreshList);
-        return () => {
-            window.clearInterval(timer);
-            document.removeEventListener('visibilitychange', refreshList);
-        };
-    }, []);
-
     const navigate = (params) => {
         setLoading(true);
         router.get(route('client.inbox.index'), { ...filters, ...params }, { preserveState: true, replace: true });
@@ -453,6 +446,102 @@ export default function InboxIndex({ conversations: initialConversations, filter
     const handleChannel = (ch)  => navigate({ channel: filters.channel === ch ? undefined : ch, account_id: undefined });
     const handleAccount = (id)  => navigate({ account_id: String(filters.account_id) === String(id) ? undefined : id, channel: undefined });
     const handleLabel   = (id)  => navigate({ label: String(filters.label) === String(id) ? undefined : id });
+
+    const loadMoreConversations = (scrollTop = null) => {
+        if (loadingMoreRef.current || loading || search.trim() || !conversations?.next_page_url) return;
+        if (scrollTop !== null && scrollTop <= lastLoadScrollTopRef.current + 24) return;
+
+        loadingMoreRef.current = true;
+        if (scrollTop !== null) {
+            lastLoadScrollTopRef.current = scrollTop;
+        }
+        setLoadingMore(true);
+        const headers = {
+            Accept: 'application/json',
+            'X-Inertia': 'true',
+            'X-Requested-With': 'XMLHttpRequest',
+        };
+        if (version) {
+            headers['X-Inertia-Version'] = version;
+        }
+
+        axios.get(conversations.next_page_url, {
+            headers,
+        })
+            .then(response => {
+                const next = response.data?.props?.conversations;
+                if (!next?.data) return;
+
+                setConversations(prev => {
+                    const seen = new Set((prev?.data ?? []).map(item => item.id));
+                    const appended = next.data.filter(item => !seen.has(item.id));
+
+                    return {
+                        ...next,
+                        data: [...(prev?.data ?? []), ...appended],
+                    };
+                });
+            })
+            .catch(() => {
+                if (scrollTop !== null) {
+                    lastLoadScrollTopRef.current = Math.max(-1, scrollTop - 25);
+                }
+            })
+            .finally(() => {
+                loadingMoreRef.current = false;
+                setLoadingMore(false);
+            });
+    };
+
+    const handleListScroll = (event) => {
+        listScrolledAwayRef.current = event.currentTarget.scrollTop > 40;
+        const hasRecentUserScroll = userScrolledListRef.current
+            && Date.now() - lastUserScrollGestureAtRef.current < 1200;
+        if (!hasRecentUserScroll) {
+            userScrolledListRef.current = false;
+            return;
+        }
+        if (isLiveFolder || search.trim()) return;
+        const target = event.currentTarget;
+        const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+        if (remaining < 180) {
+            userScrolledListRef.current = false;
+            loadMoreConversations(target.scrollTop);
+        }
+    };
+
+    const noteUserListScroll = () => {
+        userScrolledListRef.current = true;
+        lastUserScrollGestureAtRef.current = Date.now();
+    };
+
+    useEffect(() => {
+        const refreshIfSafe = () => {
+            if (document.hidden || gentleRefreshInFlightRef.current || loadingMoreRef.current || loading) return;
+            if (search.trim() || conversations?.current_page !== 1 || (conversations?.next_page_url === null && (conversations?.data?.length ?? 0) > 30)) return;
+            if (listScrolledAwayRef.current || userScrolledListRef.current) return;
+
+            gentleRefreshInFlightRef.current = true;
+            router.reload({
+                only: ['conversations', 'liveUsersCount'],
+                preserveScroll: true,
+                preserveState: true,
+                onFinish: () => { gentleRefreshInFlightRef.current = false; },
+            });
+        };
+
+        const onVisible = () => {
+            if (!document.hidden) refreshIfSafe();
+        };
+
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', refreshIfSafe);
+
+        return () => {
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', refreshIfSafe);
+        };
+    }, [loading, search, conversations?.current_page, conversations?.next_page_url, conversations?.data?.length]);
 
     const handleStartChat = (conv) => {
         axios.post(route('client.inbox.open-widget', conv.uuid))
@@ -569,7 +658,13 @@ export default function InboxIndex({ conversations: initialConversations, filter
                     </div>
 
                     {/* List body */}
-                    <div className="flex-1 overflow-y-auto">
+                    <div
+                        className="flex-1 overflow-y-auto"
+                        onWheel={noteUserListScroll}
+                        onTouchMove={noteUserListScroll}
+                        onPointerDown={noteUserListScroll}
+                        onScroll={handleListScroll}
+                    >
                         {loading ? (
                             Array.from({ length: 6 }).map((_, i) => <ConversationSkeleton key={i} />)
                         ) : filtered.length === 0 ? (
@@ -600,6 +695,11 @@ export default function InboxIndex({ conversations: initialConversations, filter
                                     userTz={userTz}
                                 />
                             ))
+                        )}
+                        {!isLiveFolder && !search.trim() && (
+                            <div className="py-3 text-center text-[11px] text-neutral-400">
+                                {loadingMore ? t('common.loading', 'Loading...') : (conversations?.next_page_url ? '' : t('inbox.all_conversations_loaded', 'All conversations loaded'))}
+                            </div>
                         )}
                     </div>
                 </div>
