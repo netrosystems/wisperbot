@@ -90,4 +90,61 @@ describe('Mobile chat reply layout', () => {
         expect(within(filters.parentElement).getByRole('button', { name: 'inbox.new_conversation' })).toHaveClass('h-11', 'w-11');
         expect(container.querySelector('.md\\:w-80')).toHaveClass('flex-1', 'min-w-0');
     });
+
+    it('loads the next inbox page when the conversation list reaches the end', async () => {
+        axios.get.mockResolvedValueOnce({
+            data: {
+                props: {
+                    conversations: {
+                        data: [
+                            {
+                                id: 2,
+                                uuid: 'second-chat',
+                                status: 'open',
+                                unread_count: 0,
+                                contact: { first_name: 'Second', custom_fields: {} },
+                                channel_account: { channel: 'webchat' },
+                                last_message: { body: 'Second page' },
+                            },
+                        ],
+                        total: 2,
+                        next_page_url: null,
+                    },
+                },
+            },
+        });
+
+        render(<InboxIndex
+            conversations={{
+                data: [
+                    {
+                        id: 1,
+                        uuid: 'first-chat',
+                        status: 'open',
+                        unread_count: 0,
+                        contact: { first_name: 'First', custom_fields: {} },
+                        channel_account: { channel: 'webchat' },
+                        last_message: { body: 'First page' },
+                    },
+                ],
+                total: 2,
+                next_page_url: '/page-2',
+            }}
+            filters={{}}
+        />);
+
+        const scrollRegion = screen.getByText('First').closest('.overflow-y-auto');
+        Object.defineProperties(scrollRegion, {
+            scrollHeight: { configurable: true, value: 1000 },
+            scrollTop: { configurable: true, value: 820 },
+            clientHeight: { configurable: true, value: 100 },
+        });
+        fireEvent.wheel(scrollRegion);
+        fireEvent.scroll(scrollRegion);
+
+        await waitFor(() => expect(axios.get).toHaveBeenCalledWith('/page-2', expect.objectContaining({
+            headers: expect.objectContaining({ 'X-Inertia': 'true' }),
+        })));
+        expect(await screen.findByText('Second')).toBeInTheDocument();
+    });
 });

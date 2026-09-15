@@ -54,6 +54,7 @@ journey
 
 #### Capabilities
 - **Unified Conversation Stream (`/app/inbox`)**: Real-time conversation list filtered by folders (`All`, `Mine`, `Unassigned`, `Resolved`, `Snoozed`) and channels (WhatsApp, Instagram, Messenger, Webchat).
+- **All vs Live Visitors**: `All` lists real message-bearing Omni threads across statuses; website visitor sessions that have not sent a message belong only in Live Visitors and must not pollute the normal web or staff-app conversation list/counts.
 - **Join Chat ownership**: Assignment remains routing metadata. One agent atomically joins as the live owner before replying; teammates see ownership in realtime, eligible agents may take over an off-shift owner, and resolve resets ownership without deleting history.
 - **Interactive Chat Interface**:
   - Rich message formatting with image, video, audio, and document attachment previews.
