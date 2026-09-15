@@ -36,7 +36,7 @@ class MessageMediaResolver
                 );
             }
 
-            return redirect($this->browserSafePublicUrl($disk->url($cached), $request));
+            return $this->streamCachedMedia($cached);
         }
 
         if (in_array($message->channel, ['messenger', 'instagram'], true)) {
@@ -51,6 +51,10 @@ class MessageMediaResolver
         $payload = $message->payload ?? [];
         if (! $this->hasResolvableMedia($message, $payload)) {
             return null;
+        }
+
+        if ($this->routeShouldOwnPreview($routeName)) {
+            return $this->routedMediaUrl($message, $routeName);
         }
 
         if (! empty($payload['preview_url'])) {
@@ -165,7 +169,7 @@ class MessageMediaResolver
             'mime_type' => $mimeType,
         ])]);
 
-        return redirect($previewUrl);
+        return $this->streamCachedMedia($filename);
     }
 
     /**
@@ -323,16 +327,17 @@ class MessageMediaResolver
 
     private function routeMediaUrl(string $routeName, Message $message): string
     {
-        $parameters = [
-            'uuid' => $message->conversation->uuid,
-            'message' => $message->id,
-        ];
-
         if ($routeName === 'api.v1.mobile.conversations.messages.media.signed') {
-            return URL::temporarySignedRoute($routeName, now()->addMinutes(30), $parameters);
+            return URL::temporarySignedRoute($routeName, now()->addMinutes(30), [
+                'uuid' => $message->conversation->uuid,
+                'message' => $message->id,
+            ]);
         }
 
-        return route($routeName, $parameters);
+        return route($routeName, [
+            'conversation' => $message->conversation->uuid,
+            'message' => $message->id,
+        ]);
     }
 
     private function applyMediaUrlToPayload(array $payload, string $type, string $mediaUrl, ?string $routeName): array
@@ -340,7 +345,7 @@ class MessageMediaResolver
         $payload['media_url'] = $mediaUrl;
         $payload['attachment_url'] = $mediaUrl;
 
-        if ($routeName === 'api.v1.mobile.conversations.messages.media.signed' && empty($payload['preview_url'])) {
+        if ($this->routeShouldOwnPreview($routeName)) {
             $payload['preview_url'] = $mediaUrl;
 
             if (isset($payload[$type]) && is_array($payload[$type])) {
@@ -350,6 +355,25 @@ class MessageMediaResolver
         }
 
         return $payload;
+    }
+
+    private function routeShouldOwnPreview(?string $routeName): bool
+    {
+        return in_array($routeName, [
+            'api.v1.mobile.conversations.messages.media.signed',
+            'client.inbox.message-media',
+        ], true);
+    }
+
+    private function streamCachedMedia(string $path): Response
+    {
+        $disk = $this->storageManager->disk();
+        $mimeType = $disk->mimeType($path) ?: $this->mimeTypeFromPath($path);
+
+        return response((string) $disk->get($path), 200, [
+            'Content-Type' => $mimeType,
+            'Cache-Control' => 'public, max-age=31536000, immutable',
+        ]);
     }
 
     private function isGenericMediaBody(string $type, string $body): bool

@@ -910,7 +910,7 @@ class InboxController extends Controller
      */
     private function normalisedMessagePayload(Message $message, Request $request): ?array
     {
-        $payload = $this->mediaResolver->augmentPayload($message, $request);
+        $payload = $this->mediaResolver->augmentPayload($message, $request, 'client.inbox.message-media');
 
         if (! $payload) {
             return $payload;
