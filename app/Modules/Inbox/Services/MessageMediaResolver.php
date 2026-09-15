@@ -60,8 +60,7 @@ class MessageMediaResolver
 
         $mediaUrl = $this->mediaUrl($message, $request, $routeName);
         if ($mediaUrl) {
-            $payload['media_url'] = $mediaUrl;
-            $payload['attachment_url'] = $mediaUrl;
+            $payload = $this->applyMediaUrlToPayload($payload, (string) $message->type, $mediaUrl, $routeName);
         }
 
         if (! empty($payload['preview_url'])) {
@@ -80,8 +79,7 @@ class MessageMediaResolver
 
         $mediaUrl = $this->routedMediaUrl($message, $routeName);
         if ($mediaUrl) {
-            $payload['media_url'] = $mediaUrl;
-            $payload['attachment_url'] = $mediaUrl;
+            $payload = $this->applyMediaUrlToPayload($payload, (string) $message->type, $mediaUrl, $routeName);
         }
 
         return $payload;
@@ -203,6 +201,23 @@ class MessageMediaResolver
         }
 
         return route($routeName, $parameters);
+    }
+
+    private function applyMediaUrlToPayload(array $payload, string $type, string $mediaUrl, ?string $routeName): array
+    {
+        $payload['media_url'] = $mediaUrl;
+        $payload['attachment_url'] = $mediaUrl;
+
+        if ($routeName === 'api.v1.mobile.conversations.messages.media.signed' && empty($payload['preview_url'])) {
+            $payload['preview_url'] = $mediaUrl;
+
+            if (isset($payload[$type]) && is_array($payload[$type])) {
+                $payload[$type]['url'] = $mediaUrl;
+                $payload[$type]['preview_url'] = $mediaUrl;
+            }
+        }
+
+        return $payload;
     }
 
     private function metaRemoteUrl(array $payload, string $type): ?string
