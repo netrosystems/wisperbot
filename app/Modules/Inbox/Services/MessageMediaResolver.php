@@ -22,7 +22,7 @@ class MessageMediaResolver
     {
         $payload = $message->payload ?? [];
         $type = (string) ($message->type ?? 'image');
-        $cached = $this->cachedPath($message);
+        $cached = $this->cachedPath($message, $payload);
         $disk = $this->storageManager->disk();
 
         if ($cached && $disk->exists($cached)) {
@@ -36,7 +36,10 @@ class MessageMediaResolver
                 );
             }
 
-            return $this->streamCachedMedia($cached);
+            return $this->streamCachedMedia(
+                $cached,
+                $payload['mime_type'] ?? $payload[$type]['mime_type'] ?? null,
+            );
         }
 
         if (in_array($message->channel, ['messenger', 'instagram'], true)) {
@@ -169,7 +172,7 @@ class MessageMediaResolver
             'mime_type' => $mimeType,
         ])]);
 
-        return $this->streamCachedMedia($filename);
+        return $this->streamCachedMedia($filename, $mimeType);
     }
 
     /**
@@ -278,9 +281,15 @@ class MessageMediaResolver
         };
     }
 
-    private function cachedPath(Message $message): ?string
+    private function cachedPath(Message $message, array $payload = []): ?string
     {
         $disk = $this->storageManager->disk();
+
+        $storedPath = $payload['path'] ?? $payload[(string) $message->type]['path'] ?? null;
+        if (is_string($storedPath) && $storedPath !== '' && $disk->exists($storedPath)) {
+            return $storedPath;
+        }
+
         $prefix = $this->storageManager->prefixedPath("message-media/{$message->id}");
         $files = $disk->files($this->storageManager->prefixedPath('message-media'));
 
@@ -347,10 +356,13 @@ class MessageMediaResolver
 
         if ($this->routeShouldOwnPreview($routeName)) {
             $payload['preview_url'] = $mediaUrl;
+            $payload['url'] = $mediaUrl;
+            $payload['link'] = $mediaUrl;
 
             if (isset($payload[$type]) && is_array($payload[$type])) {
                 $payload[$type]['url'] = $mediaUrl;
                 $payload[$type]['preview_url'] = $mediaUrl;
+                $payload[$type]['link'] = $mediaUrl;
             }
         }
 
@@ -360,15 +372,16 @@ class MessageMediaResolver
     private function routeShouldOwnPreview(?string $routeName): bool
     {
         return in_array($routeName, [
+            'api.v1.mobile.conversations.messages.media',
             'api.v1.mobile.conversations.messages.media.signed',
             'client.inbox.message-media',
         ], true);
     }
 
-    private function streamCachedMedia(string $path): Response
+    private function streamCachedMedia(string $path, ?string $mimeType = null): Response
     {
         $disk = $this->storageManager->disk();
-        $mimeType = $disk->mimeType($path) ?: $this->mimeTypeFromPath($path);
+        $mimeType = $mimeType ?: ($disk->mimeType($path) ?: $this->mimeTypeFromPath($path));
 
         return response((string) $disk->get($path), 200, [
             'Content-Type' => $mimeType,
