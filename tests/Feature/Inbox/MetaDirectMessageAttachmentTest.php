@@ -69,6 +69,10 @@ class MetaDirectMessageAttachmentTest extends TestCase
         $this->assertIsString($mediaUrl);
         $this->assertStringContainsString("/api/v1/mobile/conversations/{$conversation->uuid}/messages/{$message->id}/media/signed", $mediaUrl);
         $this->assertStringContainsString('signature=', $mediaUrl);
+        $this->assertSame($mediaUrl, $response->json('messages.0.payload.preview_url'));
+        $this->assertSame($mediaUrl, $response->json('messages.0.payload.attachment_url'));
+        $this->assertSame($mediaUrl, $response->json('messages.0.payload.image.url'));
+        $this->assertSame($mediaUrl, $response->json('messages.0.payload.image.preview_url'));
 
         $uri = (string) parse_url($mediaUrl, PHP_URL_PATH).'?'.(string) parse_url($mediaUrl, PHP_URL_QUERY);
         $this->get($uri)->assertRedirect();
