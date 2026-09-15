@@ -84,11 +84,8 @@ class MetaMessageAttachmentNormalizer
     private function fallbackBody(string $type, ?string $filename): string
     {
         return match ($type) {
-            'image' => 'Image',
-            'video' => 'Video',
-            'audio' => 'Audio',
+            'image', 'video', 'audio', 'sticker' => '',
             'document' => $filename ?: 'Document',
-            'sticker' => 'Sticker',
             default => 'Unsupported attachment',
         };
     }
