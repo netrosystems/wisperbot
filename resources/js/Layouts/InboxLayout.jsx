@@ -1,4 +1,4 @@
-import { router, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toaster, toast } from 'sonner';
@@ -7,7 +7,7 @@ import UpgradeModal from '@/Components/UpgradeModal';
 import useClientNav from '@/Layouts/useClientNav';
 import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
 
-export default function InboxLayout({ children }) {
+export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
     const { t } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, branding, demo_mode, currentWorkspace } = usePage().props;
@@ -47,7 +47,7 @@ export default function InboxLayout({ children }) {
     };
 
     return (
-        <div className="h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-950 flex flex-col">
+        <div style={{ height: '100dvh' }} className="h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-950 flex flex-col">
             {impersonation?.active && (
                 <div className="flex items-center justify-between gap-4 bg-amber-500/90 text-white px-4 py-2 text-sm font-medium shrink-0">
                     <span>{t('impersonation.impersonating', { name: impersonation.clientName })}</span>
@@ -57,7 +57,7 @@ export default function InboxLayout({ children }) {
                 </div>
             )}
 
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
                 <Sidebar
                     scrollKey="client"
                     open={sidebarOpen}
@@ -75,7 +75,28 @@ export default function InboxLayout({ children }) {
                     }))}
                 />
 
-                <div className="lg:pl-64 rtl:lg:pl-0 rtl:lg:pr-64 flex-1 overflow-hidden flex flex-col">
+                <div className="lg:pl-64 rtl:lg:pl-0 rtl:lg:pr-64 min-h-0 min-w-0 flex-1 overflow-hidden flex flex-col">
+                    <header className="flex shrink-0 items-center gap-2 border-b border-neutral-200 bg-white px-2 py-1 dark:border-neutral-800 dark:bg-neutral-900 lg:hidden">
+                        <button
+                            type="button"
+                            onClick={() => setSidebarOpen(true)}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-neutral-600 transition hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                            aria-label={t('open_menu')}
+                            aria-expanded={sidebarOpen}
+                        >
+                            <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                        </button>
+                        {mobileBackHref ? (
+                            <Link href={mobileBackHref} className="flex min-h-11 min-w-0 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:text-neutral-100">
+                                <svg aria-hidden="true" className="h-4 w-4 shrink-0 rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m15 18-6-6 6-6" />
+                                </svg>
+                                <span className="truncate">{mobileTitle || t('inbox.title')}</span>
+                            </Link>
+                        ) : <span className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">{mobileTitle || t('inbox.title')}</span>}
+                    </header>
                     {children}
                 </div>
             </div>
@@ -86,18 +107,6 @@ export default function InboxLayout({ children }) {
                     <span>{t('demo.banner') || 'Demo mode: changes are disabled.'}</span>
                 </div>
             )}
-
-            {/* Mobile menu button */}
-            <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="fixed bottom-4 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-soft-lg bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 shadow-lg text-neutral-600 hover:bg-neutral-50 dark:text-neutral-400 dark:hover:bg-neutral-800 lg:hidden rtl:right-auto rtl:left-4"
-                aria-label={t('open_menu')}
-            >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-            </button>
 
             <UpgradeModal />
             <Toaster richColors position="top-right" />

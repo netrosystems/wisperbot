@@ -473,15 +473,36 @@ export default function InboxIndex({ conversations: initialConversations, filter
         : conversations.data;
 
     const activeFolder = FOLDERS.find(f => (f.key ?? null) === (filters.folder ?? null));
+    const filterNavigation = (
+        <FilterSidebar
+            filters={filters}
+            labels={labels}
+            channelAccounts={channelAccounts}
+            onFolder={handleFolder}
+            onChannel={handleChannel}
+            onAccount={handleAccount}
+            onLabel={handleLabel}
+            liveUsersCount={liveUsersCount}
+        />
+    );
 
     return (
         <InboxLayout>
             <Head title={t('inbox.title')} />
             {showNewModal && <NewConversationModal onClose={() => setShowNewModal(false)} />}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex shrink-0 items-start border-b border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900 md:hidden">
+                <details className="min-w-0 max-h-[40dvh] flex-1 overflow-y-auto">
+                    <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 dark:text-neutral-200">{t('common.filter')}</summary>
+                    {filterNavigation}
+                </details>
+                <button type="button" onClick={() => setShowNewModal(true)} aria-label={t('inbox.new_conversation')} className="mr-2 rtl:mr-0 rtl:ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:bg-brand-900/20">
+                    <Plus aria-hidden="true" className="h-5 w-5" />
+                </button>
+            </div>
+            <div className="flex min-h-0 flex-1 overflow-hidden">
 
                 {/* Filter sidebar */}
-                <aside className="w-48 shrink-0 border-r border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col overflow-hidden">
+                <aside className="hidden w-48 shrink-0 border-r border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 md:flex flex-col overflow-hidden">
                     <div className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-1">
                         <p className="text-sm font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                             <Inbox className="h-4 w-4 text-brand-600" />
@@ -495,20 +516,11 @@ export default function InboxIndex({ conversations: initialConversations, filter
                             <Plus className="h-4 w-4" />
                         </button>
                     </div>
-                    <FilterSidebar
-                        filters={filters}
-                        labels={labels}
-                        channelAccounts={channelAccounts}
-                        onFolder={handleFolder}
-                        onChannel={handleChannel}
-                        onAccount={handleAccount}
-                        onLabel={handleLabel}
-                        liveUsersCount={liveUsersCount}
-                    />
+                    {filterNavigation}
                 </aside>
 
                 {/* Conversation / Visitor list */}
-                <div className="w-80 shrink-0 border-r border-neutral-200 dark:border-neutral-700 flex flex-col bg-white dark:bg-neutral-900">
+                <div className="min-w-0 flex-1 md:w-80 md:flex-none shrink-0 border-r border-neutral-200 dark:border-neutral-700 flex flex-col bg-white dark:bg-neutral-900">
                     {/* List header */}
                     <div className="px-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800 space-y-2">
                         <div className="flex items-center justify-between">
@@ -593,6 +605,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
                 </div>
 
                 {/* Main pane: World Map in Live Users mode, Empty state otherwise */}
+                <div className="hidden min-w-0 flex-1 md:flex">
                 {isLiveFolder ? (
                     <LiveVisitorsMap
                         visitors={conversations.data}
@@ -611,6 +624,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
                         </div>
                     </div>
                 )}
+                </div>
             </div>
         </InboxLayout>
     );

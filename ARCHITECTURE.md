@@ -64,6 +64,7 @@ flowchart TD
 1. **Strict Dual Authentication Boundaries**: 
    - Browser web sessions use Laravel session cookies with CSRF token verification.
    - Mobile apps and external developer APIs use Laravel Sanctum Bearer tokens.
+- Dedicated mobile routes, authenticated `/api/v1/auth/*`, and `/api/v1/broadcasting/auth` use the isolated `mobile-api` limiter (300 requests/minute/user by default; `MOBILE_API_RATE_LIMIT_PER_MINUTE`). Generic/developer routes retain the upstream `api` allowance of 120/minute/user. Explicit action-specific and login limits remain independent.
 2. **Encrypted Credentials**: External API keys, OAuth refresh tokens, and provider secrets are encrypted in the database (`Crypt::encryptString`) and never returned unmasked to the browser.
 3. **Public Widget Isolation**: Visitor conversations from `/widget/v1/*` are pinned to a unique session token. Unsigned identities remain anonymous; signed identities require server-side HMAC validation (`hash_hmac`).
 4. **Scheduled Widget AI**: `chat_widgets.ai_schedule_json` stores Permanent or Scheduled active hours, an IANA timezone, and up to three split/overnight windows per day. `ChatWidget::shouldAiAnswerNow()` is the single runtime decision used by inbound webchat generation, public configuration, and handoff payloads. Legacy inside/outside schedules remain readable and convert to equivalent active windows when saved. Invalid enabled schedules fail closed; other channels and deterministic auto-reply rules remain independent.

@@ -42,7 +42,7 @@ Route::prefix('v1/auth')->middleware(['throttle:mobile-login'])->group(function 
     Route::post('/login', [MobileAuthController::class, 'login']);
 });
 
-Route::prefix('v1/auth')->middleware(['auth:sanctum', 'throttle:api'])->group(function () {
+Route::prefix('v1/auth')->middleware(['auth:sanctum', 'throttle:mobile-api'])->group(function () {
     Route::post('/logout', [MobileAuthController::class, 'logout']);
     Route::get('/me', [MobileAuthController::class, 'me']);
     Route::post('/profile', [MobileAuthController::class, 'updateProfile'])->middleware('demo');
@@ -55,7 +55,7 @@ Route::prefix('v1/auth')->middleware(['auth:sanctum', 'throttle:api'])->group(fu
 // callbacks registered in BroadcastChannelsServiceProvider, so a token can
 // authorize only workspaces and conversations its user can access.
 Route::post('v1/broadcasting/auth', [BroadcastController::class, 'authenticate'])
-    ->middleware(['auth:sanctum', 'throttle:api'])
+    ->middleware(['auth:sanctum', 'throttle:mobile-api'])
     ->name('api.v1.broadcasting.auth');
 
 Route::get('v1/mobile/conversations/{uuid}/messages/{message}/media/signed', [MobileConversationController::class, 'signedMedia'])
@@ -65,7 +65,7 @@ Route::get('v1/mobile/conversations/{uuid}/messages/{message}/media/signed', [Mo
 // ─── Mobile Inbox API (agent-facing: full conversation + inbox actions) ───────
 // `demo` blocks writes (POST/PATCH/DELETE) in demo mode while GET reads pass,
 // keeping the mobile app a consistent read-only showcase like the web app.
-Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 'throttle:api', 'demo'])->group(function () {
+Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 'throttle:mobile-api', 'demo'])->group(function () {
     Route::prefix('social/comments')->group(function () {
         $controller = SocialCommentController::class;
         Route::get('/', [$controller, 'index']);

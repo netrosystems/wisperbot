@@ -91,11 +91,12 @@ Brand Orange:    #FF762E   Accent Amber:   #FFBF00   Highlight:    #FFF78D   Cor
 
 ### 4.2 Viewport-Pinned Layout (`InboxLayout`)
 - **Used For**: Omni-Channel Inbox and Master Email Inbox.
-- **Structure**: `h-screen` pinned column flexbox layout.
+- **Structure**: viewport-pinned column flexbox (`100dvh`, with `h-screen` fallback), with `min-h-0` flex children so the message stream scrolls rather than pushing the composer below the viewport.
   - Left: 3-column navigation / conversation list.
   - Center: Scrollable real-time message stream with sticky bottom composer.
   - Right: Collapsible contact info and contextual CRM details panel.
   - Prevents outer browser scrollbars, maximizing agent efficiency.
+  - Mobile navigation belongs in a compact, normal-flow top bar with a minimum 44px menu touch target; never float the menu over the reply composer. Chat detail hides desktop filter/list columns below `lg` and provides a top-bar return link. The Omni list fills narrow screens, with filters in a collapsed disclosure and desktop-only map/empty pane.
 
 ### 4.3 Infinite Canvas Layout (`AutomationBuilder`)
 - **Used For**: XYFlow Visual Workflow Automation Engine.
