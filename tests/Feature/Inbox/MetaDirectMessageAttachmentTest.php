@@ -61,8 +61,11 @@ class MetaDirectMessageAttachmentTest extends TestCase
         $this->assertSame('image', $message->type);
         $this->assertSame('Here is the photo', $message->body);
         $this->assertSame('https://lookaside.fbsbx.com/image.jpg', $message->payload['image']['url']);
+        $storedPath = app(StorageManager::class)->prefixedPath('message-media/7XLJwoyLaYMWc9E0w32TlCvKVtcU52VcAcCMDE9y.jpg');
+        app(StorageManager::class)->disk()->put($storedPath, 'fake-local-image-bytes');
         $message->update([
             'payload' => array_merge($message->payload, [
+                'path' => $storedPath,
                 'preview_url' => 'https://wisperbot.com/message-media/broken-public-preview.jpg',
             ]),
         ]);
@@ -83,7 +86,10 @@ class MetaDirectMessageAttachmentTest extends TestCase
         $this->assertSame($mediaUrl, $response->json('messages.0.payload.image.preview_url'));
 
         $uri = (string) parse_url($mediaUrl, PHP_URL_PATH).'?'.(string) parse_url($mediaUrl, PHP_URL_QUERY);
-        $this->get($uri)->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+        $this->get($uri)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg')
+            ->assertSee('fake-local-image-bytes', false);
         $this->assertNotEmpty($message->fresh()->payload['preview_url'] ?? null);
     }
 
