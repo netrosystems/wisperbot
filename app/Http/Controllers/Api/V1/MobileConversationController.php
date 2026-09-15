@@ -828,7 +828,7 @@ class MobileConversationController extends WorkspaceScopedController
 
     private function safeMessagePayload(Message $message): ?array
     {
-        $payload = $this->mediaResolver->augmentPayload($message, request(), 'api.v1.mobile.conversations.messages.media');
+        $payload = $this->mediaResolver->augmentPayload($message, request(), 'api.v1.mobile.conversations.messages.media.signed');
 
         if (! $payload) {
             return $payload;
