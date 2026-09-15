@@ -6,6 +6,7 @@ use App\Services\StorageManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
 
 class AttachmentService
 {
@@ -131,17 +132,22 @@ class AttachmentService
     }
 
     /**
-     * Attempt converting a HEIC file to JPEG using Imagick.
+     * Attempt converting a HEIC file to JPEG using Imagick or a server binary.
      * Returns the temporary JPEG file path on success, or null on failure.
      */
     public function attemptHeicConversion(string $sourcePath, int $quality = 90): ?string
     {
-        if (! class_exists('\Imagick')) {
-            Log::info('AttachmentService: Imagick extension not installed; skipping HEIC auto-conversion.');
+        return $this->attemptImagickConversion($sourcePath, $quality)
+            ?? $this->attemptCommandConversion($sourcePath, $quality);
+    }
 
+    private function attemptImagickConversion(string $sourcePath, int $quality): ?string
+    {
+        if (! class_exists('\Imagick')) {
             return null;
         }
 
+        $tempPath = $this->temporaryJpegPath('heic_conv_');
         try {
             /** @phpstan-ignore-next-line */
             $imagick = new \Imagick;
@@ -154,17 +160,80 @@ class AttachmentService
                 $imagick->autoOrient();
             }
 
-            $tempPath = tempnam(sys_get_temp_dir(), 'heic_conv_').'.jpg';
             $imagick->writeImage($tempPath);
             $imagick->clear();
             $imagick->destroy();
 
-            return $tempPath;
+            return $this->validConvertedImage($tempPath) ? $tempPath : null;
         } catch (\Throwable $e) {
             Log::warning('AttachmentService: Could not convert HEIC image to JPEG: '.$e->getMessage());
+            @unlink($tempPath);
 
             return null;
         }
+    }
+
+    private function attemptCommandConversion(string $sourcePath, int $quality): ?string
+    {
+        foreach ($this->conversionCommands($sourcePath, $quality) as [$name, $command, $target]) {
+            try {
+                $process = new Process($command);
+                $process->setTimeout(60);
+                $process->run();
+
+                if ($process->isSuccessful() && $this->validConvertedImage($target)) {
+                    return $target;
+                }
+
+                @unlink($target);
+            } catch (\Throwable $e) {
+                @unlink($target);
+                Log::debug('AttachmentService: HEIC converter unavailable.', [
+                    'converter' => $name,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::warning('AttachmentService: No available HEIC converter produced a JPEG preview.');
+
+        return null;
+    }
+
+    /**
+     * @return array<int, array{0:string, 1:array<int, string>, 2:string}>
+     */
+    private function conversionCommands(string $sourcePath, int $quality): array
+    {
+        $quality = (string) max(1, min(100, $quality));
+        $magickTarget = $this->temporaryJpegPath('heic_magick_');
+        $convertTarget = $this->temporaryJpegPath('heic_convert_');
+        $heifTarget = $this->temporaryJpegPath('heic_heif_');
+        $ffmpegTarget = $this->temporaryJpegPath('heic_ffmpeg_');
+
+        return [
+            ['magick', ['magick', $sourcePath, '-auto-orient', '-strip', '-quality', $quality, $magickTarget], $magickTarget],
+            ['convert', ['convert', $sourcePath, '-auto-orient', '-strip', '-quality', $quality, $convertTarget], $convertTarget],
+            ['heif-convert', ['heif-convert', '-q', $quality, $sourcePath, $heifTarget], $heifTarget],
+            ['ffmpeg', ['ffmpeg', '-y', '-i', $sourcePath, '-frames:v', '1', $ffmpegTarget], $ffmpegTarget],
+        ];
+    }
+
+    private function validConvertedImage(string $path): bool
+    {
+        return is_file($path) && filesize($path) > 0;
+    }
+
+    private function temporaryJpegPath(string $prefix): string
+    {
+        $base = tempnam(sys_get_temp_dir(), $prefix);
+        if (! $base) {
+            return sys_get_temp_dir().DIRECTORY_SEPARATOR.$prefix.Str::uuid().'.jpg';
+        }
+
+        @unlink($base);
+
+        return $base.'.jpg';
     }
 
     /**

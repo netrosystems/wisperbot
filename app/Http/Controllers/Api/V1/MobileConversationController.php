@@ -817,7 +817,7 @@ class MobileConversationController extends WorkspaceScopedController
             'direction' => $m->direction,
             'channel' => $m->channel,
             'type' => $m->type,
-            'body' => Demo::text($m->body),
+            'body' => Demo::text($this->mediaResolver->displayBody($m)),
             'payload' => $this->safeMessagePayload($m),
             'status' => $m->status,
             'sent_by' => $m->sent_by,

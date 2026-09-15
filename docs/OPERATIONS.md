@@ -104,6 +104,8 @@ On memory-constrained cPanel hosting, build locally from the exact deployed `mai
 
 Laravel validation, PHP `upload_max_filesize`, PHP `post_max_size`, web-server/proxy limits, and the actual web SAPI must all permit the advertised size. CLI output alone does not prove the web runtime's limit. Temporary diagnostic PHP files must be removed immediately after checking.
 
+HEIC/HEIF photos are accepted from staff uploads, the website widget, WhatsApp, Messenger, and Instagram, then converted to JPEG on the server before being cached for web/mobile display. Production must have at least one converter available to the PHP web runtime: PHP Imagick with HEIC/HEIF delegate support, ImageMagick `magick`/`convert`, `heif-convert`, or `ffmpeg`. Restart PHP-FPM/Apache after installing converter packages and verify using the web runtime, not only CLI.
+
 ## Health and verification
 
 - `/up` — Laravel health.
