@@ -61,7 +61,7 @@ Meta renames/deprecates products and permissions. Confirm the current names in M
 - Messenger/Instagram: `/webhooks/meta/{token}`.
 - Controller verification and inbound idempotency are mandatory.
 - Messenger/Instagram processing is dispatched on `whatsapp`; keep that worker active.
-- Messenger/Instagram private-message attachments must be normalized into typed inbox messages (`image`, `video`, `audio`, `document`, or `sticker`) instead of text-only payloads. Meta attachment URLs are treated as temporary provider URLs; web and mobile clients use WisperBot-authorized message media endpoints to download/cache them in `message-media`.
+- Messenger/Instagram private-message attachments must be normalized into typed inbox messages (`image`, `video`, `audio`, `document`, or `sticker`) instead of text-only payloads. Meta attachment URLs are treated as temporary provider URLs; web clients use the authenticated inbox media endpoint, while mobile payloads use short-lived signed media URLs so native image/video views can lazy-download/cache files in `message-media` without custom authorization headers.
 
 ### WhatsApp Embedded Signup modes
 
