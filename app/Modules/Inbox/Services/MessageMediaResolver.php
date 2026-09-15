@@ -336,11 +336,20 @@ class MessageMediaResolver
 
     private function routeMediaUrl(string $routeName, Message $message): string
     {
-        if ($routeName === 'api.v1.mobile.conversations.messages.media.signed') {
-            return URL::temporarySignedRoute($routeName, now()->addMinutes(30), [
+        if (in_array($routeName, [
+            'api.v1.mobile.conversations.messages.media',
+            'api.v1.mobile.conversations.messages.media.signed',
+        ], true)) {
+            $parameters = [
                 'uuid' => $message->conversation->uuid,
                 'message' => $message->id,
-            ]);
+            ];
+
+            if ($routeName === 'api.v1.mobile.conversations.messages.media.signed') {
+                return URL::temporarySignedRoute($routeName, now()->addMinutes(30), $parameters);
+            }
+
+            return route($routeName, $parameters);
         }
 
         return route($routeName, [
