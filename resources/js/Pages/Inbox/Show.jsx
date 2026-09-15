@@ -1551,7 +1551,8 @@ export default function InboxShow({
     liveUsersCount = 0,
 }) {
     const { t } = useTranslation();
-    const { props } = usePage();
+    const page = usePage();
+    const { props, version } = page;
     const flash = props.flash ?? {};
     const authUser = props.auth?.user;
     const userTz = props.timezone || 'Asia/Dhaka';
@@ -1582,9 +1583,16 @@ export default function InboxShow({
     const [conversations, setConversations] = useState(initialConversations);
     const [listSearch, setListSearch]       = useState('');
     const [listLoading, setListLoading]     = useState(false);
+    const [listLoadingMore, setListLoadingMore] = useState(false);
     const [showNewModal, setShowNewModal]   = useState(false);
     const [sending, setSending]             = useState(false);
     const [sendError, setSendError]         = useState(null);
+    const listLoadingMoreRef = useRef(false);
+    const lastListLoadScrollTopRef = useRef(-1);
+    const userScrolledListRef = useRef(false);
+    const lastUserScrollGestureAtRef = useRef(0);
+    const listScrolledAwayRef = useRef(false);
+    const gentleRefreshInFlightRef = useRef(false);
 
     // When Inertia navigates between conversations the page component is
     // re-used, so seed local state from the new server props on conversation
@@ -1607,6 +1615,11 @@ export default function InboxShow({
     useEffect(() => {
         setConversations(initialConversations);
         setListLoading(false);
+        setListLoadingMore(false);
+        listLoadingMoreRef.current = false;
+        lastListLoadScrollTopRef.current = -1;
+        userScrolledListRef.current = false;
+        lastUserScrollGestureAtRef.current = 0;
     }, [initialConversations]);
 
     // Toolbar state
@@ -1875,26 +1888,6 @@ export default function InboxShow({
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);
 
-    useEffect(() => {
-        let refreshing = false;
-        const refreshList = () => {
-            if (document.hidden || refreshing) return;
-            refreshing = true;
-            router.reload({
-                only: ['conversations'],
-                preserveScroll: true,
-                preserveState: true,
-                onFinish: () => { refreshing = false; },
-            });
-        };
-        const timer = window.setInterval(refreshList, 6000);
-        document.addEventListener('visibilitychange', refreshList);
-        return () => {
-            window.clearInterval(timer);
-            document.removeEventListener('visibilitychange', refreshList);
-        };
-    }, []);
-
     const typingTimer = useRef(null);
     const typingActive = useRef(false);
     const typingLastSentAt = useRef(0);
@@ -2151,6 +2144,102 @@ export default function InboxShow({
         router.get(route('client.inbox.show', conversation.uuid), { ...filters, ...params }, { preserveState: true, replace: true });
     };
 
+    const loadMoreConversations = (scrollTop = null) => {
+        if (listLoadingMoreRef.current || listLoading || listSearch.trim() || !conversations?.next_page_url) return;
+        if (scrollTop !== null && scrollTop <= lastListLoadScrollTopRef.current + 24) return;
+
+        listLoadingMoreRef.current = true;
+        if (scrollTop !== null) {
+            lastListLoadScrollTopRef.current = scrollTop;
+        }
+        setListLoadingMore(true);
+        const headers = {
+            Accept: 'application/json',
+            'X-Inertia': 'true',
+            'X-Requested-With': 'XMLHttpRequest',
+        };
+        if (version) {
+            headers['X-Inertia-Version'] = version;
+        }
+
+        axios.get(conversations.next_page_url, {
+            headers,
+        })
+            .then(response => {
+                const next = response.data?.props?.conversations;
+                if (!next?.data) return;
+
+                setConversations(prev => {
+                    const seen = new Set((prev?.data ?? []).map(item => item.id));
+                    const appended = next.data.filter(item => !seen.has(item.id));
+
+                    return {
+                        ...next,
+                        data: [...(prev?.data ?? []), ...appended],
+                    };
+                });
+            })
+            .catch(() => {
+                if (scrollTop !== null) {
+                    lastListLoadScrollTopRef.current = Math.max(-1, scrollTop - 25);
+                }
+            })
+            .finally(() => {
+                listLoadingMoreRef.current = false;
+                setListLoadingMore(false);
+            });
+    };
+
+    const handleListScroll = (event) => {
+        listScrolledAwayRef.current = event.currentTarget.scrollTop > 40;
+        const hasRecentUserScroll = userScrolledListRef.current
+            && Date.now() - lastUserScrollGestureAtRef.current < 1200;
+        if (!hasRecentUserScroll) {
+            userScrolledListRef.current = false;
+            return;
+        }
+        if (emailOnly || listSearch.trim()) return;
+        const target = event.currentTarget;
+        const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+        if (remaining < 180) {
+            userScrolledListRef.current = false;
+            loadMoreConversations(target.scrollTop);
+        }
+    };
+
+    const noteUserListScroll = () => {
+        userScrolledListRef.current = true;
+        lastUserScrollGestureAtRef.current = Date.now();
+    };
+
+    useEffect(() => {
+        const refreshIfSafe = () => {
+            if (emailOnly || document.hidden || gentleRefreshInFlightRef.current || listLoadingMoreRef.current || listLoading) return;
+            if (listSearch.trim() || conversations?.current_page !== 1 || (conversations?.next_page_url === null && (conversations?.data?.length ?? 0) > 30)) return;
+            if (listScrolledAwayRef.current || userScrolledListRef.current) return;
+
+            gentleRefreshInFlightRef.current = true;
+            router.reload({
+                only: ['conversations'],
+                preserveScroll: true,
+                preserveState: true,
+                onFinish: () => { gentleRefreshInFlightRef.current = false; },
+            });
+        };
+
+        const onVisible = () => {
+            if (!document.hidden) refreshIfSafe();
+        };
+
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', refreshIfSafe);
+
+        return () => {
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', refreshIfSafe);
+        };
+    }, [emailOnly, listLoading, listSearch, conversations?.current_page, conversations?.next_page_url, conversations?.data?.length]);
+
     const otherViewers = viewers.filter(v => v.id !== authUser?.id);
     const filteredList = listSearch.trim() && conversations?.data
         ? conversations.data.filter(c => {
@@ -2257,7 +2346,13 @@ export default function InboxShow({
                             />
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto">
+                    <div
+                        className="flex-1 overflow-y-auto"
+                        onWheel={noteUserListScroll}
+                        onTouchMove={noteUserListScroll}
+                        onPointerDown={noteUserListScroll}
+                        onScroll={handleListScroll}
+                    >
                         {filteredList.length === 0 ? (
                             <div className="py-10 px-4">
                                 <EmptyState icon={<Inbox className="h-7 w-7" />} title={t('inbox.no_conversations')} description={t('inbox.no_conversations_match')} />
@@ -2265,6 +2360,11 @@ export default function InboxShow({
                         ) : filteredList.map(conv => (
                             <ConversationCard key={conv.id} conv={conv} isActive={conv.uuid === conversation.uuid} userTz={userTz} filters={filters} />
                         ))}
+                        {!emailOnly && !listSearch.trim() && (
+                            <div className="py-3 text-center text-[11px] text-neutral-400">
+                                {listLoadingMore ? t('common.loading', 'Loading...') : (conversations?.next_page_url ? '' : t('inbox.all_conversations_loaded', 'All conversations loaded'))}
+                            </div>
+                        )}
                     </div>
                 </div>
 

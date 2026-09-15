@@ -94,6 +94,7 @@ class MobileInboxController extends WorkspaceScopedController
 
         $openQuery = Conversation::where('workspace_id', $wsId)
             ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
+            ->whereHas('messages')
             ->where('status', 'open');
 
         return response()->json([
@@ -107,6 +108,7 @@ class MobileInboxController extends WorkspaceScopedController
                 ->count('contact_id'),
             'unread' => Conversation::where('workspace_id', $wsId)
                 ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
+                ->whereHas('messages')
                 ->where('unread_count', '>', 0)
                 ->count(),
         ]);
