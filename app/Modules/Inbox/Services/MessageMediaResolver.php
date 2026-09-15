@@ -7,6 +7,7 @@ use App\Modules\Whatsapp\Services\CloudApiClient;
 use App\Services\StorageManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\URL;
 use Symfony\Component\HttpFoundation\Response;
 
 class MessageMediaResolver
@@ -44,10 +45,7 @@ class MessageMediaResolver
         }
 
         if ($routeName && $message->relationLoaded('conversation') && $message->conversation) {
-            return route($routeName, [
-                'uuid' => $message->conversation->uuid,
-                'message' => $message->id,
-            ]);
+            return $this->routeMediaUrl($routeName, $message);
         }
 
         return null;
@@ -94,8 +92,12 @@ class MessageMediaResolver
         $mediaId = $payload[$type]['id'] ?? $payload['media_id'] ?? null;
         abort_if(! $mediaId, 404, 'No media available.');
 
-        $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
-        $client = CloudApiClient::forWorkspace($workspaceId);
+        $workspaceId = $request->user()?->current_workspace_id
+            ?? $request->user()?->workspace_id
+            ?? $message->conversation?->workspace_id;
+        abort_if(! $workspaceId, 503, 'WhatsApp account not configured.');
+
+        $client = CloudApiClient::forWorkspace((int) $workspaceId);
         abort_if(! $client, 503, 'WhatsApp account not configured.');
 
         try {
@@ -186,10 +188,21 @@ class MessageMediaResolver
             return null;
         }
 
-        return route($routeName, [
+        return $this->routeMediaUrl($routeName, $message);
+    }
+
+    private function routeMediaUrl(string $routeName, Message $message): string
+    {
+        $parameters = [
             'uuid' => $message->conversation->uuid,
             'message' => $message->id,
-        ]);
+        ];
+
+        if ($routeName === 'api.v1.mobile.conversations.messages.media.signed') {
+            return URL::temporarySignedRoute($routeName, now()->addMinutes(30), $parameters);
+        }
+
+        return route($routeName, $parameters);
     }
 
     private function metaRemoteUrl(array $payload, string $type): ?string

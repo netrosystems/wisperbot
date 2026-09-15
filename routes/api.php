@@ -58,6 +58,10 @@ Route::post('v1/broadcasting/auth', [BroadcastController::class, 'authenticate']
     ->middleware(['auth:sanctum', 'throttle:api'])
     ->name('api.v1.broadcasting.auth');
 
+Route::get('v1/mobile/conversations/{uuid}/messages/{message}/media/signed', [MobileConversationController::class, 'signedMedia'])
+    ->middleware(['signed', 'throttle:api'])
+    ->name('api.v1.mobile.conversations.messages.media.signed');
+
 // ─── Mobile Inbox API (agent-facing: full conversation + inbox actions) ───────
 // `demo` blocks writes (POST/PATCH/DELETE) in demo mode while GET reads pass,
 // keeping the mobile app a consistent read-only showcase like the web app.
