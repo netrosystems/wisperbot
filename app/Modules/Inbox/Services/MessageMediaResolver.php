@@ -346,7 +346,7 @@ class MessageMediaResolver
             ];
 
             if ($routeName === 'api.v1.mobile.conversations.messages.media.signed') {
-                return URL::temporarySignedRoute($routeName, now()->addMinutes(30), $parameters);
+                return URL::temporarySignedRoute($routeName, now()->addDay()->endOfDay(), $parameters);
             }
 
             return route($routeName, $parameters);
