@@ -740,6 +740,11 @@ class MobileConversationController extends WorkspaceScopedController
         $isWebchat = $c->channelAccount?->channel === 'webchat';
         $isOnline = $isWebchat && $c->webchat_last_seen_at !== null && $c->webchat_last_seen_at->gte(app(WebchatPresence::class)->onlineSince());
 
+        $lastMessage = $c->lastMessage ? $this->formatMessage($c->lastMessage) : null;
+        if ($lastMessage && trim((string) ($lastMessage['body'] ?? '')) === '') {
+            $lastMessage['body'] = $this->messagePreviewLabel($c->lastMessage);
+        }
+
         $data = [
             'id' => $c->id,
             'uuid' => $c->uuid,
@@ -794,7 +799,8 @@ class MobileConversationController extends WorkspaceScopedController
                 'name' => $l->name,
                 'color' => $l->color,
             ])->values(),
-            'last_message' => $c->lastMessage ? $this->formatMessage($c->lastMessage) : null,
+            'latest_message_preview' => $lastMessage['body'] ?? null,
+            'last_message' => $lastMessage,
         ];
 
         if ($detail) {
@@ -824,6 +830,25 @@ class MobileConversationController extends WorkspaceScopedController
             'sent_at' => $m->sent_at?->toIso8601String(),
             'created_at' => $m->created_at->toIso8601String(),
         ];
+    }
+
+    private function messagePreviewLabel(Message $message): string
+    {
+        $payload = $message->payload ?? [];
+        $filename = $payload['filename'] ?? $payload[(string) $message->type]['filename'] ?? null;
+
+        if ($message->type === 'document' && is_string($filename) && trim($filename) !== '') {
+            return trim($filename);
+        }
+
+        return match ($message->type) {
+            'image' => 'Image',
+            'video' => 'Video',
+            'audio' => 'Audio',
+            'sticker' => 'Sticker',
+            'document' => 'Document',
+            default => '',
+        };
     }
 
     private function safeMessagePayload(Message $message): ?array
