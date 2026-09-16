@@ -11,7 +11,7 @@ use Symfony\Component\Process\Process;
 class AttachmentService
 {
     /** Supported MIME types / extensions for messaging attachments */
-    public const ALLOWED_MIMES = 'jpg,jpeg,png,webp,gif,heic,heif,mp3,aac,m4a,amr,ogg,oga,wav,webm,mp4,mov,3gp,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,csv,zip';
+    public const ALLOWED_MIMES = 'jpg,jpeg,png,webp,gif,heic,heif,mp3,aac,m4a,amr,ogg,oga,opus,weba,wav,webm,mp4,mov,3gp,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,csv,zip';
 
     public const MAX_FILE_KILOBYTES = 10240; // 10 MB limit
 
@@ -36,7 +36,10 @@ class AttachmentService
     public function processUpload(UploadedFile $file, string $directory = 'message-media'): array
     {
         $originalName = $file->getClientOriginalName();
-        $rawMime = $file->getMimeType() ?? 'application/octet-stream';
+        $rawMime = $this->normaliseMimeType(
+            $file->getMimeType() ?? 'application/octet-stream',
+            strtolower($file->getClientOriginalExtension() ?: pathinfo($originalName, PATHINFO_EXTENSION)),
+        );
         $extension = strtolower($file->getClientOriginalExtension() ?: pathinfo($originalName, PATHINFO_EXTENSION));
         $sizeBytes = (int) $file->getSize();
 
@@ -242,7 +245,7 @@ class AttachmentService
      */
     public function inferMessageType(string $mimeType, string $extension): string
     {
-        $mime = strtolower($mimeType);
+        $mime = strtolower($this->normaliseMimeType($mimeType, $extension));
         $ext = strtolower($extension);
 
         if (str_starts_with($mime, 'image/') || in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'heic', 'heif'], true)) {
@@ -251,7 +254,7 @@ class AttachmentService
 
         if (str_starts_with($mime, 'audio/')
             || in_array($mime, ['application/ogg'], true)
-            || in_array($ext, ['mp3', 'aac', 'm4a', 'amr', 'ogg', 'oga', 'wav'], true)) {
+            || in_array($ext, ['mp3', 'aac', 'm4a', 'amr', 'ogg', 'oga', 'opus', 'weba', 'wav'], true)) {
             return 'audio';
         }
 
@@ -261,6 +264,27 @@ class AttachmentService
         }
 
         return 'document';
+    }
+
+    private function normaliseMimeType(string $mimeType, string $extension): string
+    {
+        $mime = strtolower(trim(explode(';', $mimeType)[0]));
+        $ext = strtolower($extension);
+
+        if (in_array($mime, ['', 'application/octet-stream', 'video/mp4'], true)) {
+            return match ($ext) {
+                'm4a' => 'audio/mp4',
+                'aac' => 'audio/aac',
+                'mp3' => 'audio/mpeg',
+                'amr' => 'audio/amr',
+                'ogg', 'oga', 'opus' => 'audio/ogg',
+                'weba', 'webm' => 'audio/webm',
+                'wav' => 'audio/wav',
+                default => $mime ?: 'application/octet-stream',
+            };
+        }
+
+        return $mime;
     }
 
     /**
