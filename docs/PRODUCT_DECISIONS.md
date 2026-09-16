@@ -26,7 +26,7 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 - Identity verification uses an HMAC generated server-side from the widget secret. Unsigned/invalid identity falls back to anonymous instead of trusting browser-supplied personal data.
 - Visitor IP may be captured for operational context subject to privacy/legal disclosures.
 - Agent/customer typing indicators and realtime messages should be lightweight and ephemeral.
-- Customer and agent media attachments support images (with automatic HEIC/HEIF to JPEG conversion), recorded audio/voice messages, and business documents (PDF, Word .doc/.docx, Excel .xls/.xlsx, PowerPoint .ppt/.pptx, Text .txt/.csv, and ZIP archives) up to a 10 MB upload limit.
+- Customer and agent media attachments support images (with automatic HEIC/HEIF to JPEG conversion), recorded audio/voice messages, and business documents (PDF, Word .doc/.docx, Excel .xls/.xlsx, PowerPoint .ppt/.pptx, Text .txt/.csv, and ZIP archives) up to a 10 MB upload limit. Widget uploads persist their storage path and the team inbox renders them through the authenticated inbox media proxy; direct public storage URLs are compatibility data, not the only render path.
 - Instagram Direct Messaging (DM) Graph API only supports images, video, and audio; document attachments are explicitly guarded and disabled in the UI and backend validation for Instagram conversations.
 - New agent messages should create sound/unread launcher feedback when the visitor is not actively engaged.
 - When AI is enabled, offer human handoff after two customer turns. Once connected to a human, subsequent messages stop going to AI until handed back.

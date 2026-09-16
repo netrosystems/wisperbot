@@ -290,6 +290,17 @@ class MessageMediaResolver
             return $storedPath;
         }
 
+        $previewPath = $this->storagePathFromPublicUrl(
+            $payload['preview_url']
+                ?? $payload[(string) $message->type]['preview_url']
+                ?? $payload['url']
+                ?? $payload['link']
+                ?? null
+        );
+        if ($previewPath && $disk->exists($previewPath)) {
+            return $previewPath;
+        }
+
         $prefix = $this->storageManager->prefixedPath("message-media/{$message->id}");
         $files = $disk->files($this->storageManager->prefixedPath('message-media'));
 
@@ -310,10 +321,32 @@ class MessageMediaResolver
 
         $type = (string) $message->type;
 
-        return ! empty($payload[$type]['id'])
+        return ! empty($payload['path'])
+            || ! empty($payload[$type]['path'])
+            || ! empty($payload[$type]['id'])
             || ! empty($payload[$type]['url'])
             || ! empty($payload['media_id'])
             || ! empty($payload['_meta_attachment']['url']);
+    }
+
+    private function storagePathFromPublicUrl(mixed $url): ?string
+    {
+        if (! is_string($url) || trim($url) === '') {
+            return null;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        if (! is_string($path) || $path === '') {
+            return null;
+        }
+
+        $path = str_replace('\\', '/', rawurldecode($path));
+        $position = strpos($path, 'message-media/');
+        if ($position === false) {
+            return null;
+        }
+
+        return $this->storageManager->prefixedPath(substr($path, $position));
     }
 
     private function routedMediaUrl(Message $message, ?string $routeName): ?string
