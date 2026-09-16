@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\Inbox\Http\Controllers\InboxSetupController;
 use App\Modules\Integrations\Models\IntegrationConfig;
+use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Social\Models\SocialAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -23,6 +24,7 @@ class SelectedMetaAccountConnectionTest extends TestCase
             'provider' => 'meta_app', 'label' => 'Meta App', 'mode' => 'live', 'enabled' => true,
             'credentials' => ['app_id' => 'test-app', 'app_secret' => 'test-secret'],
         ]);
+        /** @var User $user */
         $user = User::factory()->create();
         $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
         $user->forceFill(['workspace_id' => $workspace->id])->save();
@@ -60,6 +62,7 @@ class SelectedMetaAccountConnectionTest extends TestCase
             ],
         ]);
 
+        /** @var User $user */
         $user = User::factory()->create();
         $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
         $user->forceFill(['workspace_id' => $workspace->id])->save();
@@ -126,5 +129,106 @@ class SelectedMetaAccountConnectionTest extends TestCase
             'account_id' => 'PAGE_NETRO',
         ]);
         $this->assertSame(1, SocialAccount::where('workspace_id', $workspace->id)->count());
+    }
+
+    public function test_instagram_connection_repair_registers_webhook_and_resubscribes_page(): void
+    {
+        $this->withoutMiddleware();
+        config(['app.url' => 'https://wisperbot.test']);
+
+        IntegrationConfig::create([
+            'provider' => 'meta_app',
+            'label' => 'Meta App',
+            'mode' => 'live',
+            'enabled' => true,
+            'credentials' => [
+                'app_id' => 'meta-app-id',
+                'app_secret' => 'meta-app-secret',
+                'verify_token' => 'verify-token',
+            ],
+        ]);
+
+        /** @var User $user */
+        $user = User::factory()->create();
+        $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
+        $user->forceFill(['workspace_id' => $workspace->id])->save();
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'instagram',
+            'provider' => 'meta',
+            'display_name' => 'netrosystems',
+            'credentials' => ['access_token' => 'page-token', 'instagram_account_id' => 'ig-1'],
+            'meta_json' => [
+                'instagram_page_id' => 'ig-1',
+                'instagram_account_id' => 'ig-1',
+                'facebook_page_id' => 'page-1',
+            ],
+            'status' => 'active',
+        ]);
+
+        Http::fake([
+            'https://graph.facebook.com/v25.0/meta-app-id/subscriptions*' => Http::response(['success' => true]),
+            'https://graph.facebook.com/v25.0/page-1/subscribed_apps*' => Http::response(['success' => true]),
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('client.inbox.setup.repair', ['channelAccount' => $account->id]))
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST'
+            && $request->url() === 'https://graph.facebook.com/v25.0/meta-app-id/subscriptions'
+            && $request['object'] === 'instagram'
+            && $request['callback_url'] === 'https://wisperbot.test/webhooks/meta/verify-token'
+            && str_contains((string) $request['fields'], 'messages'));
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST'
+            && $request->url() === 'https://graph.facebook.com/v25.0/page-1/subscribed_apps'
+            && $request->hasHeader('Authorization', 'Bearer page-token')
+            && str_contains((string) $request['subscribed_fields'], 'messages'));
+
+        $this->assertNotNull($account->fresh()->meta_json['webhook_repaired_at'] ?? null);
+    }
+
+    public function test_disconnect_does_not_unsubscribe_shared_meta_page_used_by_messenger(): void
+    {
+        $this->withoutMiddleware();
+
+        /** @var User $user */
+        $user = User::factory()->create();
+        $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
+        $user->forceFill(['workspace_id' => $workspace->id])->save();
+        $instagram = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'instagram',
+            'provider' => 'meta',
+            'display_name' => 'Instagram',
+            'credentials' => ['access_token' => 'instagram-page-token', 'instagram_account_id' => 'ig-1'],
+            'meta_json' => [
+                'instagram_page_id' => 'ig-1',
+                'instagram_account_id' => 'ig-1',
+                'facebook_page_id' => 'page-1',
+            ],
+            'status' => 'active',
+        ]);
+        ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'messenger',
+            'provider' => 'meta',
+            'display_name' => 'Messenger',
+            'credentials' => ['page_access_token' => 'messenger-page-token'],
+            'meta_json' => ['page_id' => 'page-1'],
+            'status' => 'active',
+        ]);
+
+        Http::fake();
+
+        $this->actingAs($user)
+            ->delete(route('client.inbox.setup.destroy', ['channelAccount' => $instagram->id]))
+            ->assertRedirect();
+
+        Http::assertNothingSent();
+        $this->assertDatabaseMissing('channel_accounts', ['id' => $instagram->id]);
+        $this->assertDatabaseHas('channel_accounts', ['workspace_id' => $workspace->id, 'channel' => 'messenger']);
     }
 }
