@@ -4,6 +4,19 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Restored the approved website-widget shell as one consistent implementation: compact white identity header, scheduled teammate stack with `Team available now`, slim peach top-positioned `Talk to an agent` control, outlined reply pills, voice recording, elevated panel shadow, and a shorter peach Powered by footer. Human replies retain joined-teammate identity while Smart Bot replies retain the company mark.
+
+- Added an authoritative Knowledge Base and Smart Bot guide covering business-aware routing, semantic retrieval, grounded clarification, approved-source research, evidence boundaries, credits, customer payloads, teammate identity, feature flags, rollout, and native SDK responsibilities. The documentation index and agent routing rules now require it for future AI/KB work.
+
+- Added client-admin teammate photo upload, preview, replacement, and removal on Team. Website chat now shows scheduled teammates in the header, the actual joined teammate in handoff state, and that teammate's photo on human replies instead of the company mark. Browser realtime and mobile APIs now return resolved avatar URLs through additive compatibility fields. Corrected the multipart Edit member submission so Save sends the update instead of failing in the browser before the request. No database migration or application version bump is required.
+
+- Added experimental semantic Knowledge Base retrieval behind `KB_HYBRID_RETRIEVAL_ENABLED`: current-turn-first vector, wording, and typo matching; grounded clarification for related ambiguity; active-generation filtering; smaller meaning-preserving chunks; safe atomic reindexing; active-first rollout command; richer tester diagnostics; and additive `response_mode` across web/widget/API/mobile-compatible payloads. Migration `2026_09_16_000300_add_index_generations_to_knowledge_base_chunks.php` and a controlled `ai` reindex are required.
+- Hardened Smart Bot buying guidance: headed multi-turn examples now retain their complete intent, lexical/fuzzy evidence cannot be dominated by one common word, capable providers receive a JSON-output constraint, and enabled approved-source research can enrich relevant purchase or fresh-information answers without replacing usable KB evidence.
+
+- Added experimental business-aware Smart Bot routing with zero-credit localized social replies, separate Business only / Verified sources only / General assistant scopes, conservative domain guidance, optional approved-source research with citations, compatible widget/mobile/API metadata, and richer safe diagnostics. The feature defaults off behind `SMART_BOT_BUSINESS_AWARE_ROUTING`; deployment requires its migration, matching frontend assets, cache refresh, and worker restart.
+
+- Added guarded Omni inbox reconciliation so incoming conversations appear within four seconds when local realtime is not configured, while retaining websocket delivery plus a slower recovery reconciliation in configured environments. No migration or mobile API change is required.
+
 - Raised dedicated authenticated mobile API headroom from a shared 60 to an isolated configurable 300 requests/minute/user, including mobile profile and private-channel authorization. Login, generic/developer API, and stricter action-specific limits remain unchanged. Mobile throttling now provides a structured 429 reason and retry delay.
 
 - Moved the mobile inbox menu from a floating composer overlay to a compact top bar shared by Omni chat and Email MasterBox. Mobile chat now uses the full width with a return-to-inbox link, narrow-screen lists retain collapsible filters, and the send button has a 44px touch target. No API changes.
@@ -110,3 +123,8 @@ Earlier feature history is available in Git. Do not reconstruct historical dates
 - Added AI-generated suggested customer reply buttons to the website widget and Smart Bot Playground, with read-only labels in the agent inbox and additive mobile payloads.
 - Added matching Flutter customer SDK decoding, prebuilt buttons and headless selection methods. Existing clients retain text fallback. No SQL migration; SDK and host apps require separate releases.
 - Playground now forwards bounded history for context-aware follow-up choices.
+# 2026-09-16 — Experimental Knowledge Base website normalisation
+
+- Accepted bare domains, `www` addresses, and HTTP-form website inputs through a shared HTTPS-only Knowledge Base resolver used by web, developer API, page extraction, and sitemap discovery.
+- Preserved the customer's submitted address, stored the verified canonical URL, safely selected working apex/`www` variants, detected redirect loops, and upgraded same-site HTTP redirect targets without making insecure requests.
+- Added compact **Connected securely as…** feedback, distinct safe crawler errors, migration-backed URL provenance, and regression coverage including the redirect pattern used by `telzen.net`.

@@ -49,14 +49,40 @@ class WidgetPayloadBuilder
             'file_size' => $message->payload['file_size'] ?? null,
             'resources' => $this->videos->sanitisePublicList($message->payload['resources'] ?? []),
             'quick_replies' => $isAgent ? app(ChatReplyOptions::class)->sanitize($message->payload['quick_replies'] ?? []) : [],
+            'answer_origin' => $isAgent && in_array($message->payload['answer_origin'] ?? null, ['conversation', 'knowledge_base', 'business_guidance', 'trusted_research', 'fallback'], true)
+                ? $message->payload['answer_origin'] : null,
+            'response_mode' => $isAgent && in_array($message->payload['response_mode'] ?? null, ['answer', 'clarification', 'fallback'], true)
+                ? $message->payload['response_mode'] : null,
+            'citations' => $isAgent ? $this->citations($message->payload['citations'] ?? []) : [],
             'display_body' => $isAgent && is_string($message->payload['display_body'] ?? null)
                 ? $message->payload['display_body'] : (string) $message->body,
             'sent_by' => $message->sent_by,
             'agent_name' => $isAgent
                 ? ($message->sender?->name ?: ($widget->agent_name ?: 'Support'))
                 : null,
+            'agent_avatar_url' => $isAgent && $message->sender
+                ? $this->browserSafePublicUrl($message->sender->avatarUrl())
+                : null,
             'created_at' => optional($message->sent_at ?? $message->created_at)->toIso8601String(),
         ];
+    }
+
+    /** @return array<int,array{title:string,url:string}> */
+    private function citations(mixed $citations): array
+    {
+        if (! is_array($citations)) {
+            return [];
+        }
+
+        return collect($citations)->filter(fn ($citation): bool => is_array($citation)
+            && is_string($citation['title'] ?? null)
+            && is_string($citation['url'] ?? null)
+            && str_starts_with(strtolower($citation['url']), 'https://'))
+            ->take(3)
+            ->map(fn (array $citation): array => [
+                'title' => mb_substr(strip_tags($citation['title']), 0, 160),
+                'url' => $citation['url'],
+            ])->values()->all();
     }
 
     /**
@@ -75,7 +101,7 @@ class WidgetPayloadBuilder
             'status' => $joined ? 'connected' : ($waiting ? 'waiting' : 'bot'),
             'agent' => $joined ? [
                 'name' => $joined->name,
-                'avatar_url' => $this->browserSafePublicUrl($joined->avatar),
+                'avatar_url' => $this->browserSafePublicUrl($joined->avatarUrl()),
             ] : null,
             'joined_at' => $joined ? $conversation->joined_at?->toIso8601String() : null,
         ];

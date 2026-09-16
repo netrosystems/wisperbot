@@ -34,6 +34,9 @@ class OpenAiProvider implements LlmProviderInterface
             $payload['max_tokens'] = $opts['max_tokens'] ?? 1024;
             $payload['temperature'] = $opts['temperature'] ?? 0.7;
         }
+        if (($opts['json_object'] ?? false) === true) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
 
         $resp = Http::withHeaders($headers)->retry(2, 500)->timeout(60)->post(self::BASE.'/chat/completions', $payload);
 

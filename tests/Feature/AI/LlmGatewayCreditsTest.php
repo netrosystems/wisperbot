@@ -10,6 +10,9 @@ use App\Modules\AI\Exceptions\AiCreditsException;
 use App\Modules\AI\Exceptions\AiOutputRejectedException;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiCreditLedger;
+use App\Modules\AI\Models\AiKbChunk;
+use App\Modules\AI\Models\AiKbDocument;
+use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Models\AiProviderConfig;
 use App\Modules\AI\Models\AiWorkspaceSetting;
 use App\Modules\AI\Services\ChatbotRunner;
@@ -113,6 +116,90 @@ class LlmGatewayCreditsTest extends TestCase
         $this->assertStringContainsString('1. iOS app', $first['reply']);
         $this->assertSame(1, AiCreditLedger::sole()->credits);
         Http::assertSentCount(1);
+    }
+
+    public function test_grounded_clarification_uses_hybrid_retrieval_and_charges_once(): void
+    {
+        config([
+            'chatbot.business_aware_routing_enabled' => true,
+            'knowledge_base.hybrid_retrieval_enabled' => true,
+            'knowledge_base.guarded_publishing' => false,
+        ]);
+        $workspace = $this->workspaceWithCredits(100);
+        $this->managedOpenAi();
+        $kb = AiKnowledgeBase::create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Service guide',
+            'purpose' => 'Help customers choose and activate a digital service.',
+            'brand' => 'Example Business',
+            'audience' => 'Customers',
+            'status' => 'active',
+        ]);
+        $document = AiKbDocument::create([
+            'kb_id' => $kb->id,
+            'title' => 'Getting started',
+            'source_type' => 'faq',
+            'source_ref' => 'internal',
+            'status' => 'indexed',
+            'enabled' => true,
+            'review_status' => 'auto_approved',
+            'publication_status' => 'published',
+            'active_index_generation' => 'generation-v2',
+            'index_version' => 2,
+        ]);
+        AiKbChunk::create([
+            'kb_id' => $kb->id,
+            'document_id' => $document->id,
+            'ord' => 0,
+            'content' => 'A digital plan can be purchased for iOS or Android, followed by guided activation.',
+            'content_hash' => hash('sha256', 'digital-plan'),
+            'tokens' => 18,
+            'embedding' => json_encode([1.0, 0.0]),
+            'embedding_model' => 'text-embedding-3-small',
+            'embedding_status' => 'ready',
+            'index_generation' => 'generation-v2',
+            'section_label' => 'Getting started',
+            'chunk_kind' => 'faq',
+        ]);
+        $bot = AiChatbot::create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Support',
+            'ai_kb_id' => $kb->id,
+            'answer_scope' => 'business_only',
+            'retrieval_match_threshold' => 0.60,
+            'enabled' => true,
+        ]);
+        Http::fake(function ($request) {
+            if (str_ends_with($request->url(), '/embeddings')) {
+                return Http::response(['data' => [['embedding' => [0.45, sqrt(1 - (0.45 ** 2))]]]]);
+            }
+
+            return Http::response($this->openAiResponse(
+                'Prepared response: {"reply":"Do you need help choosing a plan or activating one?","quick_replies":["Choose a plan","Activate a plan"],"grounded":true,"response_type":"clarification"}'
+            ));
+        });
+
+        $result = app(ChatbotRunner::class)->runForApi(
+            $bot,
+            'digital plan want',
+            $workspace->id,
+            [['role' => 'user', 'content' => 'Hello', 'answer_origin' => 'conversation']],
+            'grounded-clarification',
+            true,
+        );
+
+        $this->assertSame('clarification', $result['response_mode']);
+        $this->assertSame('knowledge_base', $result['answer_origin']);
+        $this->assertSame(['Choose a plan', 'Activate a plan'], array_column($result['quick_replies'], 'label'));
+        $this->assertSame(1, AiCreditLedger::where('status', 'succeeded')->sole()->credits);
+        $this->assertDatabaseHas('ai_kb_retrieval_diagnostics', [
+            'workspace_id' => $workspace->id,
+            'chatbot_id' => $bot->id,
+            'response_mode' => 'clarification',
+            'acceptance_reason' => 'grounded_clarification',
+            'credit_result' => 'charged_once',
+        ]);
+        Http::assertSentCount(2);
     }
 
     public function test_truncated_choice_json_is_refunded_before_showing_a_fallback(): void

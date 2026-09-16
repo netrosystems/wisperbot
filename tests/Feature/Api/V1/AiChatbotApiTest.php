@@ -9,6 +9,7 @@ use App\Services\AddonEntitlementService;
 use App\Support\ApiAbilities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AiChatbotApiTest extends TestCase
@@ -46,6 +47,9 @@ class AiChatbotApiTest extends TestCase
 
         $this->assertCount(1, $res->json('data'));
         $res->assertJsonPath('data.0.answer_outside_knowledge_base', true)
+            ->assertJsonPath('data.0.answer_scope', 'general')
+            ->assertJsonPath('data.0.trusted_research_enabled', false)
+            ->assertJsonPath('data.0.unsupported_fallback_action', 'clarify_then_handoff')
             ->assertJsonPath('data.0.unsupported_answer_action', 'general')
             ->assertJsonPath('data.0.enabled', true);
     }
@@ -105,6 +109,26 @@ class AiChatbotApiTest extends TestCase
                 'message' => 'Hello?',
             ])
             ->assertStatus(404);
+    }
+
+    public function test_knowledge_base_api_normalises_website_input_and_returns_url_provenance(): void
+    {
+        Queue::fake();
+        ['user' => $user, 'workspace' => $workspace, 'client' => $client] = $this->createWorkspaceContext();
+        $this->enableDeveloperTools($client->id, $user->id);
+        $token = $user->createToken('t', [ApiAbilities::AI_WRITE])->plainTextToken;
+        $kb = AiKnowledgeBase::factory()->create(['workspace_id' => $workspace->id]);
+
+        $this->withToken($token)
+            ->postJson("/api/v1/ai/knowledge-bases/{$kb->id}/documents", [
+                'source_type' => 'sitemap',
+                'source_ref' => 'example.com',
+                'title' => 'Website',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('source_ref', 'https://example.com')
+            ->assertJsonPath('original_source_ref', 'example.com')
+            ->assertJsonPath('canonical_url', null);
     }
 
     private function enableDeveloperTools(int $clientId, int $userId): void

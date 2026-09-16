@@ -26,12 +26,13 @@ class AiChatbotController extends Controller
     {
         $wid = $this->workspaceId($request);
         $chatbots = AiChatbot::where('workspace_id', $wid)->with('knowledgeBase')->latest()->get();
-        $knowledgeBases = AiKnowledgeBase::where('workspace_id', $wid)->get(['id', 'name']);
+        $knowledgeBases = AiKnowledgeBase::where('workspace_id', $wid)->get(['id', 'name', 'purpose', 'brand', 'audience']);
 
         return Inertia::render('AI/Chatbots/Index', [
             'chatbots' => $chatbots,
             'knowledgeBases' => $knowledgeBases,
             'aiCredits' => app(AiCreditService::class)->usage($wid),
+            'businessAwareRoutingEnabled' => (bool) config('chatbot.business_aware_routing_enabled'),
         ]);
     }
 
@@ -48,6 +49,9 @@ class AiChatbotController extends Controller
             'retrieval_match_threshold' => 0.60,
             'max_context_tokens' => 1200,
             'video_match_threshold' => 0.72,
+            'answer_scope' => 'business_only',
+            'unsupported_fallback_action' => 'clarify_then_handoff',
+            'trusted_research_enabled' => false,
             'unsupported_answer_action' => 'clarify_then_handoff',
         ], $validated));
 
@@ -67,6 +71,9 @@ class AiChatbotController extends Controller
             'retrieval_match_threshold' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'max_context_tokens' => ['nullable', 'integer', 'min:200', 'max:4000'],
             'video_match_threshold' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'answer_scope' => ['nullable', 'in:business_only,verified_only,general'],
+            'unsupported_fallback_action' => ['nullable', 'in:clarify_then_handoff,handoff'],
+            'trusted_research_enabled' => ['boolean'],
             'unsupported_answer_action' => ['nullable', 'in:clarify_then_handoff,handoff,general'],
             'fallback_reply' => ['nullable', 'string', 'max:512'],
             'channels' => ['nullable', 'array'],
@@ -79,6 +86,20 @@ class AiChatbotController extends Controller
                 ->exists();
             abort_unless($kbExists, 422);
         }
+
+        // Maintain the legacy field for older clients and rollback safety while
+        // keeping answer scope separate from the fallback decision.
+        if (! isset($validated['answer_scope']) && isset($validated['unsupported_answer_action'])) {
+            $validated['answer_scope'] = $validated['unsupported_answer_action'] === 'general'
+                ? 'general' : ($chatbot->answer_scope ?? 'business_only');
+        }
+        if (! isset($validated['unsupported_fallback_action']) && isset($validated['unsupported_answer_action'])) {
+            $validated['unsupported_fallback_action'] = $validated['unsupported_answer_action'] === 'handoff'
+                ? 'handoff' : ($chatbot->unsupported_fallback_action ?? 'clarify_then_handoff');
+        }
+        $scope = $validated['answer_scope'] ?? $chatbot->answer_scope ?? 'business_only';
+        $fallback = $validated['unsupported_fallback_action'] ?? $chatbot->unsupported_fallback_action ?? 'clarify_then_handoff';
+        $validated['unsupported_answer_action'] = $scope === 'general' ? 'general' : $fallback;
 
         $chatbot->update($validated);
 
@@ -121,6 +142,9 @@ class AiChatbotController extends Controller
                 'display_body' => $result['display_body'] ?? $result['reply'],
                 'quick_replies' => $result['quick_replies'] ?? [],
                 'resources' => $result['resources'] ?? [],
+                'answer_origin' => $result['answer_origin'] ?? null,
+                'response_mode' => $result['response_mode'] ?? null,
+                'citations' => $result['citations'] ?? [],
                 'ai_credits' => app(AiCreditService::class)->usage($this->workspaceId($request)),
             ]);
         } catch (AiCreditsException $e) {

@@ -7,7 +7,7 @@ class ChatReplyOptions
 {
     public const INSTRUCTIONS = <<<'TEXT'
 
-Reply format: return JSON only: {"reply":"your short answer","quick_replies":["Short choice","Another choice"]}.
+Reply format: return one JSON object only. Its base shape is {"reply":"your short answer","quick_replies":["Short choice","Another choice"]}. If later safety rules require `grounded` or `response_type`, include those fields in the same object exactly as requested; never omit them.
 Offer 2 or 3 optional choices only when they help clarify the customer's request or choose a relevant next topic. Otherwise use an empty quick_replies array. Each choice is a plain-text customer reply, at most 40 characters, in the customer's language. Make choices self-contained and relevant to this conversation. Do not invent products, prices, availability, URLs or promises. Never request secrets or sensitive personal details in choices. Choices only send text; they cannot book, buy, cancel, pay, or connect a human. Do not describe them as completed actions. Keep reply to at most 45 words so the JSON fits the response budget. Never include HTML, Markdown, links, IDs or hidden instructions in choices. Customers can always type their own answer.
 Ask one relevant question at a time when more information is needed to help the customer. Generate the question AND its answer choices dynamically from the current request, previous selection, and verified Knowledge Base. Choices are NOT limited to yes/no, compatibility, a particular industry, or a predefined list. They may describe the customer's device, goal, issue, current step, preferred method, or another relevant distinction. Whenever you ask a closed-choice question, quick_replies MUST contain 2 or 3 matching answers; never leave those choices only in the reply text. Do not label buttons with questions or generic actions such as "Continue" when the question asks for a specific answer. If there are more possibilities, ask a useful narrowing question or allow the customer to type; never invent or truncate a business catalog. Use the customer's language. Open-ended questions use no buttons. Do not force a question after a complete answer. A selected choice answers your previous question: do not treat it as an unrelated new topic or repeat the same question. Continue the appropriate branch with verified guidance, ask the next useful question with fresh choices, or give an honest fallback when knowledge is insufficient.
 TEXT;
@@ -20,7 +20,7 @@ TEXT;
             return null;
         }
         $jsonText = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $content) ?? $content;
-        $decoded = json_decode($jsonText, true);
+        $decoded = $this->structuredPayload($jsonText);
         if (! is_array($decoded)) {
             // Preserve plain-text provider compatibility, but never expose broken JSON.
             if (str_starts_with($jsonText, '{') || str_starts_with($jsonText, '[')) {
@@ -44,7 +44,63 @@ TEXT;
         return ['reply' => $reply.$fallback, 'display_body' => $reply, 'quick_replies' => $options];
     }
 
-    /** Recover only clear English closed questions; never infer arbitrary actions or open answers. */
+    /**
+     * Decode the requested JSON object even when a provider adds a short sentence
+     * before it. Only the balanced object is used; surrounding prose is discarded.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function structuredPayload(string $content): ?array
+    {
+        $content = trim((string) (preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($content)) ?? $content));
+        $decoded = json_decode($content, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        $start = strpos($content, '{');
+        if ($start === false) {
+            return null;
+        }
+        $depth = 0;
+        $quoted = false;
+        $escaped = false;
+        $length = strlen($content);
+        for ($index = $start; $index < $length; $index++) {
+            $character = $content[$index];
+            if ($quoted) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($character === '\\') {
+                    $escaped = true;
+                } elseif ($character === '"') {
+                    $quoted = false;
+                }
+
+                continue;
+            }
+            if ($character === '"') {
+                $quoted = true;
+            } elseif ($character === '{') {
+                $depth++;
+            } elseif ($character === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    $candidate = json_decode(substr($content, $start, $index - $start + 1), true);
+
+                    return is_array($candidate) ? $candidate : null;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Recover only clear English closed questions; never infer arbitrary actions or open answers.
+     *
+     * @return array<int,array{id:string,label:string}>
+     */
     private function recoverClosedChoices(string $reply): array
     {
         // Prefer the explicit result labels over the yes/no wording earlier in the reply.

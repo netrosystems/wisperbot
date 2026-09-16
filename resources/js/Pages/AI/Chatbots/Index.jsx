@@ -164,13 +164,15 @@ function PlaygroundPanel({ chatbot, aiCredits }) {
                         <Send className="h-3.5 w-3.5 text-white" />
                     </button>
                 </div>
-                <p className="mt-1 px-1 text-[11px] text-neutral-400">1 credit · {remainingCredits} remaining</p>
+                <p className="mt-1 px-1 text-[11px] text-neutral-400">
+                    Generated answers use 1 credit · greetings are free · {remainingCredits} remaining
+                </p>
             </div>
         </div>
     );
 }
 
-function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
+function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingEnabled }) {
     const { t } = useTranslation();
     const [tab, setTab] = useState(null); // null | 'settings' | 'playground'
 
@@ -181,20 +183,13 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
         max_context_chunks: chatbot.max_context_chunks ?? 3,
         retrieval_match_threshold: chatbot.retrieval_match_threshold ?? 0.60,
         max_context_tokens: chatbot.max_context_tokens ?? 1200,
-        unsupported_answer_action: chatbot.unsupported_answer_action ?? 'clarify_then_handoff',
+        answer_scope: chatbot.answer_scope ?? (chatbot.unsupported_answer_action === 'general' ? 'general' : 'business_only'),
+        unsupported_fallback_action: chatbot.unsupported_fallback_action ?? (chatbot.unsupported_answer_action === 'handoff' ? 'handoff' : 'clarify_then_handoff'),
+        trusted_research_enabled: Boolean(chatbot.trusted_research_enabled),
         video_match_threshold: chatbot.video_match_threshold ?? 0.72,
         fallback_reply: chatbot.fallback_reply ?? '',
         ai_kb_id: chatbot.ai_kb_id ?? '',
     });
-    const [unsupportedFallbackAction, setUnsupportedFallbackAction] = useState(
-        chatbot.unsupported_answer_action === 'handoff' ? 'handoff' : 'clarify_then_handoff',
-    );
-    const answersOutsideKnowledgeBase = data.unsupported_answer_action === 'general';
-
-    const setAnswersOutsideKnowledgeBase = (enabled) => {
-        setData('unsupported_answer_action', enabled ? 'general' : unsupportedFallbackAction);
-    };
-
     const save = (e) => {
         e.preventDefault();
         put(route('client.ai.chatbots.update', chatbot.uuid), { preserveScroll: true });
@@ -207,6 +202,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
     };
 
     const linkedKb = knowledgeBases.find(kb => kb.id == chatbot.ai_kb_id);
+    const profileComplete = Boolean(linkedKb?.brand?.trim() && linkedKb?.purpose?.trim()?.length >= 12 && linkedKb?.audience?.trim());
 
     const toggleTab = (t) => setTab(prev => prev === t ? null : t);
 
@@ -346,43 +342,49 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                                 <input type="number" min={0} max={1} step={0.01} value={data.video_match_threshold} onChange={e => setData('video_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100" />
                             </div>
                         </div>
-                        {data.ai_kb_id && <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                        {t('ai.answer_outside_kb', 'Answer outside the Knowledge Base')}
-                                    </p>
-                                    <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
-                                        {answersOutsideKnowledgeBase
-                                            ? t('ai.answer_outside_kb_on_hint', 'On: the Smart Bot may answer safe general questions. Business-specific facts still require Knowledge Base support.')
-                                            : t('ai.answer_outside_kb_off_hint', 'Off (recommended): unsupported or unrelated questions use your fallback instead of general AI knowledge.')}
-                                    </p>
+                        {data.ai_kb_id && <div className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.answer_scope')}</p>
+                                    {!businessAwareRoutingEnabled && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{t('ai.staged_rollout')}</span>}
                                 </div>
-                                <ToggleSwitch
-                                    checked={answersOutsideKnowledgeBase}
-                                    onChange={setAnswersOutsideKnowledgeBase}
-                                    label={t('ai.answer_outside_kb', 'Answer outside the Knowledge Base')}
-                                />
+                                <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{t('ai.answer_scope_hint')}</p>
+                                {data.answer_scope === 'business_only' && !profileComplete && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">{t('ai.business_profile_required')}</p>}
+                                <div className="mt-3 grid gap-2 lg:grid-cols-3">
+                                    {[
+                                        ['business_only', t('ai.scope_business_only'), t('ai.scope_business_only_hint')],
+                                        ['verified_only', t('ai.scope_verified_only'), t('ai.scope_verified_only_hint')],
+                                        ['general', t('ai.scope_general'), t('ai.scope_general_hint')],
+                                    ].map(([value, label, hint]) => (
+                                        <label key={value} className={`cursor-pointer rounded-lg border p-3 transition ${data.answer_scope === value ? 'border-brand-500 bg-white ring-1 ring-brand-500/20 dark:bg-neutral-900' : 'border-neutral-200 bg-white/60 hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900/40'}`}>
+                                            <span className="flex items-start gap-2">
+                                                <input type="radio" name={`answer-scope-${chatbot.id}`} value={value} checked={data.answer_scope === value} onChange={e => setData('answer_scope', e.target.value)} className="mt-0.5 text-brand-600 focus:ring-brand-500" />
+                                                <span>
+                                                    <span className="block text-xs font-semibold text-neutral-900 dark:text-neutral-100">{label}</span>
+                                                    <span className="mt-0.5 block text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">{hint}</span>
+                                                </span>
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
 
-                            {!answersOutsideKnowledgeBase && (
-                                <div className="mt-3 border-t border-neutral-200 pt-3 dark:border-neutral-700">
-                                    <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                                        {t('ai.when_no_verified_answer', 'When no verified answer exists')}
-                                    </label>
-                                    <select
-                                        value={data.unsupported_answer_action}
-                                        onChange={e => {
-                                            setUnsupportedFallbackAction(e.target.value);
-                                            setData('unsupported_answer_action', e.target.value);
-                                        }}
-                                        className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-                                    >
-                                        <option value="clarify_then_handoff">{t('ai.unsupported_clarify', 'Ask for a relevant detail, then offer human help')}</option>
-                                        <option value="handoff">{t('ai.unsupported_handoff', 'Offer human help immediately')}</option>
+                            <div className="grid gap-3 border-t border-neutral-200 pt-3 dark:border-neutral-700 sm:grid-cols-2">
+                                <div>
+                                    <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{t('ai.when_no_verified_answer')}</label>
+                                    <select value={data.unsupported_fallback_action} onChange={e => setData('unsupported_fallback_action', e.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                                        <option value="clarify_then_handoff">{t('ai.unsupported_clarify')}</option>
+                                        <option value="handoff">{t('ai.unsupported_handoff')}</option>
                                     </select>
                                 </div>
-                            )}
+                                <div className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                                    <div>
+                                        <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.research_approved_sources')}</p>
+                                        <p className="mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">{t('ai.research_approved_sources_hint')}</p>
+                                    </div>
+                                    <ToggleSwitch checked={data.trusted_research_enabled} onChange={value => setData('trusted_research_enabled', value)} label={t('ai.research_approved_sources')} />
+                                </div>
+                            </div>
                         </div>}
 
                         <div className="flex gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
@@ -408,7 +410,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
     );
 }
 
-export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null }) {
+export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null, businessAwareRoutingEnabled = false }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
@@ -471,7 +473,7 @@ export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = 
                 {/* Chatbot list */}
                 <div className="space-y-3">
                     {chatbots.map(cb => (
-                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} />
+                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} businessAwareRoutingEnabled={businessAwareRoutingEnabled} />
                     ))}
                     {chatbots.length === 0 && (
                         <EmptyState

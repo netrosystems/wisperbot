@@ -114,7 +114,7 @@ Public comments are implemented locally behind `SOCIAL_COMMENTS_ENABLED=false`: 
 
 #### Capabilities
 - **Multi-Source Knowledge Ingestion**: The guided client UI accepts focused website URLs, files, and XML sitemaps. Existing raw-text, FAQ, and dedicated-video records remain compatible but are not separate authoring choices. `IndexDocumentJob` discovers validated YouTube, Vimeo, and public HTTPS MP4 links inside extracted pages/files, while the surrounding guidance drives semantic retrieval; a chatbot-level score threshold allows at most one video from the query-matched passage per answer.
-- **Zero-configuration website discovery**: The Website source accepts a homepage or sitemap URL, follows validated HTTPS redirects, checks HTML sitemap declarations, `robots.txt`, and common sitemap paths, then falls back to a capped same-host link crawl. Nested indexes and duplicate URLs are bounded by the Knowledge Base sitemap page limit.
+- **Zero-configuration website discovery**: The Website source accepts a bare domain, homepage, or sitemap URL. Web and API writes preserve the original input, add HTTPS, safely test apex and `www` variants, resolve bounded HTTPS redirects with explicit loop detection, and store the verified canonical URL before checking HTML sitemap declarations, `robots.txt`, and common sitemap paths. Same-site HTTP redirect targets are upgraded to HTTPS without an insecure request. Discovery then falls back to a capped same-site link crawl; nested indexes and duplicate URLs remain bounded by the Knowledge Base sitemap page limit.
 - **Video Knowledge Answers**: AI responses retain normal text while adding a structured `payload.resources[]` video card. WisperBot web/mobile clients render click-to-play players; external messaging providers receive the canonical video link because they cannot render embedded players.
 - **Hybrid Vector Retrieval**: Built-in MySQL vector-like similarity fallback with high-performance Qdrant vector database support.
 - **LLM Provider Agnostic**: Client BYOK supports OpenAI, Anthropic, and Google Gemini. DeepSeek and Alibaba Qwen 3.7 Flash are restricted to Super Admin system integrations and are never exposed as workspace providers. A tested, enabled system LLM can be selected to power managed generation; Knowledge Base embeddings continue through OpenAI or Gemini.
@@ -186,3 +186,32 @@ Public comments are implemented locally behind `SOCIAL_COMMENTS_ENABLED=false`: 
 | **Navigation & Layout** | Component | `resources/js/__tests__/useClientNav.test.jsx` | Sidebar permission filtering & route active states. |
 | **Contact Operations** | Unit | `resources/js/__tests__/contactListOperations.test.js` | Filtering, segment selection & bulk mutations. |
 | **Stripe / Billing** | Feature | `tests/Feature/BillingWebhookTest.php` | Subscription renewals, plan changes & cancellations. |
+
+## Experimental: business-aware Smart Bot answering
+
+- [x] Separate answer scope from fallback behavior with Business only, Verified sources only, and General assistant modes.
+- [x] Route standalone social turns deterministically before retrieval and charge zero credits.
+- [x] Permit stable business-domain guidance only when the selected Knowledge Base profile establishes relevance.
+- [x] Restrict fresh research to existing approved URL/sitemap domains with citations and no permanent KB mutation.
+- [x] Preserve quick replies and additive widget/web/mobile/API payload compatibility.
+- [x] Keep public social-comment automation on its existing stricter path.
+- [ ] Complete internal live-widget domain fixtures and review diagnostics before enabling the production flag.
+
+## Experimental: semantic Knowledge Base retrieval
+
+- [x] Use one hybrid retrieval service for private live chat, developer/mobile-compatible APIs, playground, and Knowledge Base tests.
+- [x] Search the current customer turn independently and add prior turns only for genuine continuations.
+- [x] Make lexical and typo similarity ranking boosts; never penalize semantic matches for different wording.
+- [x] Route strong evidence to answers, related ambiguity to one grounded clarification, and unrelated/unsafe requests to fallback.
+- [x] Build smaller semantic chunks behind atomic index generations so failed reindexing preserves the current live index.
+- [x] Preserve headed multi-turn examples through chunking, require structured provider output where supported, and allow enabled approved-source research to supplement buying/current-information answers.
+- [x] Add active-first reindex command and richer safe tester diagnostics.
+- [ ] Validate private widget, direct API, MySQL fallback, and configured Qdrant on selected external-client fixtures before production enablement.
+
+## Team identity in customer chat
+
+- [x] Let client administrators upload, replace, and remove a teammate photo while adding or editing a member.
+- [x] Resolve stored photos to public URLs across browser inbox, realtime ownership, mobile setup/conversation/message APIs, and public widget payloads.
+- [x] Show only currently scheduled teammates in the widget's team-presence stack.
+- [x] Show the joined teammate's photo in the connected state and on their messages; use initials when absent and reserve the company mark for Smart Bot messages.
+- [ ] Native SDK teams may adopt the additive `agent_avatar_url` / `avatar_url` fields in their next app release; existing text and handoff fields remain compatible.

@@ -231,7 +231,12 @@ class ConversationOwnershipService
 
     private function publicUser(?User $user): ?array
     {
-        return $user ? ['id' => $user->id, 'name' => $user->name, 'avatar' => $user->avatar] : null;
+        return $user ? [
+            'id' => $user->id,
+            'name' => $user->name,
+            'avatar' => $user->avatarUrl(),
+            'avatar_url' => $user->avatarUrl(),
+        ] : null;
     }
 
     public function synchronized(Conversation $conversation, callable $callback): mixed

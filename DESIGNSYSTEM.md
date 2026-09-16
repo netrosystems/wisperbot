@@ -4,6 +4,10 @@
 
 Place up to three wrapping text choices immediately below an AI answer. Web choices use a compact 34px minimum height, 8px corners, soft neutral borders, a subtle fill, and 13px medium-weight labels; keep 6px between choices and 8px above the group. On devices with a coarse pointer, retain a 44px minimum touch target. Preserve visible focus, dark-mode contrast where supported, and a labelled group. Do not replace the text composer. Disable historic, already-answered, in-flight and human-handoff choices without making their labels illegible. Agent inbox choices are read-only labels, not agent CTAs. Avoid repeated numbered text when the structured buttons are rendered.
 
+## Customer chat widget shell
+
+The approved website widget uses a compact white identity header with a small brand-colour avatar tile. Scheduled teammate photos appear before the plain-language `Team available now` label. When human help becomes eligible, the slim peach `Need a person? / Talk to an agent` row sits directly below the header and does not use an arrow. The conversation uses a soft-grey canvas, white assistant bubbles, brand-colour visitor bubbles, and recognisable outlined reply pills. Keep attachment and voice-record controls in the composer, use a very short peach Powered by strip, retain the elevated panel shadow and lightweight launch animation. After handoff, show the joined teammate's public name and photo; use initials when no teammate photo exists. Smart Bot messages continue to use the configured company mark.
+
 This document defines the mandatory UI/UX standards, component specifications, color tokens, layout archetypes, and accessibility patterns for **WisperBot**. All frontend components, page views, and design modifications must strictly adhere to these guidelines.
 
 ---
@@ -154,9 +158,13 @@ Conversation video resources use a responsive 16:9 dark media surface, a centere
 
 ## Guided Knowledge Base workflow
 
+Website sources accept the address customers naturally know (`domain.com`, `www.domain.com`, or a full URL). While indexing, use the existing readable status labels. When canonical resolution changes the host, show one compact success line—**Connected securely as [URL]**—beneath the source rather than exposing redirect terminology or requiring a confirmation dialog.
+
 The default client surface uses plain-language five-step progress: Define, Add sources, Review quality, Test answers, Publish. Ready uses success green, review uses amber, and blockers/failures use danger red; color is always paired with text and an icon. Technical vector/embedding details remain in advanced diagnostics. An empty Sources step presents three direct choices—Entire website, Specific web page, and Upload files—and hides management-only search, filtering, duplicate add buttons, and unavailable forward actions until a source exists. File guidance prioritizes PDF, DOCX, TXT, and Markdown and uses a bordered brand callout to explain that supported video URLs may become playable customer-chat guidance. Source dialogs explain appropriate usage and limits before selection, display extracted passages and stable findings, and keep factual corrections subject to explicit client approval. Dialogs must trap focus and support Escape/backdrop dismissal when migrated to the shared `Modal` primitive.
 
-Smart Bot configuration presents **Answer outside the Knowledge Base** as one plain-language switch. Off is recommended and explains that unrelated or unsupported questions use the fallback; On explains that safe general knowledge is allowed while business facts remain evidence-bound. When Off, reveal the compact fallback-behavior selector beneath the switch. Do not expose internal enum names or retrieval implementation details.
+Smart Bot configuration presents three compact answer-scope choices: **Business only — Recommended**, **Verified sources only**, and **General assistant**. Keep the unsupported-answer selector separate. Approved-source research is a compact toggle with a plain-language domain boundary. When the selected Knowledge Base lacks purpose, brand, or audience, show an amber explanation that the bot safely behaves as Verified sources only. Do not expose enum names, vector thresholds, provider prompts, or retrieval implementation details.
+
+The Knowledge Base tester labels results **Answer**, **Clarification**, or **Fallback**. It may show compact Meaning and Wording confidence plus expandable selected passages for management users, but never embeddings, full hidden context, prompts, or customer data. Regression shortcuts cover greetings, paraphrases, shorthand, typos, post-greeting questions, ambiguity, and unrelated topics. Clarification uses amber, answer success green, and fallback danger styling with text in addition to color.
 
 ## Social Media Automation workspace
 
@@ -177,3 +185,9 @@ Channel Setup uses a compact bordered health panel per WhatsApp account with a t
 Client pages show a compact header control formatted as **remaining / monthly total** (for example, `88 / 100`). Its popover exposes used, processing, remaining, and reset date without internal action or provider-mode keys. The Subscription page uses a segmented usage bar and a scan-friendly action table generated from the authoritative backend credit catalog. Warning and exhausted states pair semantic color with text, retain the numeric counter on narrow screens, and provide visible keyboard focus.
 
 The client header prioritizes operational controls and does not include global Search or a language selector. Locale selection remains available on public/authentication surfaces where language choice is part of entry into the product.
+
+## Team identity and customer chat
+
+The client Team screen shows a circular teammate photo beside the name and offers one compact image picker in both Add member and Edit member. Accepted photos are JPG, PNG, or WebP up to 5 MB; initials are the accessible visual fallback when no photo exists. Upload, replace, and remove actions must remain explicit, preview the pending file, and preserve the rest of the member form.
+
+The public widget header stacks only teammates whose workspace availability schedule is active at the current time. Once a teammate joins, that person's photo and name replace generic team presence in the joined state, and their outbound messages use their photo. Smart Bot messages continue to use the configured company/launcher mark. When a teammate has no photo, render their initials rather than the company logo so human and automated identities remain distinguishable.

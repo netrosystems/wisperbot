@@ -243,7 +243,8 @@ class InboxController extends Controller
                 'id' => $member->id,
                 'name' => $member->name,
                 'email' => $member->email,
-                'avatar' => $member->avatar,
+                'avatar' => $member->avatarUrl(),
+                'avatar_url' => $member->avatarUrl(),
                 'available' => app(TeamAvailabilityService::class)->isAvailable((int) $workspaceId, $member),
             ]);
 
@@ -815,7 +816,8 @@ class InboxController extends Controller
             'joined_user' => $conversation->joinedUser ? [
                 'id' => $conversation->joinedUser->id,
                 'name' => $conversation->joinedUser->name,
-                'avatar' => $conversation->joinedUser->avatar,
+                'avatar' => $conversation->joinedUser->avatarUrl(),
+                'avatar_url' => $conversation->joinedUser->avatarUrl(),
             ] : null,
         ];
     }

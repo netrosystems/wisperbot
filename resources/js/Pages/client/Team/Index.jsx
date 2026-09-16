@@ -1,14 +1,78 @@
 import ClientLayout from '@/Layouts/ClientLayout';
 import { Button, Modal, PasswordInput } from '@/Components/ui';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, Pencil, Trash2, UserPlus, Mail, X, Clock3 } from 'lucide-react';
+import { Users, Pencil, Trash2, UserPlus, Mail, X, Clock3, Camera } from 'lucide-react';
 import WeeklyScheduleEditor, { defaultWeeklySchedule, normalizeWeeklySchedule, SCHEDULE_DAYS } from '@/Components/WeeklyScheduleEditor';
 
 const STATUS_ACTIVE    = 'active';
 const CLIENT_ROLE_ADMIN = 'administrator';
 const CLIENT_ROLE_STAFF = 'staff';
+
+function memberInitials(name = '') {
+    return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'TM';
+}
+
+function MemberAvatar({ name, url, size = 'md' }) {
+    const dimensions = size === 'sm' ? 'h-9 w-9 text-xs' : 'h-20 w-20 text-lg';
+
+    return url ? (
+        <img src={url} alt="" className={`${dimensions} shrink-0 rounded-full border border-neutral-200 object-cover dark:border-neutral-700`} />
+    ) : (
+        <span aria-hidden="true" className={`${dimensions} inline-flex shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-700 dark:bg-brand-900/40 dark:text-brand-200`}>
+            {memberInitials(name)}
+        </span>
+    );
+}
+
+function MemberAvatarField({ id, name, file, existingUrl, error, onChange, onRemove, t }) {
+    const [previewUrl, setPreviewUrl] = useState(null);
+
+    useEffect(() => {
+        if (!file) {
+            setPreviewUrl(null);
+            return undefined;
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        setPreviewUrl(objectUrl);
+        return () => URL.revokeObjectURL(objectUrl);
+    }, [file]);
+
+    const visibleUrl = previewUrl || existingUrl || null;
+
+    return (
+        <div className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 dark:border-neutral-700 dark:bg-neutral-800/60">
+            <MemberAvatar name={name} url={visibleUrl} />
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{t('team.photo', { defaultValue: 'Profile photo' })}</p>
+                <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{t('team.photo_hint', { defaultValue: 'JPG, PNG or WebP. Up to 5 MB.' })}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <label htmlFor={id} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:border-brand-400 hover:text-brand-700 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-200">
+                        <Camera className="h-3.5 w-3.5" />
+                        {visibleUrl
+                            ? t('team.change_photo', { defaultValue: 'Change photo' })
+                            : t('team.upload_photo', { defaultValue: 'Upload photo' })}
+                    </label>
+                    <input
+                        id={id}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        onChange={event => onChange(event.target.files?.[0] || null)}
+                    />
+                    {visibleUrl && (
+                        <button type="button" onClick={onRemove} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:bg-white hover:text-coral-600 dark:hover:bg-neutral-900">
+                            {t('team.remove_photo', { defaultValue: 'Remove photo' })}
+                        </button>
+                    )}
+                </div>
+                {error && <p role="alert" className="mt-1 text-xs text-coral-600">{error}</p>}
+            </div>
+        </div>
+    );
+}
 
 function availabilitySummary(value) {
     if (!value?.enabled) return 'Always available';
@@ -67,6 +131,7 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
         password_confirmation: '',
         client_role: CLIENT_ROLE_STAFF,
         status: STATUS_ACTIVE,
+        avatar: null,
     });
 
     const editForm = useForm({
@@ -76,11 +141,17 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
         password_confirmation: '',
         client_role: CLIENT_ROLE_STAFF,
         status: STATUS_ACTIVE,
+        avatar: null,
+        remove_avatar: false,
     });
 
     const openAdd = () => {
         addForm.reset();
-        addForm.setData({ client_role: CLIENT_ROLE_STAFF, status: STATUS_ACTIVE });
+        addForm.clearErrors();
+        addForm.setData({
+            name: '', email: '', password: '', password_confirmation: '',
+            client_role: CLIENT_ROLE_STAFF, status: STATUS_ACTIVE, avatar: null,
+        });
         setAddOpen(true);
     };
 
@@ -88,6 +159,7 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
         e.preventDefault();
         addForm.post(route('client.team.store'), {
             preserveScroll: true,
+            forceFormData: true,
             onSuccess: () => {
                 setAddOpen(false);
                 addForm.reset();
@@ -104,19 +176,25 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
             password_confirmation: '',
             client_role: u.client_role || CLIENT_ROLE_STAFF,
             status: u.status,
+            avatar: null,
+            remove_avatar: false,
         });
+        editForm.clearErrors();
         setEditOpen(true);
     };
 
     const submitEdit = (e) => {
         e.preventDefault();
         if (!editUser) return;
-        editForm.put(route('client.team.update', { member: editUser.id }), {
+        editForm.transform(data => ({ ...data, _method: 'put' }));
+        editForm.post(route('client.team.update', { member: editUser.id }), {
             preserveScroll: true,
+            forceFormData: true,
             onSuccess: () => {
                 setEditOpen(false);
                 setEditUser(null);
             },
+            onFinish: () => editForm.transform(data => data),
         });
     };
 
@@ -194,7 +272,10 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
                                 {users.map((u) => (
                                     <tr key={u.id} className="bg-white dark:bg-neutral-800/30">
                                         <td className="px-4 py-3 text-sm text-neutral-900 dark:text-white">
-                                            {u.name}
+                                            <div className="flex items-center gap-2.5">
+                                                <MemberAvatar name={u.name} url={u.avatar_url} size="sm" />
+                                                <span className="font-medium">{u.name}</span>
+                                            </div>
                                         </td>
                                         <td className="px-4 py-3 text-sm text-neutral-600 dark:text-neutral-300">
                                             {u.email}
@@ -323,6 +404,15 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
                     <Modal.Header title={t('client.add_member') || 'Add member'} onClose={() => setAddOpen(false)} />
                     <Modal.Body>
                         <form id="addMemberForm" onSubmit={submitAdd} className="space-y-4">
+                                <MemberAvatarField
+                                    id="add-member-avatar"
+                                    name={addForm.data.name}
+                                    file={addForm.data.avatar}
+                                    error={addForm.errors.avatar}
+                                    onChange={file => addForm.setData('avatar', file)}
+                                    onRemove={() => addForm.setData('avatar', null)}
+                                    t={t}
+                                />
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('client.name') || 'Name'}</label>
                                     <input type="text" value={addForm.data.name} onChange={e => addForm.setData('name', e.target.value)} className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" required />
@@ -362,6 +452,18 @@ export default function TeamIndex({ users = [], client = {}, workspace = {}, inv
                     <Modal.Header title={t('client.edit_member') || 'Edit member'} onClose={() => setEditOpen(false)} />
                     <Modal.Body>
                         <form id="editMemberForm" onSubmit={submitEdit} className="space-y-4">
+                                <MemberAvatarField
+                                    id="edit-member-avatar"
+                                    name={editForm.data.name}
+                                    file={editForm.data.avatar}
+                                    existingUrl={editForm.data.remove_avatar ? null : editUser?.avatar_url}
+                                    error={editForm.errors.avatar}
+                                    onChange={file => {
+                                        editForm.setData(data => ({ ...data, avatar: file, remove_avatar: false }));
+                                    }}
+                                    onRemove={() => editForm.setData(data => ({ ...data, avatar: null, remove_avatar: true }))}
+                                    t={t}
+                                />
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{t('client.name') || 'Name'}</label>
                                     <input type="text" value={editForm.data.name} onChange={e => editForm.setData('name', e.target.value)} className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm" required />

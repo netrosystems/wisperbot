@@ -2,14 +2,17 @@
 
 namespace App\Modules\Inbox\Models;
 
+use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\Inbox\Services\TeamAvailabilityService;
 use App\Modules\Inbox\Services\WeeklySchedule;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\PusherPublicConfig;
 use App\Services\StorageManager;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
@@ -247,11 +250,27 @@ class ChatWidget extends Model
             return [];
         }
 
-        return collect([$workspace->owner])
-            ->merge($workspace->members)
-            ->merge($workspace->users)
-            ->filter(fn ($user) => $user && $user->status === 'active')
-            ->unique('id')
+        $members = [];
+        $candidates = array_merge(
+            [$workspace->owner],
+            $workspace->members->all(),
+            $workspace->users->all(),
+        );
+
+        foreach ($candidates as $candidate) {
+            if (! $candidate instanceof User || ! $candidate->isActive()) {
+                continue;
+            }
+
+            $members[$candidate->id] = $candidate;
+        }
+
+        $available = app(TeamAvailabilityService::class)->available(
+            (int) $workspace->id,
+            new EloquentCollection(array_values($members))
+        );
+
+        return $available
             ->take(5)
             ->map(fn ($user) => [
                 'name' => $user->name,

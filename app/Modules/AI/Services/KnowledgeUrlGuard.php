@@ -18,8 +18,12 @@ class KnowledgeUrlGuard
         if ($host === '' || $host === 'localhost' || str_ends_with($host, '.local')) {
             throw new \InvalidArgumentException('Local or private knowledge-source hosts are not allowed.');
         }
-        if ($requiredHost !== null && $host !== strtolower(rtrim($requiredHost, '.'))) {
-            throw new \InvalidArgumentException('Sitemap pages must remain on the same host.');
+        if ($requiredHost !== null) {
+            $requiredHost = strtolower(rtrim($requiredHost, '.'));
+            $aliases = [$requiredHost, str_starts_with($requiredHost, 'www.') ? substr($requiredHost, 4) : 'www.'.$requiredHost];
+            if (! in_array($host, $aliases, true)) {
+                throw new \InvalidArgumentException('Sitemap pages must remain on the same website.');
+            }
         }
 
         $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : $this->resolve($host);

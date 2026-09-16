@@ -33,6 +33,21 @@ class ChatReplyOptionsTest extends TestCase
         $this->assertSame('হ্যালো', $service->parse('{"reply":"হ্যালো","quick_replies":[]}')['reply']);
     }
 
+    public function test_valid_json_is_recovered_when_a_provider_adds_surrounding_prose(): void
+    {
+        $content = 'Here is the response: '.json_encode([
+            'reply' => 'Which option do you need?',
+            'quick_replies' => ['First option', 'Second option'],
+            'grounded' => true,
+            'response_type' => 'clarification',
+        ]);
+
+        $result = (new ChatReplyOptions)->parse($content);
+
+        $this->assertSame('Which option do you need?', $result['display_body']);
+        $this->assertSame(['First option', 'Second option'], array_column($result['quick_replies'], 'label'));
+    }
+
     public function test_malformed_or_truncated_structured_output_is_rejected(): void
     {
         $service = new ChatReplyOptions;

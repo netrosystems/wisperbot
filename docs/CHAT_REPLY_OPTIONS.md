@@ -8,6 +8,8 @@ An earlier local Flutter prototype was explicitly excluded from the WisperBot co
 
 The product requirement is defined in [Product decisions](PRODUCT_DECISIONS.md#dynamic-smart-bot-questions-and-cta-replies). All industries share the same contract; client screenshots are examples only.
 
+Knowledge Base relevance, grounded clarification, answer scope, approved-source research, credits, and the joined teammate avatar contract are defined in [Knowledge Base and Smart Bot Answering](KNOWLEDGE_BASE_SMART_BOT.md).
+
 ## Behavior
 
 Choice generation is domain-independent, not a predefined Yes/No or eSIM flow. The model returns a contextual question and two or three corresponding labels, including localized labels, through the same `quick_replies` contract. For example, device → installation method → failure stage can each produce different choices. Web/SDK renderers must display received labels generically, never switch on specific labels such as Yes or Supported. The narrow English recovery described below is only a compatibility safety net when structured choices are missing, not the primary choice-generation mechanism.
@@ -36,6 +38,10 @@ Outbound message type remains `text`. `body` (or AI API `reply`) retains numbere
 ```
 
 Widget session/history, polling, and realtime use `WidgetPayloadBuilder`, exposing `display_body` and `quick_replies` at message level. Agent conversation APIs expose them under the existing `payload`. AI chat API results add the same fields alongside `reply`, `tokens_used`, and `resources`. Fields are optional for deterministic FAQ/cache/fallback answers and older servers.
+
+Business-aware replies add optional `answer_origin` (`conversation`, `knowledge_base`, `business_guidance`, `trusted_research`, or `fallback`) and `citations` containing only a safe title and HTTPS URL. `body`/`reply` and `display_body` retain readable Markdown source links so older widgets and SDKs remain useful when they ignore the additive metadata. App teams may render citation cards, but citations remain external links and choices remain plain customer text—not executable actions.
+
+Semantic retrieval also adds optional `response_mode` (`answer`, `clarification`, or `fallback`). A clarification is one short question grounded in a selected tenant passage. `quick_replies` are included only when that passage supports two or three meaningful distinctions. Older widgets and SDKs may ignore `response_mode`; the readable question and numbered text fallback remain authoritative. Providers that add prose around the requested JSON are accepted only by extracting one balanced, valid object; malformed output is rejected and its credit reservation is refunded. Capable providers are also asked for JSON at the transport layer so valid grounded answers are not lost solely because a model ignored the textual formatting instruction.
 
 `POST /widget/v1/messages` is unchanged: send `{key, message: choice.label}` using the existing visitor token. Choice IDs are local display identifiers, not credentials, capabilities, or workflow commands. No client-supplied hidden value is executed. Existing visitor-session and workspace authorization remain authoritative. Typing the same text manually has identical meaning.
 

@@ -28,7 +28,10 @@ class TeamAvailabilityService
         return $this->recordAvailable($availability, $at);
     }
 
-    /** @param Collection<int, User> $users */
+    /**
+     * @param  Collection<int, User>  $users
+     * @return Collection<int, User>
+     */
     public function available(int $workspaceId, Collection $users, ?CarbonInterface $at = null): Collection
     {
         $active = $users->filter(fn (User $user) => $user->isActive())->values();

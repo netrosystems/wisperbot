@@ -2,7 +2,7 @@
 
 Suggested customer replies use `ChatReplyOptions` to validate a single generated response. Outbound messages retain a text fallback and add `payload.display_body` / `payload.quick_replies`; the shared widget serializer exposes them through session, poll and realtime. Taps send normal visitor text, not executable actions. See `docs/CHAT_REPLY_OPTIONS.md`.
 
-AI reliability: connection tests must exercise configured managed generation/embedding models. Empty generation cannot finalize credits. Website discovery must not depend on a successful homepage fetch when a safe sitemap is available; partial HTML is not silently treated as complete content.
+AI reliability: connection tests must exercise configured managed generation/embedding models. Empty generation cannot finalize credits. Website discovery must not depend on a successful homepage fetch when a safe sitemap is available; partial HTML is not silently treated as complete content. Website inputs are normalised through one HTTPS-only resolver that preserves the customer's original value, safely tests apex/`www` aliases, upgrades same-site HTTP redirect targets without requesting them, detects cycles, and stores the verified canonical URL.
 
 This document defines the mandatory structural patterns, layer boundaries, multi-tenancy models, event pipelines, and quality standards for **WisperBot**. All backend and frontend implementations must strictly adhere to these specifications.
 
@@ -235,6 +235,8 @@ Smart Bots with a Knowledge Base default to knowledge-only answers through `unsu
 
 Real-time browser and mobile synchronization is powered by **Laravel Reverb** (default) or **Pusher Protocol** paired with **Laravel Echo**:
 
+The Omni inbox treats realtime as an acceleration layer rather than its only delivery path. Its visible first page reconciles workspace-scoped conversation data every 30 seconds with Echo available and every 4 seconds when realtime is not configured, subject to safe search, scroll, and in-flight request guards.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -322,3 +324,21 @@ Answer and query-embedding caches are revision/model keyed. Publishing or rollba
 - [ ] Implement backend execution logic in `app/Modules/Automation/Services/AutomationRunner.php`.
 - [ ] Add translation keys for node label and description in `resources/js/locales/`.
 - [ ] Verify node serialization and execution flow with a feature test.
+
+## Business-aware Smart Bot routing (experimental, 2026-09-16)
+
+`ChatbotRunner` applies `BusinessAwareTurnRouter` before strict retrieval when `SMART_BOT_BUSINESS_AWARE_ROUTING=true`. Deterministic social turns return without `LlmGateway`, so they create no credit reservation. Substantive turns retain workspace-scoped embedding/retrieval; retrieval misses use that Knowledge Base's profile and embeddings without a second charged chat call. `TrustedKnowledgeResearchService` may fetch only a bounded number of already-configured URL sources and never writes fetched text into the Knowledge Base. Public social comments continue through `runForPublicComment` and retain their stricter published-revision-only behavior.
+
+Generated replies still use one `chatbot_reply` reservation. `answer_origin` and safe citations travel in the existing message payload through widget polling/realtime, authenticated inbox/mobile APIs, and the direct AI API. Diagnostics store routing outcomes and citations but never hidden prompts, provider secrets, or customer message content.
+
+`KnowledgeRetrievalService` is the shared private-chat retrieval path for live chat, playground/direct API, and Knowledge Base tests when `KB_HYBRID_RETRIEVAL_ENABLED=true`. It embeds the current customer turn independently, adds prior context only for a genuine continuation, and merges vector results with normalized lexical and character-similarity boosts. Lexical absence never lowers semantic confidence. Outcomes are `answer`, `clarification`, or `fallback`; public social-comment retrieval intentionally remains on its stricter published-evidence path.
+
+Semantic indexing preserves a complete headed multi-turn sample conversation as one logical block before size-based chunking, so later option/country turns do not lose their preceding intent. Smart Bot chat requests ask capable providers for JSON output at the transport layer and still pass the same server validator. Approved-source research may augment an already relevant KB result for purchasing or current-information questions when the bot owner explicitly enables `trusted_research_enabled`.
+
+Index version 2 stores smaller section-aware chunks and uses `active_index_generation` / `pending_index_generation`. `IndexDocumentJob` builds and embeds a complete pending generation before switching the active pointer, then removes the retired vectors and rows. A failed rebuild clears only staged data and preserves the previous active generation. Retrieval always filters to the document's active generation in both MySQL and Qdrant post-filtering.
+
+## Team avatar and widget identity contract (2026-09-16)
+
+Client administrators manage the existing `users.avatar` field through workspace-authorized Team routes. Image files are validated as JPG/PNG/WebP, stored through `StorageManager`, and removed when replaced, explicitly cleared, or when the teammate is deleted. APIs never expose the internal storage path; `User::avatarUrl()` is the public contract.
+
+Widget configuration exposes only currently scheduled teammates in `team_members`. Human webchat messages add `agent_avatar_url`, and handoff/ownership payloads expose resolved `avatar_url` while retaining the existing `avatar` compatibility alias. Bot messages intentionally have no teammate avatar and continue to render the widget's company mark. Mobile conversation, message, ownership, and setup payloads use the same resolved teammate URLs. These additions do not alter workspace authorization or public visitor-session isolation.

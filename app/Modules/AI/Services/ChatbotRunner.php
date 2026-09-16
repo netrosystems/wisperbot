@@ -19,9 +19,12 @@ class ChatbotRunner
         private LlmGateway $llmGateway,
         private EmbeddingStore $embedStore,
         private VideoResourceService $videos,
+        private BusinessAwareTurnRouter $turnRouter,
+        private TrustedKnowledgeResearchService $trustedResearch,
+        private KnowledgeRetrievalService $knowledgeRetrieval,
     ) {}
 
-    /** @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>} */
+    /** @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>,answer_origin?:string,citations?:array<int,array{title:string,url:string}>,intent?:string} */
     public function run(AiChatbot $bot, Message $inboundMessage, bool $throwProviderErrors = false): array
     {
         $conversation = $inboundMessage->conversation;
@@ -34,75 +37,165 @@ class ChatbotRunner
             : null;
         $revisionId = $guarded ? $kb?->published_revision_id : null;
 
+        if ($this->businessAwareEnabled() && ($conversationResult = $this->turnRouter->conversationalResult($body, $kb, $bot->tone))) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
+                'intent' => $conversationResult['intent'],
+                'answer_origin' => 'conversation',
+                'credit_result' => 'zero_cost',
+            ]);
+
+            return $conversationResult;
+        }
+
         if ($guarded && $bot->ai_kb_id && ! $revisionId) {
             return $this->unsupportedResult($bot);
         }
         if ($guarded && $revisionId && ($exact = $this->exactFaq($kb, $body, $revisionId))) {
-            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_faq');
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_faq', [], 0, [
+                'intent' => 'business_question',
+                'answer_origin' => 'knowledge_base',
+                'credit_result' => 'zero_cost',
+            ]);
 
-            return ['reply' => $exact, 'tokens_used' => 0, 'resources' => []];
+            return $this->withAnswerMetadata(['reply' => $exact, 'tokens_used' => 0, 'resources' => []], 'knowledge_base');
         }
         if ($guarded && $revisionId && ($cached = $this->cachedAnswer($bot, $body, $revisionId))) {
-            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_cache');
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_cache', [], 0, [
+                'intent' => 'business_question',
+                'answer_origin' => 'knowledge_base',
+                'credit_result' => 'zero_cost',
+            ]);
 
-            return ['reply' => $cached->answer, 'tokens_used' => 0, 'resources' => $cached->resources ?? []];
+            return $this->withAnswerMetadata(['reply' => $cached->answer, 'tokens_used' => 0, 'resources' => $cached->resources ?? []], 'knowledge_base');
         }
 
         $history = $this->conversationHistory($conversation, $inboundMessage);
-        $retrievalQuestion = ($guarded || $knowledgeOnly)
+        $hybridRetrieval = $kb && config('knowledge_base.hybrid_retrieval_enabled');
+        $retrievalQuestion = $hybridRetrieval
+            ? $body
+            : (($guarded || $knowledgeOnly)
             ? $this->retrievalQuestion($body, $history)
-            : $body;
-
-        // 1. Embed the user query
-        $queryEmbedding = [];
-        if ($bot->ai_kb_id) {
-            try {
-                $queryEmbedding = $this->queryEmbedding($workspaceId, $retrievalQuestion);
-            } catch (\Throwable $e) {
-                if ($throwProviderErrors) {
-                    throw $e;
-                }
-
-                // proceed without retrieval
-            }
-        }
-        if ($guarded && $revisionId && $queryEmbedding !== [] && ($semantic = $this->semanticCachedAnswer($bot, $queryEmbedding, $revisionId))) {
-            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'semantic_cache');
-
-            return ['reply' => $semantic->answer, 'tokens_used' => 0, 'resources' => $semantic->resources ?? []];
-        }
-
-        // 2. Retrieve top-k relevant chunks
+            : $body);
         $retrieval = [
             'context' => '',
             'candidates' => [],
             'best_score' => 0.0,
             'passages_used' => 0,
             'context_tokens' => 0,
+            'response_mode' => 'fallback',
         ];
-        if ($bot->ai_kb_id && ! empty($queryEmbedding)) {
-            $retrieval = $this->retrieveContext(
-                (int) $bot->ai_kb_id,
-                $queryEmbedding,
-                $retrievalQuestion,
-                (int) ($bot->max_context_chunks ?? 3),
-                $revisionId,
-                (float) ($bot->retrieval_match_threshold ?? 0.60),
-                (int) ($bot->max_context_tokens ?? 1200),
-            );
+        $queryEmbedding = [];
+        try {
+            if ($hybridRetrieval) {
+                $retrieval = $this->knowledgeRetrieval->retrieve(
+                    $kb,
+                    $workspaceId,
+                    $body,
+                    $history,
+                    (int) ($bot->max_context_chunks ?? 3),
+                    $revisionId,
+                    (float) ($bot->retrieval_match_threshold ?? 0.60),
+                    (int) ($bot->max_context_tokens ?? 1200),
+                );
+                $queryEmbedding = $retrieval['query_embedding'];
+                $retrievalQuestion = $retrieval['research_query'];
+            } elseif ($bot->ai_kb_id) {
+                $queryEmbedding = $this->queryEmbedding($workspaceId, $retrievalQuestion);
+                if ($queryEmbedding !== []) {
+                    $retrieval = $this->retrieveContext(
+                        (int) $bot->ai_kb_id,
+                        $queryEmbedding,
+                        $retrievalQuestion,
+                        (int) ($bot->max_context_chunks ?? 3),
+                        $revisionId,
+                        (float) ($bot->retrieval_match_threshold ?? 0.60),
+                        (int) ($bot->max_context_tokens ?? 1200),
+                    );
+                    $retrieval['response_mode'] = $retrieval['context'] !== '' ? 'answer' : 'fallback';
+                }
+            }
+        } catch (\Throwable $e) {
+            if ($throwProviderErrors) {
+                throw $e;
+            }
+        }
+        if ($guarded && $revisionId && $queryEmbedding !== [] && ($semantic = $this->semanticCachedAnswer($bot, $queryEmbedding, $revisionId))) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'semantic_cache', [], 0, [
+                'intent' => 'business_question',
+                'answer_origin' => 'knowledge_base',
+                'response_mode' => 'answer',
+                'credit_result' => 'zero_cost',
+            ]);
+
+            return $this->withAnswerMetadata(['reply' => $semantic->answer, 'tokens_used' => 0, 'resources' => $semantic->resources ?? []], 'knowledge_base', [], 'answer');
         }
 
-        if ($knowledgeOnly && $retrieval['context'] === '') {
-            if ($guarded) {
-                $this->recordGap($bot, $workspaceId, $body, (float) ($retrieval['best_score'] ?? 0));
-                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff');
-            }
+        $answerOrigin = $retrieval['context'] !== '' ? 'knowledge_base' : 'business_guidance';
+        $responseMode = $retrieval['response_mode'];
+        $citations = [];
+        $routing = null;
+        $research = null;
 
-            return $this->unsupportedResult($bot);
+        $enriched = $this->enrichWithTrustedResearch(
+            $bot,
+            $kb,
+            $retrievalQuestion,
+            $retrieval,
+            $answerOrigin,
+            $responseMode,
+        );
+        $retrieval = $enriched['retrieval'];
+        $answerOrigin = $enriched['answer_origin'];
+        $responseMode = $enriched['response_mode'];
+        $citations = $enriched['citations'];
+        $research = $enriched['research'];
+
+        $needsBusinessRouting = $knowledgeOnly || ($this->businessAwareEnabled() && ($bot->answer_scope ?? 'business_only') !== 'general');
+        if ($needsBusinessRouting && $retrieval['context'] === '') {
+            if ($this->businessAwareEnabled()) {
+                $routing = $this->routeMissingContext($bot, $kb, $body, $queryEmbedding, $retrieval);
+                if ($routing['mode'] === 'research' && $kb && $research === null) {
+                    $research = $this->trustedResearch->research($kb, $retrievalQuestion);
+                    if ($research['context'] !== '') {
+                        $retrieval['context'] = $research['context'];
+                        $retrieval['context_tokens'] = (int) ceil(mb_strlen($research['context']) / 4);
+                        $retrieval['passages_used'] = count($research['citations']);
+                        $answerOrigin = 'trusted_research';
+                        $responseMode = 'answer';
+                        $citations = $research['citations'];
+                    }
+                }
+                if ($routing['mode'] === 'fallback' || ($routing['mode'] === 'research' && $retrieval['context'] === '')) {
+                    if ($guarded) {
+                        $this->recordGap($bot, $workspaceId, $body, (float) $retrieval['best_score']);
+                    }
+                    $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
+                        'intent' => $routing['intent'],
+                        'answer_origin' => 'fallback',
+                        'research_outcome' => $research['outcome'] ?? null,
+                        'research_latency_ms' => $research['latency_ms'] ?? null,
+                        'credit_result' => 'not_charged',
+                    ]);
+
+                    return $this->unsupportedResult($bot);
+                }
+                if ($routing['mode'] === 'guidance') {
+                    $answerOrigin = 'business_guidance';
+                    $responseMode = 'answer';
+                }
+            } else {
+                if ($guarded) {
+                    $this->recordGap($bot, $workspaceId, $body, (float) $retrieval['best_score']);
+                    $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff');
+                }
+
+                return $this->unsupportedResult($bot);
+            }
         }
 
         // 3. Build prompt
-        $systemPrompt = $this->systemPrompt($bot, $conversation->contact, $knowledgeOnly);
+        $strictGrounding = $answerOrigin === 'knowledge_base' || $answerOrigin === 'trusted_research';
+        $systemPrompt = $this->systemPrompt($bot, $conversation->contact, $strictGrounding, $answerOrigin, $kb, $responseMode);
         if ($retrieval['context'] !== '') {
             $systemPrompt .= "\n\nVerified business context, ranked by relevance:\n".$retrieval['context'];
         }
@@ -120,6 +213,7 @@ class ChatbotRunner
         if ($guarded || $knowledgeOnly) {
             $history = $this->boundedHistory($history, $body);
         }
+        $history = $this->promptHistory($history);
 
         $messages = array_merge(
             [['role' => 'system', 'content' => $systemPrompt]],
@@ -127,7 +221,7 @@ class ChatbotRunner
             [['role' => 'user', 'content' => $body]],
         );
         $retrieval['system_tokens'] = (int) ceil(mb_strlen($systemPrompt) / 4);
-        $retrieval['history_tokens'] = (int) ceil(array_sum(array_map(fn ($turn) => mb_strlen((string) ($turn['content'] ?? '')), $history)) / 4);
+        $retrieval['history_tokens'] = (int) ceil(array_sum(array_map(fn ($turn) => mb_strlen($turn['content']), $history)) / 4);
         $retrieval['customer_tokens'] = (int) ceil(mb_strlen($body) / 4);
 
         // 4. Call LLM
@@ -137,8 +231,16 @@ class ChatbotRunner
                 $messages,
                 [
                     'max_tokens' => 160,
-                    'response_validator' => fn ($response) => $this->validChatResponse($response->content, $knowledgeOnly),
-                    'diagnostics' => $selection['diagnostics'],
+                    'temperature' => 0.2,
+                    'json_object' => true,
+                    'response_validator' => fn ($response) => $this->validChatResponse($response->content, $strictGrounding, $responseMode),
+                    'diagnostics' => array_merge($selection['diagnostics'], [
+                        'intent' => $routing['intent'] ?? 'business_question',
+                        'answer_origin' => $answerOrigin,
+                        'response_mode' => $responseMode,
+                        'research_outcome' => $research['outcome'] ?? null,
+                        'citation_count' => count($citations),
+                    ]),
                     'feature' => 'chatbot_reply',
                     'idempotency_key' => $inboundMessage->exists
                         ? 'chatbot:message:'.$inboundMessage->getKey()
@@ -151,12 +253,24 @@ class ChatbotRunner
             $result = array_merge(app(ChatReplyOptions::class)->parse($response->content, (bool) config('chatbot.quick_replies_enabled')), [
                 'tokens_used' => $response->promptTokens + $response->completionTokens,
                 'resources' => $resources,
+                'answer_origin' => $answerOrigin,
+                'response_mode' => $responseMode,
+                'citations' => $citations,
             ]);
+            $result = $this->appendCitationLinks($result, $citations);
             if ($guarded && $revisionId && $this->cacheableQuestion($body) && $this->anonymousContact($conversation->contact) && ! $this->retrievalTimeSensitive($retrieval)) {
                 $this->storeAnswerCache($bot, $body, $revisionId, $result);
             }
-            if ($guarded) {
-                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, $retrieval, $response->completionTokens);
+            if ($guarded || $this->businessAwareEnabled()) {
+                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, $retrieval, $response->completionTokens, [
+                    'intent' => $routing['intent'] ?? 'business_question',
+                    'answer_origin' => $answerOrigin,
+                    'response_mode' => $responseMode,
+                    'research_outcome' => $research['outcome'] ?? null,
+                    'research_latency_ms' => $research['latency_ms'] ?? null,
+                    'citations' => $citations,
+                    'credit_result' => 'charged_once',
+                ]);
             }
 
             return $result;
@@ -168,14 +282,14 @@ class ChatbotRunner
                 throw $e;
             }
 
-            return ['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources];
+            return $this->withAnswerMetadata(['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources], 'fallback', [], 'fallback');
         } catch (\Throwable $e) {
             if ($throwProviderErrors) {
                 throw $e;
             }
 
             // Fallback
-            return ['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources];
+            return $this->withAnswerMetadata(['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources], 'fallback', [], 'fallback');
         }
     }
 
@@ -227,13 +341,10 @@ class ChatbotRunner
     }
 
     /**
-     * API-friendly variant: run the chatbot with a plain text message.
-     * Does not require an existing Message/Conversation model.
+     * Public comments must never enter the private conversation/order prompt path.
      *
-     * @param  array  $history  Array of {role, content} prior turns (optional)
-     * @return array{reply: string|null, tokens_used: int, resources: array<int, array<string, mixed>>}
+     * @return array{decision:string,reply:string|null,tokens_used:int,revision_id?:int}
      */
-    /** Public comments must never enter the private conversation/order prompt path. */
     public function runForPublicComment(AiChatbot $bot, string $question, int $workspaceId, string $key): array
     {
         $unsupported = ['decision' => 'handoff', 'reply' => null, 'tokens_used' => 0];
@@ -268,6 +379,7 @@ class ChatbotRunner
             ['role' => 'user', 'content' => $question],
         ], [
             'feature' => 'social_comment_reply', 'idempotency_key' => $key, 'max_tokens' => 160,
+            'json_object' => true,
             'diagnostics' => ['surface' => 'public_comment', 'kb_revision_id' => $revision, 'match_score' => $retrieval['best_score']],
             'response_validator' => function ($response) use ($context): bool {
                 $data = json_decode($response->content, true);
@@ -296,6 +408,12 @@ class ChatbotRunner
         return trim($text) !== '' && ! preg_match('/(?:<\/?[a-z][^>]*>|[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:password|secret|api.?key|credit.?card|my order|order number|refund|complaint|scam|lawsuit|medical|suicide|ignore.{0,25}instructions|system prompt)\b|\b\d{9,}\b)/iu', $text);
     }
 
+    /**
+     * API-friendly variant that does not require an existing Message or Conversation.
+     *
+     * @param  array<int,array{role:string,content:string}>  $history
+     * @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>,answer_origin?:string,citations?:array<int,array{title:string,url:string}>,intent?:string}
+     */
     public function runForApi(
         AiChatbot $bot,
         string $message,
@@ -310,61 +428,144 @@ class ChatbotRunner
             ? AiKnowledgeBase::where('workspace_id', $workspaceId)->find($bot->ai_kb_id)
             : null;
         $revisionId = $guarded ? $kb?->published_revision_id : null;
+        if ($this->businessAwareEnabled() && ($conversationResult = $this->turnRouter->conversationalResult($message, $kb, $bot->tone))) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
+                'intent' => $conversationResult['intent'],
+                'answer_origin' => 'conversation',
+                'credit_result' => 'zero_cost',
+            ]);
+
+            return $conversationResult;
+        }
         if ($guarded && $bot->ai_kb_id && ! $revisionId) {
             return $this->unsupportedResult($bot);
         }
         if ($guarded && $revisionId && ($exact = $this->exactFaq($kb, $message, $revisionId))) {
-            return ['reply' => $exact, 'tokens_used' => 0, 'resources' => []];
+            return $this->withAnswerMetadata(['reply' => $exact, 'tokens_used' => 0, 'resources' => []], 'knowledge_base');
         }
         if ($guarded && $revisionId && ($cached = $this->cachedAnswer($bot, $message, $revisionId))) {
-            return ['reply' => $cached->answer, 'tokens_used' => 0, 'resources' => $cached->resources ?? []];
+            return $this->withAnswerMetadata(['reply' => $cached->answer, 'tokens_used' => 0, 'resources' => $cached->resources ?? []], 'knowledge_base');
         }
 
-        // 1. Embed the user query for RAG
         $promptHistory = ($guarded || $knowledgeOnly) ? $this->boundedHistory($history, $message) : $history;
-        $retrievalQuestion = ($guarded || $knowledgeOnly)
+        $hybridRetrieval = $kb && config('knowledge_base.hybrid_retrieval_enabled');
+        $retrievalQuestion = $hybridRetrieval
+            ? $message
+            : (($guarded || $knowledgeOnly)
             ? $this->retrievalQuestion($message, $promptHistory)
-            : $message;
-        $queryEmbedding = [];
-        if ($bot->ai_kb_id) {
-            try {
-                $queryEmbedding = $this->queryEmbedding($workspaceId, $retrievalQuestion);
-            } catch (\Throwable) {
-            }
-        }
-        if ($guarded && $revisionId && $queryEmbedding !== [] && ($semantic = $this->semanticCachedAnswer($bot, $queryEmbedding, $revisionId))) {
-            return ['reply' => $semantic->answer, 'tokens_used' => 0, 'resources' => $semantic->resources ?? []];
-        }
-
-        // 2. Retrieve top-k relevant chunks
+            : $message);
         $retrieval = [
             'context' => '',
             'candidates' => [],
             'best_score' => 0.0,
             'passages_used' => 0,
             'context_tokens' => 0,
+            'response_mode' => 'fallback',
         ];
-        if ($bot->ai_kb_id && ! empty($queryEmbedding)) {
-            $retrieval = $this->retrieveContext(
-                (int) $bot->ai_kb_id,
-                $queryEmbedding,
-                $retrievalQuestion,
-                (int) ($bot->max_context_chunks ?? 3),
-                $revisionId,
-                (float) ($bot->retrieval_match_threshold ?? 0.60),
-                (int) ($bot->max_context_tokens ?? 1200),
-            );
-        }
-        if ($knowledgeOnly && $retrieval['context'] === '') {
-            if ($guarded) {
-                $this->recordGap($bot, $workspaceId, $message, (float) ($retrieval['best_score'] ?? 0));
+        $queryEmbedding = [];
+        try {
+            if ($hybridRetrieval) {
+                $retrieval = $this->knowledgeRetrieval->retrieve(
+                    $kb,
+                    $workspaceId,
+                    $message,
+                    $promptHistory,
+                    (int) ($bot->max_context_chunks ?? 3),
+                    $revisionId,
+                    (float) ($bot->retrieval_match_threshold ?? 0.60),
+                    (int) ($bot->max_context_tokens ?? 1200),
+                );
+                $queryEmbedding = $retrieval['query_embedding'];
+                $retrievalQuestion = $retrieval['research_query'];
+            } elseif ($bot->ai_kb_id) {
+                $queryEmbedding = $this->queryEmbedding($workspaceId, $retrievalQuestion);
+                if ($queryEmbedding !== []) {
+                    $retrieval = $this->retrieveContext(
+                        (int) $bot->ai_kb_id,
+                        $queryEmbedding,
+                        $retrievalQuestion,
+                        (int) ($bot->max_context_chunks ?? 3),
+                        $revisionId,
+                        (float) ($bot->retrieval_match_threshold ?? 0.60),
+                        (int) ($bot->max_context_tokens ?? 1200),
+                    );
+                    $retrieval['response_mode'] = $retrieval['context'] !== '' ? 'answer' : 'fallback';
+                }
             }
+        } catch (\Throwable $e) {
+            if ($throwProviderErrors) {
+                throw $e;
+            }
+        }
+        if ($guarded && $revisionId && $queryEmbedding !== [] && ($semantic = $this->semanticCachedAnswer($bot, $queryEmbedding, $revisionId))) {
+            return $this->withAnswerMetadata(['reply' => $semantic->answer, 'tokens_used' => 0, 'resources' => $semantic->resources ?? []], 'knowledge_base', [], 'answer');
+        }
 
-            return $this->unsupportedResult($bot);
+        $answerOrigin = $retrieval['context'] !== '' ? 'knowledge_base' : 'business_guidance';
+        $responseMode = $retrieval['response_mode'];
+        $citations = [];
+        $routing = null;
+        $research = null;
+
+        $enriched = $this->enrichWithTrustedResearch(
+            $bot,
+            $kb,
+            $retrievalQuestion,
+            $retrieval,
+            $answerOrigin,
+            $responseMode,
+        );
+        $retrieval = $enriched['retrieval'];
+        $answerOrigin = $enriched['answer_origin'];
+        $responseMode = $enriched['response_mode'];
+        $citations = $enriched['citations'];
+        $research = $enriched['research'];
+
+        $needsBusinessRouting = $knowledgeOnly || ($this->businessAwareEnabled() && ($bot->answer_scope ?? 'business_only') !== 'general');
+        if ($needsBusinessRouting && $retrieval['context'] === '') {
+            if ($this->businessAwareEnabled()) {
+                $routing = $this->routeMissingContext($bot, $kb, $message, $queryEmbedding, $retrieval);
+                if ($routing['mode'] === 'research' && $kb && $research === null) {
+                    $research = $this->trustedResearch->research($kb, $retrievalQuestion);
+                    if ($research['context'] !== '') {
+                        $retrieval['context'] = $research['context'];
+                        $retrieval['context_tokens'] = (int) ceil(mb_strlen($research['context']) / 4);
+                        $retrieval['passages_used'] = count($research['citations']);
+                        $answerOrigin = 'trusted_research';
+                        $responseMode = 'answer';
+                        $citations = $research['citations'];
+                    }
+                }
+                if ($routing['mode'] === 'fallback' || ($routing['mode'] === 'research' && $retrieval['context'] === '')) {
+                    if ($guarded) {
+                        $this->recordGap($bot, $workspaceId, $message, (float) $retrieval['best_score']);
+                    }
+                    $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
+                        'intent' => $routing['intent'],
+                        'answer_origin' => 'fallback',
+                        'research_outcome' => $research['outcome'] ?? null,
+                        'research_latency_ms' => $research['latency_ms'] ?? null,
+                        'credit_result' => 'not_charged',
+                    ]);
+
+                    return $this->unsupportedResult($bot);
+                }
+                if ($routing['mode'] === 'guidance') {
+                    $answerOrigin = 'business_guidance';
+                    $responseMode = 'answer';
+                }
+            } else {
+                if ($guarded) {
+                    $this->recordGap($bot, $workspaceId, $message, (float) $retrieval['best_score']);
+                }
+
+                return $this->unsupportedResult($bot);
+            }
         }
 
         // 3. Build messages array
-        $systemPrompt = $this->systemPrompt($bot, null, $knowledgeOnly);
+        $strictGrounding = $answerOrigin === 'knowledge_base' || $answerOrigin === 'trusted_research';
+        $systemPrompt = $this->systemPrompt($bot, null, $strictGrounding, $answerOrigin, $kb, $responseMode);
         if ($retrieval['context'] !== '') {
             $systemPrompt .= "\n\nVerified business context, ranked by relevance:\n".$retrieval['context'];
         }
@@ -373,7 +574,7 @@ class ChatbotRunner
 
         $messages = array_merge(
             [['role' => 'system', 'content' => $systemPrompt]],
-            $promptHistory,
+            $this->promptHistory($promptHistory),
             [['role' => 'user', 'content' => $message]],
         );
         $retrieval['system_tokens'] = (int) ceil(mb_strlen($systemPrompt) / 4);
@@ -387,8 +588,16 @@ class ChatbotRunner
                 $messages,
                 [
                     'max_tokens' => 160,
-                    'response_validator' => fn ($response) => $this->validChatResponse($response->content, $knowledgeOnly),
-                    'diagnostics' => $selection['diagnostics'],
+                    'temperature' => 0.2,
+                    'json_object' => true,
+                    'response_validator' => fn ($response) => $this->validChatResponse($response->content, $strictGrounding, $responseMode),
+                    'diagnostics' => array_merge($selection['diagnostics'], [
+                        'intent' => $routing['intent'] ?? 'business_question',
+                        'answer_origin' => $answerOrigin,
+                        'response_mode' => $responseMode,
+                        'research_outcome' => $research['outcome'] ?? null,
+                        'citation_count' => count($citations),
+                    ]),
                     'feature' => 'chatbot_reply',
                     'idempotency_key' => $idempotencyKey ?? 'chatbot:api:'.(string) Str::uuid(),
                 ],
@@ -398,12 +607,24 @@ class ChatbotRunner
             $result = array_merge(app(ChatReplyOptions::class)->parse($response->content, (bool) config('chatbot.quick_replies_enabled')), [
                 'tokens_used' => $response->promptTokens + $response->completionTokens,
                 'resources' => $resources,
+                'answer_origin' => $answerOrigin,
+                'response_mode' => $responseMode,
+                'citations' => $citations,
             ]);
+            $result = $this->appendCitationLinks($result, $citations);
             if ($guarded && $revisionId && $this->cacheableQuestion($message) && ! $this->retrievalTimeSensitive($retrieval)) {
                 $this->storeAnswerCache($bot, $message, $revisionId, $result);
             }
-            if ($guarded) {
-                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, $retrieval, $response->completionTokens);
+            if ($guarded || $this->businessAwareEnabled()) {
+                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, $retrieval, $response->completionTokens, [
+                    'intent' => $routing['intent'] ?? 'business_question',
+                    'answer_origin' => $answerOrigin,
+                    'response_mode' => $responseMode,
+                    'research_outcome' => $research['outcome'] ?? null,
+                    'research_latency_ms' => $research['latency_ms'] ?? null,
+                    'citations' => $citations,
+                    'credit_result' => 'charged_once',
+                ]);
             }
 
             return $result;
@@ -415,14 +636,60 @@ class ChatbotRunner
                 throw $e;
             }
 
-            return ['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources];
+            return $this->withAnswerMetadata(['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources], 'fallback', [], 'fallback');
         } catch (\Throwable $e) {
             if ($throwProviderErrors) {
                 throw $e;
             }
 
-            return ['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources];
+            return $this->withAnswerMetadata(['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => $resources], 'fallback', [], 'fallback');
         }
+    }
+
+    /**
+     * Optionally supplement indexed passages with a small, ephemeral read from
+     * the client's approved website sources. Existing KB evidence remains in
+     * the prompt, while live citations make current purchasing information
+     * explainable. A failed research attempt never discards usable KB context.
+     *
+     * @param  array<string,mixed>  $retrieval
+     * @return array{retrieval:array<string,mixed>,answer_origin:string,response_mode:string,citations:array<int,array{title:string,url:string}>,research:?array<string,mixed>}
+     */
+    private function enrichWithTrustedResearch(
+        AiChatbot $bot,
+        ?AiKnowledgeBase $knowledgeBase,
+        string $question,
+        array $retrieval,
+        string $answerOrigin,
+        string $responseMode,
+    ): array {
+        $research = null;
+        $citations = [];
+        if ($this->businessAwareEnabled()
+            && $knowledgeBase
+            && $bot->trusted_research_enabled
+            && $this->turnRouter->shouldResearchQuestion($question)) {
+            $research = $this->trustedResearch->research($knowledgeBase, $question);
+            if ($research['context'] !== '') {
+                $retrieval['context'] = trim(implode("\n\n---\n\n", array_filter([
+                    (string) ($retrieval['context'] ?? ''),
+                    (string) $research['context'],
+                ])));
+                $retrieval['context_tokens'] = (int) ceil(mb_strlen($retrieval['context']) / 4);
+                $retrieval['passages_used'] = (int) ($retrieval['passages_used'] ?? 0) + count($research['citations']);
+                $answerOrigin = 'trusted_research';
+                $responseMode = 'answer';
+                $citations = $research['citations'];
+            }
+        }
+
+        return [
+            'retrieval' => $retrieval,
+            'answer_origin' => $answerOrigin,
+            'response_mode' => $responseMode,
+            'citations' => $citations,
+            'research' => $research,
+        ];
     }
 
     /**
@@ -430,8 +697,14 @@ class ChatbotRunner
      * assistant to help with safe general questions that are not covered by the
      * workspace knowledge base.
      */
-    private function systemPrompt(AiChatbot $bot, mixed $contact = null, bool $knowledgeOnly = false): string
-    {
+    private function systemPrompt(
+        AiChatbot $bot,
+        mixed $contact = null,
+        bool $strictGrounding = false,
+        string $answerOrigin = 'business_guidance',
+        ?AiKnowledgeBase $knowledgeBase = null,
+        string $responseMode = 'answer',
+    ): string {
         $prompt = trim((string) ($bot->system_prompt ?: 'You are a helpful customer support assistant.'));
         $name = trim((string) (($contact?->first_name ?? '').' '.($contact?->last_name ?? '')));
         $isAnonymousName = $name === '' || preg_match('/^Customer\s+\d+$/i', $name);
@@ -460,7 +733,7 @@ PROMPT;
             $prompt .= ChatReplyOptions::INSTRUCTIONS;
         }
 
-        if ($knowledgeOnly) {
+        if ($strictGrounding) {
             $prompt .= <<<'PROMPT'
 
 
@@ -471,8 +744,37 @@ Knowledge scope (strict):
 - For a supported answer, the JSON response must include "grounded": true.
 - If the context is missing, unrelated, or insufficient, return exactly {"reply":"","quick_replies":[],"grounded":false}. Do not provide a general answer or discuss the unrelated topic.
 PROMPT;
+            if ($responseMode === 'clarification') {
+                $prompt .= <<<'PROMPT'
+
+
+Grounded clarification mode:
+- The verified context establishes the business topic, but the customer's intention is incomplete.
+- Ask exactly one concise question that will let you choose the correct supported answer.
+- Do not answer the uncertain request yet and do not state prices, policies, availability, compatibility, or promises.
+- Offer quick replies only when the verified context explicitly supports two or three meaningful choices; open-ended questions have no buttons.
+- The customer has not yet asked for a factual answer. Do not summarize a passage or assume which task they mean.
+- Return exactly one object with all four keys: {"reply":"one short clarifying question","quick_replies":["supported choice","supported choice"],"grounded":true,"response_type":"clarification"}.
+PROMPT;
+            }
+            if ($answerOrigin === 'trusted_research') {
+                $prompt .= "\n- The verified context was fetched from client-approved sources for this turn. Support the answer only with those passages; do not add facts from memory.";
+            }
+        } elseif ($answerOrigin === 'business_guidance' && $knowledgeBase) {
+            $profile = $this->turnRouter->profileText($knowledgeBase);
+            $prompt .= <<<PROMPT
+
+
+Business guidance scope:
+{$profile}
+- Help only with stable, general guidance that is clearly related to this business purpose and audience.
+- Never answer unrelated politics, news, celebrity topics, trivia, entertainment, or broad personal-assistant requests.
+- Do not present model knowledge as this business's policy, price, product specification, availability, guarantee, or promise.
+- Do not guess current facts. If the request needs a current or company-specific fact, return {"reply":"","quick_replies":[],"grounded":false}.
+- Keep guidance educational and clearly general; recommend human help when a personalized, sensitive, transactional, legal, financial, or medical decision is involved.
+PROMPT;
         } elseif ($bot->ai_kb_id) {
-            $prompt .= "\n- Safe general-knowledge help is enabled. Clearly separate it from company-specific facts and never imply that general knowledge came from the business Knowledge Base.";
+            $prompt .= "\n- General assistant mode is enabled. Clearly separate general knowledge from company-specific facts and never imply that general knowledge came from the business Knowledge Base.";
         }
 
         return $prompt;
@@ -745,26 +1047,49 @@ PROMPT;
 
     private function restrictsToKnowledgeBase(AiChatbot $bot): bool
     {
+        if ($this->businessAwareEnabled()) {
+            return $bot->ai_kb_id !== null
+                && ($bot->answer_scope ?? 'business_only') !== 'general';
+        }
+
         return $bot->ai_kb_id !== null
             && ($bot->unsupported_answer_action ?? 'clarify_then_handoff') !== 'general';
     }
 
-    private function validChatResponse(string $content, bool $knowledgeOnly): bool
+    private function validChatResponse(string $content, bool $knowledgeOnly, string $responseMode = 'answer'): bool
     {
-        if (app(ChatReplyOptions::class)->parse($content) === null) {
+        $replyOptions = app(ChatReplyOptions::class);
+        $parsed = $replyOptions->parse($content);
+        if ($parsed === null) {
             return false;
         }
         if (! $knowledgeOnly) {
             return true;
         }
 
-        $jsonText = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($content)) ?? trim($content);
-        $decoded = json_decode($jsonText, true);
+        $decoded = $replyOptions->structuredPayload($content);
 
-        return is_array($decoded) && ($decoded['grounded'] ?? null) === true;
+        if ($responseMode === 'clarification') {
+            $reply = trim((string) ($decoded['reply'] ?? $parsed['display_body']));
+            $questionMarks = preg_match_all('/[?؟？]/u', $reply);
+            $containsStatementBeforeQuestion = (bool) preg_match('/[.!]\s+.+[?؟？]\s*$/u', $reply);
+
+            return $reply !== ''
+                && $questionMarks === 1
+                && ! $containsStatementBeforeQuestion
+                && str_word_count($reply) <= 40
+                && ($decoded['grounded'] ?? true) !== false
+                && (! isset($decoded['response_type']) || $decoded['response_type'] === 'clarification');
+        }
+
+        if (! is_array($decoded) || ($decoded['grounded'] ?? null) !== true) {
+            return false;
+        }
+
+        return true;
     }
 
-    /** @return array<int,array{role:string,content:string}> */
+    /** @return array<int,array{role:string,content:string,answer_origin:mixed,response_mode:mixed,quick_replies:array<int,mixed>}> */
     private function conversationHistory(mixed $conversation, Message $inboundMessage): array
     {
         $history = [];
@@ -784,6 +1109,9 @@ PROMPT;
             $history[] = [
                 'role' => $message->direction === 'out' ? 'assistant' : 'user',
                 'content' => $message->body,
+                'answer_origin' => $message->payload['answer_origin'] ?? null,
+                'response_mode' => $message->payload['response_mode'] ?? null,
+                'quick_replies' => $message->payload['quick_replies'] ?? [],
             ];
         }
 
@@ -818,20 +1146,23 @@ PROMPT;
         return $context."\nCustomer follow-up: ".$current;
     }
 
-    /** @return array{reply:string,tokens_used:int,resources:array<int,array<string,mixed>>} */
+    /** @return array{reply:string,tokens_used:int,resources:array<int,array<string,mixed>>,display_body:string,quick_replies:array<int,array{id:string,label:string}>,answer_origin:string,response_mode:string,citations:array<int,array{title:string,url:string}>} */
     private function unsupportedResult(AiChatbot $bot): array
     {
         $customFallback = trim((string) $bot->fallback_reply);
         if ($customFallback !== '') {
-            return ['reply' => $customFallback, 'tokens_used' => 0, 'resources' => []];
+            return $this->withAnswerMetadata(['reply' => $customFallback, 'tokens_used' => 0, 'resources' => []], 'fallback', [], 'fallback');
         }
 
-        $reply = match ($bot->unsupported_answer_action ?? 'clarify_then_handoff') {
+        $fallbackAction = $this->businessAwareEnabled()
+            ? ($bot->unsupported_fallback_action ?? 'clarify_then_handoff')
+            : ($bot->unsupported_answer_action ?? 'clarify_then_handoff');
+        $reply = match ($fallbackAction) {
             'handoff' => $bot->fallback_reply ?: 'I do not have a verified answer for that yet. Would you like me to connect you with a person?',
             default => 'I can help with questions about this business, but I could not find verified information for that. Could you share a relevant product or service detail, or would you like human help?',
         };
 
-        return ['reply' => $reply, 'tokens_used' => 0, 'resources' => []];
+        return $this->withAnswerMetadata(['reply' => $reply, 'tokens_used' => 0, 'resources' => []], 'fallback', [], 'fallback');
     }
 
     private function recordGap(AiChatbot $bot, int $workspaceId, string $question, float $score): void
@@ -852,6 +1183,10 @@ PROMPT;
         ])->save();
     }
 
+    /**
+     * @param  array<string,mixed>  $retrieval
+     * @param  array<string,mixed>  $metadata
+     */
     private function recordDiagnostic(
         AiChatbot $bot,
         int $workspaceId,
@@ -860,7 +1195,11 @@ PROMPT;
         ?string $cacheSource = null,
         array $retrieval = [],
         int $completionTokens = 0,
+        array $metadata = [],
     ): void {
+        if (! $bot->ai_kb_id) {
+            return;
+        }
         AiKbRetrievalDiagnostic::create([
             'workspace_id' => $workspaceId,
             'kb_id' => $bot->ai_kb_id,
@@ -875,7 +1214,112 @@ PROMPT;
             'completion_tokens' => $completionTokens,
             'decision' => $decision,
             'cache_source' => $cacheSource,
+            'intent' => $metadata['intent'] ?? null,
+            'answer_origin' => $metadata['answer_origin'] ?? null,
+            'response_mode' => $metadata['response_mode'] ?? ($retrieval['response_mode'] ?? null),
+            'retrieval_strategy' => $metadata['retrieval_strategy'] ?? ($retrieval['retrieval_strategy'] ?? null),
+            'semantic_score' => $metadata['semantic_score'] ?? ($retrieval['semantic_score'] ?? null),
+            'lexical_score' => $metadata['lexical_score'] ?? ($retrieval['lexical_score'] ?? null),
+            'acceptance_reason' => $metadata['acceptance_reason'] ?? ($retrieval['acceptance_reason'] ?? null),
+            'research_outcome' => $metadata['research_outcome'] ?? null,
+            'research_latency_ms' => $metadata['research_latency_ms'] ?? null,
+            'citations' => $metadata['citations'] ?? null,
+            'credit_result' => $metadata['credit_result'] ?? null,
         ]);
+    }
+
+    private function businessAwareEnabled(): bool
+    {
+        return (bool) config('chatbot.business_aware_routing_enabled', false);
+    }
+
+    /**
+     * @param  array<int,float|int>  $queryEmbedding
+     * @param  array<string,mixed>  $retrieval
+     * @return array{mode:string,intent:string,scope:string,profile_complete:bool}
+     */
+    private function routeMissingContext(
+        AiChatbot $bot,
+        ?AiKnowledgeBase $knowledgeBase,
+        string $message,
+        array $queryEmbedding,
+        array $retrieval,
+    ): array {
+        $profileSimilarity = -1.0;
+        if ($knowledgeBase && $queryEmbedding !== [] && $this->turnRouter->hasMeaningfulProfile($knowledgeBase)) {
+            try {
+                $profileEmbedding = $this->queryEmbedding((int) $bot->workspace_id, $this->turnRouter->profileText($knowledgeBase));
+                $profileSimilarity = $this->cosine($queryEmbedding, $profileEmbedding);
+            } catch (\Throwable) {
+                // Retrieval score remains a conservative relevance hint.
+            }
+        }
+
+        return $this->turnRouter->routeMissingContext(
+            $bot,
+            $knowledgeBase,
+            $message,
+            $profileSimilarity,
+            (float) $retrieval['best_score'],
+        );
+    }
+
+    /**
+     * @param  array<string,mixed>  $result
+     * @param  array<int,array{title:string,url:string}>  $citations
+     * @return array<string,mixed>
+     */
+    private function withAnswerMetadata(array $result, string $origin, array $citations = [], string $responseMode = 'answer'): array
+    {
+        return array_merge($result, [
+            'display_body' => $result['display_body'] ?? $result['reply'] ?? '',
+            'quick_replies' => $result['quick_replies'] ?? [],
+            'answer_origin' => $origin,
+            'response_mode' => $responseMode,
+            'citations' => array_values($citations),
+        ]);
+    }
+
+    /**
+     * Provider messages contain only supported role/content fields. Retrieval-only
+     * metadata remains local and is never forwarded to an AI provider.
+     *
+     * @param  array<int,array<string,mixed>>  $history
+     * @return array<int,array{role:string,content:string}>
+     */
+    private function promptHistory(array $history): array
+    {
+        return array_values(array_map(fn (array $turn): array => [
+            'role' => (string) ($turn['role'] ?? 'user'),
+            'content' => (string) ($turn['content'] ?? ''),
+        ], $history));
+    }
+
+    /**
+     * @param  array<string,mixed>  $result
+     * @param  array<int,array{title:string,url:string}>  $citations
+     * @return array<string,mixed>
+     */
+    private function appendCitationLinks(array $result, array $citations): array
+    {
+        if ($citations === []) {
+            return $result;
+        }
+        $links = collect($citations)
+            ->filter(fn (array $citation): bool => trim($citation['title']) !== ''
+                && str_starts_with(strtolower($citation['url']), 'https://'))
+            ->map(fn (array $citation): string => '['.str_replace([']', '['], '', (string) $citation['title']).']('.$citation['url'].')')
+            ->unique()->take(2)->implode(' · ');
+        if ($links === '') {
+            return $result;
+        }
+        $suffix = "\n\nSources: ".$links;
+        $reply = rtrim((string) ($result['reply'] ?? ''));
+        $display = rtrim((string) ($result['display_body'] ?? $reply));
+        $result['reply'] = $reply.$suffix;
+        $result['display_body'] = $display.$suffix;
+
+        return $result;
     }
 
     private function normalizeQuestion(string $question): string

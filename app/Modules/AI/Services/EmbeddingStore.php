@@ -4,6 +4,7 @@ namespace App\Modules\AI\Services;
 
 use App\Modules\AI\Models\AiKbChunk;
 use App\Modules\Integrations\Services\CredentialResolver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -70,6 +71,29 @@ class EmbeddingStore
         }
     }
 
+    /** @param array<int,int> $chunkIds */
+    public function deleteChunkEmbeddings(array $chunkIds): void
+    {
+        $chunkIds = array_values(array_unique(array_filter(array_map('intval', $chunkIds))));
+        if ($chunkIds === [] || ! $this->qdrantEnabled()) {
+            return;
+        }
+
+        try {
+            $response = $this->qdrantClient()->post('/collections/'.self::QDRANT_COLLECTION.'/points/delete?wait=true', [
+                'points' => $chunkIds,
+            ]);
+            if ($response->status() !== 404 && ! $response->successful()) {
+                throw new \RuntimeException('Qdrant chunk delete failed (HTTP '.$response->status().'): '.$response->body());
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Qdrant chunk-vector cleanup failed', [
+                'chunk_ids' => $chunkIds,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     /** Find top-k most similar chunks to the query embedding. */
     public function search(int $kbId, array $queryEmbedding, int $topK = 5, ?int $revisionId = null): array
     {
@@ -82,6 +106,45 @@ class EmbeddingStore
         }
 
         return $this->mysqlSearch($kbId, $queryEmbedding, $topK, $revisionId);
+    }
+
+    /**
+     * Add lexical candidates to vector retrieval without crossing KB, revision,
+     * source-publication, or active-index-generation boundaries.
+     *
+     * @param  array<int,string>  $terms
+     * @return array<int,array{chunk:AiKbChunk,score:float}>
+     */
+    public function lexicalSearch(int $kbId, array $terms, int $topK = 20, ?int $revisionId = null): array
+    {
+        $terms = array_values(array_unique(array_filter(array_map(
+            fn (string $term): string => mb_substr(trim($term), 0, 80),
+            $terms,
+        ), fn (string $term): bool => mb_strlen($term) >= 2)));
+        if ($terms === []) {
+            return [];
+        }
+
+        $query = $this->eligibleChunks(
+            AiKbChunk::query()->with('document')->where('kb_id', $kbId),
+            $revisionId,
+        );
+        $query->where(function ($builder) use ($terms): void {
+            foreach (array_slice($terms, 0, 8) as $term) {
+                $builder->orWhere('content', 'like', '%'.addcslashes($term, '%_\\').'%');
+            }
+        });
+
+        return $query->limit(200)->get()->map(function (AiKbChunk $chunk) use ($terms): array {
+            $haystack = mb_strtolower(implode(' ', [
+                (string) $chunk->section_label,
+                (string) $chunk->document?->title,
+                $chunk->content,
+            ]));
+            $matched = collect($terms)->filter(fn (string $term): bool => str_contains($haystack, mb_strtolower($term)))->count();
+
+            return ['chunk' => $chunk, 'score' => $matched / max(1, count($terms))];
+        })->sortByDesc('score')->take($topK)->values()->all();
     }
 
     // -------------------------------------------------------------------------
@@ -218,7 +281,11 @@ class EmbeddingStore
         $this->ensurePayloadIndexes();
     }
 
-    /** Qdrant Cloud strict mode requires indexed fields for filtered operations. */
+    /**
+     * Qdrant Cloud strict mode requires indexed fields for filtered operations.
+     *
+     * @param  array<string,array<string,mixed>>  $schema
+     */
     private function ensurePayloadIndexes(array $schema = []): void
     {
         foreach (['document_id', 'kb_id'] as $field) {
@@ -254,17 +321,18 @@ class EmbeddingStore
         })->sortByDesc('score')->take($topK)->values()->toArray();
     }
 
-    private function eligibleChunks($query, ?int $revisionId)
+    /**
+     * @param  Builder<AiKbChunk>  $query
+     * @return Builder<AiKbChunk>
+     */
+    private function eligibleChunks(Builder $query, ?int $revisionId): Builder
     {
-        if (! config('knowledge_base.guarded_publishing') && $revisionId === null) {
-            return $query;
-        }
-
         return $query
             ->where('embedding_status', 'ready')
             ->when($revisionId !== null, fn ($builder) => $builder->whereHas('document.revisions', fn ($revisions) => $revisions->where('ai_kb_revisions.id', $revisionId)))
             ->whereHas('document', fn ($documents) => $documents
                 ->where('enabled', true)
+                ->whereColumn('ai_kb_documents.active_index_generation', 'ai_kb_chunks.index_generation')
                 ->when($revisionId === null, fn ($builder) => $builder->where('publication_status', 'published'))
                 ->whereIn('review_status', ['auto_approved', 'approved'])
                 ->where('status', 'indexed'));

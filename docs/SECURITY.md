@@ -26,7 +26,7 @@ Website AI schedules are stored on the workspace-owned `chat_widgets` record and
 Smart Bots with an assigned Knowledge Base are knowledge-only unless the workspace explicitly enables general answers. Retrieval failure bypasses chat generation, and strict generated output must affirm grounding before credit finalization. Conversation history can clarify a short follow-up but is never treated as verified evidence; substantive new topics are retrieved independently to prevent unrelated questions from inheriting an earlier business context.
 
 - Draft, blocked, rejected, degraded, disabled, cross-workspace, and non-published revision content is excluded from live retrieval.
-- URL/sitemap ingestion accepts public HTTPS destinations only, rejects credentials, localhost/private/reserved addresses, unsafe redirects, redirect loops, and cross-domain sitemap pages.
+- URL/sitemap ingestion accepts public HTTPS destinations only, rejects credentials, localhost/private/reserved addresses, cross-site redirects, redirect loops, and cross-domain sitemap pages. Plain domains and HTTP-form inputs are normalised to HTTPS before any request. A same-site redirect target containing HTTP is rewritten and verified over HTTPS; WisperBot never performs the insecure request. Every hop is DNS-checked and its connected IP is revalidated against private/reserved ranges.
 - Deterministic review blocks likely secrets/private keys, excessive personal data, unreadable extraction, and prompt-injection-style instructions before embedding/publishing.
 - Retrieved document instructions are untrusted reference text. The server derives video embeds and the model cannot provide iframe HTML.
 - Diagnostics retain document/revision IDs, scores, decisions, and token counts without logging customer text or secrets. Knowledge gaps use a normalized question hash and a bounded sample visible only within the owning workspace.
@@ -102,3 +102,7 @@ Disconnect, conversation/contact deletion, workspace export, and account deletio
 - Rotate provider secrets after exposure and invalidate old tokens.
 - Keep PHP, Composer, npm dependencies, and provider API versions under review.
 - Keep debug mode disabled in production and send actionable errors to logs/Sentry rather than displaying stack traces.
+
+## Smart Bot approved-source research
+
+`TrustedKnowledgeResearchService` accepts no URL from a visitor turn. Candidate URLs must already be workspace-scoped records in the Smart Bot's selected Knowledge Base and use a configured URL/sitemap host. Fetches reuse HTTPS-only normalization, public DNS/IP validation, bounded redirects, connected-IP checks, response-size/type limits, robots handling, and short timeouts. Cross-domain canonical results fail closed. Fetched text is untrusted reference material, is cached briefly, and is never published into the permanent Knowledge Base. Public payloads expose only citation title and HTTPS URL; diagnostics exclude hidden prompts, provider responses, credentials, and customer content.

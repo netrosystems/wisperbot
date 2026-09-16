@@ -12,7 +12,7 @@ function widget(thread) {
     const handoff = { status: 'bot' };
     const escape = text => { const el = document.createElement('span'); el.textContent = text ?? ''; return el.innerHTML; };
     const runtime = new Function('body', 'thread', 'send', 'handoff', 'esc', `
-        var CFG = {agent_name: 'Support'}, input = null, sendingText = false;
+        var CFG = {agent_name: 'Support', avatar_url: 'https://example.com/company.png'}, input = null, sendingText = false;
         var escAttr = esc, initial = () => 'S', scrollDown = () => {};
         ${format}
         ${bubble}
@@ -26,6 +26,19 @@ function widget(thread) {
 const question = { id: 2, role: 'agent', body: 'Which app?\n1. iOS\n2. Android', display_body: 'Which app?', quick_replies: [{id:'qr_1', label:'iOS'}, {id:'qr_2', label:'Android'}] };
 
 describe('widget suggested replies', () => {
+    it('keeps the approved compact shell and top-positioned human-help control', () => {
+        const header = source.indexOf('<div class="wb-header">');
+        const handoff = source.indexOf('<div class="wb-handoff"');
+        const body = source.indexOf('<div class="wb-body">');
+
+        expect(header).toBeGreaterThan(-1);
+        expect(handoff).toBeGreaterThan(header);
+        expect(body).toBeGreaterThan(handoff);
+        expect(source).toContain('Talk to an agent');
+        expect(source).toContain("online ? 'Team available now'");
+        expect(source).toContain('.wb-header{background:#fff');
+    });
+
     it('renders accessible buttons and sends exactly the visible text', () => {
         const view = widget([question]);
         const buttons = view.body.querySelectorAll('button');
@@ -48,7 +61,7 @@ describe('widget suggested replies', () => {
     });
     it('does not inject HTML and retains text fallback for malformed choices', () => {
         const view = widget([{...question, quick_replies:[{label:'<img src=x onerror=alert(1)>'}]}]);
-        expect(view.body.querySelector('img')).toBeNull();
+        expect(view.body.querySelector('.wb-bubble img')).toBeNull();
         expect(view.body.querySelector('button')).toBeNull();
         expect(view.body.textContent).toContain('1. iOS');
     });
@@ -67,5 +80,12 @@ describe('widget suggested replies', () => {
         expect(link).not.toBeNull();
         expect(link.textContent).toBe('https://www.telzen.net/packages/6911a730a56d9a0dcf383fe5?countryid=68fa05df73ed268e692de22e&countryname=Dominica&plan_type=esim');
         expect(link.getAttribute('href')).toBe('https://www.telzen.net/packages/6911a730a56d9a0dcf383fe5?countryid=68fa05df73ed268e692de22e&countryname=Dominica&plan_type=esim');
+    });
+    it('uses a replying teammate photo and keeps the company mark for bot messages', () => {
+        const teammate = widget([{ id: 5, role: 'agent', body: 'I can help.', agent_name: 'Ava Agent', agent_avatar_url: 'https://example.com/ava.jpg' }]);
+        expect(teammate.body.querySelector('.wb-av').getAttribute('src')).toBe('https://example.com/ava.jpg');
+
+        const bot = widget([{ id: 6, role: 'agent', body: 'Automated answer', agent_name: 'Smart Bot' }]);
+        expect(bot.body.querySelector('.wb-av').getAttribute('src')).toBe('https://example.com/company.png');
     });
 });

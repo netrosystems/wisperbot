@@ -18,10 +18,13 @@ This directory and the root specification files form the durable project memory 
 5. [Security](SECURITY.md) — Trust boundaries and required safeguards.
 6. [Known Issues](KNOWN_ISSUES.md) — Unfinished or fragile areas.
 7. [Changelog](CHANGELOG.md) — Documentation-level release history.
+8. [Knowledge Base and Smart Bot Answering](KNOWLEDGE_BASE_SMART_BOT.md) — Authoritative routing, retrieval, research, grounding, credits, chatbot identity, rollout, and SDK contract.
 
 ## Smart Bot conversational choices
 
 For any work on Smart Bot questions, reply CTA buttons, or widget/customer-SDK behavior, read [Product decisions](PRODUCT_DECISIONS.md#dynamic-smart-bot-questions-and-cta-replies) and [the implementation/API contract](CHAT_REPLY_OPTIONS.md). This existing feature is industry-independent; client examples are not platform defaults. SDK release status must be verified separately.
+
+For any work on Knowledge Base ingestion/indexing, answer scope, relevance, retrieval, clarification, research, grounding, AI credits, or private Smart Bot rollout, read [Knowledge Base and Smart Bot Answering](KNOWLEDGE_BASE_SMART_BOT.md). It is the durable decision record for the experimental business-aware and semantic-retrieval work.
 
 ## Additional Setup Guides
 

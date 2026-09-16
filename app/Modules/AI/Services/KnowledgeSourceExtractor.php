@@ -4,8 +4,6 @@ namespace App\Modules\AI\Services;
 
 use App\Modules\AI\Models\AiKbDocument;
 use App\Services\StorageManager;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Http;
 use League\HTMLToMarkdown\HtmlConverter;
 use Smalot\PdfParser\Parser;
 use ZipArchive;
@@ -14,7 +12,7 @@ class KnowledgeSourceExtractor
 {
     public function __construct(
         private readonly StorageManager $storage,
-        private readonly KnowledgeUrlGuard $urls,
+        private readonly KnowledgeSourceUrlResolver $urlResolver,
     ) {}
 
     public function extract(AiKbDocument $document): string
@@ -22,7 +20,7 @@ class KnowledgeSourceExtractor
         $text = match ($document->source_type) {
             'text', 'video' => (string) $document->source_ref,
             'faq' => $this->formatFaq((string) $document->source_ref),
-            'url' => $this->fetchUrl((string) $document->source_ref),
+            'url' => $this->fetchDocumentUrl($document),
             'file' => $this->readFile((string) $document->source_ref),
             default => (string) $document->source_ref,
         };
@@ -32,66 +30,86 @@ class KnowledgeSourceExtractor
 
     public function fetchUrl(string $url): string
     {
-        $url = $this->urls->assertSafe($url);
-        $redirects = 0;
-        while (true) {
-            $connectedIp = null;
-            try {
-                $response = Http::withOptions([
-                    'allow_redirects' => false,
-                    'on_stats' => function ($stats) use (&$connectedIp): void {
-                        $connectedIp = $stats->getHandlerStats()['primary_ip'] ?? null;
-                    },
-                ])
-                    ->withHeaders([
-                        'User-Agent' => 'WisperBotKnowledgeIndexer/2.0 (+https://wisperbot.com)',
-                        'Accept' => 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
-                    ])->connectTimeout(5)->timeout(12)->get($url);
-            } catch (ConnectionException $exception) {
-                $reason = str_contains($exception->getMessage(), 'cURL error 28')
-                    ? 'the page took too long to finish responding. Other website pages can still be indexed. Retry this page later or upload a reviewed file.'
-                    : 'the connection failed. Check that this page is publicly accessible over HTTPS, then retry.';
-                throw new \RuntimeException('URL indexing failed: '.$reason, 0, $exception);
-            }
-            if ($connectedIp !== null) {
-                $this->urls->assertPublicIp($connectedIp);
-            }
-            if (in_array($response->status(), [301, 302, 303, 307, 308], true)) {
-                if (++$redirects > 3) {
-                    throw new \RuntimeException('URL indexing failed: too many redirects.');
-                }
-                $location = $response->header('Location');
-                if (! is_string($location) || ! str_starts_with($location, 'https://')) {
-                    throw new \RuntimeException('URL indexing failed: unsafe redirect.');
-                }
-                $url = $this->urls->assertSafe($location);
+        return $this->fetchUrlResult($url)['text'];
+    }
 
-                continue;
-            }
-            if (! $response->successful()) {
-                if (in_array($response->status(), [401, 403], true)) {
-                    throw new \RuntimeException('URL indexing failed: the website blocked automated access. Allow WisperBotKnowledgeIndexer or upload a reviewed file instead.');
-                }
-                if ($response->status() === 429) {
-                    throw new \RuntimeException('URL indexing failed: the website temporarily rate-limited indexing. Wait a few minutes and retry.');
-                }
-                throw new \RuntimeException('URL indexing failed with HTTP '.$response->status().'.');
-            }
-            $contentType = strtolower((string) $response->header('Content-Type'));
-            if ($contentType !== '' && ! str_contains($contentType, 'text/html') && ! str_contains($contentType, 'text/plain')) {
-                throw new \RuntimeException('URL indexing failed: the page is not readable HTML or text.');
-            }
-            if (strlen($response->body()) > 5_000_000) {
-                throw new \RuntimeException('URL indexing failed: the page is too large.');
-            }
+    /**
+     * Read a remote source without mutating a Knowledge Base document. This is
+     * used by bounded, approved-source research during a customer conversation.
+     *
+     * @param  array{connect_timeout?:int,timeout?:int,attempts?:int,max_redirects?:int,user_agent?:string}  $options
+     * @return array{text:string,canonical_url:string}
+     */
+    public function fetchUrlSnapshot(string $url, array $options = []): array
+    {
+        return $this->fetchUrlResult($url, $options);
+    }
 
-            $mediaLinks = $this->mediaLinksFromHtml($response->body());
-            $html = preg_replace('/<(script|style|noscript|svg|canvas|iframe|nav|footer|form)\b[^>]*>.*?<\/\1>/is', ' ', $response->body()) ?? $response->body();
-            $html = preg_replace('/<!--.*?-->/s', ' ', $html) ?? $html;
-            $converter = new HtmlConverter(['strip_tags' => true]);
-
-            return trim($converter->convert($html).($mediaLinks === [] ? '' : "\n\nEmbedded media:\n".implode("\n", $mediaLinks)));
+    private function fetchDocumentUrl(AiKbDocument $document): string
+    {
+        if (blank($document->original_source_ref)) {
+            $document->original_source_ref = (string) $document->source_ref;
         }
+        $result = $this->fetchUrlResult((string) $document->source_ref);
+        $document->update([
+            'original_source_ref' => $document->original_source_ref,
+            'canonical_url' => $result['canonical_url'],
+            'source_ref' => $result['canonical_url'],
+        ]);
+
+        return $result['text'];
+    }
+
+    /**
+     * @param  array{connect_timeout?:int,timeout?:int,attempts?:int,max_redirects?:int,user_agent?:string,accept?:string}  $options
+     * @return array{text:string,canonical_url:string}
+     */
+    private function fetchUrlResult(string $url, array $options = []): array
+    {
+        try {
+            $resolved = $this->urlResolver->fetch($url, array_merge([
+                'accept' => 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
+            ], $options));
+        } catch (KnowledgeUrlResolutionException $exception) {
+            $reason = match ($exception->reason) {
+                'timeout' => 'the page took too long to finish responding. Other website pages can still be indexed. Retry this page later or upload a reviewed file.',
+                'dns' => 'the website address could not be resolved. Check its DNS settings.',
+                'certificate' => 'the website HTTPS certificate could not be verified.',
+                'redirect_loop' => 'the website has a redirect loop. Ask the website owner to correct its redirect rules.',
+                'too_many_redirects' => 'the website uses too many redirects.',
+                'cross_site_redirect' => 'the website redirects to a different domain. Add that canonical domain as the source instead.',
+                default => 'the connection failed. Check that this page is publicly accessible over HTTPS, then retry.',
+            };
+            throw new \RuntimeException('URL indexing failed: '.$reason, 0, $exception);
+        }
+
+        $response = $resolved['response'];
+        if (! $response->successful()) {
+            if (in_array($response->status(), [401, 403], true)) {
+                throw new \RuntimeException('URL indexing failed: the website blocked automated access. Allow WisperBotKnowledgeIndexer or upload a reviewed file instead.');
+            }
+            if ($response->status() === 429) {
+                throw new \RuntimeException('URL indexing failed: the website temporarily rate-limited indexing. Wait a few minutes and retry.');
+            }
+            throw new \RuntimeException('URL indexing failed with HTTP '.$response->status().'.');
+        }
+        $contentType = strtolower((string) $response->header('Content-Type'));
+        if ($contentType !== '' && ! str_contains($contentType, 'text/html') && ! str_contains($contentType, 'text/plain')) {
+            throw new \RuntimeException('URL indexing failed: the page is not readable HTML or text.');
+        }
+        if (strlen($response->body()) > 5_000_000) {
+            throw new \RuntimeException('URL indexing failed: the page is too large.');
+        }
+
+        $mediaLinks = $this->mediaLinksFromHtml($response->body());
+        $html = preg_replace('/<(script|style|noscript|svg|canvas|iframe|nav|footer|form)\b[^>]*>.*?<\/\1>/is', ' ', $response->body()) ?? $response->body();
+        $html = preg_replace('/<!--.*?-->/s', ' ', $html) ?? $html;
+        $converter = new HtmlConverter(['strip_tags' => true]);
+
+        return [
+            'text' => trim($converter->convert($html).($mediaLinks === [] ? '' : "\n\nEmbedded media:\n".implode("\n", $mediaLinks))),
+            'canonical_url' => $resolved['canonical_url'],
+        ];
     }
 
     private function readFile(string $path): string
