@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
+import { ChannelBrandIcon, CHANNEL_LABELS, ConversationChannelIcon } from '@/Components/BrandIcons';
 import { formatTimeTz } from '@/Utils/datetime';
 import axios from 'axios';
 
@@ -150,7 +150,6 @@ function LiveVisitorCard({ conv, isSelected, onSelect, onStartChat }) {
 
 function ConversationCard({ conv, isFlashing, isActive, userTz }) {
     const { t } = useTranslation();
-    const channel = conv.channel_account?.channel ?? 'whatsapp';
     const lastMsg = conv.last_message ?? {};
     const lastResponder = lastMsg.direction === 'out'
         ? (lastMsg.sender?.name ?? (lastMsg.sent_by === 'bot' ? 'AI assistant' : null))
@@ -189,7 +188,7 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
                         {name[0]?.toUpperCase() ?? '?'}
                     </div>
                     <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center">
-                        <ChannelBrandIcon channel={channel} className="h-3 w-3" />
+                        <ConversationChannelIcon conversation={conv} className="h-3 w-3" />
                     </span>
                 </button>
 

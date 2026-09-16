@@ -71,6 +71,57 @@ class ChatWidgetCrudTest extends TestCase
                 ->where('chatbots.0.id', $chatbot->id));
     }
 
+    public function test_new_widgets_get_separate_sdk_access_enabled_by_default(): void
+    {
+        $workspace = $this->ctx['workspace'];
+        $channelAccount = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $channelAccount->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+
+        $this->assertNotEmpty($widget->widget_key);
+        $this->assertNotEmpty($widget->sdk_widget_key);
+        $this->assertNotSame($widget->widget_key, $widget->sdk_widget_key);
+        $this->assertTrue($widget->fresh()->sdk_enabled);
+    }
+
+    public function test_saving_appearance_without_sdk_enabled_keeps_sdk_available(): void
+    {
+        $workspace = $this->ctx['workspace'];
+        $channelAccount = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $channelAccount->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+            'sdk_enabled' => true,
+        ]);
+
+        $this->actingAs($this->ctx['user'])
+            ->put(route('client.inbox.chat-widgets.update', $widget->id), [
+                'name' => 'Updated website chat',
+                'position' => 'bottom_left',
+                'enabled' => true,
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue($widget->fresh()->sdk_enabled);
+    }
+
     public function test_cannot_delete_another_workspaces_chat_widget(): void
     {
         $other = $this->createWorkspaceContext();

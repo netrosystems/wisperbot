@@ -749,6 +749,7 @@ class MobileConversationController extends WorkspaceScopedController
             'id' => $c->id,
             'uuid' => $c->uuid,
             'status' => $c->status,
+            'started_from' => $c->started_from,
             'channel' => $c->channelAccount?->channel,
             'channel_account_id' => $c->channel_account_id,
             'unread_count' => (int) $c->unread_count,

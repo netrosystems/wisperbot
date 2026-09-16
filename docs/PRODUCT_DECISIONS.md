@@ -19,6 +19,8 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 
 ## Website widget
 
+- Website widget and customer SDK availability are intentionally separate controls on the same workspace widget. `Widget enabled` controls only the website embed/launcher; `SDK enabled` controls only customer apps using the SDK key. The staff/agent mobile app is unaffected because it uses authenticated mobile APIs, not the public widget surface.
+- Website-widget and customer-SDK conversations both remain `webchat` channel conversations. New conversations record `conversations.started_from` as `web_widget` or `customer_sdk` when the public session creates the thread; old conversations remain unset rather than being guessed. Agent UIs may use a different icon or detail label for SDK-origin chats without changing channel filtering or routing.
 - Free users may set their footer company name; the widget displays “Powered by {Company}”.
 - The default launcher is the WisperBot icon. Custom launcher images are a paid-plan feature, not a separate “white-label branding” add-on.
 - The widget must isolate every visitor conversation. Anonymous visitors receive stable generated labels such as Customer 1, Customer 2; they never share a public transcript.

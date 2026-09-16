@@ -69,6 +69,7 @@ class MobileConversationTest extends TestCase
             'channel_account_id' => $channelAccount->id,
             'assigned_user_id' => $assignedAgent->id,
             'assigned_to' => 'human',
+            'started_from' => Conversation::STARTED_FROM_CUSTOMER_SDK,
             'status' => 'open',
             'last_message_at' => now(),
         ]);
@@ -88,6 +89,7 @@ class MobileConversationTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.0.id', $conversation->id)
+            ->assertJsonPath('data.0.started_from', Conversation::STARTED_FROM_CUSTOMER_SDK)
             ->assertJsonPath('data.0.assigned_user_id', $assignedAgent->id)
             ->assertJsonPath('data.0.assigned_to', 'human')
             ->assertJsonPath('data.0.assigned_user.id', $assignedAgent->id)
