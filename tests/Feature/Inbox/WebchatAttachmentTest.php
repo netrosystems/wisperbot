@@ -247,7 +247,7 @@ class WebchatAttachmentTest extends TestCase
 
     public function test_widget_visitor_can_upload_pdf_document(): void
     {
-        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
         Storage::fake('public');
 
         $account = ChannelAccount::create([
@@ -290,5 +290,26 @@ class WebchatAttachmentTest extends TestCase
 
         $this->assertNotEmpty($msgRes->json('message.attachment_url'));
         $this->assertGreaterThan(0, $msgRes->json('message.file_size'));
+
+        $message = Message::query()->latest('id')->firstOrFail();
+        $this->assertNotEmpty($message->payload['path'] ?? null);
+
+        $legacyPayload = $message->payload;
+        unset($legacyPayload['path']);
+        $message->update(['payload' => $legacyPayload]);
+
+        $conversation = $message->conversation;
+        $inboxRes = $this->actingAs($user)->getJson(route('client.inbox.messages', $conversation));
+        $inboxRes->assertOk()
+            ->assertJsonPath('messages.0.type', 'document');
+
+        $mediaUrl = $inboxRes->json('messages.0.payload.preview_url');
+        $this->assertIsString($mediaUrl);
+        $this->assertStringContainsString("/app/inbox/conversations/{$conversation->uuid}/messages/{$message->id}/media", $mediaUrl);
+
+        $mediaPath = (string) parse_url($mediaUrl, PHP_URL_PATH);
+        $this->get($mediaPath)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
     }
 }
