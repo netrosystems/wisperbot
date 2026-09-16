@@ -74,6 +74,8 @@ class ChatWidgetController extends Controller
                 'id' => $widget->id,
                 'name' => $widget->name,
                 'widget_key' => $widget->widget_key,
+                'sdk_widget_key' => $widget->sdk_widget_key,
+                'sdk_enabled' => $widget->sdk_enabled,
                 'identity_secret' => $widget->identity_secret,
                 'identity_verification' => $widget->identity_verification,
             ],
@@ -183,6 +185,7 @@ class ChatWidgetController extends Controller
         $data['require_prechat'] = $request->boolean('require_prechat');
         $data['identity_verification'] = $request->boolean('identity_verification');
         $data['enabled'] = $request->has('enabled') ? $request->boolean('enabled') : true;
+        $data['sdk_enabled'] = $request->has('sdk_enabled') ? $request->boolean('sdk_enabled') : true;
 
         $data['ai_schedule_json'] = $this->normalizeAiSchedule($data['ai_schedule_json'] ?? null);
 
@@ -386,6 +389,7 @@ class ChatWidgetController extends Controller
             'require_prechat' => false,
             'identity_verification' => false,
             'enabled' => true,
+            'sdk_enabled' => true,
         ]);
     }
 

@@ -112,26 +112,26 @@ function SurfaceChip({ icon, label, sub, selected, onClick }) {
 
 /* ── Mobile SDK spot ─────────────────────────────────────────────────────── */
 
-function MobileAppIntegration({ widgetKey }) {
+function MobileAppIntegration({ sdkWidgetKey }) {
     return (
         <Step
             n={1}
             kicker="Native SDK"
             title="Mobile app integration"
-            sub="Use this widget code in your iOS or Android app. It links the native SDK to this workspace widget, so mobile conversations land in the same WisperBot inbox."
+            sub="Use this SDK key in your iOS or Android app. It links the native SDK to this workspace widget, so mobile conversations land in the same WisperBot inbox while SDK access stays separate from the website widget."
         >
             <div>
                 <p className="mb-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                    Widget code
+                    SDK key
                 </p>
-                <CopyBox code={widgetKey} dense />
+                <CopyBox code={sdkWidgetKey} dense />
             </div>
 
             <ol className="mt-4 grid gap-2.5 text-sm text-neutral-600 dark:text-neutral-300">
                 <StepRow
                     icon={<Smartphone className="h-4 w-4" />}
                     label="Mobile SDK"
-                    text="Paste this code into the SDK configuration field for widget code / widget key."
+                    text="Paste this key into the SDK configuration field for widget code / widget key."
                 />
                 <StepRow
                     icon={<Code2 className="h-4 w-4" />}
@@ -141,7 +141,7 @@ function MobileAppIntegration({ widgetKey }) {
             </ol>
 
             <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                <b className="font-semibold">Keep secrets server-side.</b> The mobile app only needs this public widget code. Generate any user_hash on your backend before sending it to the app.
+                <b className="font-semibold">Keep secrets server-side.</b> The mobile app only needs this public SDK key. Generate any user_hash on your backend before sending it to the app.
             </p>
         </Step>
     );
@@ -169,7 +169,7 @@ function EmptyState() {
 
 function InstallFlow({ embedBase, selectedSurface, widget }) {
     if (selectedSurface === 'mobile') {
-        return <MobileAppIntegration widgetKey={widget.widget_key} />;
+        return <MobileAppIntegration sdkWidgetKey={widget.sdk_widget_key} />;
     }
 
     return (

@@ -24,12 +24,12 @@ class ChatWidget extends Model
     protected $table = 'chat_widgets';
 
     protected $fillable = [
-        'workspace_id', 'channel_account_id', 'widget_key', 'name',
+        'workspace_id', 'channel_account_id', 'widget_key', 'sdk_widget_key', 'name',
         'title', 'subtitle', 'welcome_message', 'agent_name', 'avatar_url',
         'primary_color', 'position', 'launcher_text', 'footer_company_name',
         'launcher_logo_path', 'launcher_logo_disk',
         'ai_enabled', 'ai_chatbot_id', 'ai_schedule_json', 'require_prechat', 'prechat_fields',
-        'offline_message', 'allowed_domains', 'working_hours_json', 'enabled',
+        'offline_message', 'allowed_domains', 'working_hours_json', 'enabled', 'sdk_enabled',
         'identity_verification', 'identity_secret',
     ];
 
@@ -44,6 +44,7 @@ class ChatWidget extends Model
             'ai_schedule_json' => 'array',
             'require_prechat' => 'boolean',
             'enabled' => 'boolean',
+            'sdk_enabled' => 'boolean',
             'identity_verification' => 'boolean',
             'prechat_fields' => 'array',
             'allowed_domains' => 'array',
@@ -56,6 +57,9 @@ class ChatWidget extends Model
         static::creating(function (self $model) {
             if (empty($model->widget_key)) {
                 $model->widget_key = Str::random(32);
+            }
+            if (empty($model->sdk_widget_key)) {
+                $model->sdk_widget_key = Str::random(32);
             }
             if (empty($model->identity_secret)) {
                 $model->identity_secret = Str::random(48);
@@ -175,14 +179,14 @@ class ChatWidget extends Model
     }
 
     /** Public theming/config surfaced to the embed script + widget UI. */
-    public function publicConfig(): array
+    public function publicConfig(?string $accessKey = null): array
     {
         $launcherLogoUrl = $this->launcher_logo_url
             ?: $this->browserSafePublicUrl(url('/wisperbot-icon-white.svg'));
         $teamMembers = $this->publicTeamMembers();
 
         return [
-            'key' => $this->widget_key,
+            'key' => $accessKey ?: $this->widget_key,
             'title' => $this->title ?: 'Chat with us',
             'subtitle' => $this->subtitle ?: 'We typically reply in a few minutes',
             'welcome_message' => $this->welcome_message ?: 'Hi there 👋 How can we help?',
