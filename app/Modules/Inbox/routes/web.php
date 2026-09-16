@@ -81,6 +81,9 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
         ->name('setup.amazon.actions');
     Route::post('/setup/embedded-signup/instagram', [InboxSetupController::class, 'embeddedSignupInstagram'])->name('setup.embedded-signup.instagram');
     Route::post('/setup/embedded-signup/messenger', [InboxSetupController::class, 'embeddedSignupMessenger'])->name('setup.embedded-signup.messenger');
+    Route::post('/setup/{channelAccount}/repair', [InboxSetupController::class, 'repairMetaConnection'])
+        ->middleware('throttle:20,1')
+        ->name('setup.repair');
     Route::patch('/ai-answering/{segment}', [SegmentAiAnsweringController::class, 'update'])->name('ai-answering.update');
     Route::delete('/setup/{channelAccount}', [InboxSetupController::class, 'destroy'])->name('setup.destroy');
 
