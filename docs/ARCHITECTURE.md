@@ -151,7 +151,7 @@ Authenticated `/api/v1/mobile/*`, `/api/v1/auth/*`, and `/api/v1/broadcasting/au
 - Browser web app: session cookie, CSRF, verified client user, workspace scope.
 - Mobile app: Sanctum bearer token under `/api/v1/mobile`; private broadcast auth uses `/api/v1/broadcasting/auth`.
 - External developer API: `/api/v1` plus the paid `developer_tools` add-on and token abilities.
-- Public widget: throttled, key/session based, no client authentication.
+- Public widget/customer SDK: throttled, key/session based, no client authentication. `/widgets/chat/{key}.js` is website-only and resolves the website `widget_key` with `enabled=true`. `/widget/v1/*` resolves either the website `widget_key` gated by `enabled=true`, or the customer SDK `sdk_widget_key` gated by `sdk_enabled=true`. Both surfaces keep `channel=webchat`; new conversations store `started_from=web_widget|customer_sdk` for source display and additive APIs.
 - Webhooks: public transport surface with provider verification and idempotency.
 
 ## Queues

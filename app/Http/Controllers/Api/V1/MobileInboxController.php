@@ -322,7 +322,7 @@ class MobileInboxController extends WorkspaceScopedController
             ->with(['channelAccount', 'assignedUser'])
             ->orderByDesc('last_message_at')
             ->limit(10)
-            ->get(['id', 'uuid', 'status', 'channel_account_id', 'assigned_user_id', 'assigned_to', 'last_message_at', 'unread_count']);
+            ->get(['id', 'uuid', 'status', 'started_from', 'channel_account_id', 'assigned_user_id', 'assigned_to', 'last_message_at', 'unread_count']);
 
         return response()->json([
             'id' => $contact->id,
@@ -338,6 +338,7 @@ class MobileInboxController extends WorkspaceScopedController
                 'id' => $c->id,
                 'uuid' => $c->uuid,
                 'status' => $c->status,
+                'started_from' => $c->started_from,
                 'channel' => $c->channelAccount?->channel,
                 'last_message_at' => $c->last_message_at?->toIso8601String(),
                 'unread_count' => $c->unread_count,

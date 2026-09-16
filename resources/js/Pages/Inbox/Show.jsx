@@ -10,7 +10,7 @@ import {
     Mic, Square,
     Volume2, VolumeX, ShoppingBag, Radio, Download,
 } from 'lucide-react';
-import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
+import { ChannelBrandIcon, CHANNEL_LABELS, ConversationChannelIcon } from '@/Components/BrandIcons';
 import { formatTimeTz, formatInTz } from '@/Utils/datetime';
 import { playInboundSound, getSoundPrefs, setChannelSoundEnabled, SOUND_CHANNELS } from '@/Utils/notificationSound';
 import { getCountryFlagEmoji } from '@/Components/Inbox/LiveVisitorsMap';
@@ -963,7 +963,6 @@ function MessageBubble({ msg, conversationId }) {
 
 function ConversationCard({ conv, isActive, userTz, filters = {} }) {
     const { t } = useTranslation();
-    const channel = conv.channel_account?.channel ?? 'whatsapp';
     const lastResponder = conv.last_message?.direction === 'out'
         ? (conv.last_message?.sender?.name ?? (conv.last_message?.sent_by === 'bot' ? 'AI assistant' : null))
         : null;
@@ -994,7 +993,7 @@ function ConversationCard({ conv, isActive, userTz, filters = {} }) {
                         {name[0]?.toUpperCase() ?? '?'}
                     </div>
                     <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center">
-                        <ChannelBrandIcon channel={channel} className="h-3 w-3" />
+                        <ConversationChannelIcon conversation={conv} className="h-3 w-3" />
                     </span>
                 </button>
                 <div className="flex-1 min-w-0">
@@ -2277,6 +2276,14 @@ export default function InboxShow({
     const contactName = conversation.contact?.first_name || conversation.contact?.last_name
         ? `${conversation.contact.first_name ?? ''} ${conversation.contact.last_name ?? ''}`.trim()
         : conversation.contact?.phone_e164 ?? 'Unknown';
+    const startedFromLabel = conversation.started_from === 'customer_sdk'
+        ? t('inbox.started_from_customer_sdk', { defaultValue: 'App SDK' })
+        : conversation.started_from === 'web_widget'
+            ? t('inbox.started_from_web_widget', { defaultValue: 'Web Widget' })
+            : null;
+    const headerChannelLabel = conversation.started_from === 'customer_sdk'
+        ? t('inbox.started_from_customer_sdk', { defaultValue: 'App SDK' })
+        : (CHANNEL_LABELS[channel] ?? channel);
 
     const assignedAgent = teamMembers.find(m => m.id === assignedUserId);
     const isJoinedByMe = Number(joinedUser?.id) === Number(authUser?.id);
@@ -2404,14 +2411,14 @@ export default function InboxShow({
                                 {contactName[0]?.toUpperCase() ?? '?'}
                             </div>
                             <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center">
-                                <ChannelBrandIcon channel={channel} className="h-3 w-3" />
+                                <ConversationChannelIcon conversation={conversation} className="h-3 w-3" />
                             </span>
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 truncate">{contactName}</p>
                             <p className="text-xs text-neutral-400 flex items-center gap-1.5 flex-wrap">
-                                <ChannelBrandIcon channel={channel} className="h-3 w-3 shrink-0" />
-                                <span>{CHANNEL_LABELS[channel] ?? channel}</span>
+                                <ConversationChannelIcon conversation={conversation} className="h-3 w-3 shrink-0" />
+                                <span>{headerChannelLabel}</span>
                                 {conversation.channel_account?.name && <><span className="text-neutral-300 dark:text-neutral-600">·</span><span>{conversation.channel_account.name}</span></>}
                                 {conversation.contact?.custom_fields?.webchat_country_code && (
                                     <>
@@ -2799,6 +2806,15 @@ export default function InboxShow({
                                 <span className="text-neutral-500">{t('inbox.status')}</span>
                                 <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[conversation.status] ?? 'bg-neutral-100 text-neutral-600'}`}>{t(`inbox.status_${conversation.status}`)}</span>
                             </div>
+                            {startedFromLabel && (
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-neutral-500">{t('inbox.started_from', { defaultValue: 'Started from' })}</span>
+                                    <span className="inline-flex min-w-0 items-center gap-1 font-medium text-neutral-800 dark:text-neutral-200">
+                                        <ConversationChannelIcon conversation={conversation} className="h-3.5 w-3.5 shrink-0" />
+                                        <span className="truncate">{startedFromLabel}</span>
+                                    </span>
+                                </div>
+                            )}
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-500">{t('inbox.agent')}</span>
                                 <span className="font-medium text-neutral-800 dark:text-neutral-200 truncate max-w-[100px]">{assignedAgent?.name ?? '—'}</span>

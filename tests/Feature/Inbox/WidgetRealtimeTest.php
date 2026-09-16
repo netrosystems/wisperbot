@@ -7,6 +7,7 @@ use App\Events\MessageStatusUpdated;
 use App\Events\WidgetMessageCreated;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Models\WidgetPushSubscription;
+use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Inbox\Services\WidgetPayloadBuilder;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -108,6 +109,190 @@ class WidgetRealtimeTest extends TestCase
             'socket_id' => '123.456',
             'channel_name' => 'private-widget-conversation.'.$session->json('conversation_id'),
         ])->assertForbidden();
+    }
+
+    public function test_web_and_sdk_keys_are_gated_by_their_own_enabled_flags(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id, [
+            'enabled' => false,
+            'sdk_enabled' => true,
+        ]);
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertNotFound();
+        $this->get("/widgets/chat/{$widget->sdk_widget_key}.js")->assertNotFound();
+
+        $sdkSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertOk();
+        $sdkSession->assertJsonPath('config.key', $widget->sdk_widget_key);
+
+        $widget->update([
+            'enabled' => true,
+            'sdk_enabled' => false,
+        ]);
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertNotFound();
+    }
+
+    public function test_web_and_sdk_sessions_mark_new_conversations_with_their_start_source(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $webSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('conversations', [
+            'id' => $webSession->json('conversation_id'),
+            'started_from' => Conversation::STARTED_FROM_WEB_WIDGET,
+        ]);
+
+        $sdkSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('conversations', [
+            'id' => $sdkSession->json('conversation_id'),
+            'started_from' => Conversation::STARTED_FROM_CUSTOMER_SDK,
+        ]);
+    }
+
+    public function test_sdk_disabled_blocks_public_widget_endpoints_for_sdk_key_only(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $session = $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertOk();
+        $headers = ['X-Widget-Token' => $session->json('token')];
+
+        $widget->update(['sdk_enabled' => false]);
+
+        $this->withHeaders($headers)
+            ->postJson(route('widget.send'), ['key' => $widget->sdk_widget_key, 'message' => 'Hello'])
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->getJson(route('widget.poll', ['key' => $widget->sdk_widget_key, 'after' => 0]))
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.read'), ['key' => $widget->sdk_widget_key])
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.delivered'), ['key' => $widget->sdk_widget_key])
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.typing'), ['key' => $widget->sdk_widget_key, 'is_typing' => true])
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.handoff'), ['key' => $widget->sdk_widget_key])
+            ->assertNotFound();
+        $this->getJson(route('widget.pusher-config', ['key' => $widget->sdk_widget_key]))
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.broadcasting-auth'), [
+                'key' => $widget->sdk_widget_key,
+                'socket_id' => '123.456',
+                'channel_name' => 'private-widget-conversation.'.$session->json('conversation_id'),
+            ])
+            ->assertNotFound();
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+    }
+
+    public function test_sdk_key_skips_website_allowed_domains_rule(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id, [
+            'allowed_domains' => ['allowed.example'],
+        ]);
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertForbidden();
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertOk();
+    }
+
+    public function test_sdk_key_accepts_old_web_key_token_and_reissues_sdk_bound_token(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $webSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        $this->withHeader('X-Widget-Token', $webSession->json('token'))
+            ->postJson(route('widget.send'), [
+                'key' => $widget->widget_key,
+                'message' => 'Keep this history',
+            ])
+            ->assertOk();
+
+        $sdkSession = $this->withHeader('X-Widget-Token', $webSession->json('token'))
+            ->postJson(route('widget.session'), [
+                'key' => $widget->sdk_widget_key,
+                'visitor_id' => $webSession->json('visitor_id'),
+            ])
+            ->assertOk()
+            ->assertJsonPath('conversation_id', $webSession->json('conversation_id'))
+            ->assertJsonPath('messages.0.body', 'Keep this history');
+
+        $this->assertNull(WebchatVisitorToken::verify($sdkSession->json('token'), $widget->widget_key));
+        $this->assertNotNull(WebchatVisitorToken::verify($sdkSession->json('token'), $widget->sdk_widget_key));
+        $this->assertSame(
+            Conversation::STARTED_FROM_WEB_WIDGET,
+            Conversation::find($webSession->json('conversation_id'))->started_from,
+        );
+    }
+
+    public function test_restored_existing_conversation_source_is_not_overwritten(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $webSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        Conversation::whereKey($webSession->json('conversation_id'))->update(['started_from' => null]);
+
+        $this->withHeader('X-Widget-Token', $webSession->json('token'))
+            ->postJson(route('widget.session'), [
+                'key' => $widget->sdk_widget_key,
+                'visitor_id' => $webSession->json('visitor_id'),
+            ])
+            ->assertOk()
+            ->assertJsonPath('conversation_id', $webSession->json('conversation_id'));
+
+        $this->assertNull(Conversation::find($webSession->json('conversation_id'))->started_from);
+    }
+
+    public function test_legacy_webchat_driver_ingest_marks_new_conversation_as_web_widget(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $message = app(WebchatDriver::class)->ingestVisitorMessage($widget, 'legacy-visitor-id', 'Hello');
+
+        $this->assertSame(
+            Conversation::STARTED_FROM_WEB_WIDGET,
+            $message->conversation->started_from,
+        );
     }
 
     public function test_widget_session_can_store_optional_sdk_push_token(): void
