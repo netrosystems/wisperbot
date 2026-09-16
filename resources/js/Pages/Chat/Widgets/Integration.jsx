@@ -24,17 +24,20 @@ import {
  * lazily). Each step reveals as much or as little as the workspace needs.
  */
 export default function ChatWidgetIntegration({ widget, embedBase }) {
+    const [selectedSurface, setSelectedSurface] = useState('website');
+
     return (
         <ClientLayout title="Widget integrations">
             <Head title="Widget integrations" />
             <div className="mx-auto max-w-5xl space-y-6">
-                <PageHeader />
+                <PageHeader
+                    selectedSurface={selectedSurface}
+                    onSelectSurface={setSelectedSurface}
+                />
 
                 {widget
-                    ? <InstallFlow embedBase={embedBase} widget={widget} />
+                    ? <InstallFlow embedBase={embedBase} selectedSurface={selectedSurface} widget={widget} />
                     : <EmptyState />}
-
-                <MobileSdkSpot />
             </div>
         </ClientLayout>
     );
@@ -42,7 +45,7 @@ export default function ChatWidgetIntegration({ widget, embedBase }) {
 
 /* ── Page header ─────────────────────────────────────────────────────────── */
 
-function PageHeader() {
+function PageHeader({ selectedSurface, onSelectSurface }) {
     return (
         <header>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-600">
@@ -55,30 +58,47 @@ function PageHeader() {
                 WisperBot gives you three ways to put a chat widget in front of your customers. Pick the one that matches where you ship — and you can mix them: the same widget identity follows the visitor across every surface.
             </p>
 
-            <ul className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div role="tablist" aria-label="Widget integration surfaces" className="mt-4 grid gap-2 sm:grid-cols-3">
                 <SurfaceChip
                     icon={<MonitorSmartphone className="h-3.5 w-3.5" />}
                     label="Website"
                     sub="Drop one snippet"
+                    selected={selectedSurface === 'website'}
+                    onClick={() => onSelectSurface('website')}
                 />
                 <SurfaceChip
                     icon={<Code2 className="h-3.5 w-3.5" />}
                     label="Single-page app"
                     sub="Same snippet + identify()"
+                    selected={selectedSurface === 'spa'}
+                    onClick={() => onSelectSurface('spa')}
                 />
                 <SurfaceChip
                     icon={<Smartphone className="h-3.5 w-3.5" />}
                     label="Mobile app"
                     sub="Native SDK (iOS / Android)"
+                    selected={selectedSurface === 'mobile'}
+                    onClick={() => onSelectSurface('mobile')}
                 />
-            </ul>
+            </div>
         </header>
     );
 }
 
-function SurfaceChip({ icon, label, sub }) {
+function SurfaceChip({ icon, label, sub, selected, onClick }) {
     return (
-        <li className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900">
+        <button
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={onClick}
+            style={{ boxShadow: 'none', outline: 'none' }}
+            className={`flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-left ring-0 transition outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 active:outline-none active:ring-0 dark:bg-neutral-900 ${
+                selected
+                    ? 'border-brand-300 dark:border-brand-700'
+                    : 'border-neutral-200 hover:border-brand-200 hover:bg-brand-50/40 dark:border-neutral-800 dark:hover:border-brand-800 dark:hover:bg-brand-950/20'
+            }`}
+        >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400">
                 {icon}
             </span>
@@ -86,39 +106,44 @@ function SurfaceChip({ icon, label, sub }) {
                 <span className="block text-sm font-semibold text-neutral-900 dark:text-white">{label}</span>
                 <span className="block text-[11px] text-neutral-500 dark:text-neutral-400">{sub}</span>
             </span>
-        </li>
+        </button>
     );
 }
 
 /* ── Mobile SDK spot ─────────────────────────────────────────────────────── */
 
-function MobileSdkSpot() {
+function MobileAppIntegration({ widgetKey }) {
     return (
-        <a
-            href="https://github.com/netrosystems/wisperbot-mobile-sdk"
-            target="_blank"
-            rel="noopener"
-            className="group flex items-start gap-4 rounded-2xl border border-neutral-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-brand-700"
+        <Step
+            n={1}
+            kicker="Native SDK"
+            title="Mobile app integration"
+            sub="Use this widget code in your iOS or Android app. It links the native SDK to this workspace widget, so mobile conversations land in the same WisperBot inbox."
         >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
-                <Smartphone className="h-5 w-5" />
-            </span>
-            <span className="flex-1">
-                <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-neutral-900 dark:text-white">Building a native mobile app?</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">
-                        <Sparkles className="h-3 w-3" /> iOS &amp; Android
-                    </span>
-                </span>
-                <span className="mt-1 block text-sm text-neutral-500 dark:text-neutral-400">
-                    The WisperBot native SDK ships the same chat experience inside your own app — Swift / Kotlin, with the same identify() and user_hash APIs as the web snippet. Get the source, release notes, and integration docs on GitHub.
-                </span>
-                <span className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 group-hover:underline dark:text-brand-400">
-                    View the WisperBot mobile SDK on GitHub
-                    <ExternalLink className="h-3.5 w-3.5" />
-                </span>
-            </span>
-        </a>
+            <div>
+                <p className="mb-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                    Widget code
+                </p>
+                <CopyBox code={widgetKey} dense />
+            </div>
+
+            <ol className="mt-4 grid gap-2.5 text-sm text-neutral-600 dark:text-neutral-300">
+                <StepRow
+                    icon={<Smartphone className="h-4 w-4" />}
+                    label="Mobile SDK"
+                    text="Paste this code into the SDK configuration field for widget code / widget key."
+                />
+                <StepRow
+                    icon={<Code2 className="h-4 w-4" />}
+                    label="Signed-in users"
+                    text="After app login, pass the customer's external id, name, email, avatar, and user_hash through the SDK identify method if your app supports accounts."
+                />
+            </ol>
+
+            <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                <b className="font-semibold">Keep secrets server-side.</b> The mobile app only needs this public widget code. Generate any user_hash on your backend before sending it to the app.
+            </p>
+        </Step>
     );
 }
 
@@ -142,7 +167,11 @@ function EmptyState() {
 
 /* ── Main flow ───────────────────────────────────────────────────────────── */
 
-function InstallFlow({ embedBase, widget }) {
+function InstallFlow({ embedBase, selectedSurface, widget }) {
+    if (selectedSurface === 'mobile') {
+        return <MobileAppIntegration widgetKey={widget.widget_key} />;
+    }
+
     return (
         <div className="space-y-5">
             <UniversalSnippet embedBase={embedBase} widgetKey={widget.widget_key} />
@@ -150,8 +179,6 @@ function InstallFlow({ embedBase, widget }) {
             <IdentifiedVisitors embedBase={embedBase} widgetKey={widget.widget_key} />
 
             <VerifyIdentity
-                embedBase={embedBase}
-                widgetKey={widget.widget_key}
                 identitySecret={widget.identity_secret}
                 verification={widget.identity_verification}
             />
@@ -167,7 +194,7 @@ function FooterActions({ widgetKey }) {
             <a
                 href={`/widgets/chat/${widgetKey}.js`}
                 target="_blank"
-                rel="noopener"
+                rel="noreferrer"
                 className="inline-flex items-center gap-1.5 font-medium text-brand-600 hover:underline dark:text-brand-400"
             >
                 <ExternalLink className="h-3.5 w-3.5" /> View the generated loader
@@ -277,7 +304,7 @@ window.WisperBot('logout');`;
 
 /* ── Step 3: identity verification (HMAC) ────────────────────────────────── */
 
-function VerifyIdentity({ embedBase, widgetKey, identitySecret, verification }) {
+function VerifyIdentity({ identitySecret, verification }) {
     const php =
 `// Never expose the secret to the browser. Sign on YOUR server.
 $user_hash = hash_hmac('sha256', (string) $user->id, '${identitySecret}');`;
