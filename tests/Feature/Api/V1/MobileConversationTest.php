@@ -94,6 +94,50 @@ class MobileConversationTest extends TestCase
             ->assertJsonPath('data.0.assigned_user.name', 'John Agent');
     }
 
+    public function test_mobile_conversations_index_uses_media_preview_without_changing_message_body(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $contact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'Media',
+        ]);
+        $channelAccount = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'messenger',
+            'display_name' => 'Messenger',
+            'status' => 'active',
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'channel_account_id' => $channelAccount->id,
+            'status' => 'open',
+            'last_message_at' => now(),
+        ]);
+        Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'in',
+            'channel' => 'messenger',
+            'type' => 'image',
+            'body' => '',
+            'payload' => ['filename' => 'photo.jpg', 'preview_url' => 'https://example.test/photo.jpg'],
+            'status' => 'delivered',
+            'sent_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/mobile/conversations')
+            ->assertOk()
+            ->assertJsonPath('data.0.last_message.body', 'Image')
+            ->assertJsonPath('data.0.latest_message_preview', 'Image');
+
+        $this->getJson("/api/v1/mobile/conversations/{$conversation->uuid}")
+            ->assertOk()
+            ->assertJsonPath('messages.0.body', '');
+    }
+
     public function test_mobile_omni_inbox_excludes_email_and_sms_conversations(): void
     {
         $workspace = Workspace::factory()->create();
