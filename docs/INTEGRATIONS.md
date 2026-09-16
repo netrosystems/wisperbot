@@ -62,6 +62,7 @@ Meta renames/deprecates products and permissions. Confirm the current names in M
 - Controller verification and inbound idempotency are mandatory.
 - Messenger/Instagram processing is dispatched on `whatsapp`; keep that worker active.
 - Messenger/Instagram private-message attachments must be normalized into typed inbox messages (`image`, `video`, `audio`, `document`, or `sticker`) instead of text-only payloads. Meta attachment URLs are treated as temporary provider URLs; web clients use the authenticated inbox media endpoint, and mobile payloads use an expiring signed mobile media endpoint so native image/video components can render without authorization headers while keeping cache keys stable across ordinary payload refreshes. The media proxy streams cached/provider files instead of depending on the public storage URL, so broken storage aliases do not block app rendering. HEIC/HEIF photos from staff uploads, website-widget uploads, Meta, or WhatsApp should be converted to cached JPEG previews server-side when one supported converter is available: PHP Imagick with HEIC support, ImageMagick `magick`/`convert`, `heif-convert`, or `ffmpeg`.
+- Outbound Messenger media replies must use attachment sends for `image`, `video`, and `audio`; generic voice labels such as `Voice message` are UI/body fallbacks and must not be sent as customer-visible text. Mobile voice uploads may arrive with generic MIME types, so the server normalizes common audio extensions such as `.m4a`, `.weba`, and `.opus` before provider upload.
 
 ### WhatsApp Embedded Signup modes
 

@@ -38,15 +38,18 @@ class MessengerDriver implements ChannelDriverInterface
 
         $recipient = ['id' => $conv->external_thread_id];
         $payload = $message->payload ?? [];
-        $imageUrl = $payload['link'] ?? $payload['preview_url'] ?? null;
+        $mediaUrl = $payload['link'] ?? $payload['preview_url'] ?? $payload['url'] ?? null;
 
-        // Image messages (e.g. shared products): send the photo as an attachment,
-        // then the caption as a follow-up — a Messenger attachment carries no text.
-        if ($message->type === 'image' && $imageUrl) {
+        // Messenger attachments carry no text. Send supported media first, then
+        // an optional caption/body as a follow-up text message.
+        if (in_array($message->type, ['image', 'video', 'audio'], true) && $mediaUrl) {
             $messageId = $this->postMessage($accessToken, $recipient, [
-                'attachment' => ['type' => 'image', 'payload' => ['url' => $imageUrl, 'is_reusable' => true]],
+                'attachment' => [
+                    'type' => $message->type,
+                    'payload' => ['url' => $mediaUrl, 'is_reusable' => true],
+                ],
             ]);
-            if (! empty($message->body)) {
+            if (! empty($message->body) && ! $this->isGenericAudioBody((string) $message->type, (string) $message->body)) {
                 $this->postMessage($accessToken, $recipient, ['text' => $message->body]);
             }
 
@@ -77,6 +80,11 @@ class MessengerDriver implements ChannelDriverInterface
         }
 
         return $resp->json('message_id', '');
+    }
+
+    private function isGenericAudioBody(string $type, string $body): bool
+    {
+        return $type === 'audio' && in_array(strtolower(trim($body)), ['voice message', 'audio', 'audio attachment'], true);
     }
 
     public function receiveWebhook(Request $request): array

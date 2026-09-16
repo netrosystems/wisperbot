@@ -193,7 +193,7 @@ class InboxShareProductTest extends TestCase
 
     public function test_messenger_driver_sends_photo_attachment_then_caption(): void
     {
-        ['workspace' => $ws] = $this->createWorkspaceContext();
+        ['user' => $user, 'workspace' => $ws] = $this->createWorkspaceContext();
         $conversation = $this->joinedConversation($this->conversation($ws->id, 'messenger', ['page_access_token' => 'TKN']), $user->id);
 
         $message = Message::create([
@@ -218,6 +218,34 @@ class InboxShareProductTest extends TestCase
         Http::assertSent(fn ($req) => ($req->data()['message']['attachment']['payload']['url'] ?? null) === 'https://cdn.example.com/widget.png');
         // Then: the caption as text.
         Http::assertSent(fn ($req) => str_contains($req->data()['message']['text'] ?? '', 'Blue Widget'));
+    }
+
+    public function test_messenger_driver_sends_audio_attachment_without_voice_message_text(): void
+    {
+        ['user' => $user, 'workspace' => $ws] = $this->createWorkspaceContext();
+        $conversation = $this->joinedConversation($this->conversation($ws->id, 'messenger', ['page_access_token' => 'TKN']), $user->id);
+
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'out',
+            'channel' => 'messenger',
+            'type' => 'audio',
+            'body' => 'Voice message',
+            'payload' => ['preview_url' => 'https://cdn.example.com/voice-message.m4a', 'mime_type' => 'audio/mp4'],
+            'status' => 'queued',
+            'sent_by' => 'human',
+            'sent_at' => now(),
+        ]);
+
+        Http::fake(['graph.facebook.com/*' => Http::response(['message_id' => 'mid.AUDIO'], 200)]);
+
+        $id = app(MessengerDriver::class)->send($message->fresh()->load('conversation.channelAccount'));
+
+        $this->assertSame('mid.AUDIO', $id);
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($req) => ($req->data()['message']['attachment']['type'] ?? null) === 'audio'
+            && ($req->data()['message']['attachment']['payload']['url'] ?? null) === 'https://cdn.example.com/voice-message.m4a');
+        Http::assertNotSent(fn ($req) => ($req->data()['message']['text'] ?? null) === 'Voice message');
     }
 
     public function test_share_product_blocked_when_whatsapp_window_closed(): void
