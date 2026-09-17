@@ -735,18 +735,8 @@ class InboxController extends Controller
             abort_unless($assignedTo, 422);
         }
 
-        $this->ownership->synchronized($conversation, function () use ($conversation, $request): void {
-            $conversation->refresh();
-            $updates = ['assigned_user_id' => $request->user_id];
-            if ($request->user_id) {
-                $updates += ['assigned_to' => 'human', 'ai_paused_at' => now(), 'ai_pause_reason' => 'assigned'];
-            }
-            if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
-                $updates += ['joined_user_id' => null, 'joined_at' => null];
-            }
-            $conversation->update($updates);
-        });
-        ConversationAssigned::dispatch($conversation, $assignedTo);
+        $updated = $this->ownership->assign($conversation, $assignedTo, $request->user());
+        ConversationAssigned::dispatch($updated, $assignedTo);
 
         return back()->with('success', 'Conversation assigned.');
     }
@@ -792,14 +782,7 @@ class InboxController extends Controller
         $this->authorise($request, $conversation);
         $request->validate(['status' => ['required', 'in:open,pending,resolved,snoozed']]);
 
-        if ($request->status === 'resolved') {
-            $this->ownership->resolve($conversation, $request->user());
-        } else {
-            $this->ownership->synchronized($conversation, fn () => $conversation->update([
-                'status' => $request->status,
-                'resolved_at' => null,
-            ]));
-        }
+        $this->ownership->changeStatus($conversation, $request->status, $request->user());
 
         return back()->with('success', 'Status updated.');
     }
