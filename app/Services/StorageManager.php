@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Modules\Integrations\Models\IntegrationConfig;
-use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +27,7 @@ class StorageManager
      * Returns the active filesystem disk instance.
      * Falls back to the 'public' local disk when no cloud provider is enabled.
      */
-    public function disk(): Filesystem
+    public function disk(): FilesystemAdapter
     {
         return Storage::disk($this->diskName());
     }

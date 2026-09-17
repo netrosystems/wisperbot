@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Expanded the staff conversation audit timeline with transfer, leave, assignment, unassignment, reopen, pending, and snoozed activity. No-op transitions remain deduplicated; widget/SDK customers continue to receive only joined/resolved activity, with takeover safely represented as the new agent joining.
+
 - Fixed website-widget conversation ordering when a missed realtime activity is recovered after a newer cached message; recovered rows now return to their canonical message-ID position instead of appearing at the end.
 
 - Scoped website-widget cached history to the server-confirmed conversation and made session history authoritative, removing stale messages carried across renewed visitor sessions. Initial history now returns the latest 100 messages in chronological order.

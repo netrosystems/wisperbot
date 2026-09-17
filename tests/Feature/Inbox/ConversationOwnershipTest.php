@@ -132,11 +132,16 @@ class ConversationOwnershipTest extends TestCase
         $this->assertNull($conversation->unanswered_reminder_sent_at);
         $this->assertSame(1, $conversation->unread_count);
         $this->assertEquals($receivedAt->toDateTimeString(), $conversation->last_inbound_at->toDateTimeString());
-        $this->assertSame(1, $conversation->messages()->count());
+        $this->assertSame(2, $conversation->messages()->count());
+        $reopenedActivity = $conversation->messages()->where('direction', 'system')->sole();
+        $this->assertSame('conversation.reopened', $reopenedActivity->payload['activity']['type']);
+        $this->assertSame('Chat reopened after a new customer message', $reopenedActivity->body);
+        $this->assertArrayNotHasKey('actor', $reopenedActivity->payload['activity']);
         Event::assertDispatchedTimes(ConversationOwnershipChanged::class, 1);
 
         $this->assertFalse(app(ConversationOwnershipService::class)->prepareInbound($conversation));
         Event::assertDispatchedTimes(ConversationOwnershipChanged::class, 1);
+        $this->assertSame(1, $conversation->messages()->where('direction', 'system')->count());
     }
 
     public function test_webchat_message_reuses_and_reopens_the_resolved_thread_before_dispatch(): void
@@ -182,7 +187,57 @@ class ConversationOwnershipTest extends TestCase
         $this->assertSame($staff->id, $conversation->fresh()->joined_user_id);
         $activities = $conversation->messages()->where('direction', 'system')->orderBy('id')->get();
         $this->assertCount(2, $activities);
-        $this->assertSame("{$staff->name} joined the chat", $activities->last()->body);
+        $this->assertSame("{$staff->name} took over the chat from {$admin->name}", $activities->last()->body);
+        $this->assertSame('conversation.transferred', $activities->last()->payload['activity']['type']);
+        $this->assertSame($admin->id, $activities->last()->payload['activity']['previous_actor']['id']);
+    }
+
+    public function test_leave_assignment_and_status_changes_create_staff_activity_only_on_change(): void
+    {
+        [$conversation, $admin, $staff] = $this->conversationContext();
+        $service = app(ConversationOwnershipService::class);
+
+        $service->join($conversation, $admin);
+        $service->leave($conversation->fresh(), $admin);
+        $service->leave($conversation->fresh(), $admin);
+        $service->assign($conversation->fresh(), $staff, $admin);
+        $service->assign($conversation->fresh(), $staff, $admin);
+        $service->assign($conversation->fresh(), null, $admin);
+        $service->assign($conversation->fresh(), null, $admin);
+        $service->changeStatus($conversation->fresh(), 'pending', $admin);
+        $service->changeStatus($conversation->fresh(), 'pending', $admin);
+        $service->changeStatus($conversation->fresh(), 'snoozed', $admin);
+        $service->changeStatus($conversation->fresh(), 'open', $admin);
+
+        $activities = $conversation->messages()->where('direction', 'system')->orderBy('id')->get();
+        $this->assertSame([
+            'conversation.joined',
+            'conversation.left',
+            'conversation.assigned',
+            'conversation.unassigned',
+            'conversation.pending',
+            'conversation.snoozed',
+            'conversation.reopened',
+        ], $activities->pluck('payload.activity.type')->all());
+        $this->assertSame($staff->id, $activities[2]->payload['activity']['subject']['id']);
+        $this->assertSame('snoozed', $activities[6]->payload['activity']['previous_status']);
+    }
+
+    public function test_releasing_an_inactive_or_removed_agent_records_who_removed_them(): void
+    {
+        [$conversation, $admin, $staff] = $this->conversationContext();
+        $service = app(ConversationOwnershipService::class);
+        $service->join($conversation, $staff);
+
+        $service->releaseUser($staff->id, actor: $admin);
+
+        $conversation->refresh();
+        $this->assertNull($conversation->joined_user_id);
+        $activity = $conversation->messages()->where('direction', 'system')->latest('id')->firstOrFail();
+        $this->assertSame('conversation.left', $activity->payload['activity']['type']);
+        $this->assertSame($admin->id, $activity->payload['activity']['actor']['id']);
+        $this->assertSame($staff->id, $activity->payload['activity']['subject']['id']);
+        $this->assertSame("{$admin->name} removed {$staff->name} from the chat", $activity->body);
     }
 
     public function test_off_shift_agent_cannot_take_over_and_empty_leave_preserves_preassignment(): void

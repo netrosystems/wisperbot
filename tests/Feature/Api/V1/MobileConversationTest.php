@@ -75,6 +75,43 @@ class MobileConversationTest extends TestCase
             ->assertJsonPath('data.0.payload.activity.actor.name', 'Mobile Agent');
     }
 
+    public function test_mobile_assignment_and_workflow_statuses_append_staff_activity(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create([
+            'workspace_id' => $workspace->id,
+            'status' => User::STATUS_ACTIVE,
+            'name' => 'Mobile Agent',
+        ]);
+        $workspace->update(['owner_id' => $user->id]);
+        $contact = Contact::create(['workspace_id' => $workspace->id, 'first_name' => 'Mobile']);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'human',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/assign", ['user_id' => $user->id])
+            ->assertOk();
+        $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/assign", ['user_id' => null])
+            ->assertOk();
+        foreach (['pending', 'snoozed', 'open'] as $status) {
+            $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/status", ['status' => $status])
+                ->assertOk()
+                ->assertJsonPath('status', $status);
+        }
+
+        $this->getJson("/api/v1/mobile/conversations/{$conversation->uuid}/messages")
+            ->assertOk()
+            ->assertJsonPath('data.0.payload.activity.type', 'conversation.assigned')
+            ->assertJsonPath('data.1.payload.activity.type', 'conversation.unassigned')
+            ->assertJsonPath('data.2.payload.activity.type', 'conversation.pending')
+            ->assertJsonPath('data.3.payload.activity.type', 'conversation.snoozed')
+            ->assertJsonPath('data.4.payload.activity.type', 'conversation.reopened');
+    }
+
     public function test_mobile_conversations_index_includes_assigned_fields(): void
     {
         $workspace = Workspace::factory()->create();

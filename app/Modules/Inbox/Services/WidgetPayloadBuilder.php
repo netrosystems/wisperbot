@@ -10,6 +10,12 @@ use App\Modules\Shared\Models\Message;
 
 class WidgetPayloadBuilder
 {
+    private const PUBLIC_ACTIVITY_TYPES = [
+        'conversation.joined',
+        'conversation.transferred',
+        'conversation.resolved',
+    ];
+
     public function __construct(private VideoResourceService $videos) {}
 
     /**
@@ -20,7 +26,13 @@ class WidgetPayloadBuilder
         $query = Message::where('conversation_id', $conversationId)
             ->with('sender')
             ->where('id', '>', $afterId)
-            ->whereIn('direction', ['in', 'out', 'system'])
+            ->where(function ($query): void {
+                $query->whereIn('direction', ['in', 'out'])
+                    ->orWhere(function ($activityQuery): void {
+                        $activityQuery->where('direction', 'system')
+                            ->whereIn('payload->activity->type', self::PUBLIC_ACTIVITY_TYPES);
+                    });
+            })
             ->where('status', '!=', 'failed');
 
         $messages = $afterId > 0
@@ -46,12 +58,16 @@ class WidgetPayloadBuilder
             $agentName = $activity['actor_name'];
         }
 
+        $body = $isActivity && ($message->payload['activity']['type'] ?? null) === 'conversation.transferred'
+            ? "{$agentName} joined the chat"
+            : (string) $message->body;
+
         return [
             'id' => $message->id,
             'role' => $isAgent ? 'agent' : 'visitor',
             'kind' => $isActivity ? 'activity' : 'message',
             'status' => $message->status,
-            'body' => (string) $message->body,
+            'body' => $body,
             'type' => $message->type,
             'attachment_url' => $this->browserSafePublicUrl($message->payload['preview_url'] ?? null),
             'filename' => $message->payload['filename'] ?? null,
@@ -60,7 +76,7 @@ class WidgetPayloadBuilder
             'resources' => $isActivity ? [] : $this->videos->sanitisePublicList($message->payload['resources'] ?? []),
             'quick_replies' => $isAgent && ! $isActivity ? app(ChatReplyOptions::class)->sanitize($message->payload['quick_replies'] ?? []) : [],
             'display_body' => $isAgent && ! $isActivity && is_string($message->payload['display_body'] ?? null)
-                ? $message->payload['display_body'] : (string) $message->body,
+                ? $message->payload['display_body'] : $body,
             'sent_by' => $isActivity ? 'system' : $message->sent_by,
             'agent_name' => $agentName,
             'activity' => $activity,
@@ -125,10 +141,21 @@ class WidgetPayloadBuilder
         $actor = is_array($activity) ? ($activity['actor'] ?? null) : null;
         $actorName = is_array($actor) ? ($actor['name'] ?? null) : null;
 
-        if (! is_string($type) || ! is_string($actorName)) {
+        if (! is_string($type) || ! in_array($type, self::PUBLIC_ACTIVITY_TYPES, true) || ! is_string($actorName)) {
             return null;
         }
 
+        if ($type === 'conversation.transferred') {
+            $type = 'conversation.joined';
+        }
+
         return ['type' => $type, 'actor_name' => $actorName];
+    }
+
+    public function isPublicActivity(Message $message): bool
+    {
+        return $message->direction === 'system'
+            && $message->type === 'event'
+            && in_array($message->payload['activity']['type'] ?? null, self::PUBLIC_ACTIVITY_TYPES, true);
     }
 }
