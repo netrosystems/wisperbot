@@ -58,7 +58,7 @@ class BroadcastWidgetRealtimeUpdate
         $conversation = $message->conversation;
         $widget = $conversation ? $this->widgetFor($conversation) : null;
 
-        if (! $widget) {
+        if (! $widget || ! $this->payloads->isPublicActivity($message)) {
             return;
         }
 

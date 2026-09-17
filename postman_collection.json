@@ -665,6 +665,7 @@
         },
         {
           "name": "Conversations",
+          "description": "Staff conversation history includes durable system activity messages. Detect them with direction=system and type=event, render body as centered timeline text, and treat payload.activity.actor, subject, previous_actor, and previous_status as optional. Supported staff activity types are conversation.joined, transferred, left, assigned, unassigned, reopened, pending, snoozed, and resolved. Repeated no-op actions do not append duplicates.",
           "item": [
             {
               "name": "List Conversations",
@@ -850,7 +851,7 @@
                     "messages"
                   ]
                 },
-                "description": "Paginated message history for loading older messages or polling."
+                "description": "Message history for the staff app. Activity rows use the existing message envelope: {direction: system, type: event, body, sent_by: system, payload: {activity: {type, actor?, subject?, previous_actor?, previous_status?}}}. actor is absent for automatic reopen caused by a new customer message; clients should always render the escaped body and parse nested activity fields as optional."
               }
             },
             {
@@ -974,7 +975,7 @@
                     "assign"
                   ]
                 },
-                "description": "Assign conversation to a team member (or null to unassign).",
+                "description": "Assign conversation to a team member (or null to unassign). A successful state change appends staff-only conversation.assigned or conversation.unassigned activity; repeating the current assignment appends nothing. Assignment does not mean the agent has joined and is not exposed to the customer widget/SDK.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"user_id\": 1\n}",
@@ -984,6 +985,63 @@
                     }
                   }
                 }
+              }
+            },
+            {
+              "name": "Join Conversation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/conversations/{{conversation_uuid}}/join",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "conversations", "{{conversation_uuid}}", "join"]
+                },
+                "description": "Acquire joined ownership. On the first successful join, appends conversation.joined. Repeating the same join creates no duplicate activity."
+              }
+            },
+            {
+              "name": "Leave Conversation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/conversations/{{conversation_uuid}}/leave",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "conversations", "{{conversation_uuid}}", "leave"]
+                },
+                "description": "Release joined ownership and append staff-only conversation.left. Leaving a conversation with no joined owner is a no-op."
+              }
+            },
+            {
+              "name": "Take Over Conversation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/conversations/{{conversation_uuid}}/takeover",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "conversations", "{{conversation_uuid}}", "takeover"]
+                },
+                "description": "Replace the current joined owner when policy permits. Staff history receives conversation.transferred with previous_actor; widget/SDK customers receive only the new agent as conversation.joined, without previous-agent data."
               }
             },
             {
@@ -1016,7 +1074,7 @@
                     "status"
                   ]
                 },
-                "description": "Update status: open, pending, resolved, snoozed.",
+                "description": "Update status: open, pending, resolved, snoozed. Successful changes append conversation.reopened, conversation.pending, conversation.resolved, or conversation.snoozed respectively; repeating the current status appends nothing. Only resolved is public to widget/SDK customers.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"status\": \"resolved\"\n}",
@@ -1615,7 +1673,7 @@
                 "{{email_thread_uuid}}"
               ]
             },
-            "description": "Returns complete email thread and messages list. Automatically marks unread count as 0."
+            "description": "Returns the complete email thread and staff message timeline, including direction=system/type=event workflow activity in the same contract as Omni Inbox. Automatically marks unread count as 0."
           }
         },
         {
@@ -1656,7 +1714,7 @@
                 }
               ]
             },
-            "description": "Polls new incoming/outgoing messages in the thread using after_id."
+            "description": "Polls new incoming, outgoing, and staff system activity messages using after_id. Activity records have direction=system, type=event, sent_by=system, fallback body, and payload.activity metadata."
           }
         },
         {

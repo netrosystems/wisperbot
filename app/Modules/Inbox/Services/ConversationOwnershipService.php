@@ -61,21 +61,35 @@ class ConversationOwnershipService
 
     public function leave(Conversation $conversation, User $user): Conversation
     {
-        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user) {
+        $activity = null;
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user, &$activity) {
             $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
             $this->assertMember($locked, $user);
             if (! $locked->joined_user_id) {
                 return $locked->fresh(['joinedUser', 'channelAccount']);
             }
-            if ($locked->joined_user_id && (int) $locked->joined_user_id !== (int) $user->id && ! $user->isClientAdministrator()) {
+            if ((int) $locked->joined_user_id !== (int) $user->id && ! $user->isClientAdministrator()) {
                 throw new ConversationOwnershipException('Only the joined agent or an administrator can leave this chat.', 403);
             }
+            $leavingUser = User::query()->find($locked->joined_user_id);
             $locked->update(['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null]);
+            $activity = $this->activity(
+                $locked,
+                $user,
+                'conversation.left',
+                $leavingUser && (int) $leavingUser->id !== (int) $user->id
+                    ? "{$user->name} removed {$leavingUser->name} from the chat"
+                    : "{$user->name} left the chat",
+                $leavingUser ? ['subject' => $this->actorSnapshot($leavingUser)] : [],
+            );
 
             return $locked->fresh(['joinedUser', 'channelAccount']);
         }));
 
-        return $this->broadcast($updated);
+        $updated = $this->broadcast($updated);
+        $this->broadcastActivity($activity);
+
+        return $updated;
     }
 
     public function takeover(Conversation $conversation, User $user): Conversation
@@ -105,13 +119,104 @@ class ConversationOwnershipService
                 }
             }
 
+            $locked->loadMissing('joinedUser');
+            $previous = $locked->joinedUser;
             $updated = $this->joinLocked($locked, $user);
-            $activity = $this->activity($locked, $user, 'conversation.joined');
+            $activity = $this->activity(
+                $locked,
+                $user,
+                'conversation.transferred',
+                $previous
+                    ? "{$user->name} took over the chat from {$previous->name}"
+                    : "{$user->name} took over the chat",
+                $previous ? ['previous_actor' => $this->actorSnapshot($previous)] : [],
+            );
 
             return $updated;
         }));
 
         $updated = $this->broadcast($updated);
+        $this->broadcastActivity($activity);
+
+        return $updated;
+    }
+
+    public function assign(Conversation $conversation, ?User $assignee, User $actor): Conversation
+    {
+        $activity = null;
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $assignee, $actor, &$activity) {
+            $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
+            $this->assertMember($locked, $actor);
+            if ($assignee) {
+                $this->assertMember($locked, $assignee);
+            }
+
+            $assigneeId = $assignee?->id;
+            if ((int) $locked->assigned_user_id === (int) $assigneeId) {
+                return $locked->fresh(['joinedUser', 'channelAccount']);
+            }
+
+            $updates = ['assigned_user_id' => $assigneeId];
+            if ($assignee) {
+                $updates += ['assigned_to' => 'human', 'ai_paused_at' => now(), 'ai_pause_reason' => 'assigned'];
+            }
+            if ((int) $locked->joined_user_id !== (int) $assigneeId) {
+                $updates += ['joined_user_id' => null, 'joined_at' => null];
+            }
+            $locked->update($updates);
+
+            $activity = $this->activity(
+                $locked,
+                $actor,
+                $assignee ? 'conversation.assigned' : 'conversation.unassigned',
+                $assignee
+                    ? "{$actor->name} assigned the chat to {$assignee->name}"
+                    : "{$actor->name} unassigned the chat",
+                $assignee ? ['subject' => $this->actorSnapshot($assignee)] : [],
+            );
+
+            return $locked->fresh(['joinedUser', 'channelAccount']);
+        }));
+
+        $this->broadcastActivity($activity);
+
+        return $updated;
+    }
+
+    public function changeStatus(Conversation $conversation, string $status, User $actor): Conversation
+    {
+        if ($status === 'resolved') {
+            return $this->resolve($conversation, $actor);
+        }
+
+        $activity = null;
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $status, $actor, &$activity) {
+            $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
+            $this->assertMember($locked, $actor);
+            if ($locked->status === $status) {
+                return $locked->fresh(['joinedUser', 'channelAccount']);
+            }
+
+            $previousStatus = $locked->status;
+            $locked->update(['status' => $status, 'resolved_at' => null]);
+            $type = match ($status) {
+                'pending' => 'conversation.pending',
+                'snoozed' => 'conversation.snoozed',
+                'open' => 'conversation.reopened',
+                default => null,
+            };
+            if ($type) {
+                $body = match ($type) {
+                    'conversation.pending' => "{$actor->name} marked the chat as pending",
+                    'conversation.snoozed' => "{$actor->name} snoozed the chat",
+                    default => "{$actor->name} reopened the chat",
+                };
+                $activity = $this->activity($locked, $actor, $type, $body, ['previous_status' => $previousStatus]);
+            }
+
+            return $locked->fresh(['joinedUser', 'channelAccount']);
+        }));
+
         $this->broadcastActivity($activity);
 
         return $updated;
@@ -148,24 +253,45 @@ class ConversationOwnershipService
         return $updated;
     }
 
-    public function releaseUser(int $userId, ?int $workspaceId = null): void
+    public function releaseUser(int $userId, ?int $workspaceId = null, ?User $actor = null): void
     {
+        $releasedUser = User::query()->findOrFail($userId);
         Conversation::query()
             ->where('joined_user_id', $userId)
             ->when($workspaceId, fn ($query) => $query->where('workspace_id', $workspaceId))
             ->get()
-            ->each(function (Conversation $conversation): void {
-                $updated = $this->synchronized($conversation, function () use ($conversation): Conversation {
-                    $conversation->refresh();
-                    $conversation->update(['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null]);
+            ->each(function (Conversation $conversation) use ($userId, $releasedUser, $actor): void {
+                $activity = null;
+                $updated = $this->synchronized($conversation, function () use ($conversation, $userId, $releasedUser, $actor, &$activity): Conversation {
+                    return DB::transaction(function () use ($conversation, $userId, $releasedUser, $actor, &$activity): Conversation {
+                        $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
+                        if ((int) $locked->joined_user_id !== $userId) {
+                            return $locked->fresh(['joinedUser', 'channelAccount']);
+                        }
 
-                    return $conversation->fresh(['joinedUser', 'channelAccount']);
+                        $locked->update(['assigned_user_id' => null, 'joined_user_id' => null, 'joined_at' => null]);
+                        $name = $releasedUser->name;
+                        $activity = $this->activity(
+                            $locked,
+                            $actor,
+                            'conversation.left',
+                            $actor ? "{$actor->name} removed {$name} from the chat" : "{$name} left the chat",
+                            ['subject' => $this->actorSnapshot($releasedUser)],
+                        );
+
+                        return $locked->fresh(['joinedUser', 'channelAccount']);
+                    });
                 });
                 $this->broadcast($updated);
+                $this->broadcastActivity($activity);
             });
     }
 
-    /** Clear stale ownership when an old resolved thread receives a new inbound. */
+    /**
+     * Clear stale ownership when an old resolved thread receives a new inbound.
+     *
+     * @return array<string, mixed>
+     */
     public function reopenUpdates(Conversation $conversation): array
     {
         if ($conversation->status !== 'resolved') {
@@ -199,12 +325,14 @@ class ConversationOwnershipService
         array $updates = [],
     ): bool {
         $reopened = false;
+        $activity = null;
         $updated = $this->synchronized($conversation, function () use (
             $conversation,
             $receivedAt,
             $unreadIncrement,
             $updates,
             &$reopened,
+            &$activity,
         ): Conversation {
             return DB::transaction(function () use (
                 $conversation,
@@ -212,6 +340,7 @@ class ConversationOwnershipService
                 $unreadIncrement,
                 $updates,
                 &$reopened,
+                &$activity,
             ): Conversation {
                 $locked = Conversation::query()
                     ->with('channelAccount')
@@ -232,6 +361,13 @@ class ConversationOwnershipService
                 if ($locked->status === 'resolved') {
                     $reopened = true;
                     $updates = array_merge($updates, $this->reopenUpdates($locked));
+                    $activity = $this->activity(
+                        $locked,
+                        null,
+                        'conversation.reopened',
+                        'Chat reopened after a new customer message',
+                        ['previous_status' => 'resolved'],
+                    );
                 }
                 if ($updates !== []) {
                     $locked->update($updates);
@@ -246,6 +382,7 @@ class ConversationOwnershipService
 
         if ($reopened) {
             $this->broadcast($updated);
+            $this->broadcastActivity($activity);
         }
 
         return $reopened;
@@ -306,28 +443,40 @@ class ConversationOwnershipService
         return $conversation;
     }
 
-    private function activity(Conversation $conversation, User $actor, string $type): Message
-    {
-        $body = $type === 'conversation.resolved'
-            ? "Resolved by {$actor->name}"
-            : "{$actor->name} joined the chat";
+    /** @param array<string, mixed> $context */
+    private function activity(
+        Conversation $conversation,
+        ?User $actor,
+        string $type,
+        ?string $body = null,
+        array $context = [],
+    ): Message {
+        $body ??= $type === 'conversation.resolved'
+            ? "Resolved by {$actor?->name}"
+            : "{$actor?->name} joined the chat";
+        $activity = ['type' => $type];
+        if ($actor) {
+            $activity['actor'] = $this->actorSnapshot($actor);
+        }
+        $activity = array_merge($activity, $context);
 
         return $conversation->messages()->create([
             'direction' => 'system',
             'channel' => $conversation->channelAccount()->value('channel') ?? 'system',
             'type' => 'event',
             'body' => $body,
-            'payload' => [
-                'activity' => [
-                    'type' => $type,
-                    'actor' => ['id' => $actor->id, 'name' => $actor->name],
-                ],
-            ],
+            'payload' => ['activity' => $activity],
             'status' => 'delivered',
             'sent_by' => 'system',
-            'user_id' => $actor->id,
+            'user_id' => $actor?->id,
             'sent_at' => now(),
         ]);
+    }
+
+    /** @return array{id:int,name:string} */
+    private function actorSnapshot(User $user): array
+    {
+        return ['id' => $user->id, 'name' => $user->name];
     }
 
     private function broadcastActivity(?Message $activity): void
@@ -337,6 +486,7 @@ class ConversationOwnershipService
         }
     }
 
+    /** @return array{id:int,name:string,avatar:mixed}|null */
     private function publicUser(?User $user): ?array
     {
         return $user ? ['id' => $user->id, 'name' => $user->name, 'avatar' => $user->avatar] : null;

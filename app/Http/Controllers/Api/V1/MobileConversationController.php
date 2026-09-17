@@ -29,6 +29,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Response;
 
 class MobileConversationController extends WorkspaceScopedController
 {
@@ -190,7 +191,7 @@ class MobileConversationController extends WorkspaceScopedController
         ]);
     }
 
-    public function media(Request $request, string $uuid, Message $message): \Symfony\Component\HttpFoundation\Response
+    public function media(Request $request, string $uuid, Message $message): Response
     {
         $conversation = Conversation::where('workspace_id', $this->workspaceId($request))
             ->where('uuid', $uuid)
@@ -201,7 +202,7 @@ class MobileConversationController extends WorkspaceScopedController
         return $this->mediaResolver->response($message, $request);
     }
 
-    public function signedMedia(Request $request, string $uuid, Message $message): \Symfony\Component\HttpFoundation\Response
+    public function signedMedia(Request $request, string $uuid, Message $message): Response
     {
         $conversation = Conversation::where('uuid', $uuid)->firstOrFail();
 
@@ -370,15 +371,8 @@ class MobileConversationController extends WorkspaceScopedController
             abort_unless($assignedTo, 422, 'User not found in workspace.');
         }
 
-        $updates = ['assigned_user_id' => $request->user_id];
-        if ($request->user_id) {
-            $updates += ['assigned_to' => 'human', 'ai_paused_at' => now(), 'ai_pause_reason' => 'assigned'];
-        }
-        if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
-            $updates += ['joined_user_id' => null, 'joined_at' => null];
-        }
-        $this->ownership->synchronized($conversation, fn () => $conversation->update($updates));
-        ConversationAssigned::dispatch($conversation, $assignedTo);
+        $updated = $this->ownership->assign($conversation, $assignedTo, $request->user());
+        ConversationAssigned::dispatch($updated, $assignedTo);
 
         return response()->json(['ok' => true, 'assigned_user_id' => $request->user_id]);
     }
@@ -409,11 +403,7 @@ class MobileConversationController extends WorkspaceScopedController
 
         $request->validate(['status' => ['required', 'in:open,pending,resolved,snoozed']]);
 
-        if ($request->status === 'resolved') {
-            $this->ownership->resolve($conversation, $request->user());
-        } else {
-            $this->ownership->synchronized($conversation, fn () => $conversation->update(['status' => $request->status, 'resolved_at' => null]));
-        }
+        $this->ownership->changeStatus($conversation, $request->status, $request->user());
 
         return response()->json(['ok' => true, 'status' => $request->status]);
     }

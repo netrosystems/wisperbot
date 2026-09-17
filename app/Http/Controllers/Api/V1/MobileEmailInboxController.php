@@ -392,14 +392,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
     {
         $validated = $request->validate(['status' => ['required', 'in:open,resolved']]);
         $conversation = $this->emailConversation($request, $uuid);
-        if ($validated['status'] === 'resolved') {
-            $this->ownership->resolve($conversation, $request->user());
-        } else {
-            $this->ownership->synchronized($conversation, fn () => $conversation->update([
-                'status' => 'open',
-                'resolved_at' => null,
-            ]));
-        }
+        $this->ownership->changeStatus($conversation, $validated['status'], $request->user());
         $conversation->refresh();
 
         return response()->json([

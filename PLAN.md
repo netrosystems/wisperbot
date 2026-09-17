@@ -2,7 +2,7 @@
 
 ## 1. Purpose & Product Vision
 
-Ownership history is part of the conversation timeline: successful join/takeover and resolution append durable centered system activity with the acting agent's name snapshot. Activity is transactionally coupled to the state change, creates no duplicate on repeated no-op actions, does not change unread/SLA/order/preview state, and is never sent to external providers. Staff web/mobile and email views render it as a system row; widget/SDK payloads expose only public-safe activity fields.
+Ownership and workflow history is part of the staff conversation timeline: successful join, takeover, leave, assignment, unassignment, reopen, pending, snoozed, and resolution append durable centered system activity with actor/subject snapshots where applicable. Activity is transactionally coupled to the state change, creates no duplicate on repeated no-op actions, does not change unread/SLA/order/preview state, and is never sent to external providers. Staff web/mobile and email views render every activity as a system row; widget/SDK payloads expose only public-safe joined/resolved activity, mapping takeover to the new agent joining.
 
 **WisperBot** is an enterprise-grade, omni-channel customer messaging, AI automation, and engagement SaaS platform. It centralizes customer conversations across WhatsApp, Meta Messenger, Instagram DMs, Website Chat, Telegram, and Email into a single unified agent workspace, augmented with autonomous AI knowledge bots, visual workflow automations, and targeted SMS broadcasting.
 

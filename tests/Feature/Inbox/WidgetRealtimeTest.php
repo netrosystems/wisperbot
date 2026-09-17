@@ -6,6 +6,7 @@ use App\Events\ConversationActivityCreated;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Events\WidgetMessageCreated;
+use App\Models\User;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Models\WidgetPushSubscription;
 use App\Modules\Inbox\Services\WebchatDriver;
@@ -154,6 +155,78 @@ class WidgetRealtimeTest extends TestCase
             ]
         );
         Http::assertNothingSent();
+    }
+
+    public function test_staff_only_activity_is_excluded_from_widget_history_and_realtime(): void
+    {
+        Event::fake([WidgetMessageCreated::class]);
+        ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+        $activity = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => "{$agent->name} left the chat",
+            'payload' => ['activity' => [
+                'type' => 'conversation.left',
+                'actor' => ['id' => $agent->id, 'name' => $agent->name],
+            ]],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $agent->id,
+            'sent_at' => now(),
+        ]);
+
+        ConversationActivityCreated::dispatch($activity);
+
+        $this->assertSame([], app(WidgetPayloadBuilder::class)->messages($conversation->id, $widget, 0));
+        Event::assertNotDispatched(WidgetMessageCreated::class);
+    }
+
+    public function test_transfer_activity_is_presented_to_widget_as_joined_without_previous_agent_data(): void
+    {
+        Event::fake([WidgetMessageCreated::class]);
+        ['workspace' => $workspace, 'user' => $agent, 'client' => $client] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+        $previous = User::factory()->create(['client_id' => $client->id, 'workspace_id' => $workspace->id]);
+        $activity = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => "{$agent->name} took over the chat from {$previous->name}",
+            'payload' => ['activity' => [
+                'type' => 'conversation.transferred',
+                'actor' => ['id' => $agent->id, 'name' => $agent->name],
+                'previous_actor' => ['id' => $previous->id, 'name' => $previous->name],
+            ]],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $agent->id,
+            'sent_at' => now(),
+        ]);
+
+        $payload = app(WidgetPayloadBuilder::class)->message($activity, $widget);
+
+        $this->assertSame("{$agent->name} joined the chat", $payload['body']);
+        $this->assertSame([
+            'type' => 'conversation.joined',
+            'actor_name' => $agent->name,
+        ], $payload['activity']);
+        $this->assertStringNotContainsString($previous->name, json_encode($payload, JSON_THROW_ON_ERROR));
+
+        ConversationActivityCreated::dispatch($activity);
+        Event::assertDispatched(WidgetMessageCreated::class, function (WidgetMessageCreated $event) use ($agent, $previous): bool {
+            return $event->message['body'] === "{$agent->name} joined the chat"
+                && $event->message['activity'] === [
+                    'type' => 'conversation.joined',
+                    'actor_name' => $agent->name,
+                ]
+                && ! str_contains($event->message['body'], $previous->name);
+        });
     }
 
     public function test_widget_broadcast_auth_accepts_only_the_token_bound_conversation(): void
