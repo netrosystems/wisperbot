@@ -14,7 +14,10 @@ class MessageReceived implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public readonly Message $message) {}
+    public function __construct(
+        public readonly Message $message,
+        public readonly bool $reopened = false,
+    ) {}
 
     public function broadcastOn(): array
     {
@@ -37,6 +40,8 @@ class MessageReceived implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
+        $conversation = $this->message->conversation;
+
         return [
             'id' => $this->message->id,
             'conversation_id' => $this->message->conversation_id,
@@ -51,6 +56,16 @@ class MessageReceived implements ShouldBroadcastNow
             'status' => $this->message->status,
             'sent_at' => $this->message->sent_at?->toIso8601String(),
             'created_at' => $this->message->created_at?->toIso8601String(),
+            'reopened' => $this->reopened,
+            'conversation' => $conversation ? [
+                'id' => $conversation->id,
+                'uuid' => $conversation->uuid,
+                'status' => $conversation->status,
+                'assigned_to' => $conversation->assigned_to,
+                'assigned_user_id' => $conversation->assigned_user_id,
+                'joined_user_id' => $conversation->joined_user_id,
+                'joined_at' => $conversation->joined_at?->toIso8601String(),
+            ] : null,
         ];
     }
 }

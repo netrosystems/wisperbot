@@ -2,12 +2,17 @@
 
 namespace Tests\Feature\Inbox;
 
+use App\Events\ConversationOwnershipChanged;
+use App\Events\MessageReceived;
 use App\Models\User;
 use App\Modules\Inbox\Models\WorkspaceMemberAvailability;
+use App\Modules\Inbox\Services\ConversationOwnershipService;
+use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class ConversationOwnershipTest extends TestCase
@@ -57,6 +62,84 @@ class ConversationOwnershipTest extends TestCase
         $this->assertNull($conversation->joined_at);
         $this->assertNull($conversation->handover_at);
         $this->assertSame(1, $conversation->messages()->count());
+    }
+
+    public function test_inbound_reopens_the_same_resolved_conversation_and_resets_stale_control_state(): void
+    {
+        Event::fake([ConversationOwnershipChanged::class]);
+        [$conversation, $admin] = $this->conversationContext();
+        $conversation->messages()->create([
+            'direction' => 'in', 'channel' => 'webchat', 'type' => 'text', 'body' => 'Existing history',
+            'status' => 'delivered', 'sent_by' => 'human', 'sent_at' => now()->subHour(),
+        ]);
+        $stale = $conversation->fresh();
+        $conversation->update([
+            'status' => 'resolved',
+            'resolved_at' => now()->subMinute(),
+            'assigned_user_id' => $admin->id,
+            'joined_user_id' => $admin->id,
+            'joined_at' => now()->subMinutes(5),
+            'handover_at' => now()->subMinutes(4),
+            'ai_paused_at' => now()->subMinutes(3),
+            'ai_pause_reason' => 'joined',
+            'first_response_at' => now()->subMinutes(2),
+            'unanswered_reminder_sent_at' => now()->subMinute(),
+        ]);
+
+        $receivedAt = now();
+        $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+            $stale,
+            $receivedAt,
+            1,
+        );
+
+        $conversation->refresh();
+        $this->assertTrue($reopened);
+        $this->assertSame($stale->id, $conversation->id);
+        $this->assertSame('open', $conversation->status);
+        $this->assertNull($conversation->resolved_at);
+        $this->assertNull($conversation->assigned_user_id);
+        $this->assertNull($conversation->joined_user_id);
+        $this->assertNull($conversation->joined_at);
+        $this->assertNull($conversation->handover_at);
+        $this->assertNull($conversation->ai_paused_at);
+        $this->assertNull($conversation->ai_pause_reason);
+        $this->assertNull($conversation->first_response_at);
+        $this->assertNull($conversation->unanswered_reminder_sent_at);
+        $this->assertSame(1, $conversation->unread_count);
+        $this->assertEquals($receivedAt->toDateTimeString(), $conversation->last_inbound_at->toDateTimeString());
+        $this->assertSame(1, $conversation->messages()->count());
+        Event::assertDispatchedTimes(ConversationOwnershipChanged::class, 1);
+
+        $this->assertFalse(app(ConversationOwnershipService::class)->prepareInbound($conversation));
+        Event::assertDispatchedTimes(ConversationOwnershipChanged::class, 1);
+    }
+
+    public function test_webchat_message_reuses_and_reopens_the_resolved_thread_before_dispatch(): void
+    {
+        Event::fake([ConversationOwnershipChanged::class, MessageReceived::class]);
+        [$conversation] = $this->conversationContext();
+        $conversation->update([
+            'status' => 'resolved',
+            'resolved_at' => now()->subMinute(),
+        ]);
+
+        $message = app(WebchatDriver::class)->recordInboundMessage(
+            $conversation->fresh(),
+            'visitor-1',
+            'I need help again',
+        );
+
+        $conversation->refresh();
+        $this->assertSame('open', $conversation->status);
+        $this->assertNull($conversation->resolved_at);
+        $this->assertSame($conversation->id, $message->conversation_id);
+        $this->assertSame(1, Conversation::where('workspace_id', $conversation->workspace_id)->count());
+        Event::assertDispatched(MessageReceived::class, function (MessageReceived $event) use ($conversation): bool {
+            return $event->reopened
+                && $event->message->conversation_id === $conversation->id
+                && $event->message->conversation->status === 'open';
+        });
     }
 
     public function test_available_agent_can_take_over_from_off_shift_owner(): void
