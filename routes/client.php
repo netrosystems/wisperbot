@@ -131,6 +131,7 @@ Route::middleware(['verified'])->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
     Route::post('/notification-preferences', [NotificationController::class, 'updatePreferences'])->name('notification-preferences.update');
+    Route::put('/notification-preferences/email-inbox', [NotificationController::class, 'updateEmailInboxPreference'])->name('notification-preferences.email-inbox.update');
 
     // Web Push subscriptions
     Route::post('/push/subscribe', [WebPushController::class, 'subscribe'])->name('push.subscribe');

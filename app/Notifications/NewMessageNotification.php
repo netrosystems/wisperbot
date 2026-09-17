@@ -9,6 +9,7 @@ use App\Modules\Shared\Models\Message;
 use App\Notifications\Channels\OneSignalChannel;
 use App\Notifications\Channels\WebPushChannel;
 use App\Notifications\Concerns\HasWorkspaceScope;
+use App\Services\EmailInboxNotificationPolicy;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
@@ -28,6 +29,10 @@ class NewMessageNotification extends Notification implements ShouldQueue, Worksp
 
     public function via(object $notifiable): array
     {
+        if (! app(EmailInboxNotificationPolicy::class)->allows($notifiable, $this->message)) {
+            return [];
+        }
+
         $channels = ['database', 'broadcast'];
 
         // Email is intentionally not offered for new-message notifications: an

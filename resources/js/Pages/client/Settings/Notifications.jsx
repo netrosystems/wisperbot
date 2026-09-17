@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
-import { Bell, Mail, Smartphone, CheckCircle } from 'lucide-react';
+import { Bell, Mail, Smartphone } from 'lucide-react';
 import { subscribeToPush, unsubscribeFromPush } from '@/push';
 import { useTranslation } from 'react-i18next';
 
@@ -26,12 +26,21 @@ const VAPID_CHANNELS = [
 
 const KEEP_PUSH_AFTER_LOGOUT_KEY = 'wisperbot_keep_push_after_logout';
 
-export default function NotificationSettings({ preferences = {} }) {
+export default function NotificationSettings({ preferences = {}, emailInboxNotificationsEnabled = true }) {
     const { t } = useTranslation();
     const { onesignal } = usePage().props;
-    const { data, setData, post, processing, transform } = useForm({ preferences: [] });
+    const { post, processing, transform } = useForm({ preferences: [] });
     const [pushError, setPushError] = useState('');
-    const [keepAfterLogout, setKeepAfterLogout] = useState(false);
+    const [keepAfterLogout, setKeepAfterLogout] = useState(() => {
+        try {
+            return localStorage.getItem(KEEP_PUSH_AFTER_LOGOUT_KEY) === '1';
+        } catch {
+            return false;
+        }
+    });
+    const [emailInboxAlertsEnabled, setEmailInboxAlertsEnabled] = useState(emailInboxNotificationsEnabled);
+    const [emailInboxAlertsSaving, setEmailInboxAlertsSaving] = useState(false);
+    const [emailInboxAlertsError, setEmailInboxAlertsError] = useState('');
     const channels = onesignal?.enabled
         ? [
             { key: 'mail', labelKey: 'common.email', icon: Mail },
@@ -62,24 +71,35 @@ export default function NotificationSettings({ preferences = {} }) {
         });
     };
 
-    useEffect(() => {
-        try {
-            setKeepAfterLogout(localStorage.getItem(KEEP_PUSH_AFTER_LOGOUT_KEY) === '1');
-        } catch {
-            setKeepAfterLogout(false);
-        }
-    }, []);
+    const handleEmailInboxAlertsToggle = () => {
+        if (emailInboxAlertsSaving) return;
+
+        const previous = emailInboxAlertsEnabled;
+        const next = !previous;
+        setEmailInboxAlertsEnabled(next);
+        setEmailInboxAlertsSaving(true);
+        setEmailInboxAlertsError('');
+
+        router.put(route('client.notification-preferences.email-inbox.update'), { enabled: next }, {
+            preserveScroll: true,
+            onError: () => {
+                setEmailInboxAlertsEnabled(previous);
+                setEmailInboxAlertsError(t('settings.email_inbox_alerts_save_error'));
+            },
+            onFinish: () => setEmailInboxAlertsSaving(false),
+        });
+    };
 
     const requestOneSignalPermission = async () => {
-        if (typeof Notification === 'undefined') return false;
-        if (Notification.permission === 'granted') return true;
-        if (Notification.permission === 'denied') return false;
+        if (typeof window.Notification === 'undefined') return false;
+        if (window.Notification.permission === 'granted') return true;
+        if (window.Notification.permission === 'denied') return false;
 
         if (window.OneSignal?.Notifications?.requestPermission) {
             return await window.OneSignal.Notifications.requestPermission().catch(() => false);
         }
 
-        return await Notification.requestPermission().then(permission => permission === 'granted').catch(() => false);
+        return await window.Notification.requestPermission().then(permission => permission === 'granted').catch(() => false);
     };
 
     const handleKeepAfterLogoutToggle = async () => {
@@ -154,6 +174,34 @@ export default function NotificationSettings({ preferences = {} }) {
                     <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
                         {t('settings.notif_subtitle')}
                     </p>
+                </div>
+
+                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700 px-6 py-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                            {t('settings.email_inbox_alerts_label')}
+                        </p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                            {t('settings.email_inbox_alerts_desc')}
+                        </p>
+                        {emailInboxAlertsError && (
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                                {emailInboxAlertsError}
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={emailInboxAlertsEnabled}
+                        aria-label={t('settings.email_inbox_alerts_label')}
+                        onClick={handleEmailInboxAlertsToggle}
+                        disabled={emailInboxAlertsSaving}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 ${emailInboxAlertsEnabled ? 'bg-brand-600' : 'bg-neutral-300 dark:bg-neutral-600'}`}
+                        title={emailInboxAlertsEnabled ? t('settings.notif_toggle_on') : t('settings.notif_toggle_off')}
+                    >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${emailInboxAlertsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
                 </div>
 
                 <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden">
