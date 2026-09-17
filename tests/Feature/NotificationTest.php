@@ -158,9 +158,86 @@ class NotificationTest extends TestCase
         $this->assertNotSame($first->id, (int) $stored->workspace_id);
     }
 
+    public function test_email_inbox_notifications_default_on_and_are_exposed_by_mobile_profile(): void
+    {
+        ['user' => $user] = $this->userWithTwoWorkspaces();
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/auth/me')
+            ->assertOk()
+            ->assertJsonPath('email_inbox_notifications_enabled', true);
+    }
+
+    public function test_user_can_update_only_their_email_inbox_notification_preference(): void
+    {
+        ['user' => $user] = $this->userWithTwoWorkspaces();
+        $other = User::factory()->create(['email_inbox_notifications_enabled' => true]);
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/v1/notifications/preferences/email-inbox', ['enabled' => false])
+            ->assertOk()
+            ->assertExactJson(['email_inbox_notifications_enabled' => false]);
+
+        $this->assertFalse($user->fresh()->email_inbox_notifications_enabled);
+        $this->assertTrue($other->fresh()->email_inbox_notifications_enabled);
+
+        $this->putJson('/api/v1/notifications/preferences/email-inbox', ['enabled' => 'invalid'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('enabled');
+    }
+
+    public function test_web_user_can_update_email_inbox_notification_preference(): void
+    {
+        ['user' => $user, 'first' => $workspace] = $this->userWithTwoWorkspaces();
+
+        $this->actingAs($user)
+            ->withSession(['current_workspace_id' => $workspace->id])
+            ->put(route('client.notification-preferences.email-inbox.update'), ['enabled' => false])
+            ->assertRedirect();
+
+        $this->assertFalse($user->fresh()->email_inbox_notifications_enabled);
+    }
+
+    public function test_email_inbox_preference_suppresses_only_email_message_notifications(): void
+    {
+        $user = User::factory()->create(['email_inbox_notifications_enabled' => false]);
+        $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
+        $contact = Contact::factory()->create(['workspace_id' => $workspace->id]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+        ]);
+        $email = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'in',
+            'channel' => 'email',
+            'body' => 'Email message',
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+        $whatsapp = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'in',
+            'channel' => 'whatsapp',
+            'body' => 'WhatsApp message',
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
+        $this->assertSame([], (new NewMessageNotification($email, $conversation))->via($user));
+        $this->assertNotSame([], (new NewMessageNotification($whatsapp, $conversation))->via($user));
+
+        $user->update(['email_inbox_notifications_enabled' => true]);
+        $this->assertNotSame([], (new NewMessageNotification($email, $conversation))->via($user->fresh()));
+    }
+
     public function test_guest_cannot_access_notifications(): void
     {
         $this->get(route('client.notifications.index'))
             ->assertRedirect(route('login'));
+
+        $this->putJson('/api/v1/notifications/preferences/email-inbox', ['enabled' => false])
+            ->assertUnauthorized();
     }
 }

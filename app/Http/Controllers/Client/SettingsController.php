@@ -63,6 +63,7 @@ class SettingsController extends Controller
 
         return Inertia::render('client/Settings/Notifications', [
             'preferences' => $preferences,
+            'emailInboxNotificationsEnabled' => (bool) $user->email_inbox_notifications_enabled,
         ]);
     }
 

@@ -29,6 +29,21 @@ class NotificationApiController extends Controller
         return response()->json(['count' => $count]);
     }
 
+    public function updateEmailInboxPreference(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $user->email_inbox_notifications_enabled = $validated['enabled'];
+        $user->save();
+
+        return response()->json([
+            'email_inbox_notifications_enabled' => (bool) $user->email_inbox_notifications_enabled,
+        ]);
+    }
+
     public function markRead(Request $request, string $notificationId): JsonResponse
     {
         $notification = $this->notifications->query($request->user(), $this->notifications->currentWorkspaceId($request))

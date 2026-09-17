@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added a per-user Master Email Inbox alert switch on the web. Turning it off suppresses in-app, realtime, browser-push, and mobile-push notifications for newly synchronized inbound email while mailbox sync, unread email state, replies, and every non-email channel continue normally. The additive mobile profile field and authenticated update endpoint are ready for app-team integration; existing users default on.
+
 - Resolved inbox conversations now reopen as Open/Unassigned when the same customer sends a genuine new message. The existing transcript and conversation link are retained, stale ownership and AI-pause state are cleared, and the web Resolved/Unassigned views reconcile in realtime; provider history, echoes, and status callbacks remain non-reopening.
 
 - Separated website widget availability from customer mobile SDK availability on the same widget. Website embeds keep using the website key and `Widget enabled`; customer SDK apps get a separate SDK key and `SDK enabled`, with existing widgets and old SDK builds remaining available by default.
