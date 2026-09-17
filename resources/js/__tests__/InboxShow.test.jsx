@@ -40,11 +40,52 @@ const props = { conversation, messages: [], conversations: { data: [], total: 0 
 beforeEach(() => {
     vi.clearAllMocks();
     delete window.Echo;
+    Element.prototype.scrollIntoView = vi.fn();
     axios.get.mockResolvedValue({ data: { messages: [] } });
     axios.post.mockResolvedValue({ data: {} });
 });
 
 describe('Mobile chat reply layout', () => {
+    it('merges refreshed messages for the same conversation', async () => {
+        const first = {
+            id: 10,
+            direction: 'in',
+            type: 'text',
+            body: 'hello',
+            sent_at: '2026-09-17T12:00:00Z',
+        };
+        const latest = {
+            id: 11,
+            direction: 'in',
+            type: 'text',
+            body: 'test again',
+            sent_at: '2026-09-17T12:01:00Z',
+        };
+        const view = render(<InboxShow {...props} messages={[first]} />);
+
+        expect(screen.getByText('hello')).toBeInTheDocument();
+        view.rerender(<InboxShow {...props} messages={[first, latest]} />);
+
+        expect(await screen.findByText('test again')).toBeInTheDocument();
+    });
+
+    it('renders conversation activity as a centered system row', () => {
+        render(<InboxShow
+            {...props}
+            messages={[{
+                id: 10,
+                direction: 'system',
+                type: 'event',
+                body: 'Rahim joined the chat',
+                sent_at: '2026-09-17T12:00:00Z',
+            }]}
+        />);
+
+        const activity = screen.getByRole('status');
+        expect(activity).toHaveTextContent('Rahim joined the chat');
+        expect(activity.querySelector('.rounded-2xl')).toBeNull();
+    });
+
     it('keeps the composer usable and sends the joined owner’s reply', async () => {
         render(<InboxShow {...props} />);
         const reply = screen.getByPlaceholderText('inbox.type_message_placeholder');

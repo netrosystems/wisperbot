@@ -17,14 +17,17 @@ class WidgetPayloadBuilder
      */
     public function messages(int $conversationId, ChatWidget $widget, int $afterId): array
     {
-        return Message::where('conversation_id', $conversationId)
+        $query = Message::where('conversation_id', $conversationId)
             ->with('sender')
             ->where('id', '>', $afterId)
-            ->whereIn('direction', ['in', 'out'])
-            ->where('status', '!=', 'failed')
-            ->orderBy('id')
-            ->limit(100)
-            ->get()
+            ->whereIn('direction', ['in', 'out', 'system'])
+            ->where('status', '!=', 'failed');
+
+        $messages = $afterId > 0
+            ? $query->orderBy('id')->limit(100)->get()
+            : $query->orderByDesc('id')->limit(100)->get()->reverse()->values();
+
+        return $messages
             ->map(fn (Message $message) => $this->message($message, $widget))
             ->all();
     }
@@ -35,11 +38,18 @@ class WidgetPayloadBuilder
     public function message(Message $message, ChatWidget $widget): array
     {
         $message->loadMissing('sender');
-        $isAgent = $message->direction === 'out';
+        $isActivity = $message->direction === 'system' && $message->type === 'event';
+        $isAgent = $message->direction === 'out' || $isActivity;
+        $activity = $isActivity ? $this->publicActivity($message) : null;
+        $agentName = $isAgent ? ($message->sender?->name ?: ($widget->agent_name ?: 'Support')) : null;
+        if ($isActivity && is_array($activity)) {
+            $agentName = $activity['actor_name'];
+        }
 
         return [
             'id' => $message->id,
             'role' => $isAgent ? 'agent' : 'visitor',
+            'kind' => $isActivity ? 'activity' : 'message',
             'status' => $message->status,
             'body' => (string) $message->body,
             'type' => $message->type,
@@ -47,14 +57,13 @@ class WidgetPayloadBuilder
             'filename' => $message->payload['filename'] ?? null,
             'mime_type' => $message->payload['mime_type'] ?? null,
             'file_size' => $message->payload['file_size'] ?? null,
-            'resources' => $this->videos->sanitisePublicList($message->payload['resources'] ?? []),
-            'quick_replies' => $isAgent ? app(ChatReplyOptions::class)->sanitize($message->payload['quick_replies'] ?? []) : [],
-            'display_body' => $isAgent && is_string($message->payload['display_body'] ?? null)
+            'resources' => $isActivity ? [] : $this->videos->sanitisePublicList($message->payload['resources'] ?? []),
+            'quick_replies' => $isAgent && ! $isActivity ? app(ChatReplyOptions::class)->sanitize($message->payload['quick_replies'] ?? []) : [],
+            'display_body' => $isAgent && ! $isActivity && is_string($message->payload['display_body'] ?? null)
                 ? $message->payload['display_body'] : (string) $message->body,
-            'sent_by' => $message->sent_by,
-            'agent_name' => $isAgent
-                ? ($message->sender?->name ?: ($widget->agent_name ?: 'Support'))
-                : null,
+            'sent_by' => $isActivity ? 'system' : $message->sent_by,
+            'agent_name' => $agentName,
+            'activity' => $activity,
             'created_at' => optional($message->sent_at ?? $message->created_at)->toIso8601String(),
         ];
     }
@@ -106,5 +115,20 @@ class WidgetPayloadBuilder
         }
 
         return $url;
+    }
+
+    /** @return array{type:string,actor_name:string}|null */
+    private function publicActivity(Message $message): ?array
+    {
+        $activity = $message->payload['activity'] ?? null;
+        $type = is_array($activity) ? ($activity['type'] ?? null) : null;
+        $actor = is_array($activity) ? ($activity['actor'] ?? null) : null;
+        $actorName = is_array($actor) ? ($actor['name'] ?? null) : null;
+
+        if (! is_string($type) || ! is_string($actorName)) {
+            return null;
+        }
+
+        return ['type' => $type, 'actor_name' => $actorName];
     }
 }

@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Inbox;
 
+use App\Events\ConversationActivityCreated;
 use App\Events\ConversationOwnershipChanged;
 use App\Events\MessageReceived;
+use App\Events\MessageSent;
 use App\Models\User;
 use App\Modules\Inbox\Models\WorkspaceMemberAvailability;
 use App\Modules\Inbox\Services\ConversationOwnershipService;
@@ -22,7 +24,10 @@ class ConversationOwnershipTest extends TestCase
     public function test_first_agent_to_join_owns_the_chat_and_other_join_is_rejected(): void
     {
         [$conversation, $admin, $staff] = $this->conversationContext();
+        $conversation->update(['unread_count' => 4, 'last_message_at' => now()->subHour()]);
+        $lastMessageAt = $conversation->fresh()->last_message_at;
 
+        $this->actingAs($admin)->postJson(route('client.inbox.join', $conversation))->assertOk();
         $this->actingAs($admin)->postJson(route('client.inbox.join', $conversation))->assertOk();
         $this->actingAs($staff)->postJson(route('client.inbox.join', $conversation))
             ->assertStatus(409)
@@ -32,6 +37,17 @@ class ConversationOwnershipTest extends TestCase
         $this->assertSame($admin->id, $conversation->joined_user_id);
         $this->assertSame($admin->id, $conversation->assigned_user_id);
         $this->assertSame('human', $conversation->assigned_to);
+        $this->assertSame(4, $conversation->unread_count);
+        $this->assertEquals($lastMessageAt, $conversation->last_message_at);
+
+        $activity = $conversation->messages()->where('direction', 'system')->sole();
+        $this->assertSame('event', $activity->type);
+        $this->assertSame('system', $activity->sent_by);
+        $this->assertNull($activity->provider_message_id);
+        $this->assertSame("{$admin->name} joined the chat", $activity->body);
+        $this->assertSame('conversation.joined', $activity->payload['activity']['type']);
+        $this->assertSame($admin->id, $activity->payload['activity']['actor']['id']);
+        $this->assertSame($admin->name, $activity->payload['activity']['actor']['name']);
     }
 
     public function test_human_reply_requires_the_joined_owner(): void
@@ -61,7 +77,15 @@ class ConversationOwnershipTest extends TestCase
         $this->assertNull($conversation->joined_user_id);
         $this->assertNull($conversation->joined_at);
         $this->assertNull($conversation->handover_at);
-        $this->assertSame(1, $conversation->messages()->count());
+        $this->assertSame(1, $conversation->contentMessages()->count());
+        $this->assertSame(2, $conversation->messages()->where('direction', 'system')->count());
+        $resolved = $conversation->messages()->where('direction', 'system')->latest('id')->firstOrFail();
+        $this->assertSame("Resolved by {$admin->name}", $resolved->body);
+        $this->assertSame('conversation.resolved', $resolved->payload['activity']['type']);
+        $this->assertSame('Keep me', $conversation->fresh()->lastMessage?->body);
+
+        $this->actingAs($admin)->post(route('client.inbox.status', $conversation), ['status' => 'resolved'])->assertRedirect();
+        $this->assertSame(2, $conversation->messages()->where('direction', 'system')->count());
     }
 
     public function test_inbound_reopens_the_same_resolved_conversation_and_resets_stale_control_state(): void
@@ -156,6 +180,9 @@ class ConversationOwnershipTest extends TestCase
 
         $this->actingAs($staff)->postJson(route('client.inbox.takeover', $conversation))->assertOk();
         $this->assertSame($staff->id, $conversation->fresh()->joined_user_id);
+        $activities = $conversation->messages()->where('direction', 'system')->orderBy('id')->get();
+        $this->assertCount(2, $activities);
+        $this->assertSame("{$staff->name} joined the chat", $activities->last()->body);
     }
 
     public function test_off_shift_agent_cannot_take_over_and_empty_leave_preserves_preassignment(): void
@@ -186,6 +213,26 @@ class ConversationOwnershipTest extends TestCase
             ->assertForbidden()
             ->assertJsonPath('error', 'You must be currently available to take over this chat.');
         $this->assertSame($admin->id, $conversation->fresh()->joined_user_id);
+        $this->assertSame(1, $conversation->messages()->where('direction', 'system')->count());
+    }
+
+    public function test_activity_record_and_broadcast_contract_exist_only_after_a_successful_state_change(): void
+    {
+        Event::fake([MessageReceived::class, MessageSent::class]);
+        [$conversation, $admin, $staff] = $this->conversationContext();
+
+        $this->actingAs($admin)->postJson(route('client.inbox.join', $conversation))->assertOk();
+        $this->actingAs($admin)->postJson(route('client.inbox.join', $conversation))->assertOk();
+        $this->actingAs($staff)->postJson(route('client.inbox.join', $conversation))->assertStatus(409);
+
+        $this->assertSame(1, $conversation->messages()->where('direction', 'system')->count());
+        $activity = $conversation->messages()->where('direction', 'system')->sole();
+        $payload = (new ConversationActivityCreated($activity))->broadcastWith();
+        $this->assertSame('system', $payload['direction']);
+        $this->assertSame('event', $payload['type']);
+        $this->assertSame('conversation.joined', $payload['payload']['activity']['type']);
+        Event::assertNotDispatched(MessageReceived::class);
+        Event::assertNotDispatched(MessageSent::class);
     }
 
     /** @return array{Conversation, User, User} */

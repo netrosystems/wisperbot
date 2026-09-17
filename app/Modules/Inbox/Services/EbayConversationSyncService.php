@@ -110,7 +110,7 @@ class EbayConversationSyncService
                         'body' => (string) ($remoteMessage['messageText'] ?? $remoteMessage['messageBody'] ?? $remoteMessage['body'] ?? ''),
                         'status' => 'delivered',
                         'provider_message_id' => $providerId,
-                        'sent_by' => $direction === 'in' ? 'contact' : 'human',
+                        'sent_by' => 'human',
                         'sent_at' => $messageSentAt,
                     ]);
 

@@ -2,12 +2,14 @@
 
 namespace App\Modules\Inbox\Services;
 
+use App\Events\ConversationActivityCreated;
 use App\Events\ConversationOwnershipChanged;
 use App\Events\WidgetHandoffUpdated;
 use App\Models\User;
 use App\Modules\Inbox\Exceptions\ConversationOwnershipException;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\Conversation;
+use App\Modules\Shared\Models\Message;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +23,8 @@ class ConversationOwnershipService
 
     public function join(Conversation $conversation, User $user): Conversation
     {
-        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user) {
+        $activity = null;
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user, &$activity) {
             $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
             $this->assertMember($locked, $user);
 
@@ -44,12 +47,16 @@ class ConversationOwnershipService
                     'ai_pause_reason' => 'joined',
                     'status' => 'open',
                 ]);
+                $activity = $this->activity($locked, $user, 'conversation.joined');
             }
 
             return $locked->fresh(['joinedUser', 'channelAccount']);
         }));
 
-        return $this->broadcast($updated);
+        $updated = $this->broadcast($updated);
+        $this->broadcastActivity($activity);
+
+        return $updated;
     }
 
     public function leave(Conversation $conversation, User $user): Conversation
@@ -73,14 +80,18 @@ class ConversationOwnershipService
 
     public function takeover(Conversation $conversation, User $user): Conversation
     {
-        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user) {
+        $activity = null;
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $user, &$activity) {
             $locked = Conversation::query()->lockForUpdate()->findOrFail($conversation->id);
             $this->assertMember($locked, $user);
             if ($locked->status === 'resolved') {
                 throw new ConversationOwnershipException('Reopen the conversation before taking it over.');
             }
             if (! $locked->joined_user_id) {
-                return $this->joinLocked($locked, $user);
+                $updated = $this->joinLocked($locked, $user);
+                $activity = $this->activity($locked, $user, 'conversation.joined');
+
+                return $updated;
             }
             if ((int) $locked->joined_user_id === (int) $user->id) {
                 return $locked->fresh(['joinedUser', 'channelAccount']);
@@ -94,16 +105,27 @@ class ConversationOwnershipService
                 }
             }
 
-            return $this->joinLocked($locked, $user);
+            $updated = $this->joinLocked($locked, $user);
+            $activity = $this->activity($locked, $user, 'conversation.joined');
+
+            return $updated;
         }));
 
-        return $this->broadcast($updated);
+        $updated = $this->broadcast($updated);
+        $this->broadcastActivity($activity);
+
+        return $updated;
     }
 
-    public function resolve(Conversation $conversation): Conversation
+    public function resolve(Conversation $conversation, User $actor): Conversation
     {
-        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation) {
+        $activity = null;
+        $updated = $this->synchronized($conversation, fn () => DB::transaction(function () use ($conversation, $actor, &$activity) {
             $locked = Conversation::query()->with('channelAccount')->lockForUpdate()->findOrFail($conversation->id);
+            $this->assertMember($locked, $actor);
+            if ($locked->status === 'resolved') {
+                return $locked->fresh(['joinedUser', 'channelAccount']);
+            }
             $locked->update([
                 'status' => 'resolved',
                 'resolved_at' => now(),
@@ -115,11 +137,15 @@ class ConversationOwnershipService
                 'ai_paused_at' => null,
                 'ai_pause_reason' => null,
             ]);
+            $activity = $this->activity($locked, $actor, 'conversation.resolved');
 
             return $locked->fresh(['joinedUser', 'channelAccount']);
         }));
 
-        return $this->broadcast($updated);
+        $updated = $this->broadcast($updated);
+        $this->broadcastActivity($activity);
+
+        return $updated;
     }
 
     public function releaseUser(int $userId, ?int $workspaceId = null): void
@@ -278,6 +304,37 @@ class ConversationOwnershipService
         }
 
         return $conversation;
+    }
+
+    private function activity(Conversation $conversation, User $actor, string $type): Message
+    {
+        $body = $type === 'conversation.resolved'
+            ? "Resolved by {$actor->name}"
+            : "{$actor->name} joined the chat";
+
+        return $conversation->messages()->create([
+            'direction' => 'system',
+            'channel' => $conversation->channelAccount()->value('channel') ?? 'system',
+            'type' => 'event',
+            'body' => $body,
+            'payload' => [
+                'activity' => [
+                    'type' => $type,
+                    'actor' => ['id' => $actor->id, 'name' => $actor->name],
+                ],
+            ],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $actor->id,
+            'sent_at' => now(),
+        ]);
+    }
+
+    private function broadcastActivity(?Message $activity): void
+    {
+        if ($activity) {
+            ConversationActivityCreated::dispatch($activity->load(['conversation.channelAccount', 'sender']));
+        }
     }
 
     private function publicUser(?User $user): ?array

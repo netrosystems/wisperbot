@@ -70,7 +70,7 @@ class MobileConversationController extends WorkspaceScopedController
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', $liveSince))
-            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('messages'))
+            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('contentMessages'))
             ->when(! $isLiveFolder && ! in_array($folder, ['all', 'resolved', 'snoozed'], true), fn ($q) => $q->where('status', 'open'))
             ->when($folder === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when($folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
@@ -146,6 +146,7 @@ class MobileConversationController extends WorkspaceScopedController
         $messages = $conversation->messages()
             ->with('conversation')
             ->orderBy('sent_at')
+            ->orderBy('id')
             ->get();
 
         $conversation->update(['unread_count' => 0]);
@@ -177,6 +178,7 @@ class MobileConversationController extends WorkspaceScopedController
 
         $messages = $conversation->messages()
             ->orderBy('sent_at')
+            ->orderBy('id')
             ->get();
 
         return response()->json([
@@ -408,7 +410,7 @@ class MobileConversationController extends WorkspaceScopedController
         $request->validate(['status' => ['required', 'in:open,pending,resolved,snoozed']]);
 
         if ($request->status === 'resolved') {
-            $this->ownership->resolve($conversation);
+            $this->ownership->resolve($conversation, $request->user());
         } else {
             $this->ownership->synchronized($conversation, fn () => $conversation->update(['status' => $request->status, 'resolved_at' => null]));
         }

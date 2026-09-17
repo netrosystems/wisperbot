@@ -43,6 +43,38 @@ class MobileConversationTest extends TestCase
             ->assertJsonPath('conversation.assigned_user_id', null);
     }
 
+    public function test_mobile_resolve_records_the_authenticated_actor(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create([
+            'workspace_id' => $workspace->id,
+            'status' => User::STATUS_ACTIVE,
+            'name' => 'Mobile Agent',
+        ]);
+        $workspace->update(['owner_id' => $user->id]);
+        $contact = Contact::create(['workspace_id' => $workspace->id, 'first_name' => 'Mobile']);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'human',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/status", [
+            'status' => 'resolved',
+        ])->assertOk()->assertJsonPath('status', 'resolved');
+
+        $this->getJson("/api/v1/mobile/conversations/{$conversation->uuid}/messages")
+            ->assertOk()
+            ->assertJsonPath('data.0.direction', 'system')
+            ->assertJsonPath('data.0.type', 'event')
+            ->assertJsonPath('data.0.body', 'Resolved by Mobile Agent')
+            ->assertJsonPath('data.0.payload.activity.type', 'conversation.resolved')
+            ->assertJsonPath('data.0.payload.activity.actor.id', $user->id)
+            ->assertJsonPath('data.0.payload.activity.actor.name', 'Mobile Agent');
+    }
+
     public function test_mobile_conversations_index_includes_assigned_fields(): void
     {
         $workspace = Workspace::factory()->create();
@@ -234,12 +266,21 @@ class MobileConversationTest extends TestCase
             'source' => 'webchat',
             'first_name' => 'Browsing',
         ]);
-        Conversation::create([
+        $emptyConversation = Conversation::create([
             'workspace_id' => $workspace->id,
             'channel_account_id' => $account->id,
             'contact_id' => $emptyContact->id,
             'status' => 'open',
             'webchat_last_seen_at' => now(),
+        ]);
+        $emptyConversation->messages()->create([
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => 'Agent joined the chat',
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'sent_at' => now(),
         ]);
 
         Sanctum::actingAs($user);
