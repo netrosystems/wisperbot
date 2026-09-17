@@ -108,7 +108,6 @@ class SyncEmailAccountJob implements ShouldBeUnique, ShouldQueue
         $body = trim(strip_tags((string) data_get($item, 'body.content', $item['bodyPreview'] ?? '')));
         $headers = collect($item['internetMessageHeaders'] ?? [])
             ->mapWithKeys(fn (array $header) => [strtolower((string) ($header['name'] ?? '')) => (string) ($header['value'] ?? '')]);
-        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',
@@ -132,12 +131,11 @@ class SyncEmailAccountJob implements ShouldBeUnique, ShouldQueue
             'sent_by' => 'human',
             'sent_at' => $item['receivedDateTime'] ?? now(),
         ]);
-        $conversation->update([
-            'last_message_at' => $message->sent_at,
-            'last_inbound_at' => $message->sent_at,
-            'status' => $conversation->status === 'resolved' ? 'open' : $conversation->status,
-            'unread_count' => $conversation->unread_count + 1,
-        ]);
-        MessageReceived::dispatch($message);
+        $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+            $conversation,
+            $message->sent_at,
+            1,
+        );
+        MessageReceived::dispatch($message, $reopened);
     }
 }

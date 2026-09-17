@@ -389,6 +389,10 @@ export default function InboxIndex({ conversations: initialConversations, filter
         if (!window.Echo || !workspaceId) return;
         window.Echo.private(`workspace.${workspaceId}`)
             .listen('.MessageReceived', (e) => {
+                if (e.reopened) {
+                    router.reload({ only: ['conversations'], preserveScroll: true, preserveState: true });
+                    return;
+                }
                 setConversations(prev => {
                     const convId = e.conversation_id;
                     const exists = prev.data.find(c => c.id === convId);
@@ -431,7 +435,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
                 }));
             })
             .listen('.ConversationOwnershipChanged', (e) => {
-                setConversations(prev => ({ ...prev, data: prev.data.map(conv => conv.id === e.conversation_id ? { ...conv, joined_user: e.joined_user, joined_at: e.joined_at, assigned_user_id: e.assigned_user_id, status: e.status } : conv) }));
+                setConversations(prev => ({ ...prev, data: prev.data.map(conv => conv.id === e.conversation_id ? { ...conv, joined_user: e.joined_user, joined_at: e.joined_at, assigned_to: e.assigned_to ?? conv.assigned_to, assigned_user_id: e.assigned_user_id, status: e.status } : conv) }));
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);

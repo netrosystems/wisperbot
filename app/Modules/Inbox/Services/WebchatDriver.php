@@ -77,7 +77,6 @@ class WebchatDriver implements ChannelDriverInterface
      */
     public function recordInboundMessage(Conversation $conversation, string $visitorId, string $body, string $type = 'text', array $payload = []): Message
     {
-        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',
@@ -91,14 +90,13 @@ class WebchatDriver implements ChannelDriverInterface
             'sent_at' => now(),
         ]);
 
-        $conversation->update([
-            'last_message_at' => now(),
-            'last_inbound_at' => now(),
-            'status' => $conversation->status === 'resolved' ? 'open' : $conversation->status,
-            'unread_count' => $conversation->unread_count + 1,
-        ]);
+        $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+            $conversation,
+            $message->sent_at,
+            1,
+        );
 
-        MessageReceived::dispatch($message);
+        MessageReceived::dispatch($message, $reopened);
 
         return $message;
     }

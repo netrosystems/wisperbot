@@ -303,7 +303,6 @@ class WhatsappDriver implements ChannelDriverInterface
 
         [$type, $body] = $this->messagePresentation($msg);
 
-        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',
@@ -317,19 +316,21 @@ class WhatsappDriver implements ChannelDriverInterface
             'sent_at' => now()->createFromTimestamp($msg['timestamp'] ?? time()),
         ]);
 
-        $conversation->update([
-            'last_message_at' => $message->sent_at,
-            'status' => 'open',
-            'unread_count' => $conversation->unread_count + 1,
-            'last_inbound_at' => $message->sent_at,
-            // If contact replies after we responded, reset first_response_at for next cycle
-            'first_response_at' => $conversation->first_response_at && $conversation->last_inbound_at
-                ? ($message->sent_at > $conversation->first_response_at ? null : $conversation->first_response_at)
-                : $conversation->first_response_at,
-        ]);
+        $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+            $conversation,
+            $message->sent_at,
+            1,
+            [
+                'status' => 'open',
+                // If contact replies after we responded, reset first_response_at for next cycle
+                'first_response_at' => $conversation->first_response_at && $conversation->last_inbound_at
+                    ? ($message->sent_at > $conversation->first_response_at ? null : $conversation->first_response_at)
+                    : $conversation->first_response_at,
+            ],
+        );
 
         // Fire typed event for automations / AI
-        MessageReceived::dispatch($message);
+        MessageReceived::dispatch($message, $reopened);
 
         return $message;
     }
@@ -404,7 +405,7 @@ class WhatsappDriver implements ChannelDriverInterface
             'sent_at' => $sentAt,
         ]);
 
-        $updates = ['status' => 'open'];
+        $updates = [];
         if (! $conversation->last_message_at || $sentAt->greaterThan($conversation->last_message_at)) {
             $updates['last_message_at'] = $sentAt;
         }

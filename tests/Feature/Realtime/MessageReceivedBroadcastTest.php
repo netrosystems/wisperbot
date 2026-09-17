@@ -62,13 +62,16 @@ class MessageReceivedBroadcastTest extends TestCase
         // Explicitly load the conversation relationship so broadcastOn() can access workspace_id
         $message->setRelation('conversation', $conv);
 
-        $event = new MessageReceived($message);
+        $event = new MessageReceived($message, true);
         $payload = $event->broadcastWith();
 
         $this->assertArrayHasKey('id', $payload);
         $this->assertArrayHasKey('conversation_id', $payload);
         $this->assertArrayHasKey('body', $payload);
         $this->assertEquals('Hello broadcast', $payload['body']);
+        $this->assertTrue($payload['reopened']);
+        $this->assertSame($conv->uuid, $payload['conversation']['uuid']);
+        $this->assertSame('open', $payload['conversation']['status']);
 
         $channels = $event->broadcastOn();
         $channelNames = array_map(fn ($c) => $c->name, $channels);

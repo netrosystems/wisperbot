@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Modules\Inbox\Exceptions\ConversationOwnershipException;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\Conversation;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -155,23 +156,73 @@ class ConversationOwnershipService
             'assigned_to' => $this->initialHandler($conversation),
             'ai_paused_at' => null,
             'ai_pause_reason' => null,
+            'first_response_at' => null,
+            'unanswered_reminder_sent_at' => null,
         ];
     }
 
-    public function prepareInbound(Conversation $conversation): void
-    {
-        if ($conversation->status !== 'resolved') {
-            return;
-        }
-        $updated = $this->synchronized($conversation, function () use ($conversation): Conversation {
-            $conversation->refresh();
-            if ($conversation->status === 'resolved') {
-                $conversation->update($this->reopenUpdates($conversation));
-            }
+    /**
+     * Apply inbound conversation state before MessageReceived listeners run.
+     *
+     * @param  array<string, mixed>  $updates
+     */
+    public function prepareInbound(
+        Conversation $conversation,
+        ?CarbonInterface $receivedAt = null,
+        int $unreadIncrement = 0,
+        array $updates = [],
+    ): bool {
+        $reopened = false;
+        $updated = $this->synchronized($conversation, function () use (
+            $conversation,
+            $receivedAt,
+            $unreadIncrement,
+            $updates,
+            &$reopened,
+        ): Conversation {
+            return DB::transaction(function () use (
+                $conversation,
+                $receivedAt,
+                $unreadIncrement,
+                $updates,
+                &$reopened,
+            ): Conversation {
+                $locked = Conversation::query()
+                    ->with('channelAccount')
+                    ->lockForUpdate()
+                    ->findOrFail($conversation->id);
 
-            return $conversation->fresh(['joinedUser', 'channelAccount']);
+                if ($receivedAt) {
+                    if (! $locked->last_message_at || $receivedAt->greaterThan($locked->last_message_at)) {
+                        $updates['last_message_at'] = $receivedAt;
+                    }
+                    if (! $locked->last_inbound_at || $receivedAt->greaterThan($locked->last_inbound_at)) {
+                        $updates['last_inbound_at'] = $receivedAt;
+                    }
+                }
+                if ($unreadIncrement > 0) {
+                    $updates['unread_count'] = (int) $locked->unread_count + $unreadIncrement;
+                }
+                if ($locked->status === 'resolved') {
+                    $reopened = true;
+                    $updates = array_merge($updates, $this->reopenUpdates($locked));
+                }
+                if ($updates !== []) {
+                    $locked->update($updates);
+                }
+
+                return $locked->fresh(['joinedUser', 'channelAccount']);
+            });
         });
-        $this->broadcast($updated);
+
+        $conversation->setRawAttributes($updated->getAttributes(), true);
+        $conversation->setRelations($updated->getRelations());
+
+        if ($reopened) {
+            $this->broadcast($updated);
+        }
+
+        return $reopened;
     }
 
     public function assertCanReply(Conversation $conversation, User $user): void
