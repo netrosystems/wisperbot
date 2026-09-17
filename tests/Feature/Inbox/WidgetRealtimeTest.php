@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Inbox;
 
+use App\Events\ConversationActivityCreated;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Events\WidgetMessageCreated;
@@ -46,6 +47,113 @@ class WidgetRealtimeTest extends TestCase
             ->postJson(route('widget.send'), ['key' => $widget->widget_key, 'message' => 'iOS app'])
             ->assertOk()->assertJsonPath('message.body', 'iOS app');
         $this->assertDatabaseHas('messages', ['conversation_id' => $conversationId, 'direction' => 'in', 'body' => 'iOS app']);
+    }
+
+    public function test_activity_payload_is_public_safe_and_keeps_an_agent_role_fallback(): void
+    {
+        ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => "{$agent->name} joined the chat",
+            'payload' => ['activity' => [
+                'type' => 'conversation.joined',
+                'actor' => ['id' => $agent->id, 'name' => $agent->name, 'email' => $agent->email],
+            ]],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $agent->id,
+            'sent_at' => now(),
+        ]);
+
+        $snapshotName = $agent->name;
+        $payload = app(WidgetPayloadBuilder::class)->message($message, $widget);
+        $agent->update(['name' => 'Renamed later']);
+        $payloadAfterRename = app(WidgetPayloadBuilder::class)->message($message->fresh(), $widget);
+
+        $this->assertSame('agent', $payload['role']);
+        $this->assertSame('activity', $payload['kind']);
+        $this->assertSame("{$snapshotName} joined the chat", $payload['body']);
+        $this->assertSame([
+            'type' => 'conversation.joined',
+            'actor_name' => $snapshotName,
+        ], $payload['activity']);
+        $this->assertArrayNotHasKey('id', $payload['activity']);
+        $this->assertArrayNotHasKey('email', $payload['activity']);
+        $this->assertSame([], $payload['quick_replies']);
+        $this->assertSame([], $payload['resources']);
+        $this->assertSame($payload['activity'], $payloadAfterRename['activity']);
+        $this->assertSame($snapshotName, $payloadAfterRename['agent_name']);
+        $this->assertSame($payload, app(WidgetPayloadBuilder::class)->messages($conversation->id, $widget, 0)[0]);
+    }
+
+    public function test_initial_widget_history_returns_the_latest_window_in_chronological_order(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+
+        foreach (range(1, 105) as $number) {
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'direction' => 'in',
+                'channel' => 'webchat',
+                'type' => 'text',
+                'body' => "Message {$number}",
+                'status' => 'delivered',
+                'sent_by' => 'human',
+                'sent_at' => now()->addSeconds($number),
+            ]);
+        }
+
+        $messages = app(WidgetPayloadBuilder::class)->messages($conversation->id, $widget, 0);
+
+        $this->assertCount(100, $messages);
+        $this->assertSame('Message 6', $messages[0]['body']);
+        $this->assertSame('Message 105', $messages[99]['body']);
+        $this->assertSame(
+            collect($messages)->pluck('id')->sort()->values()->all(),
+            collect($messages)->pluck('id')->values()->all(),
+        );
+    }
+
+    public function test_activity_realtime_bridge_uses_the_redacted_widget_event_without_push(): void
+    {
+        Event::fake([WidgetMessageCreated::class]);
+        Http::fake();
+        ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+        [, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => "{$agent->name} joined the chat",
+            'payload' => ['activity' => [
+                'type' => 'conversation.joined',
+                'actor' => ['id' => $agent->id, 'name' => $agent->name],
+            ]],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $agent->id,
+            'sent_at' => now(),
+        ]);
+
+        ConversationActivityCreated::dispatch($message);
+
+        Event::assertDispatched(WidgetMessageCreated::class, fn (WidgetMessageCreated $event) => $event->conversationId === $conversation->id
+            && $event->message['kind'] === 'activity'
+            && $event->message['activity'] === [
+                'type' => 'conversation.joined',
+                'actor_name' => $agent->name,
+            ]
+        );
+        Http::assertNothingSent();
     }
 
     public function test_widget_broadcast_auth_accepts_only_the_token_bound_conversation(): void
@@ -332,7 +440,7 @@ class WidgetRealtimeTest extends TestCase
             'type' => 'text',
             'body' => 'Agent reply',
             'status' => 'sent',
-            'sent_by' => 'agent',
+            'sent_by' => 'human',
             'user_id' => $agent->id,
             'provider_message_id' => 'private-provider-id',
             'sent_at' => now(),
@@ -408,7 +516,7 @@ class WidgetRealtimeTest extends TestCase
             'type' => 'text',
             'body' => 'Agent reply for mobile SDK',
             'status' => 'sent',
-            'sent_by' => 'agent',
+            'sent_by' => 'human',
             'user_id' => $agent->id,
             'sent_at' => now(),
         ]);

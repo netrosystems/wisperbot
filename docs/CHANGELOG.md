@@ -4,6 +4,14 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Fixed website-widget conversation ordering when a missed realtime activity is recovered after a newer cached message; recovered rows now return to their canonical message-ID position instead of appearing at the end.
+
+- Scoped website-widget cached history to the server-confirmed conversation and made session history authoritative, removing stale messages carried across renewed visitor sessions. Initial history now returns the latest 100 messages in chronological order.
+
+- Fixed same-conversation Omni Inbox refresh reconciliation so server messages recovered after a missed realtime event merge into the open timeline instead of being ignored until the agent navigates away.
+
+- Added durable joined/resolved conversation activity rows across staff web, MasterBox, staff mobile, website widget, and the public-safe customer SDK contract. Ownership state and activity are committed atomically; duplicate no-op actions, provider sends, AI/automation/webhooks, notifications, unread/SLA, list ordering, and content previews remain unaffected. Customer SDK package release remains a separate app-team rollout.
+
 - Added a per-user Master Email Inbox alert switch on the web. Turning it off suppresses in-app, realtime, browser-push, and mobile-push notifications for newly synchronized inbound email while mailbox sync, unread email state, replies, and every non-email channel continue normally. The additive mobile profile field and authenticated update endpoint are ready for app-team integration; existing users default on.
 
 - Resolved inbox conversations now reopen as Open/Unassigned when the same customer sends a genuine new message. The existing transcript and conversation link are retained, stale ownership and AI-pause state are cleared, and the web Resolved/Unassigned views reconcile in realtime; provider history, echoes, and status callbacks remain non-reopening.

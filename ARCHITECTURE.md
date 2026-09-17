@@ -2,6 +2,8 @@
 
 Suggested customer replies use `ChatReplyOptions` to validate a single generated response. Outbound messages retain a text fallback and add `payload.display_body` / `payload.quick_replies`; the shared widget serializer exposes them through session, poll and realtime. Taps send normal visitor text, not executable actions. See `docs/CHAT_REPLY_OPTIONS.md`.
 
+Conversation ownership changes create durable `messages` timeline records with `direction=system`, `type=event`, and a snapshot of the acting agent. Join/takeover and resolution write the state change plus activity in one locked transaction, while repeated no-op actions create nothing. System activity is excluded from content previews, ordering, unread/SLA, AI, automation, provider delivery, notifications, and Developer API history. Staff receives `ConversationActivityCreated`; webchat customers receive a redacted additive `kind=activity` payload through their private visitor channel.
+
 AI reliability: connection tests must exercise configured managed generation/embedding models. Empty generation cannot finalize credits. Website discovery must not depend on a successful homepage fetch when a safe sitemap is available; partial HTML is not silently treated as complete content.
 
 This document defines the mandatory structural patterns, layer boundaries, multi-tenancy models, event pipelines, and quality standards for **WisperBot**. All backend and frontend implementations must strictly adhere to these specifications.
