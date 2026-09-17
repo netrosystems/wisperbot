@@ -776,6 +776,17 @@ function MessageBubble({ msg, conversationId }) {
     const bubbleTz = pageProps.timezone || 'Asia/Dhaka';
     const isOut = msg.direction === 'out';
     const p     = msg.payload ?? {};
+    const isActivity = msg.direction === 'system' && msg.type === 'event';
+
+    if (isActivity) {
+        return (
+            <div className="my-2.5 flex w-full justify-center px-6" role="status">
+                <div className="w-fit max-w-[90%] rounded-lg bg-white px-3 py-1.5 text-center text-[11px] font-medium leading-4 text-neutral-500 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-white/10">
+                    <span className="break-words">{msg.body}</span>
+                </div>
+            </div>
+        );
+    }
 
     // Resolve media source: outbound has preview_url directly; inbound raw webhook nests under type key
     const mediaType   = msg.type ?? 'text';
@@ -1619,13 +1630,32 @@ export default function InboxShow({
     const lastUserScrollGestureAtRef = useRef(0);
     const listScrolledAwayRef = useRef(false);
     const gentleRefreshInFlightRef = useRef(false);
+    const messageConversationIdRef = useRef(conversation.id);
 
     // When Inertia navigates between conversations the page component is
     // re-used, so seed local state from the new server props on conversation
     // change. The websocket listeners dedupe by `id` so any freshly broadcast
     // message that already lives in local state is not duplicated.
     useEffect(() => {
-        setMessages(initialMessages ?? []);
+        const switchedConversation = messageConversationIdRef.current !== conversation.id;
+        messageConversationIdRef.current = conversation.id;
+        const serverMessages = initialMessages ?? [];
+
+        setMessages(previous => {
+            if (switchedConversation) return serverMessages;
+
+            const merged = new Map(previous.map(message => [message.id, message]));
+            serverMessages.forEach(message => {
+                merged.set(message.id, { ...(merged.get(message.id) ?? {}), ...message });
+            });
+
+            return Array.from(merged.values()).sort((a, b) => {
+                const aTime = new Date(a.sent_at || a.created_at || 0).getTime();
+                const bTime = new Date(b.sent_at || b.created_at || 0).getTime();
+                if (aTime !== bTime) return aTime - bTime;
+                return (a.id ?? 0) - (b.id ?? 0);
+            });
+        });
         setConvLabels(conversation.labels ?? []);
         setAssignedTo(conversation.assigned_to ?? 'bot');
         setAssignedUserId(conversation.assigned_user_id ?? null);
@@ -1637,7 +1667,7 @@ export default function InboxShow({
         stopAudioTracks();
         setRecordingAudio(false);
         setAttachPreview(null);
-    }, [conversation.id]);
+    }, [conversation.id, initialMessages]);
 
     useEffect(() => {
         setConversations(initialConversations);
@@ -1760,6 +1790,9 @@ export default function InboxShow({
                 }
             })
             .listen('.MessageSent', (e) => {
+                mergeIncomingMessages([e]);
+            })
+            .listen('.ConversationActivityCreated', (e) => {
                 mergeIncomingMessages([e]);
             })
             .listen('.MessageStatusUpdated', (e) => {

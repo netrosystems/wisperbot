@@ -241,6 +241,16 @@ function ComposeModal({ accounts, onClose }) {
 }
 
 function MessageBlock({ message, contact, mailbox, timezone = 'Asia/Dhaka' }) {
+    if (message.direction === 'system' && message.type === 'event') {
+        return (
+            <div className="flex w-full justify-center px-6 py-1" role="status">
+                <div className="w-fit max-w-[90%] rounded-lg bg-white px-3 py-1.5 text-center text-[11px] font-medium leading-4 text-neutral-500 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-white/10">
+                    <span className="break-words">{safeText(message.body, '')}</span>
+                </div>
+            </div>
+        );
+    }
+
     const outbound = message.direction === 'out';
     const sender = safeText(outbound ? (message.sender?.name || message.user?.name || mailbox?.display_name) : contactName({ contact }), outbound ? 'Your team' : 'Customer');
     const senderEmail = safeText(outbound ? (mailbox?.meta_json?.email || mailbox?.display_name) : contact?.email, 'unknown');

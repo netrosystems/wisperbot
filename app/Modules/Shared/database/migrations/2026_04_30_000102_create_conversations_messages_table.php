@@ -36,7 +36,7 @@ return new class extends Migration
         Schema::create('messages', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('conversation_id');
-            $table->enum('direction', ['in', 'out']);
+            $table->enum('direction', ['in', 'out', 'system']);
             $table->string('channel', 32);
             $table->enum('type', [
                 'text', 'template', 'media', 'interactive', 'reaction',
@@ -49,7 +49,7 @@ return new class extends Migration
             $table->enum('status', ['queued', 'sent', 'delivered', 'read', 'failed'])->default('queued');
             $table->string('provider_message_id', 128)->nullable();
             $table->json('error_json')->nullable();
-            $table->enum('sent_by', ['human', 'bot', 'automation', 'broadcast'])->default('human');
+            $table->enum('sent_by', ['human', 'bot', 'automation', 'broadcast', 'system'])->default('human');
             $table->unsignedBigInteger('user_id')->nullable();
             $table->timestamp('sent_at')->nullable();
             $table->timestamps();

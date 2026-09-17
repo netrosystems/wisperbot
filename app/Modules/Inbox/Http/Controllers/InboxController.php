@@ -79,7 +79,7 @@ class InboxController extends Controller
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', $liveSince))
-            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('messages'))
+            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('contentMessages'))
             ->when($request->folder === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when($request->folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($request->channel, fn ($q) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $request->channel)))
@@ -159,6 +159,7 @@ class InboxController extends Controller
                 $messages = $selected->messages()
                     ->with('sender')
                     ->latest('sent_at')
+                    ->latest('id')
                     ->limit(200)
                     ->get()
                     ->reverse()
@@ -220,7 +221,7 @@ class InboxController extends Controller
         $this->authorise($request, $conversation);
 
         $conversation->load(['contact', 'channelAccount', 'labels', 'joinedUser']);
-        $messages = $conversation->messages()->with(['conversation', 'sender'])->orderBy('sent_at')->get();
+        $messages = $conversation->messages()->with(['conversation', 'sender'])->orderBy('sent_at')->orderBy('id')->get();
         $messages->each(fn (Message $message) => $this->normaliseMessageMediaUrl($message, $request));
 
         // Mark as read
@@ -271,7 +272,7 @@ class InboxController extends Controller
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', app(WebchatPresence::class)->onlineSince()))
             ->when(($filters['folder'] ?? null) !== 'live', fn ($q) => $q->where(function ($sub) use ($conversation) {
-                $sub->whereHas('messages')->orWhere('id', $conversation->id);
+                $sub->whereHas('contentMessages')->orWhere('id', $conversation->id);
             }))
             ->when(($filters['folder'] ?? null) === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when(($filters['folder'] ?? null) === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
@@ -792,7 +793,7 @@ class InboxController extends Controller
         $request->validate(['status' => ['required', 'in:open,pending,resolved,snoozed']]);
 
         if ($request->status === 'resolved') {
-            $this->ownership->resolve($conversation);
+            $this->ownership->resolve($conversation, $request->user());
         } else {
             $this->ownership->synchronized($conversation, fn () => $conversation->update([
                 'status' => $request->status,

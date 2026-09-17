@@ -76,10 +76,20 @@ class Conversation extends Model
         return $this->hasMany(Message::class);
     }
 
+    /** @return HasMany<Message, $this> */
+    public function contentMessages(): HasMany
+    {
+        return $this->hasMany(Message::class)->whereIn('direction', ['in', 'out']);
+    }
+
     /** @return HasOne<Message, $this> */
     public function lastMessage(): HasOne
     {
-        return $this->hasOne(Message::class)->latestOfMany('sent_at');
+        return $this->hasOne(Message::class)
+            ->ofMany(
+                ['sent_at' => 'max', 'id' => 'max'],
+                fn ($query) => $query->whereIn('direction', ['in', 'out']),
+            );
     }
 
     /** @return HasOne<Message, $this> */

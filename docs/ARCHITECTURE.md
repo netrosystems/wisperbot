@@ -76,7 +76,7 @@ Master Email Inbox alerts have a separate user-level source preference. `users.e
 
 Workspace member availability is stored separately per workspace and evaluated in each member's IANA timezone. It filters only inbox new-message and human-handoff notifications. An available joined owner receives the alert alone; when that owner is off shift, other available members receive it. Realtime inbox updates and unread counts are never suppressed.
 
-Conversation routing and live handling are separate: `assigned_user_id` may be set by a manager or automation, while `joined_user_id` is acquired atomically through Join Chat. Only the joined owner may send human replies. Resolve clears assignment, joined ownership, and handoff state while retaining the transcript. A later genuine inbound reopens the same row as Open/Unassigned, clears the resolution and stale AI/ownership state under the shared conversation lock, then dispatches `MessageReceived`; echoes, delivery callbacks, and historical imports do not reopen it. Mobile parity is provided by `/api/v1/mobile/conversations/{uuid}/join`, `/leave`, and `/takeover`.
+Conversation routing and live handling are separate: `assigned_user_id` may be set by a manager or automation, while `joined_user_id` is acquired atomically through Join Chat. Only the joined owner may send human replies. A successful join/takeover writes a durable `conversation.joined` system activity in the same locked transaction; resolve writes `conversation.resolved` with the authenticated actor while clearing assignment, joined ownership, and handoff state. Repeated no-op actions create no duplicate activity. A later genuine inbound reopens the same row as Open/Unassigned, clears the resolution and stale AI/ownership state under the shared conversation lock, then dispatches `MessageReceived`; echoes, delivery callbacks, historical imports, and activity records do not reopen it. Mobile parity is provided by `/api/v1/mobile/conversations/{uuid}/join`, `/leave`, and `/takeover`.
 
 ## Request and event flow
 
@@ -98,6 +98,8 @@ One workspace-level Omni policy covers WhatsApp, Messenger, Instagram DMs, Teleg
 Meta Messenger and Instagram webhook processing currently uses the `whatsapp` queue despite the broader channel name; production workers must include it.
 
 ### Website widget
+
+Ownership activity is exposed to the private widget/customer-SDK session as `role=agent`, additive `kind=activity`, fallback `body`, and redacted `activity.type`/`activity.actor_name`. Internal user IDs, email, roles, and permissions are never public. Activity does not trigger sound, unread badges, push, delivery receipts, quick replies, or message bubbles. Older SDKs can keep rendering the body as an agent message; native activity rendering requires a separate SDK package release and host-app rebuild.
 
 1. `/widgets/chat/{key}.js` returns the embed loader.
 2. `/widget/v1/session` creates/resumes a visitor-private session.
