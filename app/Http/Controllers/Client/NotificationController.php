@@ -113,4 +113,17 @@ class NotificationController extends Controller
 
         return back()->with('success', __('Notification preferences updated.'));
     }
+
+    public function updateEmailInboxPreference(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $user->email_inbox_notifications_enabled = $validated['enabled'];
+        $user->save();
+
+        return back()->with('success', __('Master Email Inbox alert preference updated.'));
+    }
 }

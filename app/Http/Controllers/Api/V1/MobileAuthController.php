@@ -163,6 +163,7 @@ class MobileAuthController extends Controller
             'role' => $user->role,
             'workspace_id' => $user->workspace_id,
             'current_workspace_id' => $user->current_workspace_id,
+            'email_inbox_notifications_enabled' => (bool) $user->email_inbox_notifications_enabled,
             'avatar' => $user->avatarUrl(),
             'demo_mode' => Demo::active(),
         ];

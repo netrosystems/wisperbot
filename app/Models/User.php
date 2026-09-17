@@ -93,6 +93,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'email_inbox_notifications_enabled' => 'boolean',
             'two_factor_confirmed_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_secret' => 'encrypted',

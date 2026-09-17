@@ -148,6 +148,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api', 'demo'])->group
     Route::get('/audit-log', [AuditLogApiController::class, 'index']);
     Route::get('/notifications', [NotificationApiController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationApiController::class, 'unreadCount']);
+    Route::put('/notifications/preferences/email-inbox', [NotificationApiController::class, 'updateEmailInboxPreference']);
     Route::post('/notifications/read-all', [NotificationApiController::class, 'markAllRead']);
     Route::post('/notifications/{notification}/read', [NotificationApiController::class, 'markRead']);
     Route::delete('/notifications/{notification}', [NotificationApiController::class, 'destroy']);
