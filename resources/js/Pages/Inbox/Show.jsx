@@ -1604,6 +1604,7 @@ export default function InboxShow({
     const [assignedUserId, setAssignedUserId] = useState(conversation.assigned_user_id ?? null);
     const [joinedUser, setJoinedUser]         = useState(conversation.joined_user ?? null);
     const [joinedAt, setJoinedAt]             = useState(conversation.joined_at ?? null);
+    const [conversationStatus, setConversationStatus] = useState(conversation.status);
     const [ownershipBusy, setOwnershipBusy]   = useState(false);
     const [conversations, setConversations] = useState(initialConversations);
     const [listSearch, setListSearch]       = useState('');
@@ -1630,6 +1631,7 @@ export default function InboxShow({
         setAssignedUserId(conversation.assigned_user_id ?? null);
         setJoinedUser(conversation.joined_user ?? null);
         setJoinedAt(conversation.joined_at ?? null);
+        setConversationStatus(conversation.status);
         setSendError(null);
         setVisitorTyping(false);
         stopAudioTracks();
@@ -1749,6 +1751,13 @@ export default function InboxShow({
         ch
             .listen('.MessageReceived', (e) => {
                 mergeIncomingMessages([e]);
+                if (e.reopened) {
+                    setConversationStatus(e.conversation?.status ?? 'open');
+                    setAssignedTo(e.conversation?.assigned_to ?? 'human');
+                    setAssignedUserId(e.conversation?.assigned_user_id ?? null);
+                    setJoinedUser(null);
+                    setJoinedAt(null);
+                }
             })
             .listen('.MessageSent', (e) => {
                 mergeIncomingMessages([e]);
@@ -1764,6 +1773,8 @@ export default function InboxShow({
             .listen('.ConversationOwnershipChanged', (e) => {
                 setJoinedUser(e.joined_user ?? null);
                 setJoinedAt(e.joined_at ?? null);
+                setConversationStatus(current => e.status ?? current);
+                setAssignedTo(current => e.assigned_to ?? current);
                 setAssignedUserId(e.assigned_user_id ?? null);
             })
             .listen('.TypingChanged', (e) => {
@@ -1868,6 +1879,14 @@ export default function InboxShow({
                 // Per-channel inbound notification sound (fires for every inbound
                 // message in the workspace, regardless of which thread is open).
                 playInboundSound(e.channel);
+                if (e.reopened) {
+                    router.reload({
+                        only: ['conversations'],
+                        preserveScroll: true,
+                        preserveState: true,
+                    });
+                    return;
+                }
                 setConversations(prev => {
                     if (!prev) return prev;
                     const exists = prev.data?.find(c => c.id === e.conversation_id);
@@ -1908,7 +1927,7 @@ export default function InboxShow({
                 });
             })
             .listen('.ConversationOwnershipChanged', (e) => {
-                setConversations(prev => !prev?.data ? prev : ({ ...prev, data: prev.data.map(item => item.id === e.conversation_id ? { ...item, joined_user: e.joined_user, joined_at: e.joined_at, assigned_user_id: e.assigned_user_id, status: e.status } : item) }));
+                setConversations(prev => !prev?.data ? prev : ({ ...prev, data: prev.data.map(item => item.id === e.conversation_id ? { ...item, joined_user: e.joined_user, joined_at: e.joined_at, assigned_to: e.assigned_to ?? item.assigned_to, assigned_user_id: e.assigned_user_id, status: e.status } : item) }));
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);
@@ -2158,7 +2177,14 @@ export default function InboxShow({
             .catch(() => {});
     };
 
-    const handleStatus = (status) => router.post(route('client.inbox.status', conversation.uuid), { status }, { preserveScroll: true });
+    const handleStatus = (status) => {
+        const previous = conversationStatus;
+        setConversationStatus(status);
+        router.post(route('client.inbox.status', conversation.uuid), { status }, {
+            preserveScroll: true,
+            onError: () => setConversationStatus(previous),
+        });
+    };
 
     const navigateList = (params) => {
         if (params.folder === 'live') {
@@ -2445,7 +2471,7 @@ export default function InboxShow({
                             {joinedUser ? <>
                                 <span title={joinedAt ? `Joined ${new Date(joinedAt).toLocaleString()}` : undefined} className="max-w-[150px] truncate rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">{joinedUser.name} joined</span>
                                 {isJoinedByMe && <button type="button" disabled={ownershipBusy} onClick={() => changeOwnership('leave')} className="text-xs font-medium text-neutral-500 hover:text-red-600">Leave</button>}
-                            </> : <button type="button" disabled={ownershipBusy || conversation.status === 'resolved'} onClick={() => changeOwnership('join')} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-40">Join Chat</button>}
+                            </> : <button type="button" disabled={ownershipBusy || conversationStatus === 'resolved'} onClick={() => changeOwnership('join')} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-40">Join Chat</button>}
                         </div>
                         <div className="relative">
                             <button
@@ -2471,9 +2497,9 @@ export default function InboxShow({
 
                         {/* Status */}
                         <select
-                            defaultValue={conversation.status}
+                            value={conversationStatus}
                             onChange={e => handleStatus(e.target.value)}
-                            className={`rounded-full border-0 px-3 py-1 text-xs font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500 ${STATUS_COLORS[conversation.status] ?? 'bg-neutral-100 text-neutral-600'}`}
+                            className={`rounded-full border-0 px-3 py-1 text-xs font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500 ${STATUS_COLORS[conversationStatus] ?? 'bg-neutral-100 text-neutral-600'}`}
                         >
                             {['open','pending','resolved','snoozed'].map(s => (
                                 <option key={s} value={s} className="bg-white dark:bg-neutral-800 text-neutral-900">
@@ -2762,7 +2788,7 @@ export default function InboxShow({
                                 <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">{joinedUser ? `${joinedUser.name} joined this chat` : 'Join before replying'}</p>
                                 <p className="text-xs text-neutral-500">{joinedUser ? (joinedMember?.available === false ? (currentMember?.available === false && !isAdministrator ? 'You are off shift. An available teammate can take over.' : 'The owner is off shift. You may take over.') : 'Only the joined owner can send replies.') : 'The first teammate to join becomes the active owner.'}</p>
                             </div>
-                            <button type="button" disabled={ownershipBusy || conversation.status === 'resolved' || (joinedUser && !canTakeOver)} onClick={() => changeOwnership(joinedUser ? 'takeover' : 'join')} className="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">{ownershipBusy ? 'Working…' : joinedUser ? 'Take over' : 'Join Chat'}</button>
+                            <button type="button" disabled={ownershipBusy || conversationStatus === 'resolved' || (joinedUser && !canTakeOver)} onClick={() => changeOwnership(joinedUser ? 'takeover' : 'join')} className="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">{ownershipBusy ? 'Working…' : joinedUser ? 'Take over' : 'Join Chat'}</button>
                         </div>}
                     </div>
                     )}
@@ -2804,7 +2830,7 @@ export default function InboxShow({
                         <div className="space-y-1.5 text-xs">
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-500">{t('inbox.status')}</span>
-                                <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[conversation.status] ?? 'bg-neutral-100 text-neutral-600'}`}>{t(`inbox.status_${conversation.status}`)}</span>
+                                <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[conversationStatus] ?? 'bg-neutral-100 text-neutral-600'}`}>{t(`inbox.status_${conversationStatus}`)}</span>
                             </div>
                             {startedFromLabel && (
                                 <div className="flex items-center justify-between gap-2">

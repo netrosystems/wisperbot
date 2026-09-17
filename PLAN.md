@@ -56,6 +56,7 @@ journey
 - **Unified Conversation Stream (`/app/inbox`)**: Real-time conversation list filtered by folders (`All`, `Mine`, `Unassigned`, `Resolved`, `Snoozed`) and channels (WhatsApp, Instagram, Messenger, Webchat).
 - **All vs Live Visitors**: `All` lists real message-bearing Omni threads across statuses; website visitor sessions that have not sent a message belong only in Live Visitors and must not pollute the normal web or staff-app conversation list/counts.
 - **Join Chat ownership**: Assignment remains routing metadata. One agent atomically joins as the live owner before replying; teammates see ownership in realtime, eligible agents may take over an off-shift owner, and resolve resets ownership without deleting history.
+- **Resolved-thread reopening**: A genuine new customer message reuses the same conversation and transcript, moves it from Resolved back to Open/Unassigned, resets stale ownership and AI-pause state, and updates the web inbox in realtime. Provider echoes, delivery callbacks, and historical imports do not reopen threads.
 - **Interactive Chat Interface**:
   - Rich message formatting with image, video, audio, and document attachment previews.
   - Canned replies (`/quick-reply`) for fast repetitive response delivery.
@@ -72,6 +73,8 @@ journey
                       [AI Handling Turn] ◄────(2 Fails/Turn)───► [Human Agent]
                               │                                      │
                               └───────(Mark Resolved)────────────────► [Resolved]
+
+[Resolved] ──(New inbound customer message)──► [Unassigned Folder]
 ```
 
 ---

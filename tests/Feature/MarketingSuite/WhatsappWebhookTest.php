@@ -7,6 +7,7 @@ use App\Events\MessageSent;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\Shared\Models\ChannelAccount;
+use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Modules\Whatsapp\Models\WhatsappBusinessAccount;
@@ -117,9 +118,82 @@ class WhatsappWebhookTest extends TestCase
     }
 
     #[Test]
+    public function genuine_inbound_reopens_the_existing_resolved_conversation(): void
+    {
+        $waba = $this->makeWaba();
+        $account = ChannelAccount::where('workspace_id', $waba->workspace_id)
+            ->where('channel', 'whatsapp')
+            ->firstOrFail();
+        $contact = Contact::create([
+            'workspace_id' => $waba->workspace_id,
+            'phone_e164' => '+8801900000001',
+            'first_name' => 'Returning contact',
+            'source' => 'whatsapp_inbound',
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $waba->workspace_id,
+            'channel_account_id' => $account->id,
+            'contact_id' => $contact->id,
+            'status' => 'resolved',
+            'resolved_at' => now()->subHour(),
+            'assigned_to' => 'human',
+        ]);
+        Event::fake([MessageReceived::class]);
+
+        $payload = [
+            'object' => 'whatsapp_business_account',
+            'entry' => [[
+                'id' => $waba->waba_id,
+                'changes' => [[
+                    'value' => [
+                        'messaging_product' => 'whatsapp',
+                        'metadata' => ['display_phone_number' => '+1555000000', 'phone_number_id' => 'PHONE_ID'],
+                        'contacts' => [['profile' => ['name' => 'Alice'], 'wa_id' => '8801900000001']],
+                        'messages' => [[
+                            'from' => '8801900000001',
+                            'id' => 'wamid.REOPEN',
+                            'timestamp' => now()->timestamp,
+                            'text' => ['body' => 'I need help again'],
+                            'type' => 'text',
+                        ]],
+                    ],
+                    'field' => 'messages',
+                ]],
+            ]],
+        ];
+
+        $this->postJson("/webhooks/whatsapp/{$this->verifyToken}", $payload)->assertOk();
+
+        $conversation->refresh();
+        $this->assertSame('open', $conversation->status);
+        $this->assertNull($conversation->resolved_at);
+        $this->assertSame(1, $conversation->unread_count);
+        $this->assertSame(1, Conversation::where('workspace_id', $waba->workspace_id)->count());
+        Event::assertDispatched(MessageReceived::class, fn (MessageReceived $event): bool => $event->reopened
+            && $event->message->conversation_id === $conversation->id);
+    }
+
+    #[Test]
     public function it_imports_coexistence_history_without_triggering_inbound_automations(): void
     {
         $waba = $this->makeWaba();
+        $account = ChannelAccount::where('workspace_id', $waba->workspace_id)
+            ->where('channel', 'whatsapp')
+            ->firstOrFail();
+        $contact = Contact::create([
+            'workspace_id' => $waba->workspace_id,
+            'phone_e164' => '+8801900000001',
+            'first_name' => 'History contact',
+            'source' => 'whatsapp_history',
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $waba->workspace_id,
+            'channel_account_id' => $account->id,
+            'contact_id' => $contact->id,
+            'status' => 'resolved',
+            'resolved_at' => now()->subHour(),
+            'assigned_to' => 'human',
+        ]);
         Event::fake([MessageReceived::class, MessageSent::class]);
 
         $payload = [
@@ -168,7 +242,10 @@ class WhatsappWebhookTest extends TestCase
             'direction' => 'out',
             'status' => 'read',
         ]);
-        $this->assertSame(0, Conversation::firstOrFail()->unread_count);
+        $conversation->refresh();
+        $this->assertSame('resolved', $conversation->status);
+        $this->assertNotNull($conversation->resolved_at);
+        $this->assertSame(0, $conversation->unread_count);
         Event::assertNotDispatched(MessageReceived::class);
         Event::assertNotDispatched(MessageSent::class);
     }

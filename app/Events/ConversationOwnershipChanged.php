@@ -37,6 +37,7 @@ class ConversationOwnershipChanged implements ShouldBroadcastNow
         return [
             'conversation_id' => $this->conversation->id,
             'status' => $this->conversation->status,
+            'assigned_to' => $this->conversation->assigned_to,
             'assigned_user_id' => $this->conversation->assigned_user_id,
             'joined_at' => $this->conversation->joined_at?->toIso8601String(),
             'joined_user' => $joined ? [

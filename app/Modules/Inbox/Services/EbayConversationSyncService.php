@@ -86,9 +86,19 @@ class EbayConversationSyncService
                     $sender = (string) ($remoteMessage['senderUserName'] ?? $remoteMessage['senderUsername'] ?? $remoteMessage['sender'] ?? '');
                     $direction = $sellerId !== '' && strcasecmp($sender, $sellerId) === 0 ? 'out' : 'in';
                     $sentAt = $remoteMessage['createdDate'] ?? $remoteMessage['creationDate'] ?? $remoteMessage['sentDate'] ?? now();
+                    $messageSentAt = Carbon::parse($sentAt);
+                    $reopened = false;
 
+                    // This sync already owns an outer database transaction. Acquire the
+                    // conversation lock before inserting the child message so resolve and
+                    // inbound paths keep the same cache-lock/row-lock ordering.
                     if ($direction === 'in') {
-                        app(ConversationOwnershipService::class)->prepareInbound($conversation);
+                        $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+                            $conversation,
+                            $messageSentAt,
+                            1,
+                            ['status' => 'open'],
+                        );
                     }
 
                     $message = Message::create([
@@ -101,19 +111,20 @@ class EbayConversationSyncService
                         'status' => 'delivered',
                         'provider_message_id' => $providerId,
                         'sent_by' => $direction === 'in' ? 'contact' : 'human',
-                        'sent_at' => Carbon::parse($sentAt),
+                        'sent_at' => $messageSentAt,
                     ]);
 
-                    $updates = ['last_message_at' => $message->sent_at];
                     if ($direction === 'in') {
-                        $updates['status'] = 'open';
-                        $updates['last_inbound_at'] = $message->sent_at;
-                        $updates['unread_count'] = $conversation->unread_count + 1;
-                        MessageReceived::dispatch($message);
+                        MessageReceived::dispatch($message, $reopened);
                     } else {
-                        $updates += ['assigned_to' => 'human', 'handover_at' => $conversation->handover_at ?: $message->sent_at, 'ai_paused_at' => $conversation->ai_paused_at ?: $message->sent_at, 'ai_pause_reason' => 'human_reply'];
+                        $conversation->update([
+                            'last_message_at' => $message->sent_at,
+                            'assigned_to' => 'human',
+                            'handover_at' => $conversation->handover_at ?: $message->sent_at,
+                            'ai_paused_at' => $conversation->ai_paused_at ?: $message->sent_at,
+                            'ai_pause_reason' => 'human_reply',
+                        ]);
                     }
-                    $conversation->update($updates);
                     $conversation->refresh();
                     $created++;
                 }

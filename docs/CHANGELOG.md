@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Resolved inbox conversations now reopen as Open/Unassigned when the same customer sends a genuine new message. The existing transcript and conversation link are retained, stale ownership and AI-pause state are cleared, and the web Resolved/Unassigned views reconcile in realtime; provider history, echoes, and status callbacks remain non-reopening.
+
 - Separated website widget availability from customer mobile SDK availability on the same widget. Website embeds keep using the website key and `Widget enabled`; customer SDK apps get a separate SDK key and `SDK enabled`, with existing widgets and old SDK builds remaining available by default.
 - Added webchat source detection for newly created conversations: website widget chats keep the existing website icon, customer SDK chats can show a mobile/app icon, and conversation APIs expose additive `started_from` metadata while old conversations remain unlabelled.
 

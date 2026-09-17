@@ -74,7 +74,7 @@ Mobile clients use `GET /api/v1/notifications`, `GET /api/v1/notifications/unrea
 
 Workspace member availability is stored separately per workspace and evaluated in each member's IANA timezone. It filters only inbox new-message and human-handoff notifications. An available joined owner receives the alert alone; when that owner is off shift, other available members receive it. Realtime inbox updates and unread counts are never suppressed.
 
-Conversation routing and live handling are separate: `assigned_user_id` may be set by a manager or automation, while `joined_user_id` is acquired atomically through Join Chat. Only the joined owner may send human replies. Resolve clears assignment, joined ownership, and handoff state while retaining the transcript. Mobile parity is provided by `/api/v1/mobile/conversations/{uuid}/join`, `/leave`, and `/takeover`.
+Conversation routing and live handling are separate: `assigned_user_id` may be set by a manager or automation, while `joined_user_id` is acquired atomically through Join Chat. Only the joined owner may send human replies. Resolve clears assignment, joined ownership, and handoff state while retaining the transcript. A later genuine inbound reopens the same row as Open/Unassigned, clears the resolution and stale AI/ownership state under the shared conversation lock, then dispatches `MessageReceived`; echoes, delivery callbacks, and historical imports do not reopen it. Mobile parity is provided by `/api/v1/mobile/conversations/{uuid}/join`, `/leave`, and `/takeover`.
 
 ## Request and event flow
 
@@ -88,7 +88,8 @@ Conversation routing and live handling are separate: `assigned_user_id` may be s
 2. Controller verifies provider challenge/signature/token and applies inbound idempotency.
 3. Expensive parsing is dispatched to a named queue.
 4. The processor resolves a workspace-scoped channel account, contact, conversation, and message.
-5. `MessageReceived` triggers automations, AI/auto-reply behavior, outbound developer webhooks, notifications, and realtime broadcasts.
+5. If the stored customer message belongs to a resolved conversation, the processor atomically reopens that same conversation before downstream listeners execute.
+6. `MessageReceived` triggers automations, AI/auto-reply behavior, outbound developer webhooks, notifications, and realtime broadcasts.
 
 One workspace-level Omni policy covers WhatsApp, Messenger, Instagram DMs, Telegram Business, and eBay; a separate workspace-level Email policy covers every mailbox. The selected segment policy is evaluated after deterministic rules and handoff detection on every inbound, including threads previously routed to humans only because AI was outside its schedule. Eligible replies are debounced on `ai`, re-check ownership and policy under the final-send lock, and use a durable source-message key. Joining, assignment, handoff, or observed human replies pause AI until resolution. Email additionally applies account connection cutoffs plus loop, authored-body, and attachment-only guards. Amazon order actions, SMS, webchat Appearance, and Social Comments remain separate.
 

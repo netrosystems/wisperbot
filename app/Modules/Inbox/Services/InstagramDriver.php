@@ -266,7 +266,6 @@ class InstagramDriver implements ChannelDriverInterface
             ]
         );
 
-        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $presentedMessages = $this->attachmentNormalizer->messagesFromEvent($event, 'instagram');
         $messages = [];
 
@@ -286,14 +285,15 @@ class InstagramDriver implements ChannelDriverInterface
         }
 
         $lastMessage = end($messages) ?: null;
-        $conversation->update([
-            'last_message_at' => $lastMessage?->sent_at ?? now(),
-            'status' => 'open',
-            'unread_count' => $conversation->unread_count + count($messages),
-        ]);
+        $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+            $conversation,
+            $lastMessage?->sent_at ?? now(),
+            count($messages),
+            ['status' => 'open'],
+        );
 
-        foreach ($messages as $message) {
-            MessageReceived::dispatch($message);
+        foreach ($messages as $index => $message) {
+            MessageReceived::dispatch($message, $reopened && $index === 0);
         }
 
         Log::info('Instagram webhook: message stored', [

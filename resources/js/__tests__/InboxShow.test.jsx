@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axios from 'axios';
+import { router } from '@inertiajs/react';
 import InboxShow from '@/Pages/Inbox/Show';
 import InboxIndex from '@/Pages/Inbox/Index';
 
@@ -16,7 +17,7 @@ vi.mock('@inertiajs/react', async () => {
         Head: () => null,
         Link: ({ href, children, ...props }) => <a href={href} {...props}>{children}</a>,
         router: { reload: vi.fn(), visit: vi.fn() },
-        usePage: () => ({ props: { auth: { user: { id: 7, name: 'Agent', timezone: 'UTC' } }, timezone: 'UTC', flash: {} } }),
+        usePage: () => ({ props: { auth: { user: { id: 7, name: 'Agent', timezone: 'UTC', workspace_id: 1 } }, timezone: 'UTC', flash: {} } }),
         useForm: initial => {
             const [data, update] = useState(initial);
             return {
@@ -38,6 +39,7 @@ const props = { conversation, messages: [], conversations: { data: [], total: 0 
 
 beforeEach(() => {
     vi.clearAllMocks();
+    delete window.Echo;
     axios.get.mockResolvedValue({ data: { messages: [] } });
     axios.post.mockResolvedValue({ data: {} });
 });
@@ -146,5 +148,48 @@ describe('Mobile chat reply layout', () => {
             headers: expect.objectContaining({ 'X-Inertia': 'true' }),
         })));
         expect(await screen.findByText('Second')).toBeInTheDocument();
+    });
+
+    it('refreshes the resolved folder when an inbound message reopens a conversation', () => {
+        const listeners = {};
+        const channel = {
+            listen: vi.fn((event, callback) => {
+                listeners[event] = callback;
+                return channel;
+            }),
+            notification: vi.fn(() => channel),
+        };
+        window.Echo = {
+            private: vi.fn(() => channel),
+            leave: vi.fn(),
+        };
+
+        render(<InboxIndex
+            conversations={{
+                data: [{
+                    id: 1,
+                    uuid: 'resolved-chat',
+                    status: 'resolved',
+                    unread_count: 0,
+                    contact: { first_name: 'Customer', custom_fields: {} },
+                    channel_account: { channel: 'webchat' },
+                    last_message: { body: 'Old message' },
+                }],
+                total: 1,
+            }}
+            filters={{ folder: 'resolved' }}
+        />);
+
+        act(() => listeners['.MessageReceived']({
+            conversation_id: 1,
+            reopened: true,
+            conversation: { status: 'open' },
+        }));
+
+        expect(router.reload).toHaveBeenCalledWith({
+            only: ['conversations'],
+            preserveScroll: true,
+            preserveState: true,
+        });
     });
 });
