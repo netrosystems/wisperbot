@@ -2,6 +2,12 @@
 
 Snapshot date: 2026-09-09.
 
+## Blog platform upgrade — 2026-09-18
+
+The blog now sanitizes public and preview content on read, repairs the legacy nested-code-block structure, adds deterministic heading anchors, and derives a bounded outline and FAQ candidates from the final safe HTML. The editor adds an explicit paragraph escape, genuine code-block toggle, tables, horizontal rules, HTML-source mode, normalized image insertion, and content-health feedback. Public posts add desktop/mobile contents navigation, reading progress, meaningful updated dates, copied-link feedback, Breadcrumb structured data, and FAQ structured data when the article has qualifying question/answer pairs.
+
+Deployment needs the matching PHP code and Vite bundle. There is no database migration and no new worker. Existing stored content is not bulk-mutated: it is repaired during rendering, then normalized durably the next time an editor saves it under the existing revision system. Verify one legacy rich article, one genuine code sample, a narrow-screen comparison table, heading anchor navigation, and the JSON-LD graphs after deployment.
+
 ## Repository state at documentation creation
 
 - Working directory: `/Users/macbookair/Documents/Github-Projects/wisperbot`

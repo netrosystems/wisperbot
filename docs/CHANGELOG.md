@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Upgraded the public blog and editorial CMS with structural HTML repair, safe deterministic heading anchors, a visible table of contents, reading progress, meaningful freshness labels, Breadcrumb/FAQ structured data, responsive comparison tables, HTML-source editing, table and divider tools, and live content-quality signals. Legacy malformed articles are repaired on read without destructive database rewrites and persist normalized markup on their next save.
+
 - Expanded the staff conversation audit timeline with transfer, leave, assignment, unassignment, reopen, pending, and snoozed activity. No-op transitions remain deduplicated; widget/SDK customers continue to receive only joined/resolved activity, with takeover safely represented as the new agent joining.
 
 - Fixed website-widget conversation ordering when a missed realtime activity is recovered after a newer cached message; recovered rows now return to their canonical message-ID position instead of appearing at the end.

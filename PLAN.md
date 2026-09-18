@@ -35,6 +35,19 @@ journey
 
 ## 3. Feature Modules & Detailed Specifications
 
+### Public Blog & Editorial CMS (`/blog`, `/admin/blog`)
+
+The public blog is a durable acquisition and answer surface, not a free-form HTML dump. Editors can author headings, lists, quotes, genuine code blocks, responsive comparison tables, links, inline images, horizontal rules, and inspected HTML source. The editor reports word, heading, image, table, FAQ-question, and missing-alt-text signals before publication. Every save remains covered by revisions, slug redirects, scheduled publication, preview links, indexing controls, categories, tags, feeds, and sitemap discovery.
+
+Published and previewed content is sanitized again on read. The sanitizer removes executable/unsafe markup, validates URLs and attributes, repairs legacy invalid block nesting, assigns deterministic unique heading anchors, and preserves legitimate tables and code. The public article derives a table of contents and bounded FAQ candidates from that sanitized representation, exposes Article, Breadcrumb, and applicable FAQ structured data, communicates meaningful update dates, and provides reading progress and related-content discovery. Rendering repair is non-destructive; a later editor save persists the normalized representation through the existing revision workflow.
+
+#### Verification Criteria
+- [x] Legacy nested `<pre>`/heading markup cannot turn the whole article into a code block.
+- [x] Sanitized H2/H3 anchors drive the visible table of contents and match the rendered HTML.
+- [x] FAQ structured data is emitted only for question headings with an immediate paragraph answer.
+- [x] Rich tables remain horizontally usable on narrow screens, and real code blocks retain code styling.
+- [x] The feature requires a matching backend and Vite bundle, but no database migration or queue worker.
+
 ### Feature 1: Multi-Tenancy, Auth & Team Management (`app/Http/Controllers/Client/*`)
 
 #### Capabilities

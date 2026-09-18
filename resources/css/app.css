@@ -212,6 +212,14 @@ body {
     color: #241f1a;
     scroll-margin-top: 6rem;
 }
+.cms-prose h4 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 600;
+    font-size: 1.0625rem;
+    margin: 1.5rem 0 0.6rem;
+    color: #241f1a;
+    scroll-margin-top: 6rem;
+}
 .cms-prose p { margin: 0 0 1.25rem; }
 .cms-prose ul { list-style: disc; margin: 0 0 1.25rem 1.5rem; }
 .cms-prose ol { list-style: decimal; margin: 0 0 1.25rem 1.5rem; }
@@ -236,16 +244,20 @@ body {
 .blog-prose img { width: 100%; border-radius: 1rem; margin: 2rem 0 0.75rem; }
 .blog-prose figure { margin: 2rem 0; }
 .blog-prose figcaption { margin-top: -0.25rem; text-align: center; color: #8a817a; font-size: 0.875rem; }
-.blog-prose pre { overflow-x: auto; border-radius: 0.75rem; background: #14100c; color: #f8f4ef; padding: 1rem 1.25rem; margin: 1.5rem 0; }
-.blog-prose table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.95rem; }
+.blog-prose pre { overflow-x: auto; border-radius: 0.75rem; background: #14100c; color: #f8f4ef; padding: 1rem 1.25rem; margin: 1.5rem 0; white-space: pre-wrap; }
+.blog-prose pre code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre; }
+.blog-prose table { display: block; width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.95rem; }
 .blog-prose th, .blog-prose td { border: 1px solid #e7e1db; padding: 0.65rem 0.8rem; text-align: left; }
 .blog-prose th { background: #fff8f3; font-weight: 600; }
+.blog-prose hr { margin: 2.5rem 0; border: 0; border-top: 1px solid #e7e1db; }
+.blog-prose :where(h2, h3, h4)[id] { scroll-margin-top: 6rem; }
 .blog-prose[contenteditable]:empty::before { content: attr(data-placeholder); color: #a8a29e; pointer-events: none; }
 .dark .blog-prose { color: #d6d3d1; }
-.dark .blog-prose h2, .dark .blog-prose h3, .dark .blog-prose strong { color: #fafaf9; }
+.dark .blog-prose h2, .dark .blog-prose h3, .dark .blog-prose h4, .dark .blog-prose strong { color: #fafaf9; }
 .dark .blog-prose em, .dark .blog-prose blockquote, .dark .blog-prose figcaption { color: #a8a29e; }
 .dark .blog-prose th, .dark .blog-prose td { border-color: #3f3f46; }
 .dark .blog-prose th { background: #27272a; }
+.dark .blog-prose hr { border-color: #3f3f46; }
 
 /* Calm replacement for the old yellow "Template notice" box. Used by
  * cms_pages content; can stay in all environments until the admin edits. */
