@@ -158,6 +158,18 @@ class BlogTest extends TestCase
             ->where('post.faqs.0.question', 'What is WisperBot?'));
     }
 
+    public function test_public_article_extracts_faq_answers_from_legacy_text_nodes(): void
+    {
+        $post = $this->makePost([
+            'content' => '<h3>Can I keep my number?</h3>Yes. Eligibility depends on the provider.<h3>Another section</h3>',
+        ]);
+
+        $this->get(route('blog.show', $post->slug))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->has('post.faqs', 1)
+            ->where('post.faqs.0.question', 'Can I keep my number?')
+            ->where('post.faqs.0.answer', 'Yes. Eligibility depends on the provider.'));
+    }
+
     public function test_scheduled_post_requires_a_publication_date(): void
     {
         $this->actingAs($this->admin(), 'admin')->from(route('admin.blog.create'))->post(route('admin.blog.store'), [

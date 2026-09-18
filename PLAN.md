@@ -44,7 +44,7 @@ Published and previewed content is sanitized again on read. The sanitizer remove
 #### Verification Criteria
 - [x] Legacy nested `<pre>`/heading markup cannot turn the whole article into a code block.
 - [x] Sanitized H2/H3 anchors drive the visible table of contents and match the rendered HTML.
-- [x] FAQ structured data is emitted only for question headings with an immediate paragraph answer.
+- [x] FAQ structured data is emitted only for question headings with an adjacent paragraph or safely normalized legacy text answer.
 - [x] Rich tables remain horizontally usable on narrow screens, and real code blocks retain code styling.
 - [x] The feature requires a matching backend and Vite bundle, but no database migration or queue worker.
 

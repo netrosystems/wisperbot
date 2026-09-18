@@ -5,6 +5,7 @@ namespace App\Services;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
+use DOMText;
 use DOMXPath;
 
 class BlogContentAnalyzer
@@ -33,7 +34,7 @@ class BlogContentAnalyzer
             if (count($faqs) >= 12 || ! str_ends_with($text, '?')) {
                 continue;
             }
-            $answer = $this->nextParagraph($heading);
+            $answer = $this->nextAnswer($heading);
             if ($answer !== '') {
                 $faqs[] = ['question' => $text, 'answer' => $answer];
             }
@@ -42,21 +43,27 @@ class BlogContentAnalyzer
         return ['outline' => $outline, 'faqs' => $faqs];
     }
 
-    private function nextParagraph(DOMNode $heading): string
+    private function nextAnswer(DOMNode $heading): string
     {
         $node = $heading->nextSibling;
+        $text = [];
         while ($node) {
             if ($node instanceof DOMElement && in_array(strtolower($node->tagName), ['h2', 'h3', 'h4'], true)) {
-                return '';
+                break;
             }
             if ($node instanceof DOMElement && strtolower($node->tagName) === 'p') {
-                return trim(preg_replace('/\s+/', ' ', $node->textContent) ?? '');
+                $text[] = $node->textContent;
+                break;
             }
             if ($node instanceof DOMElement) {
                 return '';
             }
+            if ($node instanceof DOMText && trim($node->textContent) !== '') {
+                $text[] = $node->textContent;
+            }
             $node = $node->nextSibling;
         }
-        return '';
+
+        return mb_substr(trim(preg_replace('/\s+/', ' ', implode(' ', $text)) ?? ''), 0, 1000);
     }
 }
