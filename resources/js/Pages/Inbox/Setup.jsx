@@ -527,7 +527,7 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
                                     appId={metaAppId}
                                     channel="whatsapp"
                                     whatsappOnboarding={WHATSAPP_ONBOARDING_COEXISTENCE}
-                                    label={t('inbox.connect_whatsapp_business_app', { defaultValue: 'Connect existing WhatsApp Business app' })}
+                                    label={t('inbox.connect_whatsapp_business_app', { defaultValue: 'Connect Business App' })}
                                     color="green"
                                     onCode={handleWaEmbeddedCode}
                                 />
@@ -539,7 +539,7 @@ function WhatsAppSection({ wabas, webhookGlobalUrl, channelAccountsByWaba, chatb
                                     appId={metaAppId}
                                     channel="whatsapp"
                                     whatsappOnboarding={WHATSAPP_ONBOARDING_CLOUD_API}
-                                    label={t('inbox.connect_whatsapp_cloud_api', { defaultValue: 'Set up a Cloud API number' })}
+                                    label={t('inbox.connect_whatsapp_cloud_api', { defaultValue: 'Connect WABA' })}
                                     color="neutral"
                                     onCode={handleWaEmbeddedCode}
                                 />

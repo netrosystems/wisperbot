@@ -173,6 +173,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 - Separated website widget availability from customer mobile SDK availability on the same widget. Website embeds keep using the website key and `Widget enabled`; customer SDK apps get a separate SDK key and `SDK enabled`, with existing widgets and old SDK builds remaining available by default.
 - Added webchat source detection for newly created conversations: website widget chats keep the existing website icon, customer SDK chats can show a mobile/app icon, and conversation APIs expose additive `started_from` metadata while old conversations remain unlabelled.
 
+- Shortened the WhatsApp setup CTAs to Connect Business App and Connect WABA. Existing helper text and Meta onboarding modes remain unchanged.
+
 - Raised dedicated authenticated mobile API headroom from a shared 60 to an isolated configurable 300 requests/minute/user, including mobile profile and private-channel authorization. Login, generic/developer API, and stricter action-specific limits remain unchanged. Mobile throttling now provides a structured 429 reason and retry delay.
 
 - Moved the mobile inbox menu from a floating composer overlay to a compact top bar shared by Omni chat and Email MasterBox. Mobile chat now uses the full width with a return-to-inbox link, narrow-screen lists retain collapsible filters, and the send button has a 44px touch target. No API changes.

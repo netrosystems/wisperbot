@@ -312,6 +312,8 @@ Social publishing uses one standard page with a compact connected-account strip 
 
 ## WhatsApp connection health
 
+The WhatsApp connection drawer uses short, parallel CTAs: **Connect Business App** for Coexistence and **Connect WABA** for Cloud API onboarding. Retain adjacent helper text explaining phone-app versus Cloud API-only use; both paths connect WhatsApp business assets, so WABA is not a claim that Coexistence has no WABA. Labels do not alter Meta signup modes.
+
 Channel Setup Embedded Signup keeps waiting guidance inline in the existing side panel. Do not stack a centered WisperBot onboarding dialog over that panel. Meta's own authorization window remains separate; loading disables the initiating button, and inline progress uses a polite status announcement.
 
 Channel Setup uses a compact bordered health panel per WhatsApp account with a text-labelled state, last check and incoming-message timestamps, and a contextual Check connection, Repair connection, or Reconnect WhatsApp control. Client panels do not display webhook configuration, raw WABA/phone identifiers, or infrastructure diagnostics. Problems use plain-language repair/reconnect/support guidance; technical component results remain in Admin → Cron Setup. Color never carries status alone. Ready configuration and verified delivery use different copy; inactive/quiet channels must not be described as broken. Members can view health; only workspace owners/administrators see mutation controls. Admin → Cron Setup groups platform health and affected accounts with the separate health-worker command.
