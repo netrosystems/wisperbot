@@ -33,7 +33,8 @@ class AiKbDocument extends Model
         'publication_status', 'quality_score', 'quality_findings', 'extracted_content',
         'content_hash', 'index_version', 'active_index_generation', 'pending_index_generation',
         'reviewed_by', 'reviewed_at', 'last_refreshed_at',
-        'next_refresh_at', 'error_message', 'tokens', 'last_indexed_at',
+        'next_refresh_at', 'product_detection_status', 'product_detection_message',
+        'products_verified_at', 'error_message', 'tokens', 'last_indexed_at',
     ];
 
     protected function casts(): array
@@ -43,6 +44,7 @@ class AiKbDocument extends Model
             'reviewed_at' => 'datetime',
             'last_refreshed_at' => 'datetime',
             'next_refresh_at' => 'datetime',
+            'products_verified_at' => 'datetime',
             'tokens' => 'integer',
             'enabled' => 'boolean',
             'authoritative' => 'boolean',
@@ -70,5 +72,11 @@ class AiKbDocument extends Model
     public function revisions(): BelongsToMany
     {
         return $this->belongsToMany(AiKbRevision::class, 'ai_kb_revision_documents', 'document_id', 'revision_id')->withTimestamps();
+    }
+
+    /** @return HasMany<AiKbProduct, $this> */
+    public function products(): HasMany
+    {
+        return $this->hasMany(AiKbProduct::class, 'document_id');
     }
 }

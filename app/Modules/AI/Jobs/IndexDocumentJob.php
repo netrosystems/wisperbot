@@ -262,6 +262,9 @@ class IndexDocumentJob implements ShouldBeUnique, ShouldQueue
             } elseif ($hasReadyEmbeddings && in_array($doc->fresh()->review_status, ['auto_approved', 'approved'], true)) {
                 $workflow->attemptAutoPublish($kb);
             }
+            if ($doc->source_type === 'url' && config('knowledge_base.live_product_facts_enabled')) {
+                RefreshLiveProductDocumentJob::dispatch($doc->id)->onQueue('ai');
+            }
         } catch (\Throwable $e) {
             $stagedIds = $doc->chunks()->where('index_generation', $generation)->pluck('id')->map(fn ($id) => (int) $id)->all();
             $store->deleteChunkEmbeddings($stagedIds);

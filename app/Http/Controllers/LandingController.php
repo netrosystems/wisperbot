@@ -6,7 +6,9 @@ use App\Http\Controllers\Admin\LandingPageController;
 use App\Models\BlogPost;
 use App\Models\Plan;
 use App\Models\SystemSetting;
+use App\Support\MarketingCatalog;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -14,6 +16,22 @@ use Inertia\Response;
 
 class LandingController extends Controller
 {
+    public function pillar(Request $request, ?string $slug = null): Response|RedirectResponse
+    {
+        if ($redirect = $this->landingDisabledRedirect()) {
+            return $redirect;
+        }
+
+        $key = trim($request->path(), '/');
+        $page = MarketingCatalog::pages()[$key] ?? null;
+        abort_unless($page !== null, 404);
+
+        return Inertia::render('marketing/Pillar', [
+            'landing' => LandingPageController::getPublicSettings(),
+            'page' => $page,
+        ]);
+    }
+
     private function landingDisabledRedirect(): ?RedirectResponse
     {
         if (SystemSetting::get('landing.page_enabled', '1') === '1' || ! Route::has('login')) {
@@ -30,14 +48,17 @@ class LandingController extends Controller
                 ->orderBy('sort_order')
                 ->get()
                 ->map(fn ($p) => [
-                    'id'            => $p->id,
-                    'name'          => $p->name,
-                    'description'   => $p->description ?? '',
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'description' => $p->description ?? '',
                     'price_monthly' => round(($p->monthly_price_cents ?? 0) / 100, 2),
-                    'price_yearly'  => round(($p->yearly_price_cents ?? 0) / 100, 2),
-                    'features'      => is_array($p->features) ? $p->features : [],
-                    'is_featured'   => (bool) ($p->featured ?? $p->popular ?? false),
-                    'trial_days'    => $p->trial_days ?? 0,
+                    'price_yearly' => round(($p->yearly_price_cents ?? 0) / 100, 2),
+                    'features' => is_array($p->features) ? $p->features : [],
+                    'is_featured' => (bool) ($p->featured ?? $p->popular ?? false),
+                    'trial_days' => $p->trial_days ?? 0,
+                    'currency' => $p->currency_code ?: 'USD',
+                    'limits' => is_array($p->limits) ? $p->limits : [],
+                    'white_label' => (bool) $p->white_label_enabled,
                 ])
                 ->values()
                 ->all();
@@ -46,6 +67,7 @@ class LandingController extends Controller
         }
     }
 
+    /** @return list<array<string, mixed>> */
     private function latestBlogPosts(): array
     {
         try {
@@ -82,10 +104,10 @@ class LandingController extends Controller
         }
 
         return Inertia::render('Welcome', [
-            'canLogin'    => Route::has('login'),
+            'canLogin' => Route::has('login'),
             'canRegister' => Route::has('register'),
-            'landing'     => LandingPageController::getPublicSettings(),
-            'plans'       => $this->plans(),
+            'landing' => LandingPageController::getPublicSettings(),
+            'plans' => $this->plans(),
             'latestPosts' => $this->latestBlogPosts(),
         ]);
     }
@@ -98,8 +120,8 @@ class LandingController extends Controller
 
         return Inertia::render('marketing/Pricing', [
             'canRegister' => Route::has('register'),
-            'landing'     => LandingPageController::getPublicSettings(),
-            'plans'       => $this->plans(),
+            'landing' => LandingPageController::getPublicSettings(),
+            'plans' => $this->plans(),
         ]);
     }
 
@@ -111,7 +133,7 @@ class LandingController extends Controller
 
         return Inertia::render('marketing/Faq', [
             'canRegister' => Route::has('register'),
-            'landing'     => LandingPageController::getPublicSettings(),
+            'landing' => LandingPageController::getPublicSettings(),
         ]);
     }
 
@@ -123,7 +145,7 @@ class LandingController extends Controller
 
         return Inertia::render('marketing/UseCases', [
             'canRegister' => Route::has('register'),
-            'landing'     => LandingPageController::getPublicSettings(),
+            'landing' => LandingPageController::getPublicSettings(),
         ]);
     }
 
@@ -135,7 +157,7 @@ class LandingController extends Controller
 
         return Inertia::render('marketing/About', [
             'canRegister' => Route::has('register'),
-            'landing'     => LandingPageController::getPublicSettings(),
+            'landing' => LandingPageController::getPublicSettings(),
         ]);
     }
 
@@ -147,7 +169,7 @@ class LandingController extends Controller
 
         return Inertia::render('marketing/Integrations', [
             'canRegister' => Route::has('register'),
-            'landing'     => LandingPageController::getPublicSettings(),
+            'landing' => LandingPageController::getPublicSettings(),
         ]);
     }
 }

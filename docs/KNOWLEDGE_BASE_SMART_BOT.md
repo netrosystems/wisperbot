@@ -51,6 +51,14 @@ This is separate from answer scope. Choosing Business only does not require ever
 
 `trusted_research_enabled` permits a bounded, ephemeral read only from URL or sitemap domains already configured in the selected Knowledge Base. It does not enable unrestricted web search.
 
+### Platform-managed retrieval quality
+
+Clients configure business behavior, not retrieval-engine numbers. Max context passages, the strong-answer confidence threshold, the context token budget, and video-match confidence are resolved by `SmartBotRetrievalPolicy` from bounded platform configuration. They are not editable in the client Smart Bot form.
+
+The legacy `max_context_chunks`, `retrieval_match_threshold`, `max_context_tokens`, and `video_match_threshold` columns remain populated for backward compatibility and rollback safety, but private runtime retrieval does not trust tenant-submitted values. The client update endpoint ignores these fields. New records receive a compatibility snapshot of the current managed policy.
+
+Platform operators may tune the managed policy through `KB_MAX_CONTEXT_CHUNKS`, `KB_RETRIEVAL_MATCH_THRESHOLD`, `KB_MAX_CONTEXT_TOKENS`, and `KB_VIDEO_MATCH_THRESHOLD`, followed by the normal configuration-cache refresh and AI/message worker restart. `SmartBotRetrievalPolicy` applies conservative limits even when an environment value is invalid or extreme. Public social comments receive a smaller, never-less-strict policy and remain separate from private-chat behavior.
+
 ## Turn-routing contract
 
 `BusinessAwareTurnRouter` runs before strict retrieval when `SMART_BOT_BUSINESS_AWARE_ROUTING=true`.
@@ -119,7 +127,7 @@ All candidates remain scoped by `workspace_id`, Knowledge Base, published revisi
 | `clarification` | The business topic is supported but the intent is incomplete. | Ask one grounded follow-up, optionally with supported quick replies. |
 | `fallback` | Evidence is weak, unrelated, unsafe, unavailable, or repeatedly ambiguous. | Use configured clarify/handoff behavior without inventing facts. |
 
-The existing per-bot confidence value remains the strong-answer threshold. A conservative lower threshold is derived for clarification.
+The platform-managed confidence value is the strong-answer threshold. A conservative lower threshold is derived for clarification. Legacy per-bot confidence values remain compatibility data and do not override the managed runtime policy.
 
 ## Knowledge Base ingestion and indexing
 
@@ -166,6 +174,18 @@ Research never:
 
 If research times out, is blocked, or lacks evidence, the bot clarifies or hands off instead of guessing.
 
+## Live product facts
+
+`KB_LIVE_PRODUCT_FACTS_ENABLED` gates structured product discovery and answering. When a Smart Bot owner enables `live_product_facts_enabled`, public product pages already approved through that bot's selected Knowledge Base may supply current price and availability facts.
+
+- Indexing queues `RefreshLiveProductDocumentJob` for URL documents. `LiveProductPageExtractor` reads Schema.org `Product`, `Offer`, and `AggregateOffer` JSON-LD first, then conservative microdata/Open Graph fields. Page text remains untrusted and is never executed as an instruction.
+- `ai_kb_products` and `ai_kb_product_offers` store volatile product facts separately from semantic chunks. A price-only change therefore does not require re-embedding the document.
+- The scheduler refreshes only due, published source documents attached to a Smart Bot with the setting enabled. The default freshness window is 15 minutes. Per-host locks, request limits, bounded fetches, robots rules, canonical HTTPS resolution, and existing SSRF protections apply.
+- Runtime selection is workspace, Knowledge Base, published-revision, enabled-document, product, and offer scoped. Lexical/fuzzy product matching may fall back to the shared semantic document retrieval path. Ambiguous products or variants produce one compatible clarification with up to three quick replies.
+- A fresh matching connected Shopify, WooCommerce, or BigCommerce record on the same approved host takes priority. Otherwise the approved product-page offer is authoritative.
+- Exact price/availability replies are deterministic, cost zero AI credits, include currency, source link, and verification time, and use `answer_origin=live_product`. Stale data is synchronously reverified; failed verification returns a readable unable-to-verify response rather than a stale or guessed price.
+- Taxes, shipping, currency conversion, personalized discounts, cart totals, and regional promises are excluded unless a verified source explicitly supplies the exact offer.
+
 ## Reply and API contract
 
 Existing fields remain authoritative:
@@ -189,11 +209,14 @@ Additive metadata may include:
   "response_mode": "clarification",
   "citations": [
     {"title": "Service guide", "url": "https://example.com/services"}
+  ],
+  "product_facts": [
+    {"product": "Trail Shoe", "variant": "Blue / 42", "price": "79.9500", "currency": "USD", "availability": "in stock", "url": "https://example.com/products/trail-shoe", "verified_at": "2026-09-19T10:00:00Z"}
   ]
 }
 ```
 
-Allowed `answer_origin` values are `conversation`, `knowledge_base`, `business_guidance`, `trusted_research`, and `fallback`. Allowed `response_mode` values are `answer`, `clarification`, and `fallback`.
+Allowed `answer_origin` values are `conversation`, `knowledge_base`, `business_guidance`, `trusted_research`, `live_product`, and `fallback`. Allowed `response_mode` values are `answer`, `clarification`, and `fallback`.
 
 Older widgets and SDKs may ignore additive metadata. `body`/`reply`, `display_body`, numbered text fallback, readable Markdown links, and normal text sending remain usable.
 
@@ -219,6 +242,7 @@ The same resolved teammate identity is available through browser realtime and Sa
 - Successful generated grounded answer: one existing chatbot credit.
 - Successful generated clarification: one existing chatbot credit.
 - Exact approved FAQ or eligible deterministic/cache response: zero managed credits.
+- Deterministic verified product price/availability response or product clarification: zero managed credits.
 - BYOK generation: zero WisperBot-managed credits.
 - Fallback/handoff-only, timeout, provider failure, rejected output, or cancelled generation: reservation refunded/no finalized charge.
 
@@ -247,12 +271,15 @@ The experimental switches default off:
 ```dotenv
 SMART_BOT_BUSINESS_AWARE_ROUTING=false
 KB_HYBRID_RETRIEVAL_ENABLED=false
+KB_LIVE_PRODUCT_FACTS_ENABLED=false
+KB_LIVE_PRODUCT_FRESHNESS_MINUTES=15
 ```
 
 Required migrations on promotion:
 
 - `2026_09_16_000200_add_business_aware_answering_to_ai_chatbots.php`
 - `2026_09_16_000300_add_index_generations_to_knowledge_base_chunks.php`
+- `2026_09_19_000100_create_live_kb_products.php`
 
 Deployment requires matching backend, frontend, and widget assets; cache refresh; and restart of AI/message workers. Reindex enabled Smart Bot Knowledge Bases first in controlled `ai` queue batches. Inactive Knowledge Bases refresh lazily.
 
@@ -282,6 +309,7 @@ At minimum, cover:
 - Conversational/business routing: `app/Modules/AI/Services/BusinessAwareTurnRouter.php`
 - Hybrid retrieval: `app/Modules/AI/Services/KnowledgeRetrievalService.php`
 - Approved-source research: `app/Modules/AI/Services/TrustedKnowledgeResearchService.php`
+- Live product extraction/refresh/answering: `LiveProductPageExtractor`, `LiveProductCatalogService`, and `LiveProductAnswerService`
 - Safe URL resolution: `app/Modules/AI/Services/KnowledgeSourceUrlResolver.php`
 - Atomic indexing: `app/Modules/AI/Jobs/IndexDocumentJob.php`
 - Vector/MySQL retrieval: `app/Modules/AI/Services/EmbeddingStore.php`

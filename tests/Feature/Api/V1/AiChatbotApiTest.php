@@ -49,6 +49,7 @@ class AiChatbotApiTest extends TestCase
         $res->assertJsonPath('data.0.answer_outside_knowledge_base', true)
             ->assertJsonPath('data.0.answer_scope', 'general')
             ->assertJsonPath('data.0.trusted_research_enabled', false)
+            ->assertJsonPath('data.0.live_product_facts_enabled', false)
             ->assertJsonPath('data.0.unsupported_fallback_action', 'clarify_then_handoff')
             ->assertJsonPath('data.0.unsupported_answer_action', 'general')
             ->assertJsonPath('data.0.enabled', true);

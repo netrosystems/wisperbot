@@ -140,6 +140,7 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
                                 'answer_origin' => $result['answer_origin'] ?? null,
                                 'response_mode' => $result['response_mode'] ?? null,
                                 'citations' => $result['citations'] ?? [],
+                                'product_facts' => $result['product_facts'] ?? [],
                             ],
                             'status' => 'queued',
                             'sent_by' => 'bot',

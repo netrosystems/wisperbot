@@ -12,13 +12,14 @@ class AiKbRetrievalDiagnostic extends Model
         'customer_tokens', 'completion_tokens', 'decision', 'cache_source',
         'intent', 'answer_origin', 'response_mode', 'retrieval_strategy', 'semantic_score',
         'lexical_score', 'acceptance_reason', 'research_outcome', 'research_latency_ms',
-        'citations', 'credit_result',
+        'citations', 'product_diagnostics', 'credit_result',
     ];
 
     protected function casts(): array
     {
         return [
             'citations' => 'array',
+            'product_diagnostics' => 'array',
             'best_score' => 'float',
             'semantic_score' => 'float',
             'lexical_score' => 'float',

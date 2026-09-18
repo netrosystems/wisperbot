@@ -19,6 +19,7 @@ This directory and the root specification files form the durable project memory 
 6. [Known Issues](KNOWN_ISSUES.md) — Unfinished or fragile areas.
 7. [Changelog](CHANGELOG.md) — Documentation-level release history.
 8. [Knowledge Base and Smart Bot Answering](KNOWLEDGE_BASE_SMART_BOT.md) — Authoritative routing, retrieval, research, grounding, credits, chatbot identity, rollout, and SDK contract.
+9. [Public Website Design](DESIGN.md) — Full public-site content architecture, 14 product/solution/channel/developer routes, mega navigation, motion, content ownership, proof standards, and rollout.
 
 ## Smart Bot conversational choices
 

@@ -25,15 +25,63 @@ body {
     @apply bg-surface dark:bg-neutral-900 text-gray-900 dark:text-neutral-100;
 }
 
+/* Operational product shell -------------------------------------------------
+   The public site has its own editorial system. Admin/client surfaces use a
+   compact, border-led SaaS workspace inspired by the approved panel reference. */
+.app-shell {
+    --panel-canvas: #f4f5f7;
+    --panel-surface: #ffffff;
+    --panel-border: #e7e9ee;
+    --panel-text: #20241f;
+    --panel-muted: #737a75;
+    color: var(--panel-text);
+}
+.dark .app-shell {
+    --panel-canvas: #0a0a0b;
+    --panel-surface: #18181b;
+    --panel-border: #2f3035;
+    --panel-text: #f4f4f5;
+    --panel-muted: #a1a1aa;
+}
+.app-shell-content {
+    width: 100%;
+    max-width: 1600px;
+    margin-inline: auto;
+}
+.app-shell :where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid rgb(255 118 46 / 0.38);
+    outline-offset: 2px;
+}
+.app-shell :where(table) {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+.app-shell :where(thead th) {
+    color: #71717a;
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+}
+.app-shell :where(tbody tr) {
+    transition: background-color 150ms ease;
+}
+.app-shell :where(tbody tr:hover) {
+    background: rgb(250 250 250 / 0.78);
+}
+.dark .app-shell :where(tbody tr:hover) {
+    background: rgb(39 39 42 / 0.45);
+}
+
 @layer components {
     .card {
-        @apply bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-sm dark:shadow-none;
+        @apply bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 rounded-soft-lg shadow-soft dark:shadow-none;
     }
     .sidebar {
         @apply bg-surface dark:bg-neutral-950;
     }
     .topbar {
-        @apply bg-surface/80 dark:bg-neutral-900/80 backdrop-blur;
+        @apply bg-white/90 dark:bg-neutral-950/90 backdrop-blur;
     }
 
     /* Sidebar / panels: Windows often shows a light classic scrollbar in dark UI */
@@ -259,3 +307,12 @@ body {
     font-size: 0.9375rem;
 }
 .cms-notice strong { color: #241f1a; }
+
+@keyframes auth-enter {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [class*="auth-enter"] { animation: none !important; }
+}

@@ -61,7 +61,17 @@ const ADMIN_NAV_ITEMS = [
     { labelKey: 'admin.nav.ai', route: 'admin.ai.index', href: () => route('admin.ai.index'), icon: Brain, permission: 'view_settings' },
 ];
 
-/** Dedupe and order: Dashboard first, then a single entry per route (first match wins). */
+const ADMIN_NAV_GROUPS = [
+    { key: 'overview', label: 'Overview', routes: ['admin.dashboard'] },
+    { key: 'clients', label: 'Clients & subscriptions', routes: ['admin.clients.index', 'admin.subscriptions.index', 'admin.ai-credits.report', 'admin.support.index'] },
+    { key: 'revenue', label: 'Revenue & plans', routes: ['admin.payments.index', 'admin.plans.index', 'admin.coupons.index', 'admin.tax-rates.index', 'admin.payment-gateways.index', 'admin.currencies.index'] },
+    { key: 'content', label: 'Content & localization', routes: ['admin.landing-page.index', 'admin.cms-pages.index', 'admin.blog.index', 'admin.locales.index', 'admin.email-system.index'] },
+    { key: 'platform', label: 'Platform services', routes: ['admin.integrations.index', 'admin.ai.index', 'admin.queue.index', 'admin.cron-setup.index', 'admin.pusher-settings.index'] },
+    { key: 'access', label: 'Access & security', routes: ['admin.admins.index', 'admin.roles-permissions.index', 'admin.audit-log.index', 'admin.license.index'] },
+    { key: 'settings', label: 'Settings', routes: ['admin.settings.index'] },
+];
+
+/** Dedupe, permission-filter, and group without changing any destination. */
 function useAdminNav() {
     const { t } = useTranslation();
     const { auth } = usePage().props;
@@ -69,7 +79,7 @@ function useAdminNav() {
 
     return useMemo(() => {
         const hasPermission = (key) => (permissions ?? []).includes(key);
-        return ADMIN_NAV_ITEMS.filter((item) => {
+        const items = ADMIN_NAV_ITEMS.filter((item) => {
             const perm = item.permission;
             const alt = item.permissionAlt;
             if (perm && !hasPermission(perm) && (!alt || !hasPermission(alt))) return false;
@@ -80,6 +90,11 @@ function useAdminNav() {
             href: typeof item.href === 'function' ? item.href() : item.href,
             icon: item.icon ? <item.icon className="h-5 w-5" /> : null,
         }));
+        return ADMIN_NAV_GROUPS.map((group) => ({
+            key: group.key,
+            label: group.label,
+            items: group.routes.map((routeName) => items.find((item) => item.route === routeName)).filter(Boolean),
+        })).filter((group) => group.items.length > 0);
     }, [t, permissions]);
 }
 
@@ -131,12 +146,12 @@ function AdminLayoutFooter() {
 export default function AdminLayout({ title = 'Admin', header, children }) {
     const { t } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const adminNav = useAdminNav();
+    const adminNavGroups = useAdminNav();
     const { demo_mode: demoMode, branding } = usePage().props;
     const logoUrl = branding?.logo_url;
 
     return (
-        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+        <div className="app-shell min-h-screen bg-[#f4f5f7] dark:bg-neutral-950">
             <Sidebar
                 scrollKey="admin"
                 open={sidebarOpen}
@@ -144,15 +159,18 @@ export default function AdminLayout({ title = 'Admin', header, children }) {
                 title={t('nav.admin')}
                 logo={logoUrl ? <img src={logoUrl} alt="Logo" className="h-8 max-w-[160px] object-contain" /> : null}
                 showCreateButton={false}
-                navItems={adminNav.map((item, i) => ({
-                    ...item,
-                    key: `${item.route}-${item.label}-${i}`,
-                    active: () => route().current(item.route),
+                navGroups={adminNavGroups.map((group) => ({
+                    ...group,
+                    items: group.items.map((item, i) => ({
+                        ...item,
+                        key: `${item.route}-${item.label}-${i}`,
+                        active: () => route().current(item.route),
+                    })),
                 }))}
                 footer={<AdminLayoutFooter />}
             />
 
-            <div className="lg:pl-64 rtl:lg:pl-0 rtl:lg:pr-64">
+            <div className="lg:pl-[236px] rtl:lg:pl-0 rtl:lg:pr-[236px]">
                 <Topbar
                     showLogo={false}
                     title={title}
@@ -160,9 +178,11 @@ export default function AdminLayout({ title = 'Admin', header, children }) {
                     showLocale={false}
                     showCurrency={false}
                     showAccount={false}
+                    showAdminSearch
+                    onOpenNavigation={() => setSidebarOpen(true)}
                 />
 
-                <main className={`p-4 sm:p-6 lg:p-8 ${demoMode ? 'pb-16' : ''}`}>
+                <main className={`app-shell-content p-4 sm:p-6 lg:p-7 ${demoMode ? 'pb-16' : ''}`}>
                     {header && typeof header === 'object' && (
                         <div className="mb-6">
                             {header}
@@ -171,17 +191,6 @@ export default function AdminLayout({ title = 'Admin', header, children }) {
                     {children}
                 </main>
             </div>
-
-            <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="fixed bottom-4 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-soft-lg bg-white dark:bg-neutral-900 border border-soft border-gray-200 dark:border-neutral-800 shadow-soft-lg text-neutral-600 hover:bg-neutral-50 dark:text-neutral-400 dark:hover:bg-neutral-800 lg:hidden rtl:right-auto rtl:left-4"
-                aria-label={t('open_menu')}
-            >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-            </button>
 
             <CommandPalette searchRoute={route('admin.search')} />
             <Toaster richColors position="top-right" />

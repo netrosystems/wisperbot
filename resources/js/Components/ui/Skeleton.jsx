@@ -7,7 +7,7 @@
  *   <Skeleton variant="text" lines={3} />
  */
 export default function Skeleton({ className = '', variant = 'rect', lines = 1, ...props }) {
-    const base = 'animate-pulse bg-neutral-200 dark:bg-neutral-700 rounded';
+    const base = 'animate-pulse rounded-soft bg-neutral-200/80 motion-reduce:animate-none dark:bg-neutral-700/80';
 
     if (variant === 'circle') {
         return <div className={`${base} rounded-full ${className}`} {...props} />;

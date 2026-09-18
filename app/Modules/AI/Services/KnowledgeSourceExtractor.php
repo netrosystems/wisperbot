@@ -38,7 +38,7 @@ class KnowledgeSourceExtractor
      * used by bounded, approved-source research during a customer conversation.
      *
      * @param  array{connect_timeout?:int,timeout?:int,attempts?:int,max_redirects?:int,user_agent?:string}  $options
-     * @return array{text:string,canonical_url:string}
+     * @return array{text:string,canonical_url:string,html:string}
      */
     public function fetchUrlSnapshot(string $url, array $options = []): array
     {
@@ -62,7 +62,7 @@ class KnowledgeSourceExtractor
 
     /**
      * @param  array{connect_timeout?:int,timeout?:int,attempts?:int,max_redirects?:int,user_agent?:string,accept?:string}  $options
-     * @return array{text:string,canonical_url:string}
+     * @return array{text:string,canonical_url:string,html:string}
      */
     private function fetchUrlResult(string $url, array $options = []): array
     {
@@ -109,6 +109,7 @@ class KnowledgeSourceExtractor
         return [
             'text' => trim($converter->convert($html).($mediaLinks === [] ? '' : "\n\nEmbedded media:\n".implode("\n", $mediaLinks))),
             'canonical_url' => $resolved['canonical_url'],
+            'html' => $response->body(),
         ];
     }
 

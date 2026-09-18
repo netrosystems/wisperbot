@@ -22,9 +22,11 @@ class ChatbotRunner
         private BusinessAwareTurnRouter $turnRouter,
         private TrustedKnowledgeResearchService $trustedResearch,
         private KnowledgeRetrievalService $knowledgeRetrieval,
+        private SmartBotRetrievalPolicy $retrievalPolicy,
+        private LiveProductAnswerService $liveProducts,
     ) {}
 
-    /** @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>,answer_origin?:string,citations?:array<int,array{title:string,url:string}>,intent?:string} */
+    /** @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>,answer_origin?:string,response_mode?:string,citations?:array<int,array{title:string,url:string}>,product_facts?:array<int,array<string,mixed>>,intent?:string} */
     public function run(AiChatbot $bot, Message $inboundMessage, bool $throwProviderErrors = false): array
     {
         $conversation = $inboundMessage->conversation;
@@ -36,6 +38,7 @@ class ChatbotRunner
             ? AiKnowledgeBase::where('workspace_id', $workspaceId)->find($bot->ai_kb_id)
             : null;
         $revisionId = $guarded ? $kb?->published_revision_id : null;
+        $policy = $this->retrievalPolicy->privateAnswering();
 
         if ($this->businessAwareEnabled() && ($conversationResult = $this->turnRouter->conversationalResult($body, $kb, $bot->tone))) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
@@ -49,6 +52,19 @@ class ChatbotRunner
 
         if ($guarded && $bot->ai_kb_id && ! $revisionId) {
             return $this->unsupportedResult($bot);
+        }
+        $history = $this->conversationHistory($conversation, $inboundMessage);
+        if ($productResult = $this->liveProducts->answer($bot, $workspaceId, $body, $history)) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, $productResult['response_mode'], 'live_product', [], 0, [
+                'intent' => $productResult['intent'],
+                'answer_origin' => 'live_product',
+                'response_mode' => $productResult['response_mode'],
+                'citations' => $productResult['citations'],
+                'product_diagnostics' => $productResult['diagnostics'],
+                'credit_result' => $productResult['diagnostics']['credit_result'] ?? 'zero_cost',
+            ]);
+
+            return $productResult;
         }
         if ($guarded && $revisionId && ($exact = $this->exactFaq($kb, $body, $revisionId))) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_faq', [], 0, [
@@ -69,7 +85,6 @@ class ChatbotRunner
             return $this->withAnswerMetadata(['reply' => $cached->answer, 'tokens_used' => 0, 'resources' => $cached->resources ?? []], 'knowledge_base');
         }
 
-        $history = $this->conversationHistory($conversation, $inboundMessage);
         $hybridRetrieval = $kb && config('knowledge_base.hybrid_retrieval_enabled');
         $retrievalQuestion = $hybridRetrieval
             ? $body
@@ -92,10 +107,10 @@ class ChatbotRunner
                     $workspaceId,
                     $body,
                     $history,
-                    (int) ($bot->max_context_chunks ?? 3),
+                    $policy['max_context_chunks'],
                     $revisionId,
-                    (float) ($bot->retrieval_match_threshold ?? 0.60),
-                    (int) ($bot->max_context_tokens ?? 1200),
+                    $policy['answer_threshold'],
+                    $policy['max_context_tokens'],
                 );
                 $queryEmbedding = $retrieval['query_embedding'];
                 $retrievalQuestion = $retrieval['research_query'];
@@ -106,10 +121,10 @@ class ChatbotRunner
                         (int) $bot->ai_kb_id,
                         $queryEmbedding,
                         $retrievalQuestion,
-                        (int) ($bot->max_context_chunks ?? 3),
+                        $policy['max_context_chunks'],
                         $revisionId,
-                        (float) ($bot->retrieval_match_threshold ?? 0.60),
-                        (int) ($bot->max_context_tokens ?? 1200),
+                        $policy['answer_threshold'],
+                        $policy['max_context_tokens'],
                     );
                     $retrieval['response_mode'] = $retrieval['context'] !== '' ? 'answer' : 'fallback';
                 }
@@ -356,6 +371,7 @@ class ChatbotRunner
             return $unsupported;
         }
         $revision = (int) $kb->published_revision_id;
+        $policy = $this->retrievalPolicy->publicComments();
         $cacheKey = 'social-public-answer:'.hash('sha256', implode(':', [$workspaceId, $bot->id, $revision, $bot->updated_at, mb_strtolower(trim($question))]));
         if (($exact = $this->exactFaq($kb, $question, $revision)) && $this->publicCommentSafe($exact)) {
             return ['decision' => 'answer', 'reply' => $exact, 'tokens_used' => 0, 'revision_id' => $revision];
@@ -364,7 +380,15 @@ class ChatbotRunner
         if ($embedding === []) {
             return $unsupported;
         }
-        $retrieval = $this->retrieveContext($kb->id, $embedding, $question, 3, $revision, max(0.60, (float) $bot->retrieval_match_threshold), 1200);
+        $retrieval = $this->retrieveContext(
+            $kb->id,
+            $embedding,
+            $question,
+            $policy['max_context_chunks'],
+            $revision,
+            $policy['answer_threshold'],
+            $policy['max_context_tokens'],
+        );
         if ($retrieval['context'] === '') {
             return $unsupported;
         }
@@ -412,7 +436,7 @@ class ChatbotRunner
      * API-friendly variant that does not require an existing Message or Conversation.
      *
      * @param  array<int,array{role:string,content:string}>  $history
-     * @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>,answer_origin?:string,citations?:array<int,array{title:string,url:string}>,intent?:string}
+     * @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>,answer_origin?:string,response_mode?:string,citations?:array<int,array{title:string,url:string}>,product_facts?:array<int,array<string,mixed>>,intent?:string}
      */
     public function runForApi(
         AiChatbot $bot,
@@ -428,6 +452,7 @@ class ChatbotRunner
             ? AiKnowledgeBase::where('workspace_id', $workspaceId)->find($bot->ai_kb_id)
             : null;
         $revisionId = $guarded ? $kb?->published_revision_id : null;
+        $policy = $this->retrievalPolicy->privateAnswering();
         if ($this->businessAwareEnabled() && ($conversationResult = $this->turnRouter->conversationalResult($message, $kb, $bot->tone))) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
                 'intent' => $conversationResult['intent'],
@@ -440,6 +465,19 @@ class ChatbotRunner
         if ($guarded && $bot->ai_kb_id && ! $revisionId) {
             return $this->unsupportedResult($bot);
         }
+        $promptHistory = ($guarded || $knowledgeOnly) ? $this->boundedHistory($history, $message) : $history;
+        if ($productResult = $this->liveProducts->answer($bot, $workspaceId, $message, $promptHistory)) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, $productResult['response_mode'], 'live_product', [], 0, [
+                'intent' => $productResult['intent'],
+                'answer_origin' => 'live_product',
+                'response_mode' => $productResult['response_mode'],
+                'citations' => $productResult['citations'],
+                'product_diagnostics' => $productResult['diagnostics'],
+                'credit_result' => $productResult['diagnostics']['credit_result'] ?? 'zero_cost',
+            ]);
+
+            return $productResult;
+        }
         if ($guarded && $revisionId && ($exact = $this->exactFaq($kb, $message, $revisionId))) {
             return $this->withAnswerMetadata(['reply' => $exact, 'tokens_used' => 0, 'resources' => []], 'knowledge_base');
         }
@@ -447,7 +485,6 @@ class ChatbotRunner
             return $this->withAnswerMetadata(['reply' => $cached->answer, 'tokens_used' => 0, 'resources' => $cached->resources ?? []], 'knowledge_base');
         }
 
-        $promptHistory = ($guarded || $knowledgeOnly) ? $this->boundedHistory($history, $message) : $history;
         $hybridRetrieval = $kb && config('knowledge_base.hybrid_retrieval_enabled');
         $retrievalQuestion = $hybridRetrieval
             ? $message
@@ -470,10 +507,10 @@ class ChatbotRunner
                     $workspaceId,
                     $message,
                     $promptHistory,
-                    (int) ($bot->max_context_chunks ?? 3),
+                    $policy['max_context_chunks'],
                     $revisionId,
-                    (float) ($bot->retrieval_match_threshold ?? 0.60),
-                    (int) ($bot->max_context_tokens ?? 1200),
+                    $policy['answer_threshold'],
+                    $policy['max_context_tokens'],
                 );
                 $queryEmbedding = $retrieval['query_embedding'];
                 $retrievalQuestion = $retrieval['research_query'];
@@ -484,10 +521,10 @@ class ChatbotRunner
                         (int) $bot->ai_kb_id,
                         $queryEmbedding,
                         $retrievalQuestion,
-                        (int) ($bot->max_context_chunks ?? 3),
+                        $policy['max_context_chunks'],
                         $revisionId,
-                        (float) ($bot->retrieval_match_threshold ?? 0.60),
-                        (int) ($bot->max_context_tokens ?? 1200),
+                        $policy['answer_threshold'],
+                        $policy['max_context_tokens'],
                     );
                     $retrieval['response_mode'] = $retrieval['context'] !== '' ? 'answer' : 'fallback';
                 }
@@ -867,7 +904,7 @@ PROMPT;
     /** @return array{resources:array<int,array<string,mixed>>,diagnostics:array<string,mixed>} */
     private function selectVideoResource(array $candidates, AiChatbot $bot, int $workspaceId): array
     {
-        $threshold = (float) ($bot->video_match_threshold ?? 0.72);
+        $threshold = $this->retrievalPolicy->privateAnswering()['video_match_threshold'];
         foreach ($candidates as $candidate) {
             $score = (float) ($candidate['rank_score'] ?? -1);
             if ($score < $threshold) {
@@ -1224,6 +1261,7 @@ PROMPT;
             'research_outcome' => $metadata['research_outcome'] ?? null,
             'research_latency_ms' => $metadata['research_latency_ms'] ?? null,
             'citations' => $metadata['citations'] ?? null,
+            'product_diagnostics' => $metadata['product_diagnostics'] ?? null,
             'credit_result' => $metadata['credit_result'] ?? null,
         ]);
     }

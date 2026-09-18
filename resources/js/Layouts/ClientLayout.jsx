@@ -1,42 +1,13 @@
 import { Link, usePage, router } from '@inertiajs/react';
 import { useOneSignal, isOnInboxOrDashboard, showBrowserNotification } from '@/hooks/useOneSignal';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toaster, toast } from 'sonner';
 import Topbar from '@/Components/Topbar';
 import Sidebar from '@/Components/Sidebar';
 import UpgradeModal from '@/Components/UpgradeModal';
 import useClientNav from '@/Layouts/useClientNav';
-import { ChannelBrandIcon } from '@/Components/BrandIcons';
 import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
-import {
-    LayoutDashboard,
-    CreditCard,
-    Package,
-    FileText,
-    Users,
-    Settings,
-    Layers,
-    Webhook,
-    Key,
-    BookOpen,
-    Image,
-    Radio,
-    Inbox,
-    Bot,
-    Database,
-    Zap,
-    Share2,
-    MapPin,
-    Tag,
-    LifeBuoy,
-    ExternalLink,
-    Mail,
-    MessageSquare,
-} from 'lucide-react';
-
-const iconClass = 'h-4 w-4';
-const whatsappNavIcon = <ChannelBrandIcon channel="whatsapp" className={iconClass} />;
 
 function safeRoute(name, ...args) {
     try { return route(name, ...args); } catch { return '#'; }
@@ -97,8 +68,7 @@ function ClientLayoutFooter() {
 export default function ClientLayout({ header, children, title }) {
     const { t } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, branding, onesignal, currentWorkspace } = usePage().props;
-    const logoUrl = branding?.logo_url;
+    const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, onesignal, currentWorkspace } = usePage().props;
     const [unreadCount, setUnreadCount] = useState(unreadNotificationsCount ?? 0);
     const clientNavGroups = useClientNav();
 
@@ -107,7 +77,8 @@ export default function ClientLayout({ header, children, title }) {
 
     // Sync unread count from server on page changes
     useEffect(() => {
-        setUnreadCount(unreadNotificationsCount ?? 0);
+        const timer = window.setTimeout(() => setUnreadCount(unreadNotificationsCount ?? 0), 0);
+        return () => window.clearTimeout(timer);
     }, [unreadNotificationsCount]);
 
     // Subscribe to broadcast notifications for this user
@@ -142,7 +113,7 @@ export default function ClientLayout({ header, children, title }) {
         return () => {
             window.Echo.leave(`App.Models.User.${auth.user.id}`);
         };
-    }, [auth?.user?.id, currentWorkspace?.id]);
+    }, [auth?.user?.id, currentWorkspace?.id, t]);
 
     const returnToAdmin = () => {
         router.post(impersonation?.returnUrl ?? route('admin.impersonation.stop'));
@@ -159,7 +130,7 @@ export default function ClientLayout({ header, children, title }) {
     ];
 
     return (
-        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+        <div className="app-shell min-h-screen bg-[#f4f5f7] dark:bg-neutral-950">
             {impersonation?.active && (
                 <div className="flex items-center justify-between gap-4 bg-amber-500/90 text-white px-4 py-2 text-sm font-medium">
                     <span>{t('impersonation.impersonating', { name: impersonation.clientName })}</span>
@@ -189,17 +160,18 @@ export default function ClientLayout({ header, children, title }) {
 footer={<ClientLayoutFooter />}
             />
 
-            <div className="lg:pl-64 rtl:lg:pl-0 rtl:lg:pr-64">
+            <div className="lg:pl-[236px] rtl:lg:pl-0 rtl:lg:pr-[236px]">
                 <Topbar
                     showLogo={false}
                     title={title}
                     userNavItems={userNavItems}
                     unreadCount={unreadCount}
                     showLanguage={false}
+                    onOpenNavigation={() => setSidebarOpen(true)}
                 />
                 <UsageBanner usage={current_workspace_usage} />
 
-                <main className={`p-4 sm:p-6 lg:p-8 ${demoMode ? 'pb-16' : ''}`}>
+                <main className={`app-shell-content p-4 sm:p-6 lg:p-7 ${demoMode ? 'pb-16' : ''}`}>
                     {header && typeof header === 'object' && (
                         <div className="mb-6">
                             {header}
@@ -208,18 +180,6 @@ footer={<ClientLayoutFooter />}
                     {children}
                 </main>
             </div>
-
-            {/* Mobile menu button */}
-            <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="fixed bottom-4 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-soft-lg bg-white dark:bg-neutral-900 border border-soft border-gray-200 dark:border-neutral-800 shadow-soft-lg text-neutral-600 hover:bg-neutral-50 dark:text-neutral-400 dark:hover:bg-neutral-800 lg:hidden rtl:right-auto rtl:left-4"
-                aria-label={t('open_menu')}
-            >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-            </button>
 
             <UpgradeModal />
             <Toaster richColors position="top-right" />

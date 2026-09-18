@@ -19,6 +19,18 @@ WisperBot is a modular Laravel 12 monolith with an Inertia/React frontend. It se
 
 MySQL is the durable store. Laravel queues handle inbound messages, AI indexing, broadcasts, social publishing, automations, ecommerce synchronization, and notifications. Pusher or Reverb provides realtime browser/mobile updates.
 
+## Signup plan invariant (2026-09-18)
+
+`PlanSelectionService` resolves the first enabled zero-cost plan by `sort_order` and ID. It is the only no-checkout activation path and creates an idempotent active `Subscription` with gateway `free`. `RegisteredUserController`, new social OAuth accounts, and new Firebase accounts activate that plan inside the account-creation transaction. If no initial Free plan exists, account creation rolls back and fails closed. An optional enabled `plan_id` and supported billing cycle from public Pricing are treated only as paid checkout intent; paid plans become effective only after provider fulfilment.
+
+`EnsurePlanSelected` remains a recovery safeguard for clients marked `plan_selection_required=1` in `client_settings`. New registrations normally satisfy it immediately through their Free subscription. If a marked account has no effective user, admin-assigned client, or same-client self-service plan, it is redirected to `client.pricing`; JSON requests receive HTTP 402 with the safe `plan_required` code. Only Pricing, Free recovery, Checkout, and Billing fulfilment remain reachable. Legacy clients are not silently disabled. This uses existing plan, subscription, and client-setting tables; no schema migration is required.
+
+## Public marketing catalogue (2026-09-18)
+
+The public Inertia surface uses `config/marketing.php` and `App\Support\MarketingCatalog` for 14 allowlisted pillar pages and provider capability metadata. `LandingController::pillar` rejects unknown slugs; `routes/web.php` includes public pillars in the sitemap only when the landing site is enabled. `HandleInertiaRequests` shares the safe marketing catalogue and public Site Content projection only with marketing/blog/CMS routes, not client APIs.
+
+Global copy, FAQs, SEO, official download destinations, and CTAs remain in existing `SystemSetting` records; no schema migration is required. `LandingPageController` validates an allowlist and HTTPS/official-host constraints before writing. Legacy seeded proof fields are not serialized; version-two copy replaces legacy defaults in the public projection without deleting stored rows. Pricing uses enabled `Plan` values. Free branding claims depend on the real free-plan entitlement; social comment claims depend on the existing feature flag and remain permission-qualified. No provider, widget, mobile, or SDK contract changes are introduced. See [Public Website Design](DESIGN.md).
+
 ## Technology
 
 - PHP 8.2+, Laravel 12, Sanctum, Socialite, Inertia Laravel.
@@ -190,9 +202,13 @@ The additive reply contract includes `answer_origin` and safe `citations` while 
 
 With `KB_HYBRID_RETRIEVAL_ENABLED=true`, `KnowledgeRetrievalService` is shared by live private chat, the direct/developer chat API, playground, and Knowledge Base tests. It searches the current customer turn independently, adds prior dialogue only for a genuine short continuation, and excludes social turns and fallback/handoff text. Vector similarity remains the authority; normalized wording and generic character similarity may boost ranking but cannot reduce a semantic score. Workspace, revision, enabled-source, publication, and active-generation filters are applied before any passage is usable.
 
+`SmartBotRetrievalPolicy` owns the runtime passage cap, strong-answer confidence, token budget, and relevant-video threshold. Values come from conservatively bounded platform configuration, not tenant-editable bot fields. Legacy numeric columns stay populated for compatibility, but the client update path ignores them. Public comments derive a smaller and never-less-strict evidence window.
+
 Retrieval returns `answer`, `clarification`, or `fallback`. A clarification contains only selected verified passages and permits one generated narrowing question; repeated clarification is prevented. Index version 2 keeps headings, FAQ pairs, procedures, lists, and each headed multi-turn Customer/AI flow semantically coherent; a country or option supplied on a later turn therefore remains attached to the preceding question and resulting instructions. A pending UUID generation is fully built before `active_index_generation` changes, so extraction/provider failures leave the previous index queryable. Qdrant remains an optional accelerator; MySQL is the filtering authority and fallback.
 
 Private Smart Bot generation requests structured JSON at the provider transport when supported (OpenAI-compatible `response_format` or Gemini JSON MIME output), in addition to prompt and server validation. This prevents a useful plain-text provider answer from being discarded merely because it omitted the response envelope. When `trusted_research_enabled` is set, purchasing and fresh-fact questions may supplement indexed context with a bounded read from already-approved KB website sources; failed research never removes usable indexed evidence.
+
+Live product facts remain outside vector chunks. Product-page indexing can normalize Schema.org JSON-LD or conservative metadata into `ai_kb_products` and `ai_kb_product_offers`; scheduled and request-time refreshes run on the approved canonical source with per-host limits. `LiveProductAnswerService` resolves price/stock intent before generation, enforces workspace/published-revision boundaries, clarifies ambiguous products/variants, prefers a fresh connected-store match on the approved host, and returns a deterministic zero-credit response or a safe unable-to-verify fallback.
 
 # Team avatars in chat (2026-09-16)
 

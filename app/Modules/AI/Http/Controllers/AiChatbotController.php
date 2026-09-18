@@ -9,6 +9,7 @@ use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Services\AiCreditService;
 use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\AI\Services\ProviderErrorPresenter;
+use App\Modules\AI\Services\SmartBotRetrievalPolicy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,13 +27,20 @@ class AiChatbotController extends Controller
     {
         $wid = $this->workspaceId($request);
         $chatbots = AiChatbot::where('workspace_id', $wid)->with('knowledgeBase')->latest()->get();
-        $knowledgeBases = AiKnowledgeBase::where('workspace_id', $wid)->get(['id', 'name', 'purpose', 'brand', 'audience']);
+        $knowledgeBases = AiKnowledgeBase::where('workspace_id', $wid)
+            ->withCount([
+                'products as live_product_count' => fn ($query) => $query->where('status', 'active'),
+                'documents as live_product_attention_count' => fn ($query) => $query->whereIn('product_detection_status', ['blocked', 'unsupported', 'error']),
+            ])
+            ->withMax('products as live_products_verified_at', 'verified_at')
+            ->get(['id', 'name', 'purpose', 'brand', 'audience']);
 
         return Inertia::render('AI/Chatbots/Index', [
             'chatbots' => $chatbots,
             'knowledgeBases' => $knowledgeBases,
             'aiCredits' => app(AiCreditService::class)->usage($wid),
             'businessAwareRoutingEnabled' => (bool) config('chatbot.business_aware_routing_enabled'),
+            'liveProductFactsAvailable' => (bool) config('knowledge_base.live_product_facts_enabled'),
         ]);
     }
 
@@ -45,13 +53,11 @@ class AiChatbotController extends Controller
 
         AiChatbot::create(array_merge([
             'workspace_id' => $wid,
-            'max_context_chunks' => 3,
-            'retrieval_match_threshold' => 0.60,
-            'max_context_tokens' => 1200,
-            'video_match_threshold' => 0.72,
+        ], app(SmartBotRetrievalPolicy::class)->compatibilityDefaults(), [
             'answer_scope' => 'business_only',
             'unsupported_fallback_action' => 'clarify_then_handoff',
             'trusted_research_enabled' => false,
+            'live_product_facts_enabled' => false,
             'unsupported_answer_action' => 'clarify_then_handoff',
         ], $validated));
 
@@ -67,13 +73,10 @@ class AiChatbotController extends Controller
             'ai_kb_id' => ['nullable', 'integer'],
             'system_prompt' => ['nullable', 'string', 'max:8192'],
             'tone' => ['nullable', 'string', 'max:64'],
-            'max_context_chunks' => ['nullable', 'integer', 'min:1', 'max:20'],
-            'retrieval_match_threshold' => ['nullable', 'numeric', 'min:0', 'max:1'],
-            'max_context_tokens' => ['nullable', 'integer', 'min:200', 'max:4000'],
-            'video_match_threshold' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'answer_scope' => ['nullable', 'in:business_only,verified_only,general'],
             'unsupported_fallback_action' => ['nullable', 'in:clarify_then_handoff,handoff'],
             'trusted_research_enabled' => ['boolean'],
+            'live_product_facts_enabled' => ['boolean'],
             'unsupported_answer_action' => ['nullable', 'in:clarify_then_handoff,handoff,general'],
             'fallback_reply' => ['nullable', 'string', 'max:512'],
             'channels' => ['nullable', 'array'],
@@ -141,10 +144,11 @@ class AiChatbotController extends Controller
                 'reply' => $result['reply'],
                 'display_body' => $result['display_body'] ?? $result['reply'],
                 'quick_replies' => $result['quick_replies'] ?? [],
-                'resources' => $result['resources'] ?? [],
+                'resources' => $result['resources'],
                 'answer_origin' => $result['answer_origin'] ?? null,
                 'response_mode' => $result['response_mode'] ?? null,
                 'citations' => $result['citations'] ?? [],
+                'product_facts' => $result['product_facts'] ?? [],
                 'ai_credits' => app(AiCreditService::class)->usage($this->workspaceId($request)),
             ]);
         } catch (AiCreditsException $e) {

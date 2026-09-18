@@ -4,6 +4,8 @@ Last reviewed against code: 2026-08-21.
 
 ## Trust boundaries
 
+Self-service registration treats client-supplied `plan_id` only as checkout intent, validates it against enabled plans, and never trusts supplied price or free/paid flags. `PlanSelectionService` independently resolves and rechecks the server-configured initial Free plan inside the account transaction. Password, OAuth, and Firebase account creation rolls back if that entitlement cannot be established. Paid intent never grants paid access before gateway fulfilment. The `plan_selection_required` marker and `EnsurePlanSelected` provide fail-closed recovery if a marked account loses all effective plans; same-client lookup grants teammates access without exposing cross-client subscriptions. Legacy clients remain unchanged pending controlled migration.
+
 Authenticated dedicated mobile routes have an isolated, bounded per-user rate limit: `mobile-api`, default 300/minute, configured with `MOBILE_API_RATE_LIMIT_PER_MINUTE`. This does not relax authorization, workspace isolation, login throttles, developer API limits, or lower action-specific limits. Device tokens do not grant separate budgets. A higher allowance can amplify polling/database load from a buggy or abusive authenticated client; monitor 429 frequency and request volume, and keep client background polling bounded.
 
 - Public browser: marketing site and widget JavaScript.

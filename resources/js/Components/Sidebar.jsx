@@ -26,17 +26,46 @@ function writeScrollPosition(storageKey, position) {
     }
 }
 
-function NavGroup({ label, items, onClose }) {
-    const [open, setOpen] = useState(true);
+function readGroupPreference(storageKey) {
+    if (typeof window === 'undefined') return null;
+
+    try {
+        return window.sessionStorage.getItem(storageKey);
+    } catch {
+        return null;
+    }
+}
+
+function itemIsActive(item) {
+    return typeof item.active === 'function'
+        ? item.active()
+        : item.active ?? (item.route ? route().current(item.route) : false);
+}
+
+function NavGroup({ label, items, onClose, groupKey, defaultOpen = false }) {
+    const storageKey = `wisperbot.sidebar.group.${groupKey}`;
+    const hasActiveItem = items.some(itemIsActive);
+    const [open, setOpen] = useState(() => {
+        const saved = readGroupPreference(storageKey);
+        return saved === null ? defaultOpen || hasActiveItem : saved === '1' || hasActiveItem;
+    });
+
+    const toggle = () => {
+        setOpen((current) => {
+            const next = !current;
+            try { window.sessionStorage.setItem(storageKey, next ? '1' : '0'); } catch { /* optional preference */ }
+            return next;
+        });
+    };
 
     return (
-        <div className="mb-0.5">
+        <div className="mb-1">
             <button
                 type="button"
-                onClick={() => setOpen((o) => !o)}
+                onClick={toggle}
                 aria-expanded={open}
                 aria-controls={`nav-group-${label.replace(/\s+/g, '-').toLowerCase()}`}
-                className="flex w-full items-center justify-between px-3 py-1.5 mt-3 text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors duration-150 select-none"
+                className="mt-3 flex w-full select-none items-center justify-between rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400 transition-colors duration-150 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200"
             >
                 <span>{label}</span>
                 <ChevronDown
@@ -50,37 +79,32 @@ function NavGroup({ label, items, onClose }) {
             {open && (
                 <div id={`nav-group-${label.replace(/\s+/g, '-').toLowerCase()}`} className="mt-0.5 space-y-0.5">
                     {items.map((item, i) => {
-                        const isActive =
-                            typeof item.active === 'function'
-                                ? item.active()
-                                : item.route
-                                    ? route().current(item.route)
-                                    : false;
+                        const isActive = itemIsActive(item);
                         return (
                             <Link
                                 key={item.key ?? item.route ?? item.href ?? i}
                                 href={item.href ?? (item.route ? route(item.route) : '#')}
                                 onClick={onClose}
+                                target={item.external ? '_blank' : undefined}
+                                rel={item.external ? 'noopener noreferrer' : undefined}
+                                aria-current={isActive ? 'page' : undefined}
                                 className={[
-                                    'group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
+                                    'group relative flex min-h-10 items-center gap-2.5 rounded-[10px] px-3 py-2 text-[13px] font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30',
                                     isActive
-                                        ? 'bg-brand-600 text-white shadow-sm'
-                                        : 'text-white/80 hover:bg-white/10 hover:text-white',
+                                        ? 'bg-brand-50 text-brand-700 shadow-[inset_0_0_0_1px_rgba(255,118,46,.12)] dark:bg-brand-900/25 dark:text-brand-300'
+                                        : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-950 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-white',
                                 ].join(' ')}
-                                style={!isActive ? undefined : undefined}
                             >
+                                {isActive && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand-500 rtl:left-auto rtl:right-0" aria-hidden="true" />}
                                 {item.icon && (
                                     <span className={[
                                         'shrink-0 transition-colors duration-150',
-                                        isActive ? 'text-white' : 'text-white/65 group-hover:text-white',
+                                        isActive ? 'text-brand-600 dark:text-brand-400' : 'text-neutral-400 group-hover:text-neutral-700 dark:text-neutral-500 dark:group-hover:text-neutral-200',
                                     ].join(' ')}>
                                         {item.icon}
                                     </span>
                                 )}
                                 <span className="truncate">{item.label}</span>
-                                {isActive && (
-                                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white/70 shrink-0" />
-                                )}
                             </Link>
                         );
                     })}
@@ -123,20 +147,23 @@ export default function Sidebar({
     };
 
     const renderContent = (surface) => (
-        <aside className="flex h-full w-64 flex-col bg-secondary-900 dark:bg-neutral-900">
+        <aside className="flex h-full w-full flex-col border-r border-neutral-200/80 bg-white text-neutral-900 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100">
             {/* Brand header */}
-            <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 border-b border-white/8">
+            <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-neutral-100 px-4 dark:border-neutral-800">
                 {logoUrl ? (
                     <img src={logoUrl} alt={appName} className="h-7 max-w-[140px] object-contain" />
                 ) : logo ? (
                     logo
                 ) : (
-                    <img src="/wisperbot-logo-white.svg" alt={appName} className="h-10 w-auto max-w-[200px] object-contain" />
+                    <>
+                        <img src="/wisperbot-logo-with-title.svg" alt={appName} className="h-9 w-auto max-w-[180px] object-contain dark:hidden" />
+                        <img src="/wisperbot-logo-white.svg" alt={appName} className="hidden h-9 w-auto max-w-[180px] object-contain dark:block" />
+                    </>
                 )}
             </div>
 
             {showCreateButton && (
-                <div className="shrink-0 p-3 pb-2 border-b border-white/8">
+                <div className="shrink-0 border-b border-neutral-100 p-3 dark:border-neutral-800">
                     <button
                         type="button"
                         className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition duration-150"
@@ -151,7 +178,7 @@ export default function Sidebar({
                 ref={surface === 'desktop' ? desktopNavRef : mobileNavRef}
                 onScroll={rememberScrollPosition}
                 data-testid={`sidebar-scroll-${surface}`}
-                className="flex-1 overflow-y-auto px-2 py-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10"
+                className="flex-1 overflow-y-auto px-2.5 py-2 scrollbar-thin"
             >
                 {navGroups.length > 0 &&
                     navGroups.map((group, gi) => (
@@ -161,9 +188,11 @@ export default function Sidebar({
                             // makes React omit/duplicate siblings, corrupting the
                             // sidebar across SPA navigations.
                             key={`${gi}-${group.key ?? group.label ?? ''}`}
+                            groupKey={`${scrollKey}.${group.key ?? group.label ?? gi}`}
                             label={group.label}
                             items={group.items ?? []}
                             onClose={onClose}
+                            defaultOpen={gi === 0}
                         />
                     ))}
 
@@ -172,24 +201,22 @@ export default function Sidebar({
                         if (item.type === 'divider') {
                             return <hr key={`div-${i}`} className="my-2 border-white/10" />;
                         }
-                        const isActive =
-                            typeof item.active === 'function'
-                                ? item.active()
-                                : item.active ?? (item.route && route().current(item.route));
+                        const isActive = itemIsActive(item);
                         return (
                             <Link
                                 key={item.key ?? item.route ?? item.href ?? i}
                                 href={item.href ?? (item.route ? route(item.route) : '#')}
                                 onClick={onClose}
                                 className={[
-                                    'group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
+                                    'group relative flex min-h-10 items-center gap-2.5 rounded-[10px] px-3 py-2 text-[13px] font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30',
                                     isActive
-                                        ? 'bg-brand-600 text-white'
-                                        : 'text-white/80 hover:bg-white/10 hover:text-white',
+                                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/25 dark:text-brand-300'
+                                        : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-950 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-white',
                                 ].join(' ')}
                             >
+                                {isActive && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand-500 rtl:left-auto rtl:right-0" aria-hidden="true" />}
                                 {item.icon && (
-                                    <span className={isActive ? 'text-white' : 'text-white/65 group-hover:text-white'}>
+                                    <span className={isActive ? 'text-brand-600 dark:text-brand-400' : 'text-neutral-400 group-hover:text-neutral-700 dark:text-neutral-500 dark:group-hover:text-neutral-200'}>
                                         {item.icon}
                                     </span>
                                 )}
@@ -200,8 +227,8 @@ export default function Sidebar({
             </nav>
 
             {footer && (
-                <div className="shrink-0 border-t border-white/8 p-3">
-                    <div className="text-white/55">
+                <div className="shrink-0 border-t border-neutral-100 p-3 dark:border-neutral-800">
+                    <div className="text-neutral-500 dark:text-neutral-400">
                         {footer}
                     </div>
                 </div>
@@ -212,7 +239,7 @@ export default function Sidebar({
     return (
         <>
             {/* Desktop: always visible */}
-            <div className="hidden lg:fixed lg:inset-y-0 lg:z-20 lg:flex lg:w-64 lg:flex-col lg:left-0 rtl:lg:left-auto rtl:lg:right-0">
+            <div className="hidden lg:fixed lg:inset-y-0 lg:z-20 lg:flex lg:w-[236px] lg:flex-col lg:left-0 rtl:lg:left-auto rtl:lg:right-0">
                 {renderContent('desktop')}
             </div>
 
@@ -220,11 +247,11 @@ export default function Sidebar({
             {open && (
                 <div className="fixed inset-0 z-40 lg:hidden">
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-                    <div className="fixed inset-y-0 left-0 w-64 shadow-2xl rtl:left-auto rtl:right-0">
+                    <div className="fixed inset-y-0 left-0 w-[min(86vw,296px)] shadow-2xl rtl:left-auto rtl:right-0">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="absolute top-3 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white/70 hover:bg-white/20 transition"
+                            className="absolute top-4 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-white"
                             aria-label={t('ui.close_menu')}
                         >
                             <X className="h-4 w-4" />

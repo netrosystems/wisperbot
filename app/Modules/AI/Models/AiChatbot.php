@@ -37,7 +37,7 @@ class AiChatbot extends Model
     protected $fillable = [
         'workspace_id', 'name', 'ai_kb_id', 'system_prompt', 'tone', 'max_context_chunks',
         'retrieval_match_threshold', 'max_context_tokens', 'video_match_threshold',
-        'answer_scope', 'trusted_research_enabled', 'unsupported_fallback_action',
+        'answer_scope', 'trusted_research_enabled', 'live_product_facts_enabled', 'unsupported_fallback_action',
         'unsupported_answer_action', 'fallback_reply', 'channels', 'enabled',
     ];
 
@@ -51,6 +51,7 @@ class AiChatbot extends Model
             'max_context_tokens' => 'integer',
             'video_match_threshold' => 'float',
             'trusted_research_enabled' => 'boolean',
+            'live_product_facts_enabled' => 'boolean',
         ];
     }
 

@@ -17,10 +17,16 @@ export default function Pricing({
     is_authenticated = false,
     register_url = '/register',
     checkout_url = null,
+    select_free_url = null,
+    requires_plan = false,
+    current_plan_id = null,
+    selected_plan_id = null,
+    selected_cycle = 'month',
 }) {
     const { t } = useTranslation();
-    const [billingCycle, setBillingCycle]     = useState('month');
+    const [billingCycle, setBillingCycle]     = useState(selected_cycle === 'year' ? 'year' : 'month');
     const [loadingGateway, setLoadingGateway] = useState(null);
+    const [loadingFree, setLoadingFree]       = useState(false);
     const { url } = usePage();
 
     const hasSuccess   = url.includes('checkout=success');
@@ -45,10 +51,15 @@ export default function Pricing({
     };
 
     const getStartedHref = (plan) => {
-        if (plan.is_free) {
-            return is_authenticated ? route('client.dashboard') : register_url;
-        }
         return `${register_url}?plan_id=${plan.id}&cycle=${billingCycle}`;
+    };
+
+    const selectFree = (planId) => {
+        setLoadingFree(true);
+        router.post(select_free_url ?? route('client.pricing.select-free'), { plan_id: planId }, {
+            preserveScroll: true,
+            onFinish: () => setLoadingFree(false),
+        });
     };
 
     return (
@@ -91,17 +102,24 @@ export default function Pricing({
                         {flashSuccess || t('pricing.payment_success')}
                     </div>
                 )}
+                {(requires_plan || flash?.plan_required) && (
+                    <div className="rounded-soft-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-200">
+                        Choose one plan to continue to your workspace. The Free plan activates immediately and never asks for payment details.
+                    </div>
+                )}
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {plans.map((plan) => {
                         const priceDisplay = billingCycle === 'year' ? plan.yearly_price_display : plan.monthly_price_display;
                         const isFree       = plan.is_free;
                         const isPopular    = plan.popular;
+                        const isSelected   = Number(selected_plan_id) === Number(plan.id);
+                        const isCurrent    = Number(current_plan_id) === Number(plan.id);
 
                         return (
                             <div
                                 key={plan.id}
-                                className={`relative flex flex-col rounded-xl border bg-white dark:bg-neutral-900 p-6 ${isPopular ? 'border-brand-500 ring-2 ring-brand-400/30' : 'border-neutral-200 dark:border-neutral-700'}`}
+                                className={`relative flex flex-col rounded-xl border bg-white dark:bg-neutral-900 p-6 ${(isPopular || isSelected) ? 'border-brand-500 ring-2 ring-brand-400/30' : 'border-neutral-200 dark:border-neutral-700'}`}
                             >
                                 {isPopular && (
                                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -154,6 +172,19 @@ export default function Pricing({
                                         >
                                             {isFree ? t('pricing.get_started_free') : t('pricing.get_started')}
                                         </Link>
+                                    ) : isCurrent ? (
+                                        <p className="rounded-lg bg-green-50 px-3 py-2 text-center text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-300">Current plan</p>
+                                    ) : isFree && requires_plan ? (
+                                        <Button
+                                            type="button"
+                                            variant="primary"
+                                            size="sm"
+                                            className="w-full"
+                                            disabled={loadingFree || loadingGateway !== null}
+                                            onClick={() => selectFree(plan.id)}
+                                        >
+                                            {loadingFree ? 'Activating…' : 'Choose Free'}
+                                        </Button>
                                     ) : isFree ? (
                                         <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center">{t('pricing.free_no_payment')}</p>
                                     ) : configuredGateways.length === 0 ? (

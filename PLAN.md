@@ -8,6 +8,14 @@
 
 ## 2. Core User Journeys
 
+### Automatic Free start and paid-plan intent (2026-09-18)
+
+Every new self-service client begins with the enabled default Free plan, so registration stays focused on account creation and never produces an unentitled workspace. A package chosen on public Pricing carries its plan and billing period through `/register`; after signup the workspace already has Free access and a paid choice continues to secure checkout. Abandoning checkout therefore leaves a usable Free account rather than a locked account. New password, social OAuth, and Firebase registrations use the same initial-plan service. The onboarding plan milestone is derived from subscription state and cannot be manually marked complete.
+
+### Public discovery and conversion
+
+The experimental `oris` public-site revamp presents the full product through a mega-menu, interactive homepage demos, seven product pages, four solution pages, two channel-family pages, and a developer page. Pricing reflects actual plan records; Integrations and FAQ support real filtering. Official Agent App and Customer Chat SDK destinations are admin-configurable and hidden until supplied. Provider capabilities and rollout flags qualify all claims. [docs/DESIGN.md](docs/DESIGN.md) owns the content narrative, motion/accessibility rules, and release gates. This is marketing-only work: it does not change client entitlements, integration access, or native apps.
+
 ```mermaid
 journey
     title Core User Journeys in WisperBot

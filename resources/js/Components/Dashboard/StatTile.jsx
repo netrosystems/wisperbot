@@ -28,6 +28,7 @@ export default function StatTile({
     sparkKey = 'v',
     href,
     hint,
+    compact = false,
 }) {
     const hasDelta = delta !== undefined && delta !== null && Number.isFinite(delta);
     const positive = delta >= 0;
@@ -41,13 +42,13 @@ export default function StatTile({
     const sparkColor = !hasDelta ? '#9ca3af' : good ? '#10b981' : '#ef4444';
 
     const body = (
-        <div className="relative flex h-full flex-col justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-soft transition hover:border-neutral-300 dark:border-neutral-700/50 dark:bg-neutral-800/70 dark:hover:border-neutral-600">
+        <div className={`relative flex h-full flex-col justify-between rounded-soft-lg border border-neutral-200/80 bg-white shadow-soft transition hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-soft-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700 ${compact ? 'p-3.5' : 'p-4 sm:p-5'}`}>
             <div className="flex items-start justify-between gap-2">
                 <p className="truncate text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                     {label}
                 </p>
                 {Icon && (
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-soft-lg bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
+                    <span className={`${compact ? 'h-7 w-7 rounded-lg' : 'h-8 w-8 rounded-soft'} flex shrink-0 items-center justify-center bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400`}>
                         <Icon className="h-4 w-4" />
                     </span>
                 )}
@@ -55,7 +56,7 @@ export default function StatTile({
 
             <div className="mt-2 flex items-end justify-between gap-2">
                 <div className="min-w-0">
-                    <p className="text-2xl font-bold tabular-nums text-neutral-900 dark:text-white">
+                    <p className={`${compact ? 'text-xl' : 'text-2xl'} font-semibold tracking-[-0.025em] tabular-nums text-neutral-950 dark:text-white`}>
                         {formatValue(value)}
                     </p>
                     <div className="mt-0.5 flex items-center gap-1.5">
@@ -68,7 +69,7 @@ export default function StatTile({
                     </div>
                 </div>
 
-                {sparkline.length > 1 && (
+                {!compact && sparkline.length > 1 && (
                     <div className="h-9 w-16 shrink-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={sparkline}>

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Plan;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -12,10 +14,26 @@ class OnboardingTest extends TestCase
 
     private function clientUser(): User
     {
-        return User::factory()->create([
+        $user = User::factory()->create([
             'role' => 'client',
             'email_verified_at' => now(),
         ]);
+
+        $plan = Plan::factory()->create([
+            'price_cents' => 0,
+            'monthly_price_cents' => 0,
+            'yearly_price_cents' => 0,
+        ]);
+        Subscription::create([
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
+            'status' => 'active',
+            'billing_cycle' => 'month',
+            'starts_at' => now(),
+            'gateway' => 'free',
+        ]);
+
+        return $user;
     }
 
     public function test_user_can_view_onboarding_wizard(): void
@@ -26,15 +44,16 @@ class OnboardingTest extends TestCase
             ->assertOk();
     }
 
-    public function test_user_can_complete_a_step(): void
+    public function test_user_cannot_manually_complete_an_unmet_step(): void
     {
         $user = $this->clientUser();
 
         $this->actingAs($user)
             ->postJson(route('client.onboarding.complete'), ['step' => 'connect_first_channel'])
-            ->assertOk();
+            ->assertOk()
+            ->assertJson(['ok' => false]);
 
-        $this->assertDatabaseHas('onboarding_steps', [
+        $this->assertDatabaseMissing('onboarding_steps', [
             'user_id' => $user->id,
             'step' => 'connect_first_channel',
         ]);

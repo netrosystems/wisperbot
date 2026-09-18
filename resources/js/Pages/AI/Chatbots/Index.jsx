@@ -172,7 +172,7 @@ function PlaygroundPanel({ chatbot, aiCredits }) {
     );
 }
 
-function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingEnabled }) {
+function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingEnabled, liveProductFactsAvailable }) {
     const { t } = useTranslation();
     const [tab, setTab] = useState(null); // null | 'settings' | 'playground'
 
@@ -180,13 +180,10 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
         name: chatbot.name,
         system_prompt: chatbot.system_prompt ?? '',
         tone: chatbot.tone ?? 'professional',
-        max_context_chunks: chatbot.max_context_chunks ?? 3,
-        retrieval_match_threshold: chatbot.retrieval_match_threshold ?? 0.60,
-        max_context_tokens: chatbot.max_context_tokens ?? 1200,
         answer_scope: chatbot.answer_scope ?? (chatbot.unsupported_answer_action === 'general' ? 'general' : 'business_only'),
         unsupported_fallback_action: chatbot.unsupported_fallback_action ?? (chatbot.unsupported_answer_action === 'handoff' ? 'handoff' : 'clarify_then_handoff'),
         trusted_research_enabled: Boolean(chatbot.trusted_research_enabled),
-        video_match_threshold: chatbot.video_match_threshold ?? 0.72,
+        live_product_facts_enabled: Boolean(chatbot.live_product_facts_enabled),
         fallback_reply: chatbot.fallback_reply ?? '',
         ai_kb_id: chatbot.ai_kb_id ?? '',
     });
@@ -201,7 +198,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
         }
     };
 
-    const linkedKb = knowledgeBases.find(kb => kb.id == chatbot.ai_kb_id);
+    const linkedKb = knowledgeBases.find(kb => kb.id == data.ai_kb_id);
     const profileComplete = Boolean(linkedKb?.brand?.trim() && linkedKb?.purpose?.trim()?.length >= 12 && linkedKb?.audience?.trim());
 
     const toggleTab = (t) => setTab(prev => prev === t ? null : t);
@@ -323,25 +320,6 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
                             <p className="text-xs text-neutral-400 dark:text-neutral-500">{t('ai.fallback_reply_hint')}</p>
                         </div>
 
-                        <div className="flex items-center gap-6">
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('ai.max_context_chunks')}</label>
-                                <input
-                                    type="number"
-                                    min={1}
-                                    max={20}
-                                    value={data.max_context_chunks}
-                                    onChange={e => setData('max_context_chunks', Number(e.target.value))}
-                                    className="w-20 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition"
-                                />
-                            </div>
-                            <div className="space-y-1"><label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Answer confidence</label><input type="number" min={0} max={1} step={0.01} value={data.retrieval_match_threshold} onChange={e => setData('retrieval_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" /></div>
-                            <div className="space-y-1"><label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Context budget</label><input type="number" min={200} max={4000} step={100} value={data.max_context_tokens} onChange={e => setData('max_context_tokens', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" /></div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('ai.video_match_threshold')}</label>
-                                <input type="number" min={0} max={1} step={0.01} value={data.video_match_threshold} onChange={e => setData('video_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100" />
-                            </div>
-                        </div>
                         {data.ai_kb_id && <div className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
                             <div>
                                 <div className="flex items-center gap-2">
@@ -349,6 +327,9 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
                                     {!businessAwareRoutingEnabled && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{t('ai.staged_rollout')}</span>}
                                 </div>
                                 <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{t('ai.answer_scope_hint')}</p>
+                                <p className="mt-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs leading-5 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+                                    {t('ai.managed_answer_quality', { defaultValue: 'Answer quality, context selection, confidence, and relevant video matching are optimized automatically by WisperBot.' })}
+                                </p>
                                 {data.answer_scope === 'business_only' && !profileComplete && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">{t('ai.business_profile_required')}</p>}
                                 <div className="mt-3 grid gap-2 lg:grid-cols-3">
                                     {[
@@ -369,7 +350,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
                                 </div>
                             </div>
 
-                            <div className="grid gap-3 border-t border-neutral-200 pt-3 dark:border-neutral-700 sm:grid-cols-2">
+                            <div className="grid gap-3 border-t border-neutral-200 pt-3 dark:border-neutral-700 lg:grid-cols-3">
                                 <div>
                                     <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{t('ai.when_no_verified_answer')}</label>
                                     <select value={data.unsupported_fallback_action} onChange={e => setData('unsupported_fallback_action', e.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
@@ -383,6 +364,30 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
                                         <p className="mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">{t('ai.research_approved_sources_hint')}</p>
                                     </div>
                                     <ToggleSwitch checked={data.trusted_research_enabled} onChange={value => setData('trusted_research_enabled', value)} label={t('ai.research_approved_sources')} />
+                                </div>
+                                <div className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                                    <div>
+                                        <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.live_product_prices')}</p>
+                                        <p className="mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">
+                                            {t('ai.live_product_prices_hint', { count: linkedKb?.live_product_count ?? 0 })}
+                                        </p>
+                                        {linkedKb?.live_products_verified_at && (
+                                            <p className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">
+                                                {t('ai.live_product_last_verified', { date: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(linkedKb.live_products_verified_at)) })}
+                                            </p>
+                                        )}
+                                        {(linkedKb?.live_product_attention_count ?? 0) > 0 && (
+                                            <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                                                {t('ai.live_product_attention', { count: linkedKb.live_product_attention_count })}
+                                            </p>
+                                        )}
+                                        {!liveProductFactsAvailable && <p className="mt-1 text-[11px] text-neutral-400">{t('ai.live_product_staged')}</p>}
+                                    </div>
+                                    <ToggleSwitch
+                                        checked={data.live_product_facts_enabled}
+                                        onChange={value => setData('live_product_facts_enabled', value)}
+                                        label={t('ai.live_product_prices')}
+                                    />
                                 </div>
                             </div>
                         </div>}
@@ -410,7 +415,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
     );
 }
 
-export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null, businessAwareRoutingEnabled = false }) {
+export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null, businessAwareRoutingEnabled = false, liveProductFactsAvailable = false }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
@@ -473,7 +478,7 @@ export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = 
                 {/* Chatbot list */}
                 <div className="space-y-3">
                     {chatbots.map(cb => (
-                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} businessAwareRoutingEnabled={businessAwareRoutingEnabled} />
+                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} businessAwareRoutingEnabled={businessAwareRoutingEnabled} liveProductFactsAvailable={liveProductFactsAvailable} />
                     ))}
                     {chatbots.length === 0 && (
                         <EmptyState
