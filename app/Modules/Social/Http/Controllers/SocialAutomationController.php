@@ -42,7 +42,7 @@ class SocialAutomationController extends Controller
             ->where('workspace_id', $workspaceId)
             ->orderBy('network')
             ->orderBy('name')
-            ->get(['id', 'network', 'name', 'picture_url', 'active', 'token_expires_at']);
+            ->get(['id', 'network', 'name', 'picture_url', 'active', 'token_expires_at', 'meta']);
 
         $activeAccounts = $accounts
             ->filter(fn (SocialAccount $account): bool => $account->active && ! $account->isTokenExpired())

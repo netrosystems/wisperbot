@@ -142,6 +142,34 @@ class LinkedInCompanyPageTest extends TestCase
             ->assertRedirect(route('client.social.automation.index'));
     }
 
+    public function test_the_accounts_list_can_tell_a_page_from_a_profile(): void
+    {
+        [$user, $workspace] = $this->clientWorkspace();
+        $this->linkedInCredentials(pagesApp: true);
+        foreach ([['member-1', 'member'], ['5566', 'organization']] as [$accountId, $actor]) {
+            SocialAccount::create([
+                'workspace_id' => $workspace->id,
+                'network' => 'linkedin',
+                'account_id' => $accountId,
+                'name' => 'Account '.$accountId,
+                'access_token' => 'token',
+                'meta' => ['actor_type' => $actor],
+                'active' => true,
+            ]);
+        }
+
+        $props = $this->actingAs($user)
+            ->get(route('client.social.automation.index'))
+            ->assertOk()
+            ->viewData('page')['props'];
+
+        // Without meta the page cannot label a Page, or reconnect it through
+        // the Community Management app.
+        $actors = collect($props['accounts'])->pluck('meta.actor_type')->sort()->values()->all();
+        $this->assertSame(['member', 'organization'], $actors);
+        $this->assertTrue($props['linkedinPagesEnabled']);
+    }
+
     public function test_a_rotated_token_reaches_every_row_from_the_same_authorization(): void
     {
         [, $workspace] = $this->clientWorkspace();
