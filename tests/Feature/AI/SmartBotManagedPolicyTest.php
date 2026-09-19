@@ -30,6 +30,19 @@ class SmartBotManagedPolicyTest extends TestCase
         $this->assertSame($defaults['video_match_threshold'], $bot->video_match_threshold);
     }
 
+    public function test_client_can_choose_exact_knowledge_base_wording(): void
+    {
+        [$user, $workspace] = $this->clientWorkspace();
+        $bot = AiChatbot::create(['workspace_id' => $workspace->id, 'name' => 'Assistant']);
+        $this->assertFalse((bool) $bot->fresh()->kb_exact_wording);
+
+        $this->actingAs($user)
+            ->put(route('client.ai.chatbots.update', $bot), ['name' => 'Assistant', 'kb_exact_wording' => true])
+            ->assertRedirect();
+
+        $this->assertTrue($bot->fresh()->kb_exact_wording);
+    }
+
     public function test_client_updates_ignore_raw_retrieval_tuning_fields(): void
     {
         [$user, $workspace] = $this->clientWorkspace();

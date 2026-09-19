@@ -25,13 +25,13 @@ class SmartBotRetrievalPolicy
 
         return [
             'max_context_chunks' => $this->integer(
-                config('knowledge_base.max_context_chunks', 3),
+                config('knowledge_base.max_context_chunks', 5),
                 1,
                 8,
             ),
             'answer_threshold' => $answerThreshold,
             'max_context_tokens' => $this->integer(
-                config('knowledge_base.max_context_tokens', 1200),
+                config('knowledge_base.max_context_tokens', 1600),
                 600,
                 2400,
             ),

@@ -37,7 +37,8 @@ class LlmGateway
         $model = $opts['model'] ?? null;
         $diagnostics = $opts['diagnostics'] ?? null;
         $responseValidator = $opts['response_validator'] ?? null;
-        unset($opts['diagnostics'], $opts['response_validator']);
+        $retryRejected = $opts['retry_rejected'] ?? null;
+        unset($opts['diagnostics'], $opts['response_validator'], $opts['retry_rejected']);
 
         try {
             if ($source === 'managed') {
@@ -72,10 +73,18 @@ class LlmGateway
             $providerName = $resolved['provider'];
             $model = $opts['model'] ?? $model;
             $response = $resolved['client']->chat($messages, $opts);
+            $valid = ! is_callable($responseValidator) || $responseValidator($response);
+            // Model output varies between samples. When the caller confirms a
+            // rejected reply was a genuine attempt (not a deliberate refusal), one
+            // more sample is drawn under the same reservation, so it is charged once.
+            if (! $valid && is_callable($retryRejected) && trim($response->content) !== '' && $retryRejected($response)) {
+                $response = $resolved['client']->chat($messages, $opts);
+                $valid = $responseValidator($response);
+            }
             if (trim($response->content) === '') {
                 throw new AiOutputRejectedException('The AI provider returned an empty response. Please check its model and output budget.');
             }
-            if (is_callable($responseValidator) && ! $responseValidator($response)) {
+            if (! $valid) {
                 throw new AiOutputRejectedException('The AI provider returned an unusable response.');
             }
             $this->credits->succeed($reservation->ledger, $response, $providerName);

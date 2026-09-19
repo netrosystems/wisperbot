@@ -59,6 +59,18 @@ The legacy `max_context_chunks`, `retrieval_match_threshold`, `max_context_token
 
 Platform operators may tune the managed policy through `KB_MAX_CONTEXT_CHUNKS`, `KB_RETRIEVAL_MATCH_THRESHOLD`, `KB_MAX_CONTEXT_TOKENS`, and `KB_VIDEO_MATCH_THRESHOLD`, followed by the normal configuration-cache refresh and AI/message worker restart. `SmartBotRetrievalPolicy` applies conservative limits even when an environment value is invalid or extreme. Public social comments receive a smaller, never-less-strict policy and remain separate from private-chat behavior.
 
+## Starter questions (2026-09-19)
+
+`ai_chatbots.starter_questions_enabled` and `ai_chatbots.starter_questions` (migration `2026_09_19_000300_add_starter_questions_to_ai_chatbots`) hold up to five client-written `{id, question, answer}` items. Questions are at most 80 characters, labels only (no markup, links or control characters), distinct after normalising, and never a human-handover phrase; answers are at most 1,000 characters of plain text.
+
+- **First step of the runner.** `ChatbotRunner::run()` and `runForApi()` check `StarterQuestions::match()` before every other step. A message that equals a saved question after NFC, lowercasing and collapsing everything except letters, combining marks and digits returns the saved answer word for word with `answer_origin=starter_question`, zero tokens and zero credits, and records a zero-cost diagnostic. Combining marks are kept, so Bengali words that differ only by a vowel sign never match each other; an empty normalised message never matches.
+- **Instant on the website.** `AutoReplyListener` sends a matched starter answer within the customer's request (`ProcessWebchatAiReplyJob::dispatchSync`); all other webchat replies stay queued on `ai`.
+- **Precedence is unchanged.** Paused, assigned, joined or handed-over chats skip the bot entirely; keyword auto-reply rules and handover phrases run first; starter answers only run while the Smart Bot is answering under the widget's AI schedule.
+- **Other channels.** The runner step applies wherever the bot answers (Omni private messaging, the developer API, the playground). A customer typing an exact saved question there gets the saved answer as plain text; only the website widget and customer SDK show the questions as options.
+- **Follow-ups.** The starter exchange is ordinary conversation history, so a follow-up question retrieves and answers normally.
+
+The customer contract is in [Suggested customer replies](CHAT_REPLY_OPTIONS.md#starter-questions-2026-09-19).
+
 ## Turn-routing contract
 
 `BusinessAwareTurnRouter` runs before strict retrieval when `SMART_BOT_BUSINESS_AWARE_ROUTING=true`.
@@ -69,6 +81,7 @@ Standalone greetings, thanks, acknowledgements, and goodbyes receive a short loc
 
 - Deterministic conversational replies use no LLM call and cost zero credits.
 - A mixed turn such as “Hi, what is your return policy?” is a business question, not a greeting shortcut.
+- Replies to the assistant's own “anything else?” offer are conversation, handled by `BusinessAwareTurnRouter::offerReplyResult()` before any retrieval and regardless of `SMART_BOT_BUSINESS_AWARE_ROUTING` (2026-09-19). A decline (“No”, “nope”, “না”) gets a branded goodbye, and acceptance (“Yes”, “sure”, “হ্যাঁ”) gets “What else can I help you with?”; both are zero-credit, with no model call and no handoff. Clear closings (“No thanks”, “That's all”, “I'm good”, “lagbe na”, “লাগবে না”) work without a prior offer. A bare “No/Yes” after any other question (for example a troubleshooting question) continues through normal answering. Previously the decline reached strict grounding, the model's goodbye was rejected as ungrounded, and the chat was handed off.
 
 ### 2. Supported business question
 
@@ -119,6 +132,22 @@ Lexical evidence is a boost. Missing exact words must never reduce a valid seman
 
 All candidates remain scoped by `workspace_id`, Knowledge Base, published revision, enabled source, document readiness, and active index generation. Qdrant is an optional accelerator; MySQL remains the filtering authority and fallback.
 
+Keyword-only candidates (found by lexical search but outside the vector window) are scored on meaning from their stored MySQL embedding via `EmbeddingStore::similarity()`; they no longer enter at semantic score 0. Near-duplicate passages (word-set overlap ≥ 0.75, for example the same file uploaded twice or a revised re-upload) are collapsed before the answer/clarify decision in both retrieval paths, keeping the copy ordered first, which favours the stronger source settings. On the Telzen Knowledge Base, copies overlapped 0.80–1.00 and distinct passages at most 0.44. This stops an older copy without a video link from taking one of clarification mode's two evidence slots.
+
+### Source authority (2026-09-19)
+
+A client's Knowledge Base usually mixes sources that disagree: an operations document, marketing website pages, legal pages, older uploads. The client's **Authoritative source** checkbox and **Priority** (Low 25 / Normal 50 / High 75 / Critical 100) settle those conflicts in both the hybrid and legacy retrieval paths:
+
+- **Relevance decides whether to answer.** Thresholds, `answer`/`clarification`/`fallback`, `best_score`, and video matching all use the unchanged relevance `rank_score`. Authority can never make the bot answer from weak evidence.
+- **Authority decides which evidence leads.** `AiKbDocument::retrievalWeight()` (authoritative +0.06; priority ±0.04 around Normal) is added to a separate `order_score` used only for ordering.
+- When relevant evidence from an authoritative source exists within 0.12 of the best relevance, one slot is kept for it, and authoritative passages are presented first, labelled `[Authoritative source: …]` (`AiKbDocument::passageLabel()`).
+- The Knowledge Base business profile (`brand`, `purpose`, `audience`) leads the verified evidence in every Knowledge Base answer, marked as written by the business. Empty fields are omitted.
+- The prompt tells the model to follow the profile and authoritative sources when sources disagree, and to describe what the business is, offers, or how it works from them. The former "prefer the highest-ranked passage" rule, which made marketing copy win conflicts, is removed.
+
+Availability questions ("do you sell/have/offer…", "is there…", "can you…", Roman Bangla `ache`/`pabo`, Bangla আছে/পাবো) count as explicit requests, so a clear keyword match to a direct answer is answered rather than forced into a clarifying question. The platform default private-chat window is 5 passages / 1,600 context tokens (`KB_MAX_CONTEXT_CHUNKS`, `KB_MAX_CONTEXT_TOKENS`); public comments stay capped at 3. Replies may use up to 4 short sentences / 70 words, answering first and then guiding the next step, with a 320-token output budget.
+
+Known limit: Roman Bangla questions with little keyword overlap (for example "kivabe kaj kore") still score too low on meaning with the current embedding model and fall back.
+
 ### Retrieval decisions
 
 | Decision | Meaning | Response behavior |
@@ -162,7 +191,7 @@ Required safeguards:
 - Robots and supported-content checks.
 - Brief cache only; fetched text is treated as untrusted input.
 - Generated claims must be supported by the fetched passage.
-- Safe citations contain only a readable title and HTTPS URL.
+- Safe citations contain only a readable title and HTTPS URL. They are kept for staff and the API, never shown to customers (no "Sources:" text, empty public `citations`).
 
 Research never:
 
@@ -222,6 +251,53 @@ Older widgets and SDKs may ignore additive metadata. `body`/`reply`, `display_bo
 
 Quick replies are suggested customer text, not executable actions. Selecting one sends the visible label through the existing message endpoint. See [Suggested customer replies](CHAT_REPLY_OPTIONS.md) for sanitizer, stale-choice, handoff, and native-SDK rules.
 
+### Video resources
+
+A matched Knowledge Base video (`resources`, at most one per reply) belongs to the turn that delivers its solution, not to the follow-up questions that lead there. `ChatbotRunner::selectVideoResource()` still decides which video matches the passage; `ChatbotRunner::resourcesForReply()` then decides whether this reply shows it:
+
+- Never on clarification-mode replies, replies that consist only of a question, empty replies, or fallback/provider-failure replies.
+- A video is **offered** whenever a passage given to the model as evidence links it, in answer or clarification mode (clarification may answer when the passages clearly do). The prompt names the video's title and quotes every set of Knowledge Base steps the link follows in the passages given to the model (up to three), so the model can recognise any of them. It is told to decline when it asks a question, sends the customer to browse the app or website, or answers another topic.
+- It is **shown** when the model returns `"show_video": true`, pastes the video's link, or mentions the video in its reply in any common language (video, tutorial, ভিডিও, видео, فيديو, 视频, …). An explicit `false` without a mention hides it. It is never shown on a reply that offers choices and continues after its question (“Is it supported? If yes, …”), because the customer is still being qualified; a solution that ends with a closing offer keeps its video. The prompt also tells the model to ask the flow's question alone and give the steps after the answer.
+- If a provider omits the flag, the video is shown only when its passage is the top evidence of a Knowledge Base answer and ranks at or above `KB_VIDEO_MATCH_THRESHOLD` (0.72). OpenAI replies always carry the flag (see structured outputs below).
+- Only a passage actually given to the model can supply a video (`passage_chunk_ids` from both retrieval paths). Candidates that were ranked but not included, and research-only answers without a Knowledge Base passage carrying the link, never attach one.
+- The Knowledge Base decides where a video belongs: a link placed after a set of steps makes that video eligible for replies that give those steps. Reusing one video link after unrelated steps makes it eligible there too, so clients should link each video only where it demonstrates the steps.
+
+The rule is language- and industry-independent (Bengali `।` and multi-line steps count as statements before a closing question). WhatsApp/Messenger/email "Watch video" text fallbacks use the same `resources`, so they follow it too.
+
+Discovered videos no longer use their source document's name as a title. Indexing fills an untitled YouTube/Vimeo link with the provider's public oEmbed title (4-second timeout; only successful lookups are cached, for 7 days), otherwise the title is omitted and clients show the provider name. Documents indexed before 2026-09-19 have their document-name title suppressed at answer time, and receive the real title on their next reindex. Dedicated `source_type=video` records keep their authored title.
+
+The website widget shows the reply text first and then a “▶ See Tutorial →” chip below the reply text, styled like the reply-choice buttons, that opens the video's own page (YouTube/Vimeo watch page, or the MP4 file) in a new tab with `rel="noopener noreferrer"`. Its accessible name includes the video title and the provider (“opens YouTube in a new tab”). Nothing is embedded. The model is told the platform adds this link, so it never pastes the URL itself. The web Inbox keeps a 16:9 click-to-play card with title and link for agents.
+
+### Reliability and languages (2026-09-19)
+
+- **Website chat replies run on the `ai` queue** (`ProcessWebchatAiReplyJob`, 120-second timeout, one attempt), like WhatsApp/Messenger/email. Previously they ran inside the visitor's send request, and a slow model or approved-source fetch could exceed PHP's 30-second limit and lose the reply. The widget receives the reply by poll or realtime as before.
+- **Structured outputs.** OpenAI chat calls send the strict `smart_bot_reply` JSON schema (`reply`, `quick_replies`, `grounded`, `response_type`, `show_video`, all required), so no decision key can be omitted. Models that reject structured outputs (HTTP 400) are retried once in plain JSON mode. Other providers keep JSON mode.
+- **One retry.** When a reply fails validation but was a genuine attempt (non-empty reply), the gateway draws one more sample under the same credit reservation, so it is charged once. A deliberate empty “cannot answer” is not retried.
+- **Cross-language retrieval.** When a message is probably not English (non-Latin script, or no English function words, as in romanized Bengali), `KnowledgeRetrievalService::englishSearchQuery()` rewrites it into a short English search query (0-credit `kb_search_translation` action, cached per workspace and message). The query is **added** to the search, never substituted, so a Knowledge Base in the customer's own language still matches directly; the legacy path keeps whichever search scores better. Replies stay in the customer's language and script: romanized input is answered in Latin letters.
+- **Rate limits.** Zero-credit internal steps no longer count toward the per-minute managed request budget (10/min on plans up to 100 credits, otherwise 30/min), because they belong to a customer action that is already counted. The concurrency cap still applies.
+- **Roman Bangla social phrases** (for example “kemon acho”, “assalamualaikum”, “dhonnobad”, “thik ache”, “allah hafez”) are handled as greetings, thanks, acknowledgements, or goodbyes when business-aware routing is on.
+
+Measured on the Telzen Knowledge Base: before this change, “Kivabe esim pabo?”, “data kaj korche na”, and “ইসিম কিভাবে ইনস্টল করব” all fell back (meaning scores 0.21–0.25). With the English search query they reach `answer`/`clarification` from the client's document (0.42–0.69).
+
+### Reply style: facts strict, wording free (2026-09-19)
+
+Product decision: Smart Bots answer like a support agent rather than repeating Knowledge Base text.
+
+- **Facts stay exact and grounded.** Prices, sizes, durations, menu paths, policies, and countries must come from the verified context, the business profile, or the customer's own message. Conversation history is never evidence.
+- **Wording is the bot's own by default.** The bot leads with what the customer asked, keeps only what helps, and gives steps in the order the customer performs them. Passages written as scripted conversations (“Customer: … AI: …”) show the intended facts and flow, not text to copy: the bot follows the flow (for example, asking the script's question first) in natural wording. Temperature is 0.4.
+- **`ai_chatbots.kb_exact_wording`** (migration `2026_09_19_000200_add_kb_exact_wording_to_ai_chatbots`, default off) is the client's “Use Knowledge Base wording exactly” switch for regulated or scripted businesses. When on, the bot uses the approved wording as written, changing only what is needed to fit the question and language, at temperature 0.2. It is exposed read-only on the AI chatbot API list.
+- **Never shown to customers:** editing notes and script markers (“[Shows two CTAs]”, “***”, “AI:”/“Customer:” labels), video links (`ChatbotRunner::withoutVideoLinks()` removes YouTube/Vimeo/MP4 links from the text; pasting the matched video's link counts as choosing to show it as the player), and sources.
+
+Grounding checks (`ChatbotRunner::validChatResponse()`):
+
+- A reply that only asks the customer one short question is a conversation move and states no business facts, so it is accepted even when the model marks it `grounded: false`. This stops legitimate follow-ups (“Which country are you travelling to?”) from becoming handoffs.
+- In clarification mode, the model may answer instead of asking when the passages clearly answer the request. The answer is accepted only with `grounded: true` and is then treated as `response_mode=answer`.
+- The model's `grounded: true` alone is not trusted. `hasUnsupportedFigures()` rejects any reply or choice stating a figure (price, currency amount, data size, percentage, duration, or any number of two or more digits) that does not appear in the evidence. It normalises Bengali digits, `1,000`, and `1.20`/`1.2`, and ignores single-digit step numbers. Data sizes and percentages must match their unit; currency and time may match a bare number (for example “৳128” against “128tk”). This check also applies to a follow-up question's choices.
+- General-guidance replies (no Knowledge Base evidence) must not suggest specific plans, package sizes, data amounts, prices, or products, in text or choices.
+- Empty or ungrounded factual statements are still rejected, and a knowledge-only bot then follows its configured unsupported-answer behavior.
+
+Known limit: choice labels that name an unsupported product type without a figure (for example “Unlimited plan”) are discouraged by the prompt but cannot be caught deterministically.
+
 ## Human identity in the chatbot
 
 The JavaScript widget distinguishes automated and human identity:
@@ -242,6 +318,7 @@ The same resolved teammate identity is available through browser realtime and Sa
 - Successful generated grounded answer: one existing chatbot credit.
 - Successful generated clarification: one existing chatbot credit.
 - Exact approved FAQ or eligible deterministic/cache response: zero managed credits.
+- Starter question answer: zero credits, no model call.
 - Deterministic verified product price/availability response or product clarification: zero managed credits.
 - BYOK generation: zero WisperBot-managed credits.
 - Fallback/handoff-only, timeout, provider failure, rejected output, or cancelled generation: reservation refunded/no finalized charge.

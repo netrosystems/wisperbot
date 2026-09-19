@@ -94,7 +94,7 @@ class IndexDocumentJob implements ShouldBeUnique, ShouldQueue
                 $documentUpdate['status'] = 'validating';
             }
             if ($doc->source_type !== 'video') {
-                $discoveredVideos = $videos->discover($text, $doc->title ?: 'Video guide');
+                $discoveredVideos = $videos->withProviderTitles($videos->discover($text));
                 $documentUpdate['resource_json'] = $discoveredVideos === [] ? null : [
                     'version' => 1,
                     'kind' => 'video_collection',

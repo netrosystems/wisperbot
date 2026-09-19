@@ -107,7 +107,7 @@ For every requested permission, record the complete flow: login/authorization, e
 
 - Workspace AI credentials are encrypted in the database; UI placeholders mean “keep current key.”
 - Knowledge ingestion discovers YouTube, Vimeo (including retained unlisted `h` hashes), and direct public HTTPS MP4 links in extracted websites and files. WisperBot derives player URLs and never stores arbitrary embed markup; clients do not create a separate Video source.
-- YouTube/Vimeo are rendered only after Play is selected. Customer-site CSP may need `https://www.youtube.com`, `https://www.youtube-nocookie.com`, or `https://player.vimeo.com` in `frame-src`; Vimeo domain-level privacy must also permit the embedding customer domain.
+- In the website widget, YouTube/Vimeo videos open on the provider's own page from a “See Tutorial →” link (2026-09-19), so no customer-site CSP change or Vimeo embed-domain permission is needed. The agent Inbox still renders them after Play is selected.
 - External messaging channels cannot render web players, so AI answers append `Watch video: CANONICAL_URL` while WisperBot clients use the structured resource card.
 - Provider tests must surface the actual category (invalid key, model unavailable, quota, network), not collapse everything into “bad credentials.”
 - Only select chat/embedding models that the provider project can list/access.

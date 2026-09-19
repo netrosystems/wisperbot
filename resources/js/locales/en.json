@@ -3525,6 +3525,8 @@
         "scope_general_hint": "Allows broad general answers while keeping company-specific claims grounded.",
         "research_approved_sources": "Research approved sources",
         "research_approved_sources_hint": "When facts may have changed, check only website and sitemap domains already added to this Knowledge Base.",
+        "kb_exact_wording": "Use Knowledge Base wording exactly",
+        "kb_exact_wording_hint": "Off: replies are written naturally while facts stay exact. On: replies keep your approved wording, for regulated or scripted answers.",
         "live_product_prices": "Live product prices",
         "live_product_prices_hint_one": "Use verified product-page prices. {{count}} product detected.",
         "live_product_prices_hint_other": "Use verified product-page prices. {{count}} products detected.",
@@ -3639,7 +3641,18 @@
         "tone_${chatbot": {
             "tone}": "Tone}"
         },
-        "tone_${tone}": "Tone ${Tone}"
+        "tone_${tone}": "Tone ${Tone}",
+        "starter_questions": "Starter questions",
+        "starter_questions_hint": "Shown at the top of website chats. Tapping one sends your saved answer instantly — no AI credits used.",
+        "starter_questions_empty": "Add up to 5 questions your customers ask most.",
+        "starter_questions_count": "{{count}}\/{{max}} questions",
+        "starter_question_number": "Question {{number}}",
+        "starter_question_label": "Starter question {{number}}",
+        "starter_answer_label": "Answer to starter question {{number}}",
+        "starter_question_placeholder": "e.g. What are your opening hours?",
+        "starter_answer_placeholder": "The exact answer customers receive",
+        "starter_question_add": "Add question",
+        "starter_question_remove": "Remove question {{number}}"
     },
     "whatsapp": {
         "setup_title": "WhatsApp Setup",

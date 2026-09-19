@@ -46,7 +46,8 @@ class WidgetRealtimeTest extends TestCase
         $builder = app(WidgetPayloadBuilder::class);
         $this->assertSame('iOS app', $builder->message($message, $widget)['quick_replies'][0]['label']);
         $this->assertSame('trusted_research', $builder->message($message, $widget)['answer_origin']);
-        $this->assertSame('https://example.com/setup', $builder->message($message, $widget)['citations'][0]['url']);
+        $this->assertSame([], $builder->message($message, $widget)['citations']);
+        $this->assertSame('https://example.com/setup', $message->payload['citations'][0]['url']);
         $this->assertSame('Travel Pack', $builder->message($message, $widget)['product_facts'][0]['product']);
         $this->assertCount(1, $builder->message($message, $widget)['product_facts']);
         $this->assertSame($builder->message($message, $widget), $builder->messages($conversationId, $widget, 0)[0]);
@@ -54,7 +55,7 @@ class WidgetRealtimeTest extends TestCase
             ->getJson(route('widget.poll', ['key' => $widget->widget_key, 'after' => 0]))
             ->assertOk()->assertJsonPath('messages.0.quick_replies.0.label', 'iOS app')
             ->assertJsonPath('messages.0.answer_origin', 'trusted_research')
-            ->assertJsonPath('messages.0.citations.0.title', 'Setup guide')
+            ->assertJsonPath('messages.0.citations', [])
             ->assertJsonPath('messages.0.product_facts.0.currency', 'GBP')
             ->assertJsonPath('messages.0.display_body', 'Which app?');
         $this->assertSame('iOS app', (new WidgetMessageCreated($conversationId, $builder->message($message, $widget)))->broadcastWith()['message']['quick_replies'][0]['label']);
@@ -98,6 +99,26 @@ class WidgetRealtimeTest extends TestCase
                 'channel_name' => 'private-widget-conversation.999999',
             ])
             ->assertForbidden();
+    }
+
+    public function test_allowed_domain_entries_with_a_port_or_scheme_match_their_host(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id, [
+            'allowed_domains' => ['localhost:8000', ' https://shop.example:8443/store '],
+        ]);
+
+        $this->withHeader('Origin', 'http://localhost:8000')
+            ->postJson(route('widget.session'), ['key' => $widget->widget_key])
+            ->assertOk();
+        $this->withHeader('Origin', 'https://shop.example')
+            ->postJson(route('widget.session'), ['key' => $widget->widget_key])
+            ->assertOk();
+        $this->withHeader('Origin', 'https://evil.example')
+            ->postJson(route('widget.session'), ['key' => $widget->widget_key])
+            ->assertForbidden();
+
+        $this->get('/widgets/chat/'.$widget->widget_key.'.js')->assertOk()->assertSee(".split('/')[0].split(':')[0]", false);
     }
 
     public function test_widget_broadcast_auth_rejects_disallowed_domains(): void

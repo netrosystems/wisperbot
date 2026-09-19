@@ -7,6 +7,18 @@ use App\Modules\AI\Models\AiKnowledgeBase;
 
 class BusinessAwareTurnRouter
 {
+    /** Always end the chat politely, with or without a preceding offer. */
+    private const CLOSING_REPLIES = [
+        'no thanks', 'no thank you', 'nothing else', 'that s all', 'thats all', 'that is all', 'no that s all',
+        'i m good', 'im good', 'i am good', 'all good', 'no need', 'not needed',
+        'lagbe na', 'ar lagbe na', 'ar kichu na', 'না ধন্যবাদ', 'আর কিছু না', 'লাগবে না', 'আর লাগবে না',
+    ];
+
+    /** Decline only when the assistant has just offered further help. */
+    private const DECLINE_REPLIES = ['no', 'nope', 'nah', 'na', 'nothing', 'not now', 'no no', 'nai', 'না', 'নাই'];
+
+    private const ACCEPT_REPLIES = ['yes', 'yeah', 'yep', 'yup', 'sure', 'yes please', 'ha', 'haa', 'ji', 'হ্যাঁ', 'হা', 'জি'];
+
     /**
      * Handle only complete, low-risk social turns. A greeting combined with a
      * business question deliberately returns null and continues through RAG.
@@ -25,6 +37,42 @@ class BusinessAwareTurnRouter
             return null;
         }
 
+        return $this->socialResult($intent, $message, $knowledgeBase, $tone);
+    }
+
+    /**
+     * A reply to the assistant's own "anything else?" offer closes or continues
+     * the chat politely instead of being searched in the Knowledge Base. A bare
+     * "no"/"yes" counts only right after such an offer, so it still answers a
+     * troubleshooting question normally.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function offerReplyResult(string $message, ?string $previousAssistant, ?AiKnowledgeBase $knowledgeBase, ?string $tone = null): ?array
+    {
+        $normalized = $this->normalizeSocialTurn($message);
+        // Stored replies end with a numbered fallback of their choices; the offer
+        // itself is the text before it.
+        $previous = trim((string) preg_replace('/\n\s*\n(?:\s*\d+\.\s[^\n]*\n?)+\s*$/u', '', (string) $previousAssistant));
+        $offered = $previous !== '' && (
+            (bool) preg_match('/(?:anything else|something else|any other|anything more|further (?:help|assistance|questions?)|আর কিছু|ar kichu)[^?؟？]{0,80}[?؟？]/iu', $previous)
+            || (bool) preg_match('/\b(?:feel free to (?:ask|reach out|contact)|let me know if (?:you (?:need|have)|there)|if you (?:need|have) (?:any )?(?:more |further |other )?(?:help|assistance|questions?))\b/iu', $previous)
+            || (bool) preg_match('/\blet me know[.!]?\s*$/iu', $previous)
+        );
+
+        $intent = match (true) {
+            in_array($normalized, self::CLOSING_REPLIES, true) => 'closing',
+            $offered && in_array($normalized, self::DECLINE_REPLIES, true) => 'closing',
+            $offered && in_array($normalized, self::ACCEPT_REPLIES, true) => 'more_help',
+            default => null,
+        };
+
+        return $intent === null ? null : $this->socialResult($intent, $message, $knowledgeBase, $tone);
+    }
+
+    /** @return array<string,mixed> */
+    private function socialResult(string $intent, string $message, ?AiKnowledgeBase $knowledgeBase, ?string $tone): array
+    {
         $language = $this->language($message);
         $brand = $this->safeBrand($knowledgeBase?->brand);
         $reply = $this->socialReply($intent, $language, $brand, $tone);
@@ -149,18 +197,23 @@ class BusinessAwareTurnRouter
                 'hi', 'hello', 'hey', 'hi there', 'hello there', 'good morning', 'good afternoon', 'good evening',
                 'হাই', 'হ্যালো', 'সালাম', 'আসসালামু আলাইকুম', 'مرحبا', 'السلام عليكم', 'hola', 'bonjour', 'salut',
                 'hallo', 'namaste', 'नमस्ते', 'halo', 'ciao', 'こんにちは', '안녕하세요', 'olá', 'ola', 'привет', 'merhaba', '你好',
+                'kemon acho', 'kemon achen', 'kemon asen', 'kemon aso', 'assalamu alaikum', 'assalamualaikum', 'salam alaikum', 'salam',
+                'adab', 'nomoskar', 'hi bhai', 'hello bhai', 'hi vai', 'hello vai', 'ki obostha', 'কেমন আছেন', 'কেমন আছো',
             ],
             'thanks' => [
                 'thanks', 'thank you', 'thank you very much', 'thx', 'ধন্যবাদ', 'شكرا', 'gracias', 'merci', 'danke',
                 'धन्यवाद', 'terima kasih', 'grazie', 'ありがとう', '감사합니다', 'obrigado', 'obrigada', 'спасибо', 'teşekkürler', '谢谢',
+                'dhonnobad', 'dhonnobaad', 'donnobad', 'thanks bhai', 'thank you bhai', 'shukriya',
             ],
             'acknowledgement' => [
                 'ok', 'okay', 'got it', 'understood', 'sounds good', 'all right', 'ঠিক আছে', 'বুঝেছি', 'حسنا', 'vale',
                 'd accord', 'verstanden', 'ठीक है', 'baik', 'capito', 'わかりました', '알겠습니다', 'entendi', 'понятно', 'tamam', '明白了',
+                'thik ache', 'thik ase', 'accha', 'achha', 'bujhechi', 'bujhlam', 'ok bhai',
             ],
             'goodbye' => [
                 'bye', 'goodbye', 'see you', 'take care', 'বিদায়', 'আল্লাহ হাফেজ', 'مع السلامة', 'adiós', 'au revoir',
                 'tschüss', 'अलविदा', 'sampai jumpa', 'arrivederci', 'さようなら', '안녕히 가세요', 'tchau', 'до свидания', 'güle güle', '再见',
+                'allah hafez', 'khoda hafez', 'bye bhai',
             ],
         ];
 
@@ -182,6 +235,8 @@ class BusinessAwareTurnRouter
             'thanks' => 'You’re welcome! Is there anything else I can help with?',
             'acknowledgement' => 'Got it. Let me know what you would like help with next.',
             'goodbye' => 'Goodbye! Feel free to return whenever you need help.',
+            'closing' => $friendly ? 'Thanks for chatting with '.($brand ?: 'us').'! Have a great day.' : 'Thank you for contacting '.($brand ?: 'us').'. Have a good day.',
+            'more_help' => $friendly ? 'Sure! What else can I help you with?' : 'Certainly. What else may I help you with?',
             default => 'How can I help?',
         };
 
@@ -191,6 +246,8 @@ class BusinessAwareTurnRouter
                 'thanks' => 'আপনাকে স্বাগতম! আর কিছুতে সাহায্য করতে পারি?',
                 'acknowledgement' => 'ঠিক আছে। এরপর কী বিষয়ে সাহায্য চান বলুন।',
                 'goodbye' => 'বিদায়! প্রয়োজন হলে আবার যোগাযোগ করুন।',
+                'closing' => 'আমাদের সাথে কথা বলার জন্য ধন্যবাদ! আপনার দিনটি শুভ হোক।',
+                'more_help' => 'অবশ্যই! আর কী বিষয়ে সাহায্য করতে পারি?',
             ],
             'ar' => [
                 'greeting' => 'مرحبًا! كيف يمكنني مساعدتك اليوم؟',

@@ -15,7 +15,7 @@ php artisan migrate
 composer dev
 ```
 
-`composer dev` starts Laravel, a queue listener, Pail, and Vite. Local `.env` must use local URLs/database and test credentials. Do not copy production `.env` into source control.
+`composer dev` starts Laravel, a queue listener for every queue (`default,whatsapp,broadcast,ai,social,leads,automation`, 120-second timeout), Pail, and Vite. Website-chat Smart Bot replies are generated on the `ai` queue, so a local listener that consumes only `default` produces no widget AI replies. Local `.env` must use local URLs/database and test credentials. Do not copy production `.env` into source control.
 
 Local Pusher/Reverb credentials are optional for basic inbox testing. When realtime is not configured, the visible Omni inbox reconciles new messages every four seconds, so widget messages still appear without a manual refresh. This fallback does not replace production websocket monitoring: production should configure and verify Pusher/Reverb for immediate events and uses a slower 30-second reconciliation only as recovery.
 
@@ -198,6 +198,12 @@ Operational checks: `php artisan migrate --force`, restart the `ai` worker, clea
 # Crawler / managed AI production checks (2026-09-05)
 
 After deploying a runtime-model or crawler change, finalize deployment to refresh cached configuration and restart `ai` workers. Test the actual configured managed models, not only credential validity. Website homepage responses can stall even when `/sitemap.xml` and individual pages work: discovery probes sitemaps first and extraction uses bounded timeouts. Qdrant credentials need payload-index creation rights for `kb_chunks.document_id` and `kb_chunks.kb_id`. Retry only affected Knowledge Base documents; do not replay unrelated failed jobs. SQL migrations and Vite rebuilding are not required for the v1.3.42 backend/locale-only hotfix.
+
+# Smart Bot reply style (2026-09-19)
+
+Website-chat Smart Bot replies now run on the `ai` queue (`ProcessWebchatAiReplyJob`). Production must keep an `ai` worker running (already required for indexing and other channels); without one, widget visitors get no AI reply. Restart workers after deploying. The new zero-credit action `kb_search_translation` appears in the credit ledger for non-English Knowledge Base searches; it never consumes client credits or the per-minute request budget.
+
+Deploy migration `2026_09_19_000200_add_kb_exact_wording_to_ai_chatbots.php` (additive, default off, so every bot starts with natural wording), matching backend, the Vite bundle for the new Smart Bot switch, and `public/widget/wisperbot-chat-widget.js`. Restart `ai` and message workers. The default private-chat window becomes 5 passages / 1,600 tokens unless `KB_MAX_CONTEXT_CHUNKS`/`KB_MAX_CONTEXT_TOKENS` are set, so refresh cached configuration. Monitor fallback and handoff rates and `llm.chat_failed` `AiOutputRejectedException` counts; rejections now mostly mean an unsupported figure or an ungrounded factual statement.
 
 # Business-aware Smart Bot rollout (2026-09-16)
 

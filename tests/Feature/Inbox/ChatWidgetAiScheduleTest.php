@@ -6,6 +6,7 @@ use App\Events\MessageReceived;
 use App\Listeners\AutoReplyListener;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Services\ChatbotRunner;
+use App\Modules\Inbox\Jobs\ProcessWebchatAiReplyJob;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -14,6 +15,7 @@ use App\Modules\Shared\Models\Message;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
@@ -170,6 +172,37 @@ class ChatWidgetAiScheduleTest extends TestCase
 
         $this->assertSame(0, Message::where('conversation_id', $conversation->id)->where('direction', 'out')->count());
         $this->assertSame($chatbot->id, $account->fresh()->meta_json['ai_chatbot_id']);
+    }
+
+    public function test_webchat_reply_is_generated_on_the_ai_queue_not_inside_the_visitor_request(): void
+    {
+        [$widget, $account, $chatbot] = $this->scheduledWidget('outside_hours', 'UTC');
+        $widget->update(['ai_schedule_json' => ['enabled' => false]]);
+        $contact = Contact::factory()->create(['workspace_id' => $widget->workspace_id]);
+        $conversation = Conversation::create([
+            'workspace_id' => $widget->workspace_id,
+            'channel_account_id' => $account->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'bot',
+        ]);
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'in',
+            'channel' => 'webchat',
+            'type' => 'text',
+            'body' => 'Can you help?',
+            'status' => 'delivered',
+            'sent_by' => 'human',
+            'sent_at' => now(),
+        ]);
+        $message->setRelation('conversation', $conversation->load('channelAccount'));
+        Queue::fake();
+        $this->mock(ChatbotRunner::class, fn (MockInterface $mock) => $mock->shouldNotReceive('run'));
+
+        app(AutoReplyListener::class)->handle(new MessageReceived($message));
+
+        Queue::assertPushedOn('ai', ProcessWebchatAiReplyJob::class, fn (ProcessWebchatAiReplyJob $job): bool => $job->messageId === $message->id && $job->chatbotId === $chatbot->id);
     }
 
     /** @return array{ChatWidget,ChannelAccount,AiChatbot} */

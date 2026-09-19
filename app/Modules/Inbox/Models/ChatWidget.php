@@ -5,6 +5,7 @@ namespace App\Modules\Inbox\Models;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\AI\Services\StarterQuestions;
 use App\Modules\Inbox\Services\TeamAvailabilityService;
 use App\Modules\Inbox\Services\WeeklySchedule;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -183,6 +184,8 @@ class ChatWidget extends Model
         $launcherLogoUrl = $this->launcher_logo_url
             ?: $this->browserSafePublicUrl(url('/wisperbot-icon-white.svg'));
         $teamMembers = $this->publicTeamMembers();
+        $this->loadMissing('aiChatbot');
+        $aiNow = $this->shouldAiAnswerNow();
 
         return [
             'key' => $this->widget_key,
@@ -205,7 +208,10 @@ class ChatWidget extends Model
             'team_members' => $teamMembers,
             'team_member_count' => count($teamMembers),
             // Only expose whether AI is active; never expose the internal bot id.
-            'ai_enabled' => $this->shouldAiAnswerNow(),
+            'ai_enabled' => $aiNow,
+            // Question labels only; the saved answers stay on the server. Shown
+            // only while the Smart Bot answers, since it sends those answers.
+            'starter_questions' => $aiNow ? app(StarterQuestions::class)->publicLabels($this->aiChatbot) : [],
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,

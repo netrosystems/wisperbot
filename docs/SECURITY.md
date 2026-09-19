@@ -82,7 +82,8 @@ Webhook endpoints should acknowledge quickly and queue expensive processing. The
 - Never accept or render administrator-supplied iframe HTML. Video URLs are normalized server-side to YouTube, Vimeo, or direct public HTTPS MP4 metadata.
 - Reject URL credentials, non-HTTPS schemes, localhost/private IP literals, malformed provider identifiers, and unsupported file types.
 - Players load only after an explicit click. `payload.resources` exposes playback metadata but never the stored transcript or trigger phrases.
-- Customer sites with restrictive CSP must allow the selected YouTube/Vimeo player origin in `frame-src`, and the direct MP4 origin in `media-src`; every card retains a canonical external-link fallback.
+- Widget allowed-domain entries are matched on host only: a scheme, path, surrounding spaces, or port (for example `localhost:8000`) are ignored, both in the embed loader and in the API origin check. Previously an entry with a port could never match, so the widget silently failed to load (2026-09-19).
+- The website widget no longer embeds video players (2026-09-19): it links to the validated canonical HTTPS URL in a new tab with `rel="noopener noreferrer"`, so customer sites need no `frame-src`/`media-src` changes. The agent Inbox card still embeds after Play under WisperBot's own CSP.
 - Invalid/unsigned identity is anonymous; do not accept browser claims as verified customer identity.
 - Visitor IP/presence must be covered by privacy disclosures, retention policy, and customer configuration as required by law.
 - Media access must enforce conversation/workspace/session authorization; storage URLs should not become a cross-tenant public file browser.

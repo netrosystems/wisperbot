@@ -2,6 +2,7 @@
 
 namespace App\Modules\AI\Services\Llm;
 
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 class OpenAiProvider implements LlmProviderInterface
@@ -34,11 +35,25 @@ class OpenAiProvider implements LlmProviderInterface
             $payload['max_tokens'] = $opts['max_tokens'] ?? 1024;
             $payload['temperature'] = $opts['temperature'] ?? 0.7;
         }
-        if (($opts['json_object'] ?? false) === true) {
+        if (is_array($opts['json_schema'] ?? null)) {
+            // Structured outputs guarantee every required key, not just valid JSON.
+            $payload['response_format'] = ['type' => 'json_schema', 'json_schema' => $opts['json_schema']];
+        } elseif (($opts['json_object'] ?? false) === true) {
             $payload['response_format'] = ['type' => 'json_object'];
         }
 
-        $resp = Http::withHeaders($headers)->retry(2, 500)->timeout(60)->post(self::BASE.'/chat/completions', $payload);
+        $send = fn (array $body) => Http::withHeaders($headers)->retry(2, 500)->timeout(60)->post(self::BASE.'/chat/completions', $body);
+        try {
+            $resp = $send($payload);
+        } catch (RequestException $e) {
+            // Some models (for example a client's own older model) reject
+            // structured outputs; plain JSON mode keeps them working.
+            if ($e->response->status() !== 400 || ($payload['response_format']['type'] ?? null) !== 'json_schema') {
+                throw $e;
+            }
+            $payload['response_format'] = ['type' => 'json_object'];
+            $resp = $send($payload);
+        }
 
         if (! $resp->successful()) {
             throw new \RuntimeException('OpenAI chat failed: '.$resp->body());

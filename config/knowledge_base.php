@@ -5,8 +5,8 @@ return [
     // Platform-managed Smart Bot retrieval policy. These are deliberately not
     // tenant-editable; SmartBotRetrievalPolicy applies conservative bounds.
     'retrieval_match_threshold' => (float) env('KB_RETRIEVAL_MATCH_THRESHOLD', 0.60),
-    'max_context_chunks' => (int) env('KB_MAX_CONTEXT_CHUNKS', 3),
-    'max_context_tokens' => (int) env('KB_MAX_CONTEXT_TOKENS', 1200),
+    'max_context_chunks' => (int) env('KB_MAX_CONTEXT_CHUNKS', 5),
+    'max_context_tokens' => (int) env('KB_MAX_CONTEXT_TOKENS', 1600),
     'video_match_threshold' => (float) env('KB_VIDEO_MATCH_THRESHOLD', 0.72),
     'max_context_characters' => 6000,
     'semantic_cache_threshold' => 0.92,

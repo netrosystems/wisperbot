@@ -5,9 +5,18 @@ namespace App\Modules\AI\Services;
 use App\Modules\AI\Models\AiKbChunk;
 use App\Modules\AI\Models\AiKbEmbeddingCache;
 use App\Modules\AI\Models\AiKnowledgeBase;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 class KnowledgeRetrievalService
 {
+    private const ENGLISH_FUNCTION_WORDS = [
+        'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'am', 'do', 'does', 'did', 'how', 'what', 'where',
+        'when', 'why', 'which', 'who', 'can', 'could', 'would', 'should', 'will', 'shall', 'may', 'might', 'must', 'i',
+        'you', 'he', 'she', 'it', 'we', 'they', 'me', 'my', 'your', 'our', 'their', 'this', 'that', 'these', 'those',
+        'to', 'of', 'in', 'on', 'at', 'for', 'with', 'from', 'by', 'about', 'and', 'or', 'but', 'not', 'no', 'yes',
+        'please', 'have', 'has', 'had', 'there', 'here', 'if', 'so', 'any', 'some', 'get', 'need', 'want',
+    ];
+
     public function __construct(
         private readonly LlmGateway $llm,
         private readonly EmbeddingStore $embeddings,
@@ -16,7 +25,7 @@ class KnowledgeRetrievalService
 
     /**
      * @param  array<int,array{role?:string,content?:string,answer_origin?:string,response_mode?:string,quick_replies?:array<int,mixed>}>  $history
-     * @return array{context:string,candidates:array<int,array<string,mixed>>,best_score:float,semantic_score:float,lexical_score:float,passages_used:int,context_tokens:int,response_mode:string,retrieval_strategy:string,acceptance_reason:string,query_embedding:array<int,float|int>,research_query:string,repeated_clarification:bool}
+     * @return array{context:string,candidates:array<int,array<string,mixed>>,best_score:float,semantic_score:float,lexical_score:float,passages_used:int,passage_chunk_ids:array<int,int>,context_tokens:int,response_mode:string,retrieval_strategy:string,acceptance_reason:string,query_embedding:array<int,float|int>,research_query:string,repeated_clarification:bool}
      */
     public function retrieve(
         AiKnowledgeBase $knowledgeBase,
@@ -27,10 +36,14 @@ class KnowledgeRetrievalService
         ?int $revisionId,
         float $answerThreshold,
         int $maxTokens,
+        ?string $alternateQuery = null,
     ): array {
         $limit = max(1, min($limit, 10));
         $search = $this->searchQueries($message, $history, $knowledgeBase);
         $queries = $search['queries'];
+        if ($alternateQuery !== null && trim($alternateQuery) !== '') {
+            $queries = array_values(array_unique([...$queries, trim($alternateQuery)]));
+        }
         $queryEmbeddings = $this->queryEmbeddings($workspaceId, $queries);
         $primaryEmbedding = $queryEmbeddings[0] ?? [];
         $candidateMap = [];
@@ -48,9 +61,19 @@ class KnowledgeRetrievalService
         foreach ($this->embeddings->lexicalSearch((int) $knowledgeBase->id, $queryTerms, 24, $revisionId) as $result) {
             $chunk = $result['chunk'];
             $id = (int) $chunk->id;
-            $candidateMap[$id] ??= ['chunk' => $chunk, 'semantic_score' => 0.0, 'lexical_seed' => 0.0];
+            $candidateMap[$id] ??= ['chunk' => $chunk, 'semantic_score' => -1.0, 'lexical_seed' => 0.0];
             $candidateMap[$id]['lexical_seed'] = max($candidateMap[$id]['lexical_seed'], (float) $result['score']);
         }
+
+        // Keyword-only matches outside the vector window are scored on meaning
+        // from their stored embeddings, so wording alone cannot decide ranking.
+        foreach ($candidateMap as $id => $candidate) {
+            if ($candidate['semantic_score'] < 0) {
+                $scores = array_map(fn (array $embedding): float => $this->embeddings->similarity($candidate['chunk'], $embedding), $queryEmbeddings);
+                $candidateMap[$id]['semantic_score'] = $scores === [] ? 0.0 : max($scores);
+            }
+        }
+        (new EloquentCollection(array_column($candidateMap, 'chunk')))->loadMissing('document');
 
         $candidates = array_values(array_map(function (array $candidate) use ($queryTerms): array {
             /** @var AiKbChunk $chunk */
@@ -67,18 +90,22 @@ class KnowledgeRetrievalService
             $semantic = max(0.0, min(1.0, (float) $candidate['semantic_score']));
             $boost = min(0.18, ($lexical * 0.12) + ($fuzzy * 0.06));
 
+            $rank = min(1.0, $semantic + $boost);
+
             return $candidate + [
                 'score' => $semantic,
                 'semantic_score' => $semantic,
                 'lexical_score' => $lexical,
                 'fuzzy_score' => $fuzzy,
                 // Exact wording may improve ranking, but never reduces meaning.
-                'rank_score' => min(1.0, $semantic + $boost),
+                'rank_score' => $rank,
+                'order_score' => $rank + (float) ($chunk->document?->retrievalWeight() ?? 0.0),
             ];
         }, $candidateMap));
 
-        usort($candidates, fn (array $left, array $right): int => $right['rank_score'] <=> $left['rank_score']);
-        $best = $candidates[0] ?? null;
+        usort($candidates, fn (array $left, array $right): int => $right['order_score'] <=> $left['order_score']);
+        $candidates = $this->withoutDuplicatePassages($candidates);
+        $best = array_reduce($candidates, fn (?array $carry, array $candidate): array => $carry === null || $candidate['rank_score'] > $carry['rank_score'] ? $candidate : $carry);
         $answerThreshold = max(0.35, min(0.95, $answerThreshold));
         $clarifyThreshold = max(
             (float) config('knowledge_base.clarification_min_threshold', 0.38),
@@ -104,8 +131,15 @@ class KnowledgeRetrievalService
         $repeatedClarification = $this->hasRecentClarification($history);
         $mode = $strong !== [] ? 'answer' : ($medium !== [] && ! $repeatedClarification ? 'clarification' : 'fallback');
         $selected = $mode === 'answer' ? $strong : ($mode === 'clarification' ? $medium : []);
-        $selected = array_slice($selected, 0, $mode === 'clarification' ? min(2, $limit) : $limit);
+        $selectionLimit = $mode === 'clarification' ? min(2, $limit) : $limit;
+        $selected = $this->withAuthoritativeEvidence(
+            array_slice($selected, 0, $selectionLimit),
+            $medium,
+            $selectionLimit,
+            (float) ($best['rank_score'] ?? 0),
+        );
         $passages = [];
+        $passageChunkIds = [];
         $characters = 0;
         foreach ($selected as $candidate) {
             /** @var AiKbChunk $chunk */
@@ -115,12 +149,7 @@ class KnowledgeRetrievalService
             if ($focused === '') {
                 continue;
             }
-            $title = trim((string) $chunk->document?->title);
-            $source = trim((string) $chunk->document?->source_ref);
-            $label = $title !== '' ? 'Source: '.$title : 'Knowledge passage';
-            if (filter_var($source, FILTER_VALIDATE_URL)) {
-                $label .= ' ('.$source.')';
-            }
+            $label = $chunk->document?->passageLabel() ?? 'Knowledge passage';
             if ($chunk->section_label) {
                 $label .= ' — '.$chunk->section_label;
             }
@@ -129,6 +158,7 @@ class KnowledgeRetrievalService
                 break;
             }
             $passages[] = $passage;
+            $passageChunkIds[] = (int) $chunk->id;
             $characters += mb_strlen($passage);
         }
 
@@ -139,6 +169,7 @@ class KnowledgeRetrievalService
             'semantic_score' => (float) ($best['semantic_score'] ?? 0),
             'lexical_score' => (float) ($best['lexical_score'] ?? 0),
             'passages_used' => count($passages),
+            'passage_chunk_ids' => $passageChunkIds,
             'context_tokens' => (int) ceil($characters / 4),
             'response_mode' => $passages === [] ? 'fallback' : $mode,
             'retrieval_strategy' => $search['used_context'] ? 'hybrid_contextual' : 'hybrid_current_turn',
@@ -152,6 +183,141 @@ class KnowledgeRetrievalService
             'research_query' => $search['used_context'] ? (string) end($queries) : $message,
             'repeated_clarification' => $repeatedClarification,
         ];
+    }
+
+    /**
+     * An English search query for a message that is probably not English
+     * (another script, or romanized text such as "install kivabe korbo"), so a
+     * Knowledge Base can still be found across languages. The original message
+     * is always searched too, and the customer is answered in their language.
+     */
+    public function englishSearchQuery(int $workspaceId, string $message): ?string
+    {
+        $message = trim($message);
+        if (! $this->probablyNotEnglish($message)) {
+            return null;
+        }
+
+        try {
+            $response = $this->llm->chat($workspaceId, [
+                ['role' => 'system', 'content' => 'Translate the customer message into a short English search query for a business knowledge base. The message may be in any language, including languages written in Latin letters (for example romanized Bengali, Hindi, or Urdu, where "kivabe" means "how" and "korbo" means "I will do"). Translate the meaning of every word into English; do not copy non-English words. Keep product names, places, and numbers unchanged. Return only JSON: {"query":"..."}.'],
+                ['role' => 'user', 'content' => mb_substr($message, 0, 500)],
+            ], [
+                'max_tokens' => 60,
+                'temperature' => 0,
+                'json_object' => true,
+                'feature' => 'kb_search_translation',
+                // Same message, same translation: repeats replay without a new call.
+                'idempotency_key' => 'kb:search-translation:v2:'.$workspaceId.':'.hash('sha256', mb_strtolower($message)),
+            ]);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $query = json_decode($response->content, true)['query'] ?? null;
+        $query = is_string($query) ? trim(mb_substr($query, 0, 200)) : '';
+
+        return $query !== '' && mb_strtolower($query) !== mb_strtolower($message) ? $query : null;
+    }
+
+    private function probablyNotEnglish(string $message): bool
+    {
+        if ((bool) preg_match('/[^\p{Latin}\p{N}\p{P}\p{S}\p{Z}\p{M}\p{Cc}]/u', $message)) {
+            return true;
+        }
+        $words = $this->words($message);
+        if (count($words) < 2) {
+            return false;
+        }
+
+        // Ordinary English sentences contain function words; romanized text in
+        // another language rarely does.
+        return array_intersect($words, self::ENGLISH_FUNCTION_WORDS) === [];
+    }
+
+    /** @return array<int,string> */
+    private function words(string $message): array
+    {
+        preg_match_all('/\p{L}+/u', mb_strtolower($message), $matches);
+
+        return $matches[0];
+    }
+
+    /**
+     * The same passage uploaded twice, or a revised copy of it, must not occupy
+     * two evidence slots. Candidates arrive best first, so the copy from the
+     * stronger source (priority/authority) is the one kept.
+     *
+     * @param  array<int,array<string,mixed>>  $candidates  ordered best first
+     * @return array<int,array<string,mixed>>
+     */
+    private function withoutDuplicatePassages(array $candidates): array
+    {
+        $kept = [];
+
+        return array_values(array_filter($candidates, function (array $candidate) use (&$kept): bool {
+            $words = self::passageWords((string) $candidate['chunk']->content);
+            if ($words === [] || self::duplicatesAny($words, $kept)) {
+                return false;
+            }
+            $kept[] = $words;
+
+            return true;
+        }));
+    }
+
+    /** @return array<int,string> */
+    public static function passageWords(string $content): array
+    {
+        return array_values(array_unique(preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($content), -1, PREG_SPLIT_NO_EMPTY) ?: []));
+    }
+
+    /**
+     * Word-set overlap of 0.75 or more marks the same passage; on the Telzen
+     * Knowledge Base, copies overlapped 0.80–1.00 and distinct passages at most 0.44.
+     *
+     * @param  array<int,string>  $words
+     * @param  array<int,array<int,string>>  $kept
+     */
+    public static function duplicatesAny(array $words, array $kept): bool
+    {
+        foreach ($kept as $other) {
+            $union = count(array_unique([...$words, ...$other]));
+            if ($union > 0 && count(array_intersect($words, $other)) / $union >= 0.75) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * When relevant evidence exists from a source the client marked
+     * authoritative, keep one slot for it and present authoritative evidence
+     * first so it can settle conflicts with other sources.
+     *
+     * @param  array<int,array<string,mixed>>  $selected
+     * @param  array<int,array<string,mixed>>  $eligible  relevant candidates, best first
+     * @return array<int,array<string,mixed>>
+     */
+    private function withAuthoritativeEvidence(array $selected, array $eligible, int $limit, float $bestRank): array
+    {
+        $isAuthoritative = fn (array $candidate): bool => (bool) $candidate['chunk']->document?->authoritative;
+        if ($selected !== [] && array_filter($selected, $isAuthoritative) === []) {
+            foreach ($eligible as $candidate) {
+                if ($isAuthoritative($candidate) && $candidate['rank_score'] >= $bestRank - 0.12) {
+                    if (count($selected) >= $limit) {
+                        array_pop($selected);
+                    }
+                    $selected[] = $candidate;
+                    break;
+                }
+            }
+        }
+
+        usort($selected, fn (array $left, array $right): int => [$isAuthoritative($right), $right['order_score']] <=> [$isAuthoritative($left), $left['order_score']]);
+
+        return $selected;
     }
 
     /**
@@ -211,7 +377,7 @@ class KnowledgeRetrievalService
     private function hasExplicitIntent(string $message): bool
     {
         return (bool) preg_match(
-            '/(?:\b(?:how|where|when|which|why|can i|do i|want to|need to|help me|buy|purchase|order|choose|select|install|activate|recharge|refill|refund|pay|cancel|change|compare|troubleshoot|fix|kivabe|kibhabe|kinte)\b|কীভাবে|কিভাবে|কিনতে|কিনবো)/iu',
+            '/(?:\b(?:how|where|when|which|why|can i|do i|want to|need to|help me|buy|purchase|order|choose|select|install|activate|recharge|refill|refund|pay|cancel|change|compare|troubleshoot|fix|do you|does it|does your|can you|is there|are there|sell|offer|provide|available|deliver|kivabe|kibhabe|kinte|ache|pabo)\b|কীভাবে|কিভাবে|কিনতে|কিনবো|আছে|পাবো)/iu',
             trim($message),
         );
     }

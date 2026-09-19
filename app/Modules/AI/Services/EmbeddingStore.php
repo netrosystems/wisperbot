@@ -109,6 +109,16 @@ class EmbeddingStore
     }
 
     /**
+     * Similarity of a stored chunk embedding to a query embedding (0 when unavailable).
+     *
+     * @param  array<int,float|int>  $queryEmbedding
+     */
+    public function similarity(AiKbChunk $chunk, array $queryEmbedding): float
+    {
+        return $this->cosine($queryEmbedding, $this->unpackEmbedding((string) ($chunk->embedding ?? '')));
+    }
+
+    /**
      * Add lexical candidates to vector retrieval without crossing KB, revision,
      * source-publication, or active-index-generation boundaries.
      *

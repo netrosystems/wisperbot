@@ -6,6 +6,8 @@ Place up to three wrapping text choices immediately below an AI answer. Web choi
 
 ## Customer chat widget shell
 
+Starter questions (2026-09-19): when a Smart Bot has them on, up to five full-width, left-aligned outlined chips (12px radius, 13px text, 44px minimum on touch screens, `role="group"` labelled “Common questions”) stack directly under the welcome message, indented to the bubble column. They stay at the top of the conversation and remain tappable after later messages, but are disabled while sending, during pre-chat and while a person handles the chat. They look like reply pills but are not tied to one message.
+
 The approved website widget uses a compact white identity header with a small brand-colour avatar tile. Scheduled teammate photos appear before the plain-language `Team available now` label. When human help becomes eligible, the slim peach `Need a person? / Talk to an agent` row sits directly below the header and does not use an arrow. The conversation uses a soft-grey canvas, white assistant bubbles, brand-colour visitor bubbles, and recognisable outlined reply pills. Keep attachment and voice-record controls in the composer, use a very short peach Powered by strip, retain the elevated panel shadow and lightweight launch animation. After handoff, show the joined teammate's public name and photo; use initials when no teammate photo exists. Smart Bot messages continue to use the configured company mark.
 
 This document defines the mandatory UI/UX standards, component specifications, color tokens, layout archetypes, and accessibility patterns for **WisperBot**. All frontend components, page views, and design modifications must strictly adhere to these guidelines.
@@ -266,7 +268,7 @@ Brand Orange:    #FF762E   Accent Amber:   #FFBF00   Highlight:    #FFF78D   Cor
 
 # Knowledge video cards
 
-Conversation video resources use a responsive 16:9 dark media surface, a centered WisperBot Orange play control, a one-line title, and an always-visible “Open video” fallback. Third-party players are created only after user interaction. Cards must remain keyboard accessible and usable at a minimum 200px player viewport.
+Customer-facing chat (website widget; the Customer Chat SDK should match) presents a matched guide video as a “▶ See Tutorial →” chip below the reply text, styled like the reply-choice buttons, that opens the video's own page (YouTube/Vimeo watch page, or the MP4 file) in a new tab with `rel="noopener noreferrer"`. Its accessible name includes the video title and the provider (“opens YouTube in a new tab”). Nothing is embedded, so the customer's site needs no frame permissions (decision 2026-09-19, replacing the same day's in-chat player). Agent-facing Inbox surfaces keep the click-to-play card with a title and “Open video” link for staff review.
 
 ## Guided Knowledge Base workflow
 
@@ -301,5 +303,7 @@ The client header prioritizes operational controls and does not include global S
 ## Team identity and customer chat
 
 The client Team screen shows a circular teammate photo beside the name and offers one compact image picker in both Add member and Edit member. Accepted photos are JPG, PNG, or WebP up to 5 MB; initials are the accessible visual fallback when no photo exists. Upload, replace, and remove actions must remain explicit, preview the pending file, and preserve the rest of the member form.
+
+Widget chrome (2026-09-19): the header “•••” is a real menu button (`aria-haspopup="menu"`, `aria-expanded`) whose menu offers Mute sound / Turn sound on and Talk to an agent, with arrow-key navigation, Escape, and outside-click dismissal. It must never be a decorative, non-interactive glyph. While the panel is open the launcher is hidden and the panel's bottom aligns with where the launcher sat (desktop) or the safe-area bottom (mobile).
 
 The public widget header stacks only teammates whose workspace availability schedule is active at the current time. Once a teammate joins, that person's photo and name replace generic team presence in the joined state, and their outbound messages use their photo. Smart Bot messages continue to use the configured company/launcher mark. When a teammate has no photo, render their initials rather than the company logo so human and automated identities remain distinguishable.

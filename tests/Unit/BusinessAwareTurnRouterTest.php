@@ -14,12 +14,46 @@ class BusinessAwareTurnRouterTest extends TestCase
         $router = new BusinessAwareTurnRouter;
         $kb = new AiKnowledgeBase(['brand' => 'Acme']);
 
-        foreach (['Hello 👋', 'THANK YOU!', 'ঠিক আছে', 'مرحبا', 'Au revoir'] as $message) {
+        foreach (['Hello 👋', 'THANK YOU!', 'ঠিক আছে', 'مرحبا', 'Au revoir', 'kemon acho?', 'Assalamualaikum', 'dhonnobad', 'thik ache', 'Allah hafez'] as $message) {
             $result = $router->conversationalResult($message, $kb, 'friendly');
             $this->assertNotNull($result, $message);
             $this->assertSame('conversation', $result['answer_origin']);
             $this->assertSame(0, $result['tokens_used']);
             $this->assertSame([], $result['quick_replies']);
+        }
+    }
+
+    public function test_declining_the_assistants_offer_of_more_help_ends_the_chat_politely(): void
+    {
+        $router = new BusinessAwareTurnRouter;
+        $kb = new AiKnowledgeBase(['brand' => 'Acme']);
+        $offer = "Plans vary by country. Would you like assistance with anything else?\n\n1. Yes\n2. No";
+
+        foreach (['No', 'nope.', 'না'] as $message) {
+            $result = $router->offerReplyResult($message, $offer, $kb, 'friendly');
+            $this->assertSame('closing', $result['intent'] ?? null, $message);
+            $this->assertSame('conversation', $result['answer_origin']);
+            $this->assertSame(0, $result['tokens_used']);
+        }
+        $this->assertSame('Thanks for chatting with Acme! Have a great day.', $router->offerReplyResult('No', $offer, $kb, 'friendly')['reply']);
+        $this->assertSame('Sure! What else can I help you with?', $router->offerReplyResult('Yes', $offer, $kb, 'friendly')['reply']);
+        $this->assertSame('closing', $router->offerReplyResult('No', 'Select the package in the app. If you need further assistance, feel free to ask!', $kb)['intent'] ?? null);
+        $this->assertSame('closing', $router->offerReplyResult('No', 'Check the app under eSIM Plans. If you need help with the app, let me know!', $kb)['intent'] ?? null);
+        $this->assertSame('closing', $router->offerReplyResult('No', 'Select the package and pay. If you need help, I can guide you through the process!', $kb)['intent'] ?? null);
+        $this->assertNull($router->offerReplyResult('No', 'Let me know which country you are visiting.', $kb));
+    }
+
+    public function test_clear_closings_need_no_offer_but_bare_answers_to_other_questions_continue(): void
+    {
+        $router = new BusinessAwareTurnRouter;
+        $kb = new AiKnowledgeBase(['brand' => 'Acme']);
+
+        foreach (['No thanks', "That's all", "I'm good", 'lagbe na'] as $message) {
+            $this->assertSame('closing', $router->offerReplyResult($message, null, $kb)['intent'] ?? null, $message);
+        }
+        foreach (['No', 'Yes'] as $message) {
+            $this->assertNull($router->offerReplyResult($message, 'Do you have an eSIM supported phone?', $kb), $message);
+            $this->assertNull($router->offerReplyResult($message, null, $kb), $message);
         }
     }
 

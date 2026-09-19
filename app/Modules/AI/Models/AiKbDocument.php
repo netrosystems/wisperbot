@@ -79,4 +79,27 @@ class AiKbDocument extends Model
     {
         return $this->hasMany(AiKbProduct::class, 'document_id');
     }
+
+    /**
+     * Ordering bonus from the client's source settings. It decides which of
+     * several relevant passages leads, never whether a passage is relevant.
+     */
+    public function retrievalWeight(): float
+    {
+        $priority = max(0, min(100, (int) ($this->priority ?? 50)));
+
+        return ($this->authoritative ? 0.06 : 0.0) + (($priority - 50) / 50) * 0.04;
+    }
+
+    public function passageLabel(): string
+    {
+        $title = trim((string) $this->title);
+        $label = ($this->authoritative ? 'Authoritative source: ' : 'Source: ').($title !== '' ? $title : 'Knowledge passage');
+        $source = trim((string) $this->source_ref);
+        if (filter_var($source, FILTER_VALIDATE_URL)) {
+            $label .= ' ('.$source.')';
+        }
+
+        return $label;
+    }
 }
