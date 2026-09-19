@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Normalized outbound provider images for staff web/mobile sends: JPEG/PNG pass through, HEIC/HEIF/WebP/GIF convert to JPEG for WhatsApp, Messenger, Instagram and Telegram, WhatsApp media upload follows the conversation-bound phone number, and provider delivery errors are retained for diagnosis.
+
 - Expanded the staff conversation audit timeline with transfer, leave, assignment, unassignment, reopen, pending, and snoozed activity. No-op transitions remain deduplicated; widget/SDK customers continue to receive only joined/resolved activity, with takeover safely represented as the new agent joining.
 
 - Fixed website-widget conversation ordering when a missed realtime activity is recovered after a newer cached message; recovered rows now return to their canonical message-ID position instead of appearing at the end.

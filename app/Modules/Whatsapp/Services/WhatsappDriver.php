@@ -265,7 +265,18 @@ class WhatsappDriver implements ChannelDriverInterface
         }
 
         $phoneId = $value['metadata']['phone_number_id'] ?? '';
-        $fromPhone = $msg['from'] ?? '';
+        $fromPhone = ltrim(trim((string) ($msg['from'] ?? '')), '+');
+        if ($fromPhone === '') {
+            $fromPhone = ltrim(trim((string) ($value['contacts'][0]['wa_id'] ?? '')), '+');
+        }
+
+        if ($fromPhone === '') {
+            Log::warning('WhatsApp inbound dropped because sender phone is missing', [
+                'phone_number_id' => $phoneId,
+                'msg_id' => $msg['id'] ?? null,
+            ]);
+            throw new \RuntimeException('WhatsApp inbound message is missing the sender phone number.');
+        }
 
         $channelAccount = ChannelAccount::where('phone_number_id', $phoneId)
             ->where('channel', 'whatsapp')
@@ -534,7 +545,14 @@ class WhatsappDriver implements ChannelDriverInterface
         if ($message) {
             $current = $priority[$message->status] ?? 0;
             if ($newPriority >= $current) {
-                $message->update(['status' => $mapped]);
+                $patch = ['status' => $mapped];
+                if ($mapped === 'failed' && ! empty($status['errors'])) {
+                    $patch['error_json'] = [
+                        'provider' => 'whatsapp',
+                        'errors' => $status['errors'],
+                    ];
+                }
+                $message->update($patch);
                 $message->load('conversation');
                 MessageStatusUpdated::dispatch($message);
             }

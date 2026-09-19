@@ -234,6 +234,7 @@ class ConversationOwnershipService
             $locked->update([
                 'status' => 'resolved',
                 'resolved_at' => now(),
+                'unread_count' => 0,
                 'assigned_user_id' => null,
                 'joined_user_id' => null,
                 'joined_at' => null,
