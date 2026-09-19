@@ -8,6 +8,10 @@ Join and resolve activity uses a compact centered system label. In the website w
 
 Place up to three wrapping text choices immediately below an AI answer. Web choices use a compact 34px minimum height, 8px corners, soft neutral borders, a subtle fill, and 13px medium-weight labels; keep 6px between choices and 8px above the group. On devices with a coarse pointer, retain a 44px minimum touch target. Preserve visible focus, dark-mode contrast where supported, and a labelled group. Do not replace the text composer. Disable historic, already-answered, in-flight and human-handoff choices without making their labels illegible. Agent inbox choices are read-only labels, not agent CTAs. Avoid repeated numbered text when the structured buttons are rendered.
 
+## Confirmation dialog
+
+Destructive actions (delete, remove, disconnect, revoke, move to trash, delete all) confirm with the shared in-app dialog, never `window.confirm()`: browsers silently suppress repeated native prompts and a suppressed prompt returns false, so the button appears broken. Use `await confirmDialog({ message, confirmLabel })` from `@/Components/ConfirmDialog`; `ConfirmDialogHost` is mounted once in `app.jsx`. The dialog is a small centred card: warning icon, “Are you sure?” (or a custom `title`), the specific message, Cancel (focused first, so Enter never deletes) and a red action button labelled with the verb (Delete by default). Escape and the backdrop cancel. Pass `destructive: false` for a brand-coloured, non-destructive confirmation.
+
 ## Customer chat widget shell
 
 Starter questions (2026-09-19): when a Smart Bot has them on, up to five full-width, left-aligned outlined chips (12px radius, 13px text, 44px minimum on touch screens, `role="group"` labelled “Common questions”) stack directly under the welcome message, indented to the bubble column. They stay at the top of the conversation and remain tappable after later messages, but are disabled while sending, during pre-chat and while a person handles the chat. They look like reply pills but are not tied to one message.

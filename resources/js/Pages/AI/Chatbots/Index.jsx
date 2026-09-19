@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarkdownLite from '@/Components/MarkdownLite';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const TONE_OPTIONS = ['professional', 'friendly', 'formal', 'casual'];
 
 const TONE_COLORS = {
@@ -285,8 +286,8 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
         put(route('client.ai.chatbots.update', chatbot.uuid), { preserveScroll: true });
     };
 
-    const handleDelete = () => {
-        if (confirm(t('ai.delete_chatbot_confirm', { name: chatbot.name }))) {
+    const handleDelete = async () => {
+        if ((await confirmDialog({ message: t('ai.delete_chatbot_confirm', { name: chatbot.name }) }))) {
             router.delete(route('client.ai.chatbots.destroy', chatbot.uuid), { preserveScroll: true });
         }
     };

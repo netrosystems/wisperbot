@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { browserTz, formatInTz } from '@/Utils/datetime';
 import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const STATUS_COLORS = {
     draft:     'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300',
     queued:    'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -49,8 +50,8 @@ export default function CampaignsIndex({ campaigns, filters }) {
         router.post(route('client.campaigns.launch', id), {}, { preserveScroll: true });
     const handlePause = (id) =>
         router.post(route('client.campaigns.pause', id), {}, { preserveScroll: true });
-    const handleDelete = (id) => {
-        if (confirm(t('campaign.delete_confirm'))) {
+    const handleDelete = async (id) => {
+        if ((await confirmDialog({ message: t('campaign.delete_confirm') }))) {
             router.delete(route('client.campaigns.destroy', id), { preserveScroll: true });
         }
     };

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, X, Check } from 'lucide-react';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 export default function CannedRepliesIndex({ cannedReplies }) {
     const { t } = useTranslation();
     const { flash } = usePage().props;
@@ -47,8 +48,8 @@ export default function CannedRepliesIndex({ cannedReplies }) {
         });
     };
 
-    const destroy = (reply) => {
-        if (!confirm(t('inbox.canned_delete_confirm', { shortcut: reply.shortcut }))) return;
+    const destroy = async (reply) => {
+        if (!(await confirmDialog({ message: t('inbox.canned_delete_confirm', { shortcut: reply.shortcut }) }))) return;
         router.delete(route('client.inbox.canned-replies.destroy', reply.id), { preserveScroll: true });
     };
 

@@ -4,6 +4,7 @@ import { Share2, Plus, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SocialBrandIcon } from '@/Components/BrandIcons';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const NETWORKS = [
     { id: 'facebook',  label: 'Facebook',  descriptionKey: 'social.network_desc_facebook' },
     { id: 'instagram', label: 'Instagram', descriptionKey: 'social.network_desc_instagram' },
@@ -29,8 +30,8 @@ export default function SocialAccountsIndex({ accounts }) {
         return acc;
     }, {});
 
-    const disconnect = (account) => {
-        if (confirm(t('social.disconnect_confirm', { name: account.name }))) {
+    const disconnect = async (account) => {
+        if ((await confirmDialog({ message: t('social.disconnect_confirm', { name: account.name }), confirmLabel: t('common.disconnect') }))) {
             router.delete(route('client.social.accounts.disconnect', account.id), { preserveScroll: true });
         }
     };

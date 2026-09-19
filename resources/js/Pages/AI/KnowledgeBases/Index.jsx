@@ -5,6 +5,7 @@ import { Plus, BookOpen, FileText, Database, Pencil, Trash2, X, ShieldCheck, Ale
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
     const { t } = useTranslation();
     const { props } = usePage();
@@ -42,8 +43,8 @@ export default function AiKnowledgeBasesIndex({ knowledgeBases }) {
         });
     };
 
-    const handleDelete = (kb) => {
-        if (confirm(t('ai.delete_kb_confirm', { name: kb.name }))) {
+    const handleDelete = async (kb) => {
+        if ((await confirmDialog({ message: t('ai.delete_kb_confirm', { name: kb.name }) }))) {
             router.delete(route('client.ai.knowledge-bases.destroy', kb.uuid), {
                 preserveScroll: true,
             });

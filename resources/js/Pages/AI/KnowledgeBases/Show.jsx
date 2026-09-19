@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Pencil, RefreshCw, Trash, Trash2, Globe, FileText, Typ
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const SOURCE_TYPES = {
     url:     { icon: Globe,    labelKey: 'ai.source_url' },
     file:    { icon: Upload,   labelKey: 'ai.source_file' },
@@ -169,8 +170,8 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
         });
     };
 
-    const handleDelete = (docId) => {
-        if (confirm(t('ai.remove_document_confirm'))) {
+    const handleDelete = async (docId) => {
+        if ((await confirmDialog({ message: t('ai.remove_document_confirm'), confirmLabel: t('common.remove') }))) {
             router.delete(route('client.ai.documents.destroy', docId), { preserveScroll: true });
         }
     };
@@ -236,8 +237,8 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
         });
     };
 
-    const handleDeleteKnowledgeBase = () => {
-        if (confirm(t('ai.delete_kb_confirm', { name: kb.name }))) {
+    const handleDeleteKnowledgeBase = async () => {
+        if ((await confirmDialog({ message: t('ai.delete_kb_confirm', { name: kb.name }) }))) {
             router.delete(route('client.ai.knowledge-bases.destroy', kb.uuid));
         }
     };

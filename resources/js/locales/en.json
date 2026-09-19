@@ -83,7 +83,12 @@
         "error": "Error",
         "off": "Off",
         "paused": "Paused",
-        "pagination": "Pagination"
+        "pagination": "Pagination",
+        "confirm_title": "Are you sure?",
+        "disconnect": "Disconnect",
+        "revoke": "Revoke",
+        "delete_all": "Delete all",
+        "move_to_trash": "Move to trash"
     },
     "nav": {
         "home": "Home",

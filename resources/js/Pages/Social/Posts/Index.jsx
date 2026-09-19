@@ -8,6 +8,7 @@ import { Plus, Trash2, ExternalLink, Share2, Clock, CheckCircle2, XCircle, Penci
 import { browserTz, formatInTz } from '@/Utils/datetime';
 import AiPlannerModal from './AiPlannerModal';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const STATUS_META = {
     draft: {
         labelKey: 'social.status_draft',
@@ -431,7 +432,7 @@ export default function PostsIndex({ posts, accounts, filters }) {
     const handleFilter = (key, val) =>
         router.get(route('client.social.posts.index'), { ...filters, [key]: val || undefined }, { preserveState: true, replace: true });
 
-    const handleDelete = (post) => {
+    const handleDelete = async (post) => {
         const lifecycle = postLifecycle(post, accountMap);
         const targetNetworks = (post.target_accounts ?? [])
             .map((id) => accountMap[id]?.network)
@@ -440,15 +441,15 @@ export default function PostsIndex({ posts, accounts, filters }) {
         const message = lifecycle.has_remote_posts
             ? `Delete this post permanently from ${remoteNetwork || 'the connected social network'} and WisperBot? This cannot be undone.`
             : t('social.confirm_delete_post');
-        if (confirm(message)) {
+        if ((await confirmDialog({ message }))) {
             router.delete(route('client.social.posts.destroy', post.id), { preserveScroll: true });
         }
     };
 
-    const handleRemoveLocal = (post) => {
+    const handleRemoveLocal = async (post) => {
         const message =
             'Remove this post record from WisperBot? The post may still exist on Facebook or Instagram because the connected account is unavailable.';
-        if (confirm(message)) {
+        if ((await confirmDialog({ message, confirmLabel: t('common.remove') }))) {
             router.delete(route('client.social.posts.remove-local', post.id), { preserveScroll: true });
         }
     };

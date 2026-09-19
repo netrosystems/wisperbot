@@ -14,6 +14,7 @@ import AiPlannerModal from '../Posts/AiPlannerModal';
 import SocialWorkspaceTabs from '@/Components/Social/SocialWorkspaceTabs';
 import CommentPlatformAvailability from '@/Components/Social/CommentPlatformAvailability';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const NETWORKS = [
     { id: 'facebook', label: 'Facebook' },
     { id: 'instagram', label: 'Instagram' },
@@ -140,8 +141,8 @@ function ConnectedAccounts({ accounts, onConnect }) {
     const [expanded, setExpanded] = useState(null);
     const grouped = useMemo(() => Object.fromEntries(NETWORKS.map(network => [network.id, accounts.filter(account => account.network === network.id)])), [accounts]);
 
-    const disconnect = account => {
-        if (window.confirm(t('social.disconnect_confirm', { name: account.name }))) {
+    const disconnect = async account => {
+        if ((await confirmDialog({ message: t('social.disconnect_confirm', { name: account.name }), confirmLabel: t('common.disconnect') }))) {
             router.delete(route('client.social.accounts.disconnect', account.id), { preserveScroll: true });
         }
     };
@@ -235,14 +236,14 @@ function PostActions({ post, accountMap }) {
     const confirmPost = (message, url) => {
         if (window.confirm(message)) router.post(url, {}, { preserveScroll: true });
     };
-    const deletePost = () => {
+    const deletePost = async () => {
         const message = lifecycle.has_remote_posts
             ? t('social.confirm_delete_remote_post')
             : t('social.confirm_delete_post');
-        if (window.confirm(message)) router.delete(route('client.social.posts.destroy', post.id), { preserveScroll: true });
+        if ((await confirmDialog({ message }))) router.delete(route('client.social.posts.destroy', post.id), { preserveScroll: true });
     };
-    const removeLocal = () => {
-        if (window.confirm(t('social.confirm_remove_local'))) router.delete(route('client.social.posts.remove-local', post.id), { preserveScroll: true });
+    const removeLocal = async () => {
+        if ((await confirmDialog({ message: t('social.confirm_remove_local'), confirmLabel: t('common.remove') }))) router.delete(route('client.social.posts.remove-local', post.id), { preserveScroll: true });
     };
 
     return (
