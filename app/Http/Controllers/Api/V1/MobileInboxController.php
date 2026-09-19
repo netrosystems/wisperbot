@@ -175,7 +175,7 @@ class MobileInboxController extends WorkspaceScopedController
     public function contactSearch(Request $request): JsonResponse
     {
         $wsId = $this->workspaceId($request);
-        $q = $request->input('q', '');
+        $q = trim((string) ($request->input('q') ?: $request->input('query', '')));
 
         $contacts = Contact::where('workspace_id', $wsId)
             ->withCount([

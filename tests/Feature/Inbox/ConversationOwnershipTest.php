@@ -68,11 +68,13 @@ class ConversationOwnershipTest extends TestCase
             'direction' => 'in', 'channel' => 'webchat', 'type' => 'text', 'body' => 'Keep me',
             'status' => 'delivered', 'sent_by' => 'human', 'sent_at' => now(),
         ]);
+        $conversation->update(['unread_count' => 3]);
 
         $this->actingAs($admin)->post(route('client.inbox.status', $conversation), ['status' => 'resolved'])->assertRedirect();
 
         $conversation->refresh();
         $this->assertSame('resolved', $conversation->status);
+        $this->assertSame(0, $conversation->unread_count);
         $this->assertNull($conversation->assigned_user_id);
         $this->assertNull($conversation->joined_user_id);
         $this->assertNull($conversation->joined_at);

@@ -110,6 +110,8 @@ Laravel validation, PHP `upload_max_filesize`, PHP `post_max_size`, web-server/p
 
 HEIC/HEIF photos are accepted from staff uploads, the website widget, WhatsApp, Messenger, and Instagram, then converted to JPEG on the server before being cached for web/mobile display. Production must have at least one converter available to the PHP web runtime: PHP Imagick with HEIC/HEIF delegate support, ImageMagick `magick`/`convert`, `heif-convert`, or `ffmpeg`. Restart PHP-FPM/Apache after installing converter packages and verify using the web runtime, not only CLI.
 
+Outbound provider image uploads are content-sniffed independently of their filename. JPEG/PNG pass through; HEIC/HEIF, WebP and GIF are converted to JPEG for WhatsApp, Messenger, Instagram and Telegram staff sends. WhatsApp uses a temporary conversion and the conversation's phone number; URL-based providers retain a stored JPEG so the remote provider can fetch it after the request ends. Configure nonstandard binary locations with `IMAGEMAGICK_BINARY`, `IMAGEMAGICK_CONVERT_BINARY`, `HEIF_CONVERT_BINARY`, and `FFMPEG_BINARY`; then rebuild the Laravel config cache. Failed delivery status webhooks retain Meta's `errors` payload in `messages.error_json` for diagnosis.
+
 ## Health and verification
 
 - `/up` — Laravel health.

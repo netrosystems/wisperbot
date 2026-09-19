@@ -118,6 +118,43 @@ class WhatsappWebhookTest extends TestCase
     }
 
     #[Test]
+    public function it_uses_the_webhook_contact_id_when_message_from_is_missing(): void
+    {
+        $waba = $this->makeWaba();
+        $payload = [
+            'object' => 'whatsapp_business_account',
+            'entry' => [[
+                'id' => $waba->waba_id,
+                'changes' => [[
+                    'value' => [
+                        'messaging_product' => 'whatsapp',
+                        'metadata' => ['phone_number_id' => $this->phoneNumberId],
+                        'contacts' => [['profile' => ['name' => 'Alice'], 'wa_id' => '8801900000002']],
+                        'messages' => [[
+                            'id' => 'wamid.CONTACT_FALLBACK',
+                            'timestamp' => now()->timestamp,
+                            'image' => ['id' => 'media-1', 'mime_type' => 'image/jpeg'],
+                            'type' => 'image',
+                        ]],
+                    ],
+                    'field' => 'messages',
+                ]],
+            ]],
+        ];
+
+        $this->postJson("/webhooks/whatsapp/{$this->verifyToken}", $payload)->assertOk();
+
+        $this->assertDatabaseHas('contacts', [
+            'workspace_id' => $waba->workspace_id,
+            'phone_e164' => '+8801900000002',
+        ]);
+        $this->assertDatabaseMissing('contacts', [
+            'workspace_id' => $waba->workspace_id,
+            'phone_e164' => '+',
+        ]);
+    }
+
+    #[Test]
     public function genuine_inbound_reopens_the_existing_resolved_conversation(): void
     {
         $waba = $this->makeWaba();
