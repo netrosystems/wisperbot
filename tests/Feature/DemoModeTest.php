@@ -8,11 +8,13 @@ use App\Support\ApiAbilities;
 use App\Support\Demo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
+use Tests\Concerns\UsesDeveloperApi;
 use Tests\TestCase;
 
 class DemoModeTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UsesDeveloperApi;
 
     // ── Demo helper maskers (pure) ────────────────────────────────────────────
 
@@ -227,7 +229,7 @@ class DemoModeTest extends TestCase
     private function postRequestNamed(string $name): Request
     {
         $request = Request::create('/x', 'POST');
-        $route = (new \Illuminate\Routing\Route(['POST'], '/x', []))->name($name);
+        $route = (new Route(['POST'], '/x', []))->name($name);
         $request->setRouteResolver(fn () => $route);
 
         return $request;

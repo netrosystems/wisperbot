@@ -13,10 +13,11 @@ class WebhookEndpointTest extends TestCase
 
     private function clientUser(): User
     {
-        return User::factory()->create([
-            'role'              => 'client',
-            'email_verified_at' => now(),
-        ]);
+        // The Developer API (tokens, webhooks) requires the Developer Tools add-on.
+        ['user' => $user, 'client' => $client] = $this->createWorkspaceContext();
+        $this->enableDeveloperTools($client->id, $user->id);
+
+        return $user;
     }
 
     public function test_user_can_list_webhook_endpoints(): void
@@ -35,21 +36,21 @@ class WebhookEndpointTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('client.webhooks.store'), [
-                'url'     => 'https://example.com/webhook',
-                'events'  => ['subscription.created'],
+                'url' => 'https://example.com/webhook',
+                'events' => ['subscription.created'],
                 'enabled' => true,
             ])
             ->assertRedirect();
 
         $this->assertDatabaseHas('webhook_endpoints', [
             'user_id' => $user->id,
-            'url'     => 'https://example.com/webhook',
+            'url' => 'https://example.com/webhook',
         ]);
     }
 
     public function test_user_can_delete_own_endpoint(): void
     {
-        $user     = $this->clientUser();
+        $user = $this->clientUser();
         $endpoint = WebhookEndpoint::factory()->create(['user_id' => $user->id]);
 
         $this->actingAs($user)
@@ -61,9 +62,9 @@ class WebhookEndpointTest extends TestCase
 
     public function test_user_cannot_delete_other_users_endpoint(): void
     {
-        $user      = $this->clientUser();
+        $user = $this->clientUser();
         $otherUser = $this->clientUser();
-        $endpoint  = WebhookEndpoint::factory()->create(['user_id' => $otherUser->id]);
+        $endpoint = WebhookEndpoint::factory()->create(['user_id' => $otherUser->id]);
 
         $this->actingAs($user)
             ->delete(route('client.webhooks.destroy', $endpoint))
@@ -72,7 +73,7 @@ class WebhookEndpointTest extends TestCase
 
     public function test_user_can_rotate_endpoint_secret(): void
     {
-        $user     = $this->clientUser();
+        $user = $this->clientUser();
         $endpoint = WebhookEndpoint::factory()->create(['user_id' => $user->id]);
         $oldSecret = $endpoint->secret;
 

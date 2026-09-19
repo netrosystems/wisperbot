@@ -5,11 +5,12 @@ namespace Tests\Feature\Api\V1;
 use App\Modules\Shared\Models\Contact;
 use App\Support\ApiAbilities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\UsesDeveloperApi;
 use Tests\TestCase;
 
 class ContactApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UsesDeveloperApi;
 
     // ── Auth & scope guards ───────────────────────────────────────────────────
 

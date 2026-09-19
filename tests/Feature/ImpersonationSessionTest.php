@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Admin\ClientController;
 use App\Models\AdminUser;
 use App\Models\Client;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -60,12 +63,12 @@ class ImpersonationSessionTest extends TestCase
             ['key' => Role::KEY_SUPER_ADMIN],
             ['name' => 'Super Admin', 'description' => 'All permissions'],
         );
-        $allPermissionIds = \App\Models\Permission::pluck('id')->all();
+        $allPermissionIds = Permission::pluck('id')->all();
         if ($allPermissionIds === []) {
             // No permissions seeded — the seeder may not have run in this
             // test DB. Create the one we need so hasPermissionTo() returns
             // true.
-            $p = \App\Models\Permission::firstOrCreate(
+            $p = Permission::firstOrCreate(
                 ['key' => 'view_clients'],
                 ['name' => 'View Clients', 'category' => 'Clients'],
             );
@@ -92,6 +95,7 @@ class ImpersonationSessionTest extends TestCase
             'status' => User::STATUS_ACTIVE,
             'email_verified_at' => now(),
         ]);
+
         return [$client, $user];
     }
 
@@ -175,14 +179,14 @@ class ImpersonationSessionTest extends TestCase
         // without following the redirect chain (the post-redirect client
         // dashboard is licensed and would bounce to /license, hiding the
         // session rotation we want to verify).
-        $request = \Illuminate\Http\Request::create(
+        $request = Request::create(
             route('admin.clients.impersonate', $client),
             'POST'
         );
         $request->setLaravelSession(session()->driver());
         $request->setUserResolver(fn ($guard = null) => $guard === 'admin' ? $admin : ($guard ? Auth::guard($guard)->user() : null));
 
-        $controller = app(\App\Http\Controllers\Admin\ClientController::class);
+        $controller = app(ClientController::class);
         $response = $controller->impersonate($request, $client);
 
         // The response must be a 3xx and must NOT be the
@@ -237,10 +241,7 @@ class ImpersonationSessionTest extends TestCase
         // `redirect()->back()->with(...)` uses the previous URL which is
         // empty in tests — the assertion below covers the same intent: the
         // session error must be present and impersonation must not start.
-        $this->assertNotSame(
-            'http://127.0.0.1:8000',
-            $response->headers->get('Location'),
-        );
+        $response->assertSessionHas('error');
 
         $this->assertNull(session('impersonating'));
         $this->assertFalse(Auth::guard('web')->check());
@@ -272,14 +273,14 @@ class ImpersonationSessionTest extends TestCase
         // route handler directly to simulate the controller running while
         // the impersonation is already in progress (e.g. via the queue or
         // a second tab using a stale cookie).
-        $request = \Illuminate\Http\Request::create(
+        $request = Request::create(
             route('admin.clients.impersonate', $otherClient),
             'POST'
         );
         $request->setLaravelSession(session()->driver());
         $request->setUserResolver(fn ($guard = null) => $guard === 'admin' ? $admin : ($guard ? Auth::guard($guard)->user() : null));
 
-        $controller = app(\App\Http\Controllers\Admin\ClientController::class);
+        $controller = app(ClientController::class);
         $response = $controller->impersonate($request, $otherClient);
 
         $this->assertSame(302, $response->getStatusCode());

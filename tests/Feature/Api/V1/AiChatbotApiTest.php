@@ -5,7 +5,6 @@ namespace Tests\Feature\Api\V1;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Models\AiProviderConfig;
-use App\Services\AddonEntitlementService;
 use App\Support\ApiAbilities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -133,16 +132,5 @@ class AiChatbotApiTest extends TestCase
             ->assertJsonPath('source_ref', 'https://example.com')
             ->assertJsonPath('original_source_ref', 'example.com')
             ->assertJsonPath('canonical_url', null);
-    }
-
-    private function enableDeveloperTools(int $clientId, int $userId): void
-    {
-        app(AddonEntitlementService::class)->activate(
-            $clientId,
-            AddonEntitlementService::DEVELOPER_TOOLS,
-            $userId,
-            'manual',
-            'test-developer-tools-'.$clientId,
-        );
     }
 }
