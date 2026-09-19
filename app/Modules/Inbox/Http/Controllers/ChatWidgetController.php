@@ -109,7 +109,7 @@ class ChatWidgetController extends Controller
             'workspace_id' => $workspaceId,
             'channel' => 'webchat',
             'status' => 'active',
-            'display_name' => $data['name'] ?: 'Website chat',
+            'display_name' => ($data['name'] ?? null) ?: 'Website chat',
             'meta_json' => $this->metaFor($data),
         ]);
 
@@ -130,7 +130,7 @@ class ChatWidgetController extends Controller
         $chatWidget->update($data);
 
         $chatWidget->channelAccount?->update([
-            'display_name' => $data['name'] ?: 'Website chat',
+            'display_name' => ($data['name'] ?? null) ?: 'Website chat',
             'meta_json' => $this->metaFor($data),
         ]);
 
@@ -179,6 +179,12 @@ class ChatWidgetController extends Controller
             'allowed_domains' => ['nullable', 'array'],
             'working_hours_json' => ['nullable', 'array'],
         ]);
+
+        // Multipart form data drops empty arrays entirely, and both widget
+        // forms always submit the whole form, so a missing list means the
+        // client cleared it (e.g. removed every allowed domain).
+        $data['allowed_domains'] = array_values($data['allowed_domains'] ?? []);
+        $data['prechat_fields'] = array_values($data['prechat_fields'] ?? []);
 
         // Coerce booleans explicitly (Inertia may omit unchecked toggles).
         $data['ai_enabled'] = $request->boolean('ai_enabled');

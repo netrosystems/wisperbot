@@ -56,7 +56,8 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
     const userTimezone = usePage().props.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     const initialAiSchedule = normalizeAiSchedule(widget?.ai_schedule_json, userTimezone);
 
-    const { data, setData, processing, errors } = useForm({
+    const pageErrors = usePage().props.errors ?? {};
+    const { data, setData, errors: formErrors } = useForm({
         name: widget?.name ?? '',
         title: widget?.title ?? 'Chat with us',
         subtitle: widget?.subtitle ?? 'We typically reply in a few minutes',
@@ -82,6 +83,10 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
         identity_verification: widget?.identity_verification ?? false,
     });
 
+    // The parent pages submit with router.post, so validation errors arrive as
+    // page props rather than on this useForm instance.
+    const errors = { ...formErrors, ...pageErrors };
+    const [processing, setProcessing] = useState(false);
     const [domainsText, setDomainsText] = useState((widget?.allowed_domains ?? []).join('\n'));
     const [launcherLogoPreview, setLauncherLogoPreview] = useState(widget?.launcher_logo_url ?? null);
     const aiScheduleError = Object.entries(errors).find(([key]) => key.startsWith('ai_schedule_json'))?.[1];
@@ -99,7 +104,7 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
             ai_chatbot_id: data.ai_enabled && data.ai_chatbot_id ? data.ai_chatbot_id : null,
             allowed_domains: domainsText.split(/[\n,]/).map((d) => d.trim()).filter(Boolean),
         };
-        onSubmit(payload);
+        onSubmit(payload, { onStart: () => setProcessing(true), onFinish: () => setProcessing(false) });
     };
 
     return (
@@ -288,10 +293,12 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                     disabled={processing}
                     className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 transition"
                 >
-                    {submitLabel}
+                    {processing ? 'Saving…' : submitLabel}
                 </button>
                 {Object.keys(errors).length > 0 && (
-                    <p className="text-xs text-red-500">Please review the highlighted fields.</p>
+                    <p role="alert" className="text-xs text-red-500">
+                        Not saved: {Object.values(errors)[0]}
+                    </p>
                 )}
             </div>
         </form>
