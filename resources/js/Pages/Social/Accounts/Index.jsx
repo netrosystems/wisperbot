@@ -117,6 +117,11 @@ export default function SocialAccountsIndex({ accounts }) {
                                                     <div className="min-w-0 flex-1">
                                                         <p className="text-xs font-medium text-neutral-800 dark:text-neutral-200 truncate">
                                                             {acct.name}
+                                                            {acct.meta?.actor_type === 'organization' && (
+                                                                <span className="ml-1.5 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+                                                                    {t('social.linkedin_page')}
+                                                                </span>
+                                                            )}
                                                         </p>
                                                         {expired ? (
                                                             <p className="text-xs text-amber-500">{t('social.token_expired')}</p>
