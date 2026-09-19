@@ -5,6 +5,7 @@ This is a documentation-level changelog for user-visible and operationally signi
 ## Unreleased
 
 - Normalized outbound provider images for staff web/mobile sends: JPEG/PNG pass through, HEIC/HEIF/WebP/GIF convert to JPEG for WhatsApp, Messenger, Instagram and Telegram, WhatsApp media upload follows the conversation-bound phone number, and provider delivery errors are retained for diagnosis.
+- Upgraded the public blog and editorial CMS with structural HTML repair, safe deterministic heading anchors, a visible table of contents, reading progress, meaningful freshness labels, Breadcrumb/FAQ structured data, responsive comparison tables, HTML-source editing, table and divider tools, and live content-quality signals. Legacy malformed articles are repaired on read without destructive database rewrites and persist normalized markup on their next save.
 
 - Expanded the staff conversation audit timeline with transfer, leave, assignment, unassignment, reopen, pending, and snoozed activity. No-op transitions remain deduplicated; widget/SDK customers continue to receive only joined/resolved activity, with takeover safely represented as the new agent joining.
 
