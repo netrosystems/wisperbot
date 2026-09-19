@@ -15,6 +15,10 @@ use Illuminate\Support\Str;
 
 class Conversation extends Model
 {
+    public const STARTED_FROM_WEB_WIDGET = 'web_widget';
+
+    public const STARTED_FROM_CUSTOMER_SDK = 'customer_sdk';
+
     protected static function boot(): void
     {
         parent::boot();
@@ -32,7 +36,7 @@ class Conversation extends Model
 
     protected $fillable = [
         'workspace_id', 'channel_account_id', 'contact_id', 'external_thread_id',
-        'status', 'assigned_user_id', 'joined_user_id', 'joined_at', 'assigned_to', 'ai_paused_at', 'ai_pause_reason', 'handover_at',
+        'started_from', 'status', 'assigned_user_id', 'joined_user_id', 'joined_at', 'assigned_to', 'ai_paused_at', 'ai_pause_reason', 'handover_at',
         'last_message_at', 'webchat_last_seen_at', 'unread_count',
         'first_response_at', 'resolved_at', 'last_inbound_at',
         'unanswered_reminder_sent_at',
@@ -72,10 +76,20 @@ class Conversation extends Model
         return $this->hasMany(Message::class);
     }
 
+    /** @return HasMany<Message, $this> */
+    public function contentMessages(): HasMany
+    {
+        return $this->hasMany(Message::class)->whereIn('direction', ['in', 'out']);
+    }
+
     /** @return HasOne<Message, $this> */
     public function lastMessage(): HasOne
     {
-        return $this->hasOne(Message::class)->latestOfMany('sent_at');
+        return $this->hasOne(Message::class)
+            ->ofMany(
+                ['sent_at' => 'max', 'id' => 'max'],
+                fn ($query) => $query->whereIn('direction', ['in', 'out']),
+            );
     }
 
     /** @return HasOne<Message, $this> */

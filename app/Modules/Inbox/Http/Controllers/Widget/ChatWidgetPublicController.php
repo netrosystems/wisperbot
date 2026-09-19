@@ -60,14 +60,15 @@ class ChatWidgetPublicController extends Controller
             'page_title' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $widget = $this->resolveWidget($data['key']);
-        $this->assertDomainAllowed($widget, $request);
+        $access = $this->resolveWidgetAccess($data['key']);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
 
         $identity = $this->resolveIdentity($widget, $data);
         // IP is derived by the server and can never be spoofed through the
         // public widget payload.
         $identity['ip_address'] = $request->ip();
-        $resume = $this->verifiedResumePayload($request, $widget, (string) ($data['visitor_id'] ?? ''));
+        $resume = $this->verifiedResumePayload($request, $widget, $access['key'], $access['surface'] === 'sdk', (string) ($data['visitor_id'] ?? ''));
 
         if ($resume) {
             $visitorId = (string) $resume['v'];
@@ -89,7 +90,14 @@ class ChatWidgetPublicController extends Controller
             // the old "Customer N" identity forever.
             $conversation = $this->driver->syncConversationIdentity($conversation, $visitorId, $identity);
         } else {
-            $conversation = $this->driver->resolveConversation($widget, $visitorId, $identity);
+            $conversation = $this->driver->resolveConversation(
+                $widget,
+                $visitorId,
+                $identity,
+                $access['surface'] === 'sdk'
+                    ? Conversation::STARTED_FROM_CUSTOMER_SDK
+                    : Conversation::STARTED_FROM_WEB_WIDGET,
+            );
         }
         if ((bool) ($data['active'] ?? false)) {
             $this->presence->touch(
@@ -100,13 +108,13 @@ class ChatWidgetPublicController extends Controller
             );
         }
         $this->visitorPush->register($widget, $conversation, $visitorId, $data['push']['token'] ?? null);
-        $token = WebchatVisitorToken::issue($conversation->id, $widget->widget_key, $visitorId);
+        $token = WebchatVisitorToken::issue($conversation->id, $access['key'], $visitorId);
 
         return response()->json([
             'visitor_id' => $visitorId,
             'conversation_id' => $conversation->id,
             'token' => $token,
-            'config' => $widget->publicConfig(),
+            'config' => $widget->publicConfig($access['key']),
             'online' => $this->isOnline($widget, $conversation),
             'messages' => $this->payloads->messages($conversation->id, $widget, 0),
             'handoff' => $this->payloads->handoff($widget, $conversation),
@@ -129,9 +137,10 @@ class ChatWidgetPublicController extends Controller
             'page_title' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $widget = $this->resolveWidget($data['key']);
-        $this->assertDomainAllowed($widget, $request);
-        $payload = $this->authVisitor($request, $widget);
+        $access = $this->resolveWidgetAccess($data['key']);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
+        $payload = $this->authVisitor($request, $widget, $access['key'], $access['surface'] === 'sdk');
 
         // Append to the exact conversation the session token is bound to (never
         // re-resolve by device id — see WebchatDriver::recordInboundMessage).
@@ -204,9 +213,10 @@ class ChatWidgetPublicController extends Controller
             'open' => ['nullable', 'boolean'],
         ]);
 
-        $widget = $this->resolveWidget($data['key']);
-        $this->assertDomainAllowed($widget, $request);
-        $payload = $this->authVisitor($request, $widget);
+        $access = $this->resolveWidgetAccess($data['key']);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
+        $payload = $this->authVisitor($request, $widget, $access['key'], $access['surface'] === 'sdk');
 
         $conversation = Conversation::where('id', (int) $payload['c'])
             ->where('workspace_id', $widget->workspace_id)
@@ -240,9 +250,10 @@ class ChatWidgetPublicController extends Controller
             'key' => ['required', 'string'],
         ]);
 
-        $widget = $this->resolveWidget($data['key']);
-        $this->assertDomainAllowed($widget, $request);
-        $payload = $this->authVisitor($request, $widget);
+        $access = $this->resolveWidgetAccess($data['key']);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
+        $payload = $this->authVisitor($request, $widget, $access['key'], $access['surface'] === 'sdk');
 
         if (! empty($payload['c'])) {
             $conversation = Conversation::whereKey((int) $payload['c'])
@@ -290,9 +301,10 @@ class ChatWidgetPublicController extends Controller
             'is_typing' => ['required', 'boolean'],
         ]);
 
-        $widget = $this->resolveWidget($data['key']);
-        $this->assertDomainAllowed($widget, $request);
-        $payload = $this->authVisitor($request, $widget);
+        $access = $this->resolveWidgetAccess($data['key']);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
+        $payload = $this->authVisitor($request, $widget, $access['key'], $access['surface'] === 'sdk');
 
         $conversation = Conversation::where('id', (int) $payload['c'])
             ->where('workspace_id', $widget->workspace_id)
@@ -314,9 +326,10 @@ class ChatWidgetPublicController extends Controller
             'channel_name' => ['required', 'string', 'max:255'],
         ]);
 
-        $widget = $this->resolveWidget($data['key']);
-        $this->assertDomainAllowed($widget, $request);
-        $payload = $this->authVisitor($request, $widget);
+        $access = $this->resolveWidgetAccess($data['key']);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
+        $payload = $this->authVisitor($request, $widget, $access['key'], $access['surface'] === 'sdk');
 
         $conversationId = (int) $payload['c'];
         $channelName = (string) $data['channel_name'];
@@ -345,8 +358,9 @@ class ChatWidgetPublicController extends Controller
     public function pusherConfig(Request $request): JsonResponse
     {
         $widgetKey = (string) $request->query('key', '');
-        $widget = $this->resolveWidget($widgetKey);
-        $this->assertDomainAllowed($widget, $request);
+        $access = $this->resolveWidgetAccess($widgetKey);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
 
         $cfg = app(PusherPublicConfig::class)->widget();
 
@@ -365,9 +379,10 @@ class ChatWidgetPublicController extends Controller
             'message_id' => ['nullable', 'integer'],
         ]);
 
-        $widget = $this->resolveWidget($data['key']);
-        $this->assertDomainAllowed($widget, $request);
-        $payload = $this->authVisitor($request, $widget);
+        $access = $this->resolveWidgetAccess($data['key']);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
+        $payload = $this->authVisitor($request, $widget, $access['key'], $access['surface'] === 'sdk');
 
         if (! empty($payload['c'])) {
             $conversation = Conversation::whereKey((int) $payload['c'])
@@ -387,9 +402,10 @@ class ChatWidgetPublicController extends Controller
     public function handoff(Request $request): JsonResponse
     {
         $data = $request->validate(['key' => ['required', 'string']]);
-        $widget = $this->resolveWidget($data['key']);
-        $this->assertDomainAllowed($widget, $request);
-        $payload = $this->authVisitor($request, $widget);
+        $access = $this->resolveWidgetAccess($data['key']);
+        $widget = $access['widget'];
+        $this->assertDomainAllowed($widget, $request, $access['surface']);
+        $payload = $this->authVisitor($request, $widget, $access['key'], $access['surface'] === 'sdk');
 
         $conversation = Conversation::where('id', (int) $payload['c'])
             ->where('workspace_id', $widget->workspace_id)
@@ -408,9 +424,26 @@ class ChatWidgetPublicController extends Controller
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private function resolveWidget(string $key): ChatWidget
+    /**
+     * @return array{widget:ChatWidget,surface:'web'|'sdk',key:string}
+     */
+    private function resolveWidgetAccess(string $key): array
     {
-        return ChatWidget::where('widget_key', $key)->where('enabled', true)->firstOrFail();
+        $widget = ChatWidget::where('widget_key', $key)->first();
+        if ($widget) {
+            abort_unless($widget->enabled, 404);
+
+            return ['widget' => $widget, 'surface' => 'web', 'key' => (string) $widget->widget_key];
+        }
+
+        $widget = ChatWidget::where('sdk_widget_key', $key)->first();
+        if ($widget) {
+            abort_unless($widget->sdk_enabled, 404);
+
+            return ['widget' => $widget, 'surface' => 'sdk', 'key' => (string) $widget->sdk_widget_key];
+        }
+
+        abort(404);
     }
 
     /**
@@ -467,10 +500,10 @@ class ChatWidgetPublicController extends Controller
      *
      * @return array{c:int,w:string,v:string,e:int}|null
      */
-    private function verifiedResumePayload(Request $request, ChatWidget $widget, string $visitorId): ?array
+    private function verifiedResumePayload(Request $request, ChatWidget $widget, string $accessKey, bool $allowLegacyWidgetToken, string $visitorId): ?array
     {
         $token = $request->headers->get('X-Widget-Token') ?: (string) $request->input('token');
-        $payload = $token ? WebchatVisitorToken::verify($token, $widget->widget_key) : null;
+        $payload = $token ? $this->verifyVisitorToken($token, $widget, $accessKey, $allowLegacyWidgetToken) : null;
 
         if (! $payload || $visitorId === '' || ! hash_equals((string) $payload['v'], $visitorId)) {
             return null;
@@ -480,8 +513,12 @@ class ChatWidgetPublicController extends Controller
     }
 
     /** Reject requests whose Origin/Referer host isn't in the widget whitelist. */
-    private function assertDomainAllowed(ChatWidget $widget, Request $request): void
+    private function assertDomainAllowed(ChatWidget $widget, Request $request, string $surface): void
     {
+        if ($surface === 'sdk') {
+            return;
+        }
+
         $allowed = $widget->allowed_domains ?? [];
         if (empty($allowed)) {
             return; // no whitelist configured → allow any site
@@ -507,14 +544,31 @@ class ChatWidgetPublicController extends Controller
      *
      * @return array{c:int,w:string,v:string,e:int}
      */
-    private function authVisitor(Request $request, ChatWidget $widget): array
+    private function authVisitor(Request $request, ChatWidget $widget, string $accessKey, bool $allowLegacyWidgetToken): array
     {
         $token = $request->headers->get('X-Widget-Token') ?: (string) $request->input('token');
-        $payload = $token ? WebchatVisitorToken::verify($token, $widget->widget_key) : null;
+        $payload = $token ? $this->verifyVisitorToken($token, $widget, $accessKey, $allowLegacyWidgetToken) : null;
 
         abort_if($payload === null, 401, 'Invalid or expired session.');
 
         return $payload;
+    }
+
+    /**
+     * Accept a legacy website-key token only when the caller is already using
+     * this widget's SDK key, so app sessions survive the web-key-to-SDK-key
+     * migration without making website requests trust SDK-issued tokens.
+     *
+     * @return array{c:int,w:string,v:string,e:int}|null
+     */
+    private function verifyVisitorToken(string $token, ChatWidget $widget, string $accessKey, bool $allowLegacyWidgetToken): ?array
+    {
+        $payload = WebchatVisitorToken::verify($token, $accessKey);
+        if ($payload || ! $allowLegacyWidgetToken) {
+            return $payload;
+        }
+
+        return WebchatVisitorToken::verify($token, (string) $widget->widget_key);
     }
 
     /** Keep same-host local-disk URLs safe for an HTTPS public widget. */

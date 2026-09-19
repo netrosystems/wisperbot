@@ -7,6 +7,7 @@ use App\Events\AutomationWebhookReceived;
 use App\Events\CampaignCompleted;
 use App\Events\CommerceEventReceived;
 use App\Events\ContactCreated;
+use App\Events\ConversationActivityCreated;
 use App\Events\ConversationAssigned;
 use App\Events\MessageReceived;
 use App\Events\MessageSent;
@@ -94,6 +95,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(MessageReceived::class, [AutomationTriggerListener::class, 'handleMessageReceived']);
         Event::listen(MessageReceived::class, [AutoReplyListener::class, 'handle']);
         Event::listen(MessageSent::class, [BroadcastWidgetRealtimeUpdate::class, 'handleMessageSent']);
+        Event::listen(ConversationActivityCreated::class, [BroadcastWidgetRealtimeUpdate::class, 'handleConversationActivityCreated']);
         Event::listen(ConversationAssigned::class, [BroadcastWidgetRealtimeUpdate::class, 'handleConversationAssigned']);
         Event::listen(TypingChanged::class, [BroadcastWidgetRealtimeUpdate::class, 'handleTypingChanged']);
         Event::listen(ContactCreated::class, [AutomationTriggerListener::class, 'handleContactCreated']);

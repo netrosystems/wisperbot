@@ -172,7 +172,7 @@ class TeamController extends Controller
         }
 
         if ($member->status === User::STATUS_INACTIVE) {
-            app(ConversationOwnershipService::class)->releaseUser((int) $member->id);
+            app(ConversationOwnershipService::class)->releaseUser((int) $member->id, actor: $request->user());
         }
 
         return redirect()->route('client.team.index')->with('success', __('Team member updated.'));
@@ -199,7 +199,7 @@ class TeamController extends Controller
             return redirect()->route('client.team.index')->with('error', __('You cannot remove yourself.'));
         }
 
-        app(ConversationOwnershipService::class)->releaseUser((int) $member->id);
+        app(ConversationOwnershipService::class)->releaseUser((int) $member->id, actor: $request->user());
         $avatar = $member->avatar;
         $member->delete();
         $this->deleteAvatar($avatar);

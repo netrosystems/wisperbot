@@ -61,6 +61,8 @@ The existing generation returns JSON with `reply` and optional `quick_replies` w
 
 ## Flutter integration
 
+Customer SDK builds must use the Mobile SDK key (`sdk_widget_key`) from Widget Integrations, not the website embed key. The server keeps existing web-key SDK builds compatible until apps update, but those old builds remain governed by `Widget enabled`; `SDK enabled` applies after the app/package switches to the SDK key. Existing local visitor tokens issued under the old web key are accepted only for the same widget during that migration and are refreshed to an SDK-key token on the next session response. New conversations created with the SDK key are marked `started_from=customer_sdk` for agent display; no extra SDK header is required.
+
 The app team must decode optional `display_body` and `quick_replies` on session, polling and realtime message paths; render generic labels; and send the selected label through the existing text-send flow with pending/stale/handoff guards. The earlier uncommitted prototype used `WisperBotMessage.quickReplies`, `displayBody`, `WisperBotQuickReply`, `controller.canSelectQuickReply(message)` and `controller.selectQuickReply(message, choice)` as suggested names, not a confirmed released API. Custom message renderers need the same handling. Old SDKs retain numbered body text. Existing installed apps do **not** gain native buttons from a backend deployment: the app team releases the SDK, updates dependencies, rebuilds and distributes host apps. Flutter web builds also require rebuilding/redeployment.
 
 ## Verification and diagnosis
@@ -74,6 +76,8 @@ External WhatsApp/Messenger/Instagram messages retain the numbered text fallback
 ## Joined-agent handoff state
 
 The private customer contract may additionally return `handoff.status` as `bot`, `waiting`, or `connected`, with public `agent` fields `{name, avatar_url}` and `joined_at` only when connected. `waiting` means a human was requested but no teammate has joined and must never be rendered as connected. Native SDKs should use a compact status treatment and ignore internal user IDs, email, roles, and schedules. The server and JavaScript widget release does not publish a native SDK update.
+
+Conversation activity is additive to the same private history contract: `{role: "agent", kind: "activity", body, activity: {type, actor_name}}`. The JavaScript widget renders it as centered escaped text and suppresses avatar, delivery state, choices, sound, unread, and push. Older SDKs may use the agent-role body fallback without crashing. Updated customer SDKs should parse optional `kind`/`activity`; SDK versioning, package publication, and host-app rebuild remain app-team owned and are not established by server tests.
 
 ## Rollout
 

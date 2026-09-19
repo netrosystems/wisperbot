@@ -84,9 +84,11 @@ Client notifications carry an immutable `workspace_id` captured from their sourc
 
 Mobile clients use `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `POST /api/v1/notifications/read-all`, `POST /api/v1/notifications/{notification}/read`, and `DELETE /api/v1/notifications/{notification}` after selecting the active workspace. Responses and push payloads include `workspace_id`; a client must switch to or validate that accessible workspace before opening a notification deep link.
 
+Master Email Inbox alerts have a separate user-level source preference. `users.email_inbox_notifications_enabled` defaults to true; when false, an inbound message with `messages.channel=email` is still synchronized and remains visible/unread in the email inbox, but `NewMessageNotification` selects no database, broadcast, web-push, or OneSignal channel for that user. Non-email messages and all outbound/authentication/billing email behavior are unchanged. Mobile login and `GET /api/v1/auth/me` expose the additive boolean, and `PUT /api/v1/notifications/preferences/email-inbox` accepts required boolean `enabled` and returns only the resulting preference. Native-app UI/repository adoption remains owned by the app team.
+
 Workspace member availability is stored separately per workspace and evaluated in each member's IANA timezone. It filters only inbox new-message and human-handoff notifications. An available joined owner receives the alert alone; when that owner is off shift, other available members receive it. Realtime inbox updates and unread counts are never suppressed.
 
-Conversation routing and live handling are separate: `assigned_user_id` may be set by a manager or automation, while `joined_user_id` is acquired atomically through Join Chat. Only the joined owner may send human replies. Resolve clears assignment, joined ownership, and handoff state while retaining the transcript. Mobile parity is provided by `/api/v1/mobile/conversations/{uuid}/join`, `/leave`, and `/takeover`.
+Conversation routing and live handling are separate: `assigned_user_id` may be set by a manager or automation, while `joined_user_id` is acquired atomically through Join Chat. Only the joined owner may send human replies. Successful join, takeover, leave, explicit assignment/unassignment, status changes, and resolution write durable system activity in the same locked transaction; resolving a conversation also clears its unread count. Automatic inbound reopen records a staff-only activity while clearing stale resolution, AI, and ownership state. Repeated no-op actions create no duplicate activity. Echoes, delivery callbacks, historical imports, and activity records do not reopen conversations. Mobile parity is provided by `/api/v1/mobile/conversations/{uuid}/join`, `/leave`, `/takeover`, `/assign`, and `/status`.
 
 ## Request and event flow
 
@@ -100,13 +102,16 @@ Conversation routing and live handling are separate: `assigned_user_id` may be s
 2. Controller verifies provider challenge/signature/token and applies inbound idempotency.
 3. Expensive parsing is dispatched to a named queue.
 4. The processor resolves a workspace-scoped channel account, contact, conversation, and message.
-5. `MessageReceived` triggers automations, AI/auto-reply behavior, outbound developer webhooks, notifications, and realtime broadcasts.
+5. If the stored customer message belongs to a resolved conversation, the processor atomically reopens that same conversation before downstream listeners execute.
+6. `MessageReceived` triggers automations, AI/auto-reply behavior, outbound developer webhooks, notifications, and realtime broadcasts.
 
 One workspace-level Omni policy covers WhatsApp, Messenger, Instagram DMs, Telegram Business, and eBay; a separate workspace-level Email policy covers every mailbox. The selected segment policy is evaluated after deterministic rules and handoff detection on every inbound, including threads previously routed to humans only because AI was outside its schedule. Eligible replies are debounced on `ai`, re-check ownership and policy under the final-send lock, and use a durable source-message key. Joining, assignment, handoff, or observed human replies pause AI until resolution. Email additionally applies account connection cutoffs plus loop, authored-body, and attachment-only guards. Amazon order actions, SMS, webchat Appearance, and Social Comments remain separate.
 
 Meta Messenger and Instagram webhook processing currently uses the `whatsapp` queue despite the broader channel name; production workers must include it.
 
 ### Website widget
+
+Only joined and resolved ownership activity is exposed to the private widget/customer-SDK session as `role=agent`, additive `kind=activity`, fallback `body`, and redacted `activity.type`/`activity.actor_name`; takeover is presented publicly as the new agent joining. Leave, transfer details, reopen, assignment, unassignment, pending, and snoozed activity remains staff-only. Internal user IDs, email, roles, permissions, and previous-agent details are never public. Activity does not trigger sound, unread badges, push, delivery receipts, quick replies, or message bubbles. Older SDKs can keep rendering the body as an agent message; native activity rendering requires a separate SDK package release and host-app rebuild.
 
 1. `/widgets/chat/{key}.js` returns the embed loader.
 2. `/widget/v1/session` creates/resumes a visitor-private session.
@@ -163,7 +168,7 @@ Authenticated `/api/v1/mobile/*`, `/api/v1/auth/*`, and `/api/v1/broadcasting/au
 - Browser web app: session cookie, CSRF, verified client user, workspace scope.
 - Mobile app: Sanctum bearer token under `/api/v1/mobile`; private broadcast auth uses `/api/v1/broadcasting/auth`.
 - External developer API: `/api/v1` plus the paid `developer_tools` add-on and token abilities.
-- Public widget: throttled, key/session based, no client authentication.
+- Public widget/customer SDK: throttled, key/session based, no client authentication. `/widgets/chat/{key}.js` is website-only and resolves the website `widget_key` with `enabled=true`. `/widget/v1/*` resolves either the website `widget_key` gated by `enabled=true`, or the customer SDK `sdk_widget_key` gated by `sdk_enabled=true`. Both surfaces keep `channel=webchat`; new conversations store `started_from=web_widget|customer_sdk` for source display and additive APIs.
 - Webhooks: public transport surface with provider verification and idempotency.
 
 ## Queues

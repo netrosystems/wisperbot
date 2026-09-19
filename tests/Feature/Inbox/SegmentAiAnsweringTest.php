@@ -146,7 +146,7 @@ class SegmentAiAnsweringTest extends TestCase
         $this->assertNotNull($conversation->fresh()->ai_paused_at);
         app(ConversationOwnershipService::class)->leave($conversation->fresh(), $user);
         $this->assertNotNull($conversation->fresh()->ai_paused_at);
-        app(ConversationOwnershipService::class)->resolve($conversation->fresh());
+        app(ConversationOwnershipService::class)->resolve($conversation->fresh(), $user);
         $this->assertNull($conversation->fresh()->ai_paused_at);
     }
 

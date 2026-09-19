@@ -116,4 +116,41 @@ class MobileEmailAttachmentTest extends TestCase
             'type' => 'image',
         ]);
     }
+
+    public function test_mobile_email_resolve_records_the_authenticated_actor(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $context['user']->update(['name' => 'Email Agent']);
+        $token = $context['user']->createToken('mobile', ['*'])->plainTextToken;
+        $account = ChannelAccount::create([
+            'workspace_id' => $context['workspace']->id,
+            'channel' => 'email',
+            'provider' => 'imap_smtp',
+            'display_name' => 'Support Mailbox',
+            'status' => 'active',
+        ]);
+        $contact = Contact::create([
+            'workspace_id' => $context['workspace']->id,
+            'first_name' => 'Customer',
+            'email' => 'customer@example.com',
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $context['workspace']->id,
+            'channel_account_id' => $account->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'human',
+        ]);
+
+        $this->withToken($token)
+            ->patchJson("/api/v1/mobile/email/threads/{$conversation->uuid}/status", ['status' => 'resolved'])
+            ->assertOk()
+            ->assertJsonPath('status', 'resolved');
+
+        $activity = $conversation->messages()->where('direction', 'system')->sole();
+        $this->assertSame('event', $activity->type);
+        $this->assertSame('Resolved by Email Agent', $activity->body);
+        $this->assertSame('conversation.resolved', $activity->payload['activity']['type']);
+        $this->assertSame($context['user']->id, $activity->payload['activity']['actor']['id']);
+    }
 }

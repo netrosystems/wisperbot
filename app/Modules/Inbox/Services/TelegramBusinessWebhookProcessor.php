@@ -272,9 +272,6 @@ class TelegramBusinessWebhookProcessor
         [$type, $body, $payload] = $this->normalizeMessage($telegramMessage);
         $sentAt = isset($telegramMessage['date']) ? now()->setTimestamp((int) $telegramMessage['date']) : now();
 
-        if ($direction === 'in') {
-            app(ConversationOwnershipService::class)->prepareInbound($conversation);
-        }
         $stored = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => $direction,
@@ -288,19 +285,27 @@ class TelegramBusinessWebhookProcessor
             'sent_at' => $sentAt,
         ]);
 
-        $changes = ['last_message_at' => $sentAt];
+        $reopened = false;
         if ($direction === 'in') {
-            $changes += [
-                'status' => 'open',
-                'last_inbound_at' => $sentAt,
-                'unread_count' => (int) $conversation->unread_count + 1,
-            ];
+            $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+                $conversation,
+                $sentAt,
+                1,
+                [
+                    'status' => 'open',
+                ],
+            );
         } else {
-            $changes += ['assigned_to' => 'human', 'handover_at' => $conversation->handover_at ?: $sentAt, 'ai_paused_at' => $conversation->ai_paused_at ?: $sentAt, 'ai_pause_reason' => 'human_reply'];
+            $conversation->update([
+                'last_message_at' => $sentAt,
+                'assigned_to' => 'human',
+                'handover_at' => $conversation->handover_at ?: $sentAt,
+                'ai_paused_at' => $conversation->ai_paused_at ?: $sentAt,
+                'ai_pause_reason' => 'human_reply',
+            ]);
         }
-        $conversation->update($changes);
 
-        $direction === 'in' ? MessageReceived::dispatch($stored) : MessageSent::dispatch($stored);
+        $direction === 'in' ? MessageReceived::dispatch($stored, $reopened) : MessageSent::dispatch($stored);
 
         return $stored;
     }

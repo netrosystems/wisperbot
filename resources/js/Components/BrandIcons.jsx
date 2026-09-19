@@ -133,6 +133,22 @@ export function ChannelBrandIcon({ channel, className }) {
     return <SvgBrand name={key} className={className} />
 }
 
+export function ConversationChannelIcon({ conversation, className }) {
+    const channel = conversation?.channel_account?.channel ?? conversation?.channel;
+
+    if (channel === 'webchat' && conversation?.started_from === 'customer_sdk') {
+        return (
+            <svg viewBox="0 0 24 24" className={className ?? 'h-4 w-4'} fill="none" aria-hidden>
+                <rect x="7" y="2.75" width="10" height="18.5" rx="2.25" fill="#0EA5E9" />
+                <rect x="9" y="5" width="6" height="11.5" rx="1" fill="white" opacity="0.92" />
+                <circle cx="12" cy="18.25" r="0.85" fill="white" />
+            </svg>
+        );
+    }
+
+    return <ChannelBrandIcon channel={channel} className={className} />;
+}
+
 /** Facebook, Instagram, LinkedIn, X, YouTube, TikTok */
 export function SocialBrandIcon({ network, className }) {
     const map = {

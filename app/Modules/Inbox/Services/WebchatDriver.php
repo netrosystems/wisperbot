@@ -63,7 +63,7 @@ class WebchatDriver implements ChannelDriverInterface
      */
     public function ingestVisitorMessage(ChatWidget $widget, string $visitorId, string $body, array $identity = []): Message
     {
-        $conversation = $this->resolveConversation($widget, $visitorId, $identity);
+        $conversation = $this->resolveConversation($widget, $visitorId, $identity, Conversation::STARTED_FROM_WEB_WIDGET);
 
         return $this->recordInboundMessage($conversation, $visitorId, $body);
     }
@@ -77,7 +77,6 @@ class WebchatDriver implements ChannelDriverInterface
      */
     public function recordInboundMessage(Conversation $conversation, string $visitorId, string $body, string $type = 'text', array $payload = []): Message
     {
-        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',
@@ -91,14 +90,13 @@ class WebchatDriver implements ChannelDriverInterface
             'sent_at' => now(),
         ]);
 
-        $conversation->update([
-            'last_message_at' => now(),
-            'last_inbound_at' => now(),
-            'status' => $conversation->status === 'resolved' ? 'open' : $conversation->status,
-            'unread_count' => $conversation->unread_count + 1,
-        ]);
+        $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+            $conversation,
+            $message->sent_at,
+            1,
+        );
 
-        MessageReceived::dispatch($message);
+        MessageReceived::dispatch($message, $reopened);
 
         return $message;
     }
@@ -110,9 +108,10 @@ class WebchatDriver implements ChannelDriverInterface
      *
      * @param  array<string, mixed>  $identity
      */
-    public function resolveConversation(ChatWidget $widget, string $visitorId, array $identity = []): Conversation
+    public function resolveConversation(ChatWidget $widget, string $visitorId, array $identity = [], ?string $startedFrom = null): Conversation
     {
         $contact = $this->resolveVisitorContact($widget->workspace_id, $visitorId, $identity);
+        $startedFrom = $this->normaliseStartedFrom($startedFrom);
 
         return Conversation::firstOrCreate(
             [
@@ -124,8 +123,17 @@ class WebchatDriver implements ChannelDriverInterface
                 'status' => 'open',
                 'assigned_to' => 'bot',
                 'external_thread_id' => $visitorId,
+                'started_from' => $startedFrom,
             ],
         );
+    }
+
+    private function normaliseStartedFrom(?string $startedFrom): ?string
+    {
+        return in_array($startedFrom, [
+            Conversation::STARTED_FROM_WEB_WIDGET,
+            Conversation::STARTED_FROM_CUSTOMER_SDK,
+        ], true) ? $startedFrom : null;
     }
 
     /**

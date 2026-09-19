@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AdminUser;
 use App\Models\BlogCategory;
 use App\Models\BlogPost;
+use App\Services\BlogContentSanitizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -116,6 +117,57 @@ class BlogTest extends TestCase
         $this->assertStringNotContainsString('javascript:', $post->content);
         $this->assertStringNotContainsString('onerror', $post->content);
         $this->assertSame('/storage/blog/secure-post.webp', $post->featured_image_url);
+    }
+
+    public function test_sanitizer_repairs_legacy_nested_code_blocks_and_adds_unique_heading_anchors(): void
+    {
+        $content = '<pre><pre><h2>Choose a channel</h2><p>Compare the options.</p><ul><li>WhatsApp</li></ul><h2>Choose a channel</h2></pre></pre>';
+
+        $sanitized = app(BlogContentSanitizer::class)->sanitize($content);
+
+        $this->assertStringNotContainsString('<pre', $sanitized);
+        $this->assertStringContainsString('<h2 id="choose-a-channel">Choose a channel</h2>', $sanitized);
+        $this->assertStringContainsString('<h2 id="choose-a-channel-2">Choose a channel</h2>', $sanitized);
+        $this->assertStringContainsString('<ul><li>WhatsApp</li></ul>', $sanitized);
+    }
+
+    public function test_sanitizer_preserves_real_code_and_tables_while_removing_dangerous_markup(): void
+    {
+        $content = '<pre><code>const safe = true;</code></pre><table><tbody><tr><td colspan="2" onclick="bad()">Value</td></tr></tbody></table><script>alert(1)</script>';
+
+        $sanitized = app(BlogContentSanitizer::class)->sanitize($content);
+
+        $this->assertStringContainsString('<pre><code>const safe = true;</code></pre>', $sanitized);
+        $this->assertStringContainsString('<table>', $sanitized);
+        $this->assertStringContainsString('colspan="2"', $sanitized);
+        $this->assertStringNotContainsString('onclick', $sanitized);
+        $this->assertStringNotContainsString('alert(1)', $sanitized);
+    }
+
+    public function test_public_article_exposes_outline_faq_schema_data_and_repaired_content(): void
+    {
+        $post = $this->makePost([
+            'content' => '<pre><h2>Overview</h2><p>Start here.</p><h3>What is WisperBot?</h3><p>WisperBot is a customer messaging platform.</p></pre>',
+        ]);
+
+        $this->get(route('blog.show', $post->slug))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('post.content', '<h2 id="overview">Overview</h2><p>Start here.</p><h3 id="what-is-wisperbot">What is WisperBot?</h3><p>WisperBot is a customer messaging platform.</p>')
+            ->has('post.outline', 2)
+            ->where('post.outline.0.id', 'overview')
+            ->has('post.faqs', 1)
+            ->where('post.faqs.0.question', 'What is WisperBot?'));
+    }
+
+    public function test_public_article_extracts_faq_answers_from_legacy_text_nodes(): void
+    {
+        $post = $this->makePost([
+            'content' => '<h3>Can I keep my number?</h3>Yes. Eligibility depends on the provider.<h3>Another section</h3>',
+        ]);
+
+        $this->get(route('blog.show', $post->slug))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->has('post.faqs', 1)
+            ->where('post.faqs.0.question', 'Can I keep my number?')
+            ->where('post.faqs.0.answer', 'Yes. Eligibility depends on the provider.'));
     }
 
     public function test_scheduled_post_requires_a_publication_date(): void

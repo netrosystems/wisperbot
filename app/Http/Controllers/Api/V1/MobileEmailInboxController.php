@@ -135,6 +135,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
         $messages = $conversation->messages()
             ->with('user:id,name,avatar')
             ->orderByDesc('sent_at')
+            ->orderByDesc('id')
             ->paginate(min(max($request->integer('per_page', 50), 1), 100));
 
         if ($conversation->unread_count > 0) {
@@ -391,10 +392,8 @@ class MobileEmailInboxController extends WorkspaceScopedController
     {
         $validated = $request->validate(['status' => ['required', 'in:open,resolved']]);
         $conversation = $this->emailConversation($request, $uuid);
-        $conversation->update([
-            'status' => $validated['status'],
-            'resolved_at' => $validated['status'] === 'resolved' ? ($conversation->resolved_at ?? now()) : null,
-        ]);
+        $this->ownership->changeStatus($conversation, $validated['status'], $request->user());
+        $conversation->refresh();
 
         return response()->json([
             'ok' => true,

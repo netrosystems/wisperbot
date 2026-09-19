@@ -10,7 +10,7 @@ import {
     Mic, Square,
     Volume2, VolumeX, ShoppingBag, Radio, Download,
 } from 'lucide-react';
-import { ChannelBrandIcon, CHANNEL_LABELS } from '@/Components/BrandIcons';
+import { ChannelBrandIcon, CHANNEL_LABELS, ConversationChannelIcon } from '@/Components/BrandIcons';
 import { formatTimeTz, formatInTz } from '@/Utils/datetime';
 import { playInboundSound, getSoundPrefs, setChannelSoundEnabled, SOUND_CHANNELS } from '@/Utils/notificationSound';
 import { getCountryFlagEmoji } from '@/Components/Inbox/LiveVisitorsMap';
@@ -777,6 +777,17 @@ function MessageBubble({ msg, conversationId }) {
     const bubbleTz = pageProps.timezone || 'Asia/Dhaka';
     const isOut = msg.direction === 'out';
     const p     = msg.payload ?? {};
+    const isActivity = msg.direction === 'system' && msg.type === 'event';
+
+    if (isActivity) {
+        return (
+            <div className="my-2.5 flex w-full justify-center px-6" role="status">
+                <div className="w-fit max-w-[90%] rounded-lg bg-white px-3 py-1.5 text-center text-[11px] font-medium leading-4 text-neutral-500 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-white/10">
+                    <span className="break-words">{msg.body}</span>
+                </div>
+            </div>
+        );
+    }
 
     // Resolve media source: outbound has preview_url directly; inbound raw webhook nests under type key
     const mediaType   = msg.type ?? 'text';
@@ -964,7 +975,6 @@ function MessageBubble({ msg, conversationId }) {
 
 function ConversationCard({ conv, isActive, userTz, filters = {} }) {
     const { t } = useTranslation();
-    const channel = conv.channel_account?.channel ?? 'whatsapp';
     const lastResponder = conv.last_message?.direction === 'out'
         ? (conv.last_message?.sender?.name ?? (conv.last_message?.sent_by === 'bot' ? 'AI assistant' : null))
         : null;
@@ -995,7 +1005,7 @@ function ConversationCard({ conv, isActive, userTz, filters = {} }) {
                         {name[0]?.toUpperCase() ?? '?'}
                     </div>
                     <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center">
-                        <ChannelBrandIcon channel={channel} className="h-3 w-3" />
+                        <ConversationChannelIcon conversation={conv} className="h-3 w-3" />
                     </span>
                 </button>
                 <div className="flex-1 min-w-0">
@@ -1606,6 +1616,7 @@ export default function InboxShow({
     const [assignedUserId, setAssignedUserId] = useState(conversation.assigned_user_id ?? null);
     const [joinedUser, setJoinedUser]         = useState(conversation.joined_user ?? null);
     const [joinedAt, setJoinedAt]             = useState(conversation.joined_at ?? null);
+    const [conversationStatus, setConversationStatus] = useState(conversation.status);
     const [ownershipBusy, setOwnershipBusy]   = useState(false);
     const [conversations, setConversations] = useState(initialConversations);
     const [listSearch, setListSearch]       = useState('');
@@ -1620,24 +1631,44 @@ export default function InboxShow({
     const lastUserScrollGestureAtRef = useRef(0);
     const listScrolledAwayRef = useRef(false);
     const gentleRefreshInFlightRef = useRef(false);
+    const messageConversationIdRef = useRef(conversation.id);
 
     // When Inertia navigates between conversations the page component is
     // re-used, so seed local state from the new server props on conversation
     // change. The websocket listeners dedupe by `id` so any freshly broadcast
     // message that already lives in local state is not duplicated.
     useEffect(() => {
-        setMessages(initialMessages ?? []);
+        const switchedConversation = messageConversationIdRef.current !== conversation.id;
+        messageConversationIdRef.current = conversation.id;
+        const serverMessages = initialMessages ?? [];
+
+        setMessages(previous => {
+            if (switchedConversation) return serverMessages;
+
+            const merged = new Map(previous.map(message => [message.id, message]));
+            serverMessages.forEach(message => {
+                merged.set(message.id, { ...(merged.get(message.id) ?? {}), ...message });
+            });
+
+            return Array.from(merged.values()).sort((a, b) => {
+                const aTime = new Date(a.sent_at || a.created_at || 0).getTime();
+                const bTime = new Date(b.sent_at || b.created_at || 0).getTime();
+                if (aTime !== bTime) return aTime - bTime;
+                return (a.id ?? 0) - (b.id ?? 0);
+            });
+        });
         setConvLabels(conversation.labels ?? []);
         setAssignedTo(conversation.assigned_to ?? 'bot');
         setAssignedUserId(conversation.assigned_user_id ?? null);
         setJoinedUser(conversation.joined_user ?? null);
         setJoinedAt(conversation.joined_at ?? null);
+        setConversationStatus(conversation.status);
         setSendError(null);
         setVisitorTyping(false);
         stopAudioTracks();
         setRecordingAudio(false);
         setAttachPreview(null);
-    }, [conversation.id]);
+    }, [conversation.id, initialMessages]);
 
     useEffect(() => {
         setConversations(initialConversations);
@@ -1751,8 +1782,18 @@ export default function InboxShow({
         ch
             .listen('.MessageReceived', (e) => {
                 mergeIncomingMessages([e]);
+                if (e.reopened) {
+                    setConversationStatus(e.conversation?.status ?? 'open');
+                    setAssignedTo(e.conversation?.assigned_to ?? 'human');
+                    setAssignedUserId(e.conversation?.assigned_user_id ?? null);
+                    setJoinedUser(null);
+                    setJoinedAt(null);
+                }
             })
             .listen('.MessageSent', (e) => {
+                mergeIncomingMessages([e]);
+            })
+            .listen('.ConversationActivityCreated', (e) => {
                 mergeIncomingMessages([e]);
             })
             .listen('.MessageStatusUpdated', (e) => {
@@ -1766,6 +1807,8 @@ export default function InboxShow({
             .listen('.ConversationOwnershipChanged', (e) => {
                 setJoinedUser(e.joined_user ?? null);
                 setJoinedAt(e.joined_at ?? null);
+                setConversationStatus(current => e.status ?? current);
+                setAssignedTo(current => e.assigned_to ?? current);
                 setAssignedUserId(e.assigned_user_id ?? null);
             })
             .listen('.TypingChanged', (e) => {
@@ -1870,6 +1913,14 @@ export default function InboxShow({
                 // Per-channel inbound notification sound (fires for every inbound
                 // message in the workspace, regardless of which thread is open).
                 playInboundSound(e.channel);
+                if (e.reopened) {
+                    router.reload({
+                        only: ['conversations'],
+                        preserveScroll: true,
+                        preserveState: true,
+                    });
+                    return;
+                }
                 setConversations(prev => {
                     if (!prev) return prev;
                     const exists = prev.data?.find(c => c.id === e.conversation_id);
@@ -1910,7 +1961,7 @@ export default function InboxShow({
                 });
             })
             .listen('.ConversationOwnershipChanged', (e) => {
-                setConversations(prev => !prev?.data ? prev : ({ ...prev, data: prev.data.map(item => item.id === e.conversation_id ? { ...item, joined_user: e.joined_user, joined_at: e.joined_at, assigned_user_id: e.assigned_user_id, status: e.status } : item) }));
+                setConversations(prev => !prev?.data ? prev : ({ ...prev, data: prev.data.map(item => item.id === e.conversation_id ? { ...item, joined_user: e.joined_user, joined_at: e.joined_at, assigned_to: e.assigned_to ?? item.assigned_to, assigned_user_id: e.assigned_user_id, status: e.status } : item) }));
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
     }, [workspaceId]);
@@ -2160,7 +2211,14 @@ export default function InboxShow({
             .catch(() => {});
     };
 
-    const handleStatus = (status) => router.post(route('client.inbox.status', conversation.uuid), { status }, { preserveScroll: true });
+    const handleStatus = (status) => {
+        const previous = conversationStatus;
+        setConversationStatus(status);
+        router.post(route('client.inbox.status', conversation.uuid), { status }, {
+            preserveScroll: true,
+            onError: () => setConversationStatus(previous),
+        });
+    };
 
     const navigateList = (params) => {
         if (params.folder === 'live') {
@@ -2278,6 +2336,14 @@ export default function InboxShow({
     const contactName = conversation.contact?.first_name || conversation.contact?.last_name
         ? `${conversation.contact.first_name ?? ''} ${conversation.contact.last_name ?? ''}`.trim()
         : conversation.contact?.phone_e164 ?? 'Unknown';
+    const startedFromLabel = conversation.started_from === 'customer_sdk'
+        ? t('inbox.started_from_customer_sdk', { defaultValue: 'App SDK' })
+        : conversation.started_from === 'web_widget'
+            ? t('inbox.started_from_web_widget', { defaultValue: 'Web Widget' })
+            : null;
+    const headerChannelLabel = conversation.started_from === 'customer_sdk'
+        ? t('inbox.started_from_customer_sdk', { defaultValue: 'App SDK' })
+        : (CHANNEL_LABELS[channel] ?? channel);
 
     const assignedAgent = teamMembers.find(m => m.id === assignedUserId);
     const isJoinedByMe = Number(joinedUser?.id) === Number(authUser?.id);
@@ -2405,14 +2471,14 @@ export default function InboxShow({
                                 {contactName[0]?.toUpperCase() ?? '?'}
                             </div>
                             <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center">
-                                <ChannelBrandIcon channel={channel} className="h-3 w-3" />
+                                <ConversationChannelIcon conversation={conversation} className="h-3 w-3" />
                             </span>
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 truncate">{contactName}</p>
                             <p className="text-xs text-neutral-400 flex items-center gap-1.5 flex-wrap">
-                                <ChannelBrandIcon channel={channel} className="h-3 w-3 shrink-0" />
-                                <span>{CHANNEL_LABELS[channel] ?? channel}</span>
+                                <ConversationChannelIcon conversation={conversation} className="h-3 w-3 shrink-0" />
+                                <span>{headerChannelLabel}</span>
                                 {conversation.channel_account?.name && <><span className="text-neutral-300 dark:text-neutral-600">·</span><span>{conversation.channel_account.name}</span></>}
                                 {conversation.contact?.custom_fields?.webchat_country_code && (
                                     <>
@@ -2439,7 +2505,7 @@ export default function InboxShow({
                             {joinedUser ? <>
                                 <span title={joinedAt ? `Joined ${new Date(joinedAt).toLocaleString()}` : undefined} className="max-w-[150px] truncate rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">{joinedUser.name} joined</span>
                                 {isJoinedByMe && <button type="button" disabled={ownershipBusy} onClick={() => changeOwnership('leave')} className="text-xs font-medium text-neutral-500 hover:text-red-600">Leave</button>}
-                            </> : <button type="button" disabled={ownershipBusy || conversation.status === 'resolved'} onClick={() => changeOwnership('join')} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-40">Join Chat</button>}
+                            </> : <button type="button" disabled={ownershipBusy || conversationStatus === 'resolved'} onClick={() => changeOwnership('join')} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-40">Join Chat</button>}
                         </div>
                         <div className="relative">
                             <button
@@ -2465,9 +2531,9 @@ export default function InboxShow({
 
                         {/* Status */}
                         <select
-                            defaultValue={conversation.status}
+                            value={conversationStatus}
                             onChange={e => handleStatus(e.target.value)}
-                            className={`rounded-full border-0 px-3 py-1 text-xs font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500 ${STATUS_COLORS[conversation.status] ?? 'bg-neutral-100 text-neutral-600'}`}
+                            className={`rounded-full border-0 px-3 py-1 text-xs font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500 ${STATUS_COLORS[conversationStatus] ?? 'bg-neutral-100 text-neutral-600'}`}
                         >
                             {['open','pending','resolved','snoozed'].map(s => (
                                 <option key={s} value={s} className="bg-white dark:bg-neutral-800 text-neutral-900">
@@ -2756,7 +2822,7 @@ export default function InboxShow({
                                 <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">{joinedUser ? `${joinedUser.name} joined this chat` : 'Join before replying'}</p>
                                 <p className="text-xs text-neutral-500">{joinedUser ? (joinedMember?.available === false ? (currentMember?.available === false && !isAdministrator ? 'You are off shift. An available teammate can take over.' : 'The owner is off shift. You may take over.') : 'Only the joined owner can send replies.') : 'The first teammate to join becomes the active owner.'}</p>
                             </div>
-                            <button type="button" disabled={ownershipBusy || conversation.status === 'resolved' || (joinedUser && !canTakeOver)} onClick={() => changeOwnership(joinedUser ? 'takeover' : 'join')} className="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">{ownershipBusy ? 'Working…' : joinedUser ? 'Take over' : 'Join Chat'}</button>
+                            <button type="button" disabled={ownershipBusy || conversationStatus === 'resolved' || (joinedUser && !canTakeOver)} onClick={() => changeOwnership(joinedUser ? 'takeover' : 'join')} className="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">{ownershipBusy ? 'Working…' : joinedUser ? 'Take over' : 'Join Chat'}</button>
                         </div>}
                     </div>
                     )}
@@ -2798,8 +2864,17 @@ export default function InboxShow({
                         <div className="space-y-1.5 text-xs">
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-500">{t('inbox.status')}</span>
-                                <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[conversation.status] ?? 'bg-neutral-100 text-neutral-600'}`}>{t(`inbox.status_${conversation.status}`)}</span>
+                                <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[conversationStatus] ?? 'bg-neutral-100 text-neutral-600'}`}>{t(`inbox.status_${conversationStatus}`)}</span>
                             </div>
+                            {startedFromLabel && (
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-neutral-500">{t('inbox.started_from', { defaultValue: 'Started from' })}</span>
+                                    <span className="inline-flex min-w-0 items-center gap-1 font-medium text-neutral-800 dark:text-neutral-200">
+                                        <ConversationChannelIcon conversation={conversation} className="h-3.5 w-3.5 shrink-0" />
+                                        <span className="truncate">{startedFromLabel}</span>
+                                    </span>
+                                </div>
+                            )}
                             <div className="flex items-center justify-between">
                                 <span className="text-neutral-500">{t('inbox.agent')}</span>
                                 <span className="font-medium text-neutral-800 dark:text-neutral-200 truncate max-w-[100px]">{assignedAgent?.name ?? '—'}</span>

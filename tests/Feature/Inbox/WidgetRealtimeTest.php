@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Inbox;
 
+use App\Events\ConversationActivityCreated;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Events\WidgetMessageCreated;
+use App\Models\User;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Models\WidgetPushSubscription;
+use App\Modules\Inbox\Services\WebchatDriver;
 use App\Modules\Inbox\Services\WidgetPayloadBuilder;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
@@ -63,6 +66,185 @@ class WidgetRealtimeTest extends TestCase
             ->postJson(route('widget.send'), ['key' => $widget->widget_key, 'message' => 'iOS app'])
             ->assertOk()->assertJsonPath('message.body', 'iOS app');
         $this->assertDatabaseHas('messages', ['conversation_id' => $conversationId, 'direction' => 'in', 'body' => 'iOS app']);
+    }
+
+    public function test_activity_payload_is_public_safe_and_keeps_an_agent_role_fallback(): void
+    {
+        ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => "{$agent->name} joined the chat",
+            'payload' => ['activity' => [
+                'type' => 'conversation.joined',
+                'actor' => ['id' => $agent->id, 'name' => $agent->name, 'email' => $agent->email],
+            ]],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $agent->id,
+            'sent_at' => now(),
+        ]);
+
+        $snapshotName = $agent->name;
+        $payload = app(WidgetPayloadBuilder::class)->message($message, $widget);
+        $agent->update(['name' => 'Renamed later']);
+        $payloadAfterRename = app(WidgetPayloadBuilder::class)->message($message->fresh(), $widget);
+
+        $this->assertSame('agent', $payload['role']);
+        $this->assertSame('activity', $payload['kind']);
+        $this->assertSame("{$snapshotName} joined the chat", $payload['body']);
+        $this->assertSame([
+            'type' => 'conversation.joined',
+            'actor_name' => $snapshotName,
+        ], $payload['activity']);
+        $this->assertArrayNotHasKey('id', $payload['activity']);
+        $this->assertArrayNotHasKey('email', $payload['activity']);
+        $this->assertSame([], $payload['quick_replies']);
+        $this->assertSame([], $payload['resources']);
+        $this->assertSame($payload['activity'], $payloadAfterRename['activity']);
+        $this->assertSame($snapshotName, $payloadAfterRename['agent_name']);
+        $this->assertSame($payload, app(WidgetPayloadBuilder::class)->messages($conversation->id, $widget, 0)[0]);
+    }
+
+    public function test_initial_widget_history_returns_the_latest_window_in_chronological_order(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+
+        foreach (range(1, 105) as $number) {
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'direction' => 'in',
+                'channel' => 'webchat',
+                'type' => 'text',
+                'body' => "Message {$number}",
+                'status' => 'delivered',
+                'sent_by' => 'human',
+                'sent_at' => now()->addSeconds($number),
+            ]);
+        }
+
+        $messages = app(WidgetPayloadBuilder::class)->messages($conversation->id, $widget, 0);
+
+        $this->assertCount(100, $messages);
+        $this->assertSame('Message 6', $messages[0]['body']);
+        $this->assertSame('Message 105', $messages[99]['body']);
+        $this->assertSame(
+            collect($messages)->pluck('id')->sort()->values()->all(),
+            collect($messages)->pluck('id')->values()->all(),
+        );
+    }
+
+    public function test_activity_realtime_bridge_uses_the_redacted_widget_event_without_push(): void
+    {
+        Event::fake([WidgetMessageCreated::class]);
+        Http::fake();
+        ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+        [, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => "{$agent->name} joined the chat",
+            'payload' => ['activity' => [
+                'type' => 'conversation.joined',
+                'actor' => ['id' => $agent->id, 'name' => $agent->name],
+            ]],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $agent->id,
+            'sent_at' => now(),
+        ]);
+
+        ConversationActivityCreated::dispatch($message);
+
+        Event::assertDispatched(WidgetMessageCreated::class, fn (WidgetMessageCreated $event) => $event->conversationId === $conversation->id
+            && $event->message['kind'] === 'activity'
+            && $event->message['activity'] === [
+                'type' => 'conversation.joined',
+                'actor_name' => $agent->name,
+            ]
+        );
+        Http::assertNothingSent();
+    }
+
+    public function test_staff_only_activity_is_excluded_from_widget_history_and_realtime(): void
+    {
+        Event::fake([WidgetMessageCreated::class]);
+        ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+        $activity = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => "{$agent->name} left the chat",
+            'payload' => ['activity' => [
+                'type' => 'conversation.left',
+                'actor' => ['id' => $agent->id, 'name' => $agent->name],
+            ]],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $agent->id,
+            'sent_at' => now(),
+        ]);
+
+        ConversationActivityCreated::dispatch($activity);
+
+        $this->assertSame([], app(WidgetPayloadBuilder::class)->messages($conversation->id, $widget, 0));
+        Event::assertNotDispatched(WidgetMessageCreated::class);
+    }
+
+    public function test_transfer_activity_is_presented_to_widget_as_joined_without_previous_agent_data(): void
+    {
+        Event::fake([WidgetMessageCreated::class]);
+        ['workspace' => $workspace, 'user' => $agent, 'client' => $client] = $this->createWorkspaceContext();
+        [$widget, $account] = $this->createWebchatWidget($workspace->id);
+        $conversation = $this->createConversation($workspace->id, $account->id);
+        $previous = User::factory()->create(['client_id' => $client->id, 'workspace_id' => $workspace->id]);
+        $activity = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => "{$agent->name} took over the chat from {$previous->name}",
+            'payload' => ['activity' => [
+                'type' => 'conversation.transferred',
+                'actor' => ['id' => $agent->id, 'name' => $agent->name],
+                'previous_actor' => ['id' => $previous->id, 'name' => $previous->name],
+            ]],
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'user_id' => $agent->id,
+            'sent_at' => now(),
+        ]);
+
+        $payload = app(WidgetPayloadBuilder::class)->message($activity, $widget);
+
+        $this->assertSame("{$agent->name} joined the chat", $payload['body']);
+        $this->assertSame([
+            'type' => 'conversation.joined',
+            'actor_name' => $agent->name,
+        ], $payload['activity']);
+        $this->assertStringNotContainsString($previous->name, json_encode($payload, JSON_THROW_ON_ERROR));
+
+        ConversationActivityCreated::dispatch($activity);
+        Event::assertDispatched(WidgetMessageCreated::class, function (WidgetMessageCreated $event) use ($agent, $previous): bool {
+            return $event->message['body'] === "{$agent->name} joined the chat"
+                && $event->message['activity'] === [
+                    'type' => 'conversation.joined',
+                    'actor_name' => $agent->name,
+                ]
+                && ! str_contains($event->message['body'], $previous->name);
+        });
     }
 
     public function test_widget_broadcast_auth_accepts_only_the_token_bound_conversation(): void
@@ -148,6 +330,190 @@ class WidgetRealtimeTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_web_and_sdk_keys_are_gated_by_their_own_enabled_flags(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id, [
+            'enabled' => false,
+            'sdk_enabled' => true,
+        ]);
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertNotFound();
+        $this->get("/widgets/chat/{$widget->sdk_widget_key}.js")->assertNotFound();
+
+        $sdkSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertOk();
+        $sdkSession->assertJsonPath('config.key', $widget->sdk_widget_key);
+
+        $widget->update([
+            'enabled' => true,
+            'sdk_enabled' => false,
+        ]);
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertNotFound();
+    }
+
+    public function test_web_and_sdk_sessions_mark_new_conversations_with_their_start_source(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $webSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('conversations', [
+            'id' => $webSession->json('conversation_id'),
+            'started_from' => Conversation::STARTED_FROM_WEB_WIDGET,
+        ]);
+
+        $sdkSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('conversations', [
+            'id' => $sdkSession->json('conversation_id'),
+            'started_from' => Conversation::STARTED_FROM_CUSTOMER_SDK,
+        ]);
+    }
+
+    public function test_sdk_disabled_blocks_public_widget_endpoints_for_sdk_key_only(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $session = $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertOk();
+        $headers = ['X-Widget-Token' => $session->json('token')];
+
+        $widget->update(['sdk_enabled' => false]);
+
+        $this->withHeaders($headers)
+            ->postJson(route('widget.send'), ['key' => $widget->sdk_widget_key, 'message' => 'Hello'])
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->getJson(route('widget.poll', ['key' => $widget->sdk_widget_key, 'after' => 0]))
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.read'), ['key' => $widget->sdk_widget_key])
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.delivered'), ['key' => $widget->sdk_widget_key])
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.typing'), ['key' => $widget->sdk_widget_key, 'is_typing' => true])
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.handoff'), ['key' => $widget->sdk_widget_key])
+            ->assertNotFound();
+        $this->getJson(route('widget.pusher-config', ['key' => $widget->sdk_widget_key]))
+            ->assertNotFound();
+        $this->withHeaders($headers)
+            ->postJson(route('widget.broadcasting-auth'), [
+                'key' => $widget->sdk_widget_key,
+                'socket_id' => '123.456',
+                'channel_name' => 'private-widget-conversation.'.$session->json('conversation_id'),
+            ])
+            ->assertNotFound();
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+    }
+
+    public function test_sdk_key_skips_website_allowed_domains_rule(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id, [
+            'allowed_domains' => ['allowed.example'],
+        ]);
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertForbidden();
+
+        $this->postJson(route('widget.session'), [
+            'key' => $widget->sdk_widget_key,
+        ])->assertOk();
+    }
+
+    public function test_sdk_key_accepts_old_web_key_token_and_reissues_sdk_bound_token(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $webSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        $this->withHeader('X-Widget-Token', $webSession->json('token'))
+            ->postJson(route('widget.send'), [
+                'key' => $widget->widget_key,
+                'message' => 'Keep this history',
+            ])
+            ->assertOk();
+
+        $sdkSession = $this->withHeader('X-Widget-Token', $webSession->json('token'))
+            ->postJson(route('widget.session'), [
+                'key' => $widget->sdk_widget_key,
+                'visitor_id' => $webSession->json('visitor_id'),
+            ])
+            ->assertOk()
+            ->assertJsonPath('conversation_id', $webSession->json('conversation_id'))
+            ->assertJsonPath('messages.0.body', 'Keep this history');
+
+        $this->assertNull(WebchatVisitorToken::verify($sdkSession->json('token'), $widget->widget_key));
+        $this->assertNotNull(WebchatVisitorToken::verify($sdkSession->json('token'), $widget->sdk_widget_key));
+        $this->assertSame(
+            Conversation::STARTED_FROM_WEB_WIDGET,
+            Conversation::find($webSession->json('conversation_id'))->started_from,
+        );
+    }
+
+    public function test_restored_existing_conversation_source_is_not_overwritten(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $webSession = $this->postJson(route('widget.session'), [
+            'key' => $widget->widget_key,
+        ])->assertOk();
+
+        Conversation::whereKey($webSession->json('conversation_id'))->update(['started_from' => null]);
+
+        $this->withHeader('X-Widget-Token', $webSession->json('token'))
+            ->postJson(route('widget.session'), [
+                'key' => $widget->sdk_widget_key,
+                'visitor_id' => $webSession->json('visitor_id'),
+            ])
+            ->assertOk()
+            ->assertJsonPath('conversation_id', $webSession->json('conversation_id'));
+
+        $this->assertNull(Conversation::find($webSession->json('conversation_id'))->started_from);
+    }
+
+    public function test_legacy_webchat_driver_ingest_marks_new_conversation_as_web_widget(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id);
+
+        $message = app(WebchatDriver::class)->ingestVisitorMessage($widget, 'legacy-visitor-id', 'Hello');
+
+        $this->assertSame(
+            Conversation::STARTED_FROM_WEB_WIDGET,
+            $message->conversation->started_from,
+        );
+    }
+
     public function test_widget_session_can_store_optional_sdk_push_token(): void
     {
         ['workspace' => $workspace] = $this->createWorkspaceContext();
@@ -188,7 +554,7 @@ class WidgetRealtimeTest extends TestCase
             'type' => 'text',
             'body' => 'Agent reply',
             'status' => 'sent',
-            'sent_by' => 'agent',
+            'sent_by' => 'human',
             'user_id' => $agent->id,
             'provider_message_id' => 'private-provider-id',
             'sent_at' => now(),
@@ -276,7 +642,7 @@ class WidgetRealtimeTest extends TestCase
             'type' => 'text',
             'body' => 'Agent reply for mobile SDK',
             'status' => 'sent',
-            'sent_by' => 'agent',
+            'sent_by' => 'human',
             'user_id' => $agent->id,
             'sent_at' => now(),
         ]);

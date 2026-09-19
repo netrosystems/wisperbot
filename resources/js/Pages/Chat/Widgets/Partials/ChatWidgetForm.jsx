@@ -71,6 +71,7 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
         remove_launcher_logo: false,
         launcher_logo_url: widget?.launcher_logo_url ?? null,
         enabled: widget?.enabled ?? true,
+        sdk_enabled: widget?.sdk_enabled ?? true,
         ai_enabled: widget?.ai_enabled ?? false,
         ai_chatbot_id: widget?.ai_chatbot_id ?? '',
         ai_schedule_json: initialAiSchedule,
@@ -272,6 +273,7 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                         description="Only trust a logged-in customer's name/email if your server signs it with the widget secret. Prevents visitors impersonating others. Setup snippet is on this page after saving."
                     />
                     <Toggle checked={data.enabled} onChange={(v) => setData('enabled', v)} label="Widget enabled" description="Turn the widget off without deleting it." />
+                    <Toggle checked={data.sdk_enabled} onChange={(v) => setData('sdk_enabled', v)} label="SDK enabled" description="Turn the customer mobile SDK chat off without affecting the website widget." />
                 </Card>
             </div>
 

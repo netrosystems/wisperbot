@@ -15,6 +15,7 @@ class ConversationResource extends JsonResource
             'channel_account_id' => $this->channel_account_id,
             'contact_id' => $this->contact_id,
             'status' => $this->status,
+            'started_from' => $this->started_from,
             'assigned_user_id' => $this->assigned_user_id,
             'joined_user_id' => $this->joined_user_id,
             'joined_at' => $this->joined_at?->toIso8601String(),

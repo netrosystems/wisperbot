@@ -22,6 +22,7 @@
   var LS_VISITOR = storageKey('visitor');
   var LS_TOKEN = storageKey('token');
   var LS_THREAD = storageKey('thread');   // identity-scoped cached message history
+  var LS_CONVERSATION = storageKey('conversation');
   var LS_PRECHAT = storageKey('prechat');
   var LS_COMMAND = storageKey('command');
   var LS_SOUND = storageKey('sound');
@@ -95,8 +96,42 @@
   // Device-cached message history: shows instantly on return visits (incl. any
   // agent replies that arrived while the visitor was away) before the network.
   var thread = loadThread();
-  function loadThread() { try { return JSON.parse(safeGet(LS_THREAD) || '[]'); } catch (e) { return []; } }
-  function saveThread() { safeSet(LS_THREAD, JSON.stringify(thread.slice(-200))); }
+  function messageOrder(message) {
+    var id = Number(message && message.id);
+    return Number.isFinite(id) ? id : Number.MAX_SAFE_INTEGER;
+  }
+  function sortThread(messages) {
+    return messages.sort(function (left, right) { return messageOrder(left) - messageOrder(right); });
+  }
+  function loadThread() {
+    if (!token || !safeGet(LS_CONVERSATION)) return [];
+    try {
+      var cached = JSON.parse(safeGet(LS_THREAD) || '[]');
+      return Array.isArray(cached) ? sortThread(cached) : [];
+    } catch (e) { return []; }
+  }
+  function saveThread() {
+    sortThread(thread);
+    safeSet(LS_THREAD, JSON.stringify(thread.slice(-200)));
+  }
+  function replaceThreadFromSession(messages, nextConversationId) {
+    thread = sortThread((Array.isArray(messages) ? messages : []).filter(function (message) {
+      return message && message.id != null;
+    }));
+    rendered = {};
+    lastId = 0;
+    safeSet(LS_CONVERSATION, String(nextConversationId || ''));
+    saveThread();
+
+    body.innerHTML = '';
+    if (CFG.welcome_message) markWelcome(addBubble({ role: 'agent', body: CFG.welcome_message, agent_name: CFG.agent_name }));
+    renderStarterQuestions();
+    thread.forEach(function (message) {
+      rendered[message.id] = true;
+      if (Number(message.id) > lastId) lastId = Number(message.id);
+      addBubble(message);
+    });
+  }
 
   // Identity passed from the client's website (e.g. their logged-in user).
   // Read once here and merged into the session request.
@@ -400,6 +435,7 @@
     LS_VISITOR = storageKey('visitor');
     LS_TOKEN = storageKey('token');
     LS_THREAD = storageKey('thread');
+    LS_CONVERSATION = storageKey('conversation');
     LS_PRECHAT = storageKey('prechat');
     LS_COMMAND = storageKey('command');
     visitorId = safeGet(LS_VISITOR);
@@ -454,18 +490,12 @@
       visitorId = data.visitor_id; token = data.token; conversationId = data.conversation_id || '';
       safeSet(LS_VISITOR, visitorId); safeSet(LS_TOKEN, token);
       online = data.online !== false;
-      var newAgentMessages = 0;
-      (data.messages || []).forEach(function (m) {
-        if (addMessage(m) && m.role === 'agent') newAgentMessages += 1;
-      });
-      notifyAboutAgentMessages(newAgentMessages);
       // The embed config can be cached by the page; the session carries the
-      // current list, so client edits reach open pages on the next session.
-      if (data.config && Array.isArray(data.config.starter_questions) &&
-          JSON.stringify(data.config.starter_questions) !== JSON.stringify(CFG.starter_questions || [])) {
+      // current starter list, so client edits reach open pages on the next session.
+      if (data.config && Array.isArray(data.config.starter_questions)) {
         CFG.starter_questions = data.config.starter_questions;
-        renderStarterQuestions();
       }
+      replaceThreadFromSession(data.messages, conversationId);
       applyHandoff(data.handoff);
       initRealtime((data.config && data.config.realtime) || CFG.realtime || {});
       updateStatus(); scrollDown();
@@ -876,7 +906,7 @@
       var newAgentMessages = 0;
       (data.messages || []).forEach(function (m) {
         var added = addMessage(m);
-        if (added && m.role === 'agent') newAgentMessages += 1;
+        if (added && m.role === 'agent' && m.kind !== 'activity') newAgentMessages += 1;
       });
       notifyAboutAgentMessages(newAgentMessages);
     });
@@ -938,7 +968,7 @@
       });
       var handleNewMessage = function (data) {
         var message = (data && data.message) ? data.message : data;
-        if (message && addMessage(message) && message.role === 'agent') {
+        if (message && addMessage(message) && message.role === 'agent' && message.kind !== 'activity') {
           notifyAboutAgentMessages(1);
           if (open) {
             post('/widget/v1/read', { key: KEY }).catch(function () {});
@@ -1037,7 +1067,7 @@
     for (var i = 0; i < thread.length; i++) {
       if (thread[i].id === m.id) { existingIdx = i; break; }
     }
-    var msgObj = { id: m.id, role: m.role, body: m.body, display_body: m.display_body, quick_replies: m.quick_replies || [], agent_name: m.agent_name, agent_avatar_url: m.agent_avatar_url, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status, resources: m.resources || [] };
+    var msgObj = { id: m.id, role: m.role, kind: m.kind, activity: m.activity || null, body: m.body, display_body: m.display_body, quick_replies: m.quick_replies || [], agent_name: m.agent_name, agent_avatar_url: m.agent_avatar_url, attachment_url: m.attachment_url, type: m.type, filename: m.filename, mime_type: m.mime_type, file_size: m.file_size, status: m.status, resources: m.resources || [] };
     if (existingIdx >= 0) thread[existingIdx] = msgObj;
     else thread.push(msgObj);
     saveThread();
@@ -1165,6 +1195,33 @@
   function addBubble(message) {
     message = message || {};
     var role = message.role;
+    if (message.kind === 'activity') {
+      var activityRow = document.createElement('div');
+      activityRow.className = 'wb-row wb-activity';
+      activityRow.setAttribute('role', 'status');
+      var activityText = document.createElement('span');
+      activityText.className = 'wb-activity-text';
+      var activityBody = String(message.body || '');
+      var actorName = message.activity && typeof message.activity.actor_name === 'string'
+        ? message.activity.actor_name.trim()
+        : '';
+      var actorOffset = actorName ? activityBody.indexOf(actorName) : -1;
+      if (actorOffset >= 0) {
+        activityText.appendChild(document.createTextNode(activityBody.slice(0, actorOffset)));
+        var actor = document.createElement('span');
+        actor.className = 'wb-activity-actor';
+        actor.textContent = actorName;
+        activityText.appendChild(actor);
+        activityText.appendChild(document.createTextNode(activityBody.slice(actorOffset + actorName.length)));
+      } else {
+        activityText.textContent = activityBody;
+      }
+      activityRow.appendChild(activityText);
+      insertMessageRow(activityRow, message.id);
+      updateQuickReplies();
+      scrollDown();
+      return activityRow;
+    }
     var options = role === 'agent' && Array.isArray(message.quick_replies) ? message.quick_replies.filter(function (option) {
       return option && typeof option.label === 'string' && option.label.trim() && option.label.length <= 60 && !/[<>\x00-\x1F]/.test(option.label);
     }).slice(0, 3) : [];
@@ -1232,7 +1289,7 @@
     var video = resources.find(function (resource) { return resource && resource.kind === 'video' && resource.canonical_url; });
     var resourceMarkup = video ? videoLinkMarkup(video) : '';
     row.innerHTML = av + '<div class="wb-bubble">' + attachment + caption + resourceMarkup + statusMarkup + '</div>';
-    body.appendChild(row);
+    insertMessageRow(row, id);
     if (options.length && id) {
       var choices = document.createElement('div');
       choices.className = 'wb-quick-replies';
@@ -1258,6 +1315,27 @@
     return row;
   }
 
+  function insertMessageRow(row, messageId) {
+    var order = Number(messageId);
+    if (!Number.isFinite(order)) {
+      body.appendChild(row);
+      return;
+    }
+
+    row.setAttribute('data-wb-message-id', String(messageId));
+    var rows = body.querySelectorAll('[data-wb-message-id]');
+    for (var i = 0; i < rows.length; i++) {
+      if (Number(rows[i].getAttribute('data-wb-message-id')) > order) {
+        body.insertBefore(row, rows[i]);
+        return;
+      }
+    }
+
+    var pending = body.querySelector('.wb-row.wb-pending');
+    if (pending) body.insertBefore(row, pending);
+    else body.appendChild(row);
+  }
+
   // The tutorial opens on the video provider's own page in a new tab.
   function videoLinkMarkup(resource) {
     var provider = resource.provider === 'youtube' ? 'YouTube' : (resource.provider === 'vimeo' ? 'Vimeo' : 'the video');
@@ -1268,7 +1346,7 @@
 
   function updateQuickReplies() {
     if (!body) return;
-    var latest = thread.reduce(function (previous, current) {
+    var latest = thread.filter(function (message) { return message.kind !== 'activity'; }).reduce(function (previous, current) {
       return Number(current.id) > Number(previous.id || 0) ? current : previous;
     }, {});
     body.querySelectorAll('.wb-quick-replies').forEach(function (group) {
@@ -1657,6 +1735,7 @@
       '.wb-close:hover{color:#343b48}',
       '.wb-body{flex:1;min-height:0;overflow-x:hidden;overflow-y:scroll;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:18px 14px;background:#f7f7f9;display:flex;flex-direction:column;gap:11px;scrollbar-width:thin}',
       '.wb-row{display:flex;align-items:flex-end;gap:8px;max-width:88%}',
+      '.wb-row.wb-activity{align-self:center;width:100%;max-width:100%;justify-content:center;padding:4px 20px}.wb-activity-text{display:block;max-width:90%;padding:1px 6px;color:#7b8494;font-size:11px;font-weight:500;line-height:1.4;text-align:center;overflow-wrap:anywhere}.wb-activity-actor{color:#4b5565}',
       '.wb-row.wb-pending{opacity:.65}',
       '.wb-row.wb-failed{cursor:pointer;opacity:.8}',
       '.wb-row.wb-failed .wb-bubble{outline:1px solid #ef4444}',

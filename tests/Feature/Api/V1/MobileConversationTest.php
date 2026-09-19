@@ -43,6 +43,78 @@ class MobileConversationTest extends TestCase
             ->assertJsonPath('conversation.assigned_user_id', null);
     }
 
+    public function test_mobile_resolve_records_the_authenticated_actor(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create([
+            'workspace_id' => $workspace->id,
+            'status' => User::STATUS_ACTIVE,
+            'name' => 'Mobile Agent',
+        ]);
+        $workspace->update(['owner_id' => $user->id]);
+        $contact = Contact::create(['workspace_id' => $workspace->id, 'first_name' => 'Mobile']);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'human',
+            'unread_count' => 2,
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/status", [
+            'status' => 'resolved',
+        ])->assertOk()->assertJsonPath('status', 'resolved');
+
+        $this->assertSame(0, $conversation->fresh()->unread_count);
+
+        $this->getJson("/api/v1/mobile/conversations/{$conversation->uuid}/messages")
+            ->assertOk()
+            ->assertJsonPath('data.0.direction', 'system')
+            ->assertJsonPath('data.0.type', 'event')
+            ->assertJsonPath('data.0.body', 'Resolved by Mobile Agent')
+            ->assertJsonPath('data.0.payload.activity.type', 'conversation.resolved')
+            ->assertJsonPath('data.0.payload.activity.actor.id', $user->id)
+            ->assertJsonPath('data.0.payload.activity.actor.name', 'Mobile Agent');
+    }
+
+    public function test_mobile_assignment_and_workflow_statuses_append_staff_activity(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create([
+            'workspace_id' => $workspace->id,
+            'status' => User::STATUS_ACTIVE,
+            'name' => 'Mobile Agent',
+        ]);
+        $workspace->update(['owner_id' => $user->id]);
+        $contact = Contact::create(['workspace_id' => $workspace->id, 'first_name' => 'Mobile']);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'human',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/assign", ['user_id' => $user->id])
+            ->assertOk();
+        $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/assign", ['user_id' => null])
+            ->assertOk();
+        foreach (['pending', 'snoozed', 'open'] as $status) {
+            $this->patchJson("/api/v1/mobile/conversations/{$conversation->uuid}/status", ['status' => $status])
+                ->assertOk()
+                ->assertJsonPath('status', $status);
+        }
+
+        $this->getJson("/api/v1/mobile/conversations/{$conversation->uuid}/messages")
+            ->assertOk()
+            ->assertJsonPath('data.0.payload.activity.type', 'conversation.assigned')
+            ->assertJsonPath('data.1.payload.activity.type', 'conversation.unassigned')
+            ->assertJsonPath('data.2.payload.activity.type', 'conversation.pending')
+            ->assertJsonPath('data.3.payload.activity.type', 'conversation.snoozed')
+            ->assertJsonPath('data.4.payload.activity.type', 'conversation.reopened');
+    }
+
     public function test_mobile_conversations_index_includes_assigned_fields(): void
     {
         $workspace = Workspace::factory()->create();
@@ -69,6 +141,7 @@ class MobileConversationTest extends TestCase
             'channel_account_id' => $channelAccount->id,
             'assigned_user_id' => $assignedAgent->id,
             'assigned_to' => 'human',
+            'started_from' => Conversation::STARTED_FROM_CUSTOMER_SDK,
             'status' => 'open',
             'last_message_at' => now(),
         ]);
@@ -88,6 +161,7 @@ class MobileConversationTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.0.id', $conversation->id)
+            ->assertJsonPath('data.0.started_from', Conversation::STARTED_FROM_CUSTOMER_SDK)
             ->assertJsonPath('data.0.assigned_user_id', $assignedAgent->id)
             ->assertJsonPath('data.0.assigned_to', 'human')
             ->assertJsonPath('data.0.assigned_user.id', $assignedAgent->id)
@@ -232,12 +306,21 @@ class MobileConversationTest extends TestCase
             'source' => 'webchat',
             'first_name' => 'Browsing',
         ]);
-        Conversation::create([
+        $emptyConversation = Conversation::create([
             'workspace_id' => $workspace->id,
             'channel_account_id' => $account->id,
             'contact_id' => $emptyContact->id,
             'status' => 'open',
             'webchat_last_seen_at' => now(),
+        ]);
+        $emptyConversation->messages()->create([
+            'direction' => 'system',
+            'channel' => 'webchat',
+            'type' => 'event',
+            'body' => 'Agent joined the chat',
+            'status' => 'delivered',
+            'sent_by' => 'system',
+            'sent_at' => now(),
         ]);
 
         Sanctum::actingAs($user);
@@ -314,6 +397,32 @@ class MobileConversationTest extends TestCase
         $this->assertSame('Doe', $contact->last_name);
         $this->assertSame('john@example.com', $contact->email);
         $this->assertSame('+1234567890', $contact->phone_e164);
+    }
+
+    public function test_mobile_contact_search_accepts_query_alias(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $match = Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'Alice',
+            'last_name' => 'Customer',
+            'email' => 'alice@example.com',
+        ]);
+        Contact::create([
+            'workspace_id' => $workspace->id,
+            'first_name' => 'Bob',
+            'last_name' => 'Other',
+            'email' => 'bob@example.com',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/mobile/contacts/search?q=&query=Alice')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $match->id)
+            ->assertJsonPath('data.0.name', 'Alice Customer');
     }
 
     public function test_mobile_can_update_contact_by_conversation_uuid(): void

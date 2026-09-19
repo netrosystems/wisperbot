@@ -79,7 +79,7 @@ class InboxController extends Controller
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', $liveSince))
-            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('messages'))
+            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('contentMessages'))
             ->when($request->folder === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when($request->folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
             ->when($request->channel, fn ($q) => $q->whereHas('channelAccount', fn ($q) => $q->where('channel', $request->channel)))
@@ -159,6 +159,7 @@ class InboxController extends Controller
                 $messages = $selected->messages()
                     ->with('sender')
                     ->latest('sent_at')
+                    ->latest('id')
                     ->limit(200)
                     ->get()
                     ->reverse()
@@ -220,7 +221,7 @@ class InboxController extends Controller
         $this->authorise($request, $conversation);
 
         $conversation->load(['contact', 'channelAccount', 'labels', 'joinedUser']);
-        $messages = $conversation->messages()->with(['conversation', 'sender'])->orderBy('sent_at')->get();
+        $messages = $conversation->messages()->with(['conversation', 'sender'])->orderBy('sent_at')->orderBy('id')->get();
         $messages->each(fn (Message $message) => $this->normaliseMessageMediaUrl($message, $request));
 
         // Mark as read
@@ -272,7 +273,7 @@ class InboxController extends Controller
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', app(WebchatPresence::class)->onlineSince()))
             ->when(($filters['folder'] ?? null) !== 'live', fn ($q) => $q->where(function ($sub) use ($conversation) {
-                $sub->whereHas('messages')->orWhere('id', $conversation->id);
+                $sub->whereHas('contentMessages')->orWhere('id', $conversation->id);
             }))
             ->when(($filters['folder'] ?? null) === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when(($filters['folder'] ?? null) === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
@@ -431,6 +432,18 @@ class InboxController extends Controller
             $file = $request->file('attachment');
             $upload = $this->attachmentService->processUpload($file, 'message-media');
 
+            if (in_array($channel, ['messenger', 'instagram', 'telegram'], true)) {
+                try {
+                    $upload = $this->attachmentService->normaliseExternalImage($file, $upload);
+                } catch (\RuntimeException $e) {
+                    if ($request->wantsJson()) {
+                        return response()->json(['error' => $e->getMessage()], 422);
+                    }
+
+                    return back()->with('error', $e->getMessage());
+                }
+            }
+
             // Derive type from upload result unless explicitly set (e.g. voice recording)
             if ($msgType === 'text' || empty($msgType)) {
                 $msgType = $upload['type'];
@@ -463,27 +476,28 @@ class InboxController extends Controller
             ];
 
             if ($channel === 'whatsapp') {
-                $client = CloudApiClient::forWorkspace($conversation->workspace_id);
+                $phoneNumberId = (string) ($conversation->channelAccount?->phone_number_id ?? '');
+                $client = $phoneNumberId !== ''
+                    ? CloudApiClient::forPhoneNumber($phoneNumberId, $conversation->workspace_id)
+                    : CloudApiClient::forWorkspace($conversation->workspace_id);
                 if (! $client) {
                     return response()->json(['error' => 'No active WhatsApp account.'], 422);
                 }
 
-                // If converted HEIC, upload from stored path or temp file
-                $tempPath = null;
-                if ($upload['is_converted_heic']) {
-                    $tempPath = tempnam(sys_get_temp_dir(), 'wa_upload_').'.jpg';
-                    file_put_contents($tempPath, $this->storageManager->disk()->get($upload['path']));
-                    $uploadPath = $tempPath;
-                } else {
-                    $uploadPath = $file->getRealPath();
-                }
-
                 try {
-                    $attachmentPayload['media_id'] = $client->uploadMedia($uploadPath, $upload['mime_type']);
-                } finally {
-                    if ($tempPath && file_exists($tempPath)) {
-                        @unlink($tempPath);
+                    $prepared = $this->attachmentService->prepareForWhatsapp($file, $upload);
+                    try {
+                        $attachmentPayload['media_id'] = $client->uploadMedia(
+                            $prepared['path'],
+                            $prepared['mime_type'],
+                        );
+                    } finally {
+                        if ($prepared['temporary'] && file_exists($prepared['path'])) {
+                            @unlink($prepared['path']);
+                        }
                     }
+                } catch (\Throwable $e) {
+                    return response()->json(['error' => $e->getMessage()], 422);
                 }
             }
 
@@ -735,18 +749,8 @@ class InboxController extends Controller
             abort_unless($assignedTo, 422);
         }
 
-        $this->ownership->synchronized($conversation, function () use ($conversation, $request): void {
-            $conversation->refresh();
-            $updates = ['assigned_user_id' => $request->user_id];
-            if ($request->user_id) {
-                $updates += ['assigned_to' => 'human', 'ai_paused_at' => now(), 'ai_pause_reason' => 'assigned'];
-            }
-            if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
-                $updates += ['joined_user_id' => null, 'joined_at' => null];
-            }
-            $conversation->update($updates);
-        });
-        ConversationAssigned::dispatch($conversation, $assignedTo);
+        $updated = $this->ownership->assign($conversation, $assignedTo, $request->user());
+        ConversationAssigned::dispatch($updated, $assignedTo);
 
         return back()->with('success', 'Conversation assigned.');
     }
@@ -792,14 +796,7 @@ class InboxController extends Controller
         $this->authorise($request, $conversation);
         $request->validate(['status' => ['required', 'in:open,pending,resolved,snoozed']]);
 
-        if ($request->status === 'resolved') {
-            $this->ownership->resolve($conversation);
-        } else {
-            $this->ownership->synchronized($conversation, fn () => $conversation->update([
-                'status' => $request->status,
-                'resolved_at' => null,
-            ]));
-        }
+        $this->ownership->changeStatus($conversation, $request->status, $request->user());
 
         return back()->with('success', 'Status updated.');
     }
@@ -883,22 +880,46 @@ class InboxController extends Controller
         $mimeType = $file->getMimeType() ?? 'application/octet-stream';
         $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
 
-        $client = CloudApiClient::forWorkspace($workspaceId);
+        $phoneNumberId = (string) ($conversation->channelAccount?->phone_number_id ?? '');
+        $client = $phoneNumberId !== ''
+            ? CloudApiClient::forPhoneNumber($phoneNumberId, $workspaceId)
+            : CloudApiClient::forWorkspace($workspaceId);
         if (! $client) {
             return response()->json(['error' => 'No active WhatsApp account.'], 422);
         }
 
+        $prepared = null;
         try {
-            $mediaId = $client->uploadMedia($file->getRealPath(), $mimeType);
+            $prepared = $this->attachmentService->prepareForWhatsapp($file, [
+                'path' => '',
+                'mime_type' => $mimeType,
+                'type' => $this->attachmentService->inferMessageType($mimeType, $file->getClientOriginalExtension()),
+                'is_converted_heic' => false,
+            ]);
+            $mediaId = $client->uploadMedia($prepared['path'], $prepared['mime_type']);
 
             // Store a local copy so the UI can display a preview (WhatsApp media IDs are not URLs)
-            $path = $this->storageManager->prefixedPath('template-media/'.$file->hashName());
-            $this->storageManager->disk()->putFileAs(dirname($path), $file, basename($path));
+            $extension = match ($prepared['mime_type']) {
+                'image/jpeg', 'image/jpg' => 'jpg',
+                'image/png' => 'png',
+                'video/mp4' => 'mp4',
+                'application/pdf' => 'pdf',
+                default => 'bin',
+            };
+            $path = $this->storageManager->prefixedPath('template-media/'.bin2hex(random_bytes(20)).'.'.$extension);
+            $previewContents = file_get_contents($prepared['path']);
+            if ($previewContents === false || ! $this->storageManager->disk()->put($path, $previewContents)) {
+                throw new \RuntimeException('Could not store the WhatsApp media preview.');
+            }
             $previewUrl = $this->browserSafePublicUrl($this->storageManager->disk()->url($path), $request);
 
-            return response()->json(['media_id' => $mediaId, 'mime_type' => $mimeType, 'preview_url' => $previewUrl]);
+            return response()->json(['media_id' => $mediaId, 'mime_type' => $prepared['mime_type'], 'preview_url' => $previewUrl]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 422);
+        } finally {
+            if (($prepared['temporary'] ?? false) && file_exists($prepared['path'])) {
+                @unlink($prepared['path']);
+            }
         }
     }
 

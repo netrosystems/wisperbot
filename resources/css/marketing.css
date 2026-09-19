@@ -3830,6 +3830,60 @@
     max-width: 760px;
     margin: auto;
 }
+.m-blog-layout {
+    display: grid;
+    gap: 48px;
+    max-width: 1040px;
+    margin: auto;
+}
+.m-blog-layout .m-blog-reading {
+    margin: 0;
+    min-width: 0;
+}
+.m-blog-toc {
+    display: none;
+}
+.m-blog-toc-title,
+.m-blog-toc-compact summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.m-blog-toc-title {
+    margin-bottom: 16px;
+}
+.m-blog-toc-compact {
+    margin-bottom: 40px;
+    padding: 16px;
+    border: 1px solid #e3e6dc;
+    border-radius: 16px;
+    background: #fafbf7;
+}
+.m-blog-toc-compact summary {
+    cursor: pointer;
+    list-style: none;
+}
+.m-blog-toc-compact > div {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e3e6dc;
+}
+@media (min-width: 1024px) {
+    .m-blog-layout {
+        grid-template-columns: 220px minmax(0, 1fr);
+    }
+    .m-blog-toc {
+        display: block;
+        position: sticky;
+        top: 96px;
+        align-self: start;
+    }
+    .m-blog-toc-compact {
+        display: none;
+    }
+}
 .m-blog-reading h2 {
     font-weight: 500;
     letter-spacing: -0.7px;

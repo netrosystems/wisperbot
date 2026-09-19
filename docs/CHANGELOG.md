@@ -37,6 +37,26 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 - Added guarded Omni inbox reconciliation so incoming conversations appear within four seconds when local realtime is not configured, while retaining websocket delivery plus a slower recovery reconciliation in configured environments. No migration or mobile API change is required.
 
+- Normalized outbound provider images for staff web/mobile sends: JPEG/PNG pass through, HEIC/HEIF/WebP/GIF convert to JPEG for WhatsApp, Messenger, Instagram and Telegram, WhatsApp media upload follows the conversation-bound phone number, and provider delivery errors are retained for diagnosis.
+- Upgraded the public blog and editorial CMS with structural HTML repair, safe deterministic heading anchors, a visible table of contents, reading progress, meaningful freshness labels, Breadcrumb/FAQ structured data, responsive comparison tables, HTML-source editing, table and divider tools, and live content-quality signals. Legacy malformed articles are repaired on read without destructive database rewrites and persist normalized markup on their next save.
+
+- Expanded the staff conversation audit timeline with transfer, leave, assignment, unassignment, reopen, pending, and snoozed activity. No-op transitions remain deduplicated; widget/SDK customers continue to receive only joined/resolved activity, with takeover safely represented as the new agent joining.
+
+- Fixed website-widget conversation ordering when a missed realtime activity is recovered after a newer cached message; recovered rows now return to their canonical message-ID position instead of appearing at the end.
+
+- Scoped website-widget cached history to the server-confirmed conversation and made session history authoritative, removing stale messages carried across renewed visitor sessions. Initial history now returns the latest 100 messages in chronological order.
+
+- Fixed same-conversation Omni Inbox refresh reconciliation so server messages recovered after a missed realtime event merge into the open timeline instead of being ignored until the agent navigates away.
+
+- Added durable joined/resolved conversation activity rows across staff web, MasterBox, staff mobile, website widget, and the public-safe customer SDK contract. Ownership state and activity are committed atomically; duplicate no-op actions, provider sends, AI/automation/webhooks, notifications, unread/SLA, list ordering, and content previews remain unaffected. Customer SDK package release remains a separate app-team rollout.
+
+- Added a per-user Master Email Inbox alert switch on the web. Turning it off suppresses in-app, realtime, browser-push, and mobile-push notifications for newly synchronized inbound email while mailbox sync, unread email state, replies, and every non-email channel continue normally. The additive mobile profile field and authenticated update endpoint are ready for app-team integration; existing users default on.
+
+- Resolved inbox conversations now reopen as Open/Unassigned when the same customer sends a genuine new message. The existing transcript and conversation link are retained, stale ownership and AI-pause state are cleared, and the web Resolved/Unassigned views reconcile in realtime; provider history, echoes, and status callbacks remain non-reopening.
+
+- Separated website widget availability from customer mobile SDK availability on the same widget. Website embeds keep using the website key and `Widget enabled`; customer SDK apps get a separate SDK key and `SDK enabled`, with existing widgets and old SDK builds remaining available by default.
+- Added webchat source detection for newly created conversations: website widget chats keep the existing website icon, customer SDK chats can show a mobile/app icon, and conversation APIs expose additive `started_from` metadata while old conversations remain unlabelled.
+
 - Raised dedicated authenticated mobile API headroom from a shared 60 to an isolated configurable 300 requests/minute/user, including mobile profile and private-channel authorization. Login, generic/developer API, and stricter action-specific limits remain unchanged. Mobile throttling now provides a structured 429 reason and retry delay.
 
 - Moved the mobile inbox menu from a floating composer overlay to a compact top bar shared by Omni chat and Email MasterBox. Mobile chat now uses the full width with a return-to-inbox link, narrow-screen lists retain collapsible filters, and the send button has a 44px touch target. No API changes.

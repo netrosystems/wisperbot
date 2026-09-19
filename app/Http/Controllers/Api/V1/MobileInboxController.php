@@ -96,7 +96,7 @@ class MobileInboxController extends WorkspaceScopedController
 
         $openQuery = Conversation::where('workspace_id', $wsId)
             ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
-            ->whereHas('messages')
+            ->whereHas('contentMessages')
             ->where('status', 'open');
 
         return response()->json([
@@ -110,7 +110,7 @@ class MobileInboxController extends WorkspaceScopedController
                 ->count('contact_id'),
             'unread' => Conversation::where('workspace_id', $wsId)
                 ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
-                ->whereHas('messages')
+                ->whereHas('contentMessages')
                 ->where('unread_count', '>', 0)
                 ->count(),
         ]);
@@ -177,7 +177,7 @@ class MobileInboxController extends WorkspaceScopedController
     public function contactSearch(Request $request): JsonResponse
     {
         $wsId = $this->workspaceId($request);
-        $q = $request->input('q', '');
+        $q = trim((string) ($request->input('q') ?: $request->input('query', '')));
 
         $contacts = Contact::where('workspace_id', $wsId)
             ->withCount([
@@ -324,7 +324,7 @@ class MobileInboxController extends WorkspaceScopedController
             ->with(['channelAccount', 'assignedUser'])
             ->orderByDesc('last_message_at')
             ->limit(10)
-            ->get(['id', 'uuid', 'status', 'channel_account_id', 'assigned_user_id', 'assigned_to', 'last_message_at', 'unread_count']);
+            ->get(['id', 'uuid', 'status', 'started_from', 'channel_account_id', 'assigned_user_id', 'assigned_to', 'last_message_at', 'unread_count']);
 
         return response()->json([
             'id' => $contact->id,
@@ -340,6 +340,7 @@ class MobileInboxController extends WorkspaceScopedController
                 'id' => $c->id,
                 'uuid' => $c->uuid,
                 'status' => $c->status,
+                'started_from' => $c->started_from,
                 'channel' => $c->channelAccount?->channel,
                 'last_message_at' => $c->last_message_at?->toIso8601String(),
                 'unread_count' => $c->unread_count,

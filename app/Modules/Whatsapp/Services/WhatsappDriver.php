@@ -265,7 +265,18 @@ class WhatsappDriver implements ChannelDriverInterface
         }
 
         $phoneId = $value['metadata']['phone_number_id'] ?? '';
-        $fromPhone = $msg['from'] ?? '';
+        $fromPhone = ltrim(trim((string) ($msg['from'] ?? '')), '+');
+        if ($fromPhone === '') {
+            $fromPhone = ltrim(trim((string) ($value['contacts'][0]['wa_id'] ?? '')), '+');
+        }
+
+        if ($fromPhone === '') {
+            Log::warning('WhatsApp inbound dropped because sender phone is missing', [
+                'phone_number_id' => $phoneId,
+                'msg_id' => $msg['id'] ?? null,
+            ]);
+            throw new \RuntimeException('WhatsApp inbound message is missing the sender phone number.');
+        }
 
         $channelAccount = ChannelAccount::where('phone_number_id', $phoneId)
             ->where('channel', 'whatsapp')
@@ -303,7 +314,6 @@ class WhatsappDriver implements ChannelDriverInterface
 
         [$type, $body] = $this->messagePresentation($msg);
 
-        app(ConversationOwnershipService::class)->prepareInbound($conversation);
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'direction' => 'in',
@@ -317,19 +327,21 @@ class WhatsappDriver implements ChannelDriverInterface
             'sent_at' => now()->createFromTimestamp($msg['timestamp'] ?? time()),
         ]);
 
-        $conversation->update([
-            'last_message_at' => $message->sent_at,
-            'status' => 'open',
-            'unread_count' => $conversation->unread_count + 1,
-            'last_inbound_at' => $message->sent_at,
-            // If contact replies after we responded, reset first_response_at for next cycle
-            'first_response_at' => $conversation->first_response_at && $conversation->last_inbound_at
-                ? ($message->sent_at > $conversation->first_response_at ? null : $conversation->first_response_at)
-                : $conversation->first_response_at,
-        ]);
+        $reopened = app(ConversationOwnershipService::class)->prepareInbound(
+            $conversation,
+            $message->sent_at,
+            1,
+            [
+                'status' => 'open',
+                // If contact replies after we responded, reset first_response_at for next cycle
+                'first_response_at' => $conversation->first_response_at && $conversation->last_inbound_at
+                    ? ($message->sent_at > $conversation->first_response_at ? null : $conversation->first_response_at)
+                    : $conversation->first_response_at,
+            ],
+        );
 
         // Fire typed event for automations / AI
-        MessageReceived::dispatch($message);
+        MessageReceived::dispatch($message, $reopened);
 
         return $message;
     }
@@ -404,7 +416,7 @@ class WhatsappDriver implements ChannelDriverInterface
             'sent_at' => $sentAt,
         ]);
 
-        $updates = ['status' => 'open'];
+        $updates = [];
         if (! $conversation->last_message_at || $sentAt->greaterThan($conversation->last_message_at)) {
             $updates['last_message_at'] = $sentAt;
         }
@@ -533,7 +545,14 @@ class WhatsappDriver implements ChannelDriverInterface
         if ($message) {
             $current = $priority[$message->status] ?? 0;
             if ($newPriority >= $current) {
-                $message->update(['status' => $mapped]);
+                $patch = ['status' => $mapped];
+                if ($mapped === 'failed' && ! empty($status['errors'])) {
+                    $patch['error_json'] = [
+                        'provider' => 'whatsapp',
+                        'errors' => $status['errors'],
+                    ];
+                }
+                $message->update($patch);
                 $message->load('conversation');
                 MessageStatusUpdated::dispatch($message);
             }

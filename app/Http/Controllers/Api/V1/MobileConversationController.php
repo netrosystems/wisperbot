@@ -71,7 +71,7 @@ class MobileConversationController extends WorkspaceScopedController
             ->when($isLiveFolder, fn ($q) => $q
                 ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
                 ->where('webchat_last_seen_at', '>=', $liveSince))
-            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('messages'))
+            ->when(! $isLiveFolder, fn ($q) => $q->whereHas('contentMessages'))
             ->when(! $isLiveFolder && ! in_array($folder, ['all', 'resolved', 'snoozed'], true), fn ($q) => $q->where('status', 'open'))
             ->when($folder === 'mine', fn ($q) => $q->where('assigned_user_id', $userId))
             ->when($folder === 'unassigned', fn ($q) => $q->whereNull('assigned_user_id'))
@@ -147,6 +147,7 @@ class MobileConversationController extends WorkspaceScopedController
         $messages = $conversation->messages()
             ->with('conversation')
             ->orderBy('sent_at')
+            ->orderBy('id')
             ->get();
 
         $conversation->update(['unread_count' => 0]);
@@ -178,6 +179,7 @@ class MobileConversationController extends WorkspaceScopedController
 
         $messages = $conversation->messages()
             ->orderBy('sent_at')
+            ->orderBy('id')
             ->get();
 
         return response()->json([
@@ -241,6 +243,14 @@ class MobileConversationController extends WorkspaceScopedController
             $file = $request->file('attachment');
             $upload = $this->attachmentService->processUpload($file, 'message-media');
 
+            if (in_array($channel, ['messenger', 'instagram', 'telegram'], true)) {
+                try {
+                    $upload = $this->attachmentService->normaliseExternalImage($file, $upload);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['error' => $e->getMessage()], 422);
+                }
+            }
+
             if ($msgType === 'text' || empty($msgType)) {
                 $msgType = $upload['type'];
             } elseif ($msgType === 'audio' && in_array($upload['type'], ['audio', 'video', 'document'], true)) {
@@ -265,26 +275,28 @@ class MobileConversationController extends WorkspaceScopedController
             ];
 
             if ($channel === 'whatsapp') {
-                $client = CloudApiClient::forWorkspace($conversation->workspace_id);
+                $phoneNumberId = (string) ($conversation->channelAccount?->phone_number_id ?? '');
+                $client = $phoneNumberId !== ''
+                    ? CloudApiClient::forPhoneNumber($phoneNumberId, $conversation->workspace_id)
+                    : CloudApiClient::forWorkspace($conversation->workspace_id);
                 if (! $client) {
                     return response()->json(['error' => 'No active WhatsApp account.'], 422);
                 }
 
-                $tempPath = null;
-                if ($upload['is_converted_heic']) {
-                    $tempPath = tempnam(sys_get_temp_dir(), 'wa_upload_').'.jpg';
-                    file_put_contents($tempPath, $this->storageManager->disk()->get($upload['path']));
-                    $uploadPath = $tempPath;
-                } else {
-                    $uploadPath = $file->getRealPath();
-                }
-
                 try {
-                    $attachmentPayload['media_id'] = $client->uploadMedia($uploadPath, $upload['mime_type']);
-                } finally {
-                    if ($tempPath && file_exists($tempPath)) {
-                        @unlink($tempPath);
+                    $prepared = $this->attachmentService->prepareForWhatsapp($file, $upload);
+                    try {
+                        $attachmentPayload['media_id'] = $client->uploadMedia(
+                            $prepared['path'],
+                            $prepared['mime_type'],
+                        );
+                    } finally {
+                        if ($prepared['temporary'] && file_exists($prepared['path'])) {
+                            @unlink($prepared['path']);
+                        }
                     }
+                } catch (\Throwable $e) {
+                    return response()->json(['error' => $e->getMessage()], 422);
                 }
             }
 
@@ -369,15 +381,8 @@ class MobileConversationController extends WorkspaceScopedController
             abort_unless($assignedTo, 422, 'User not found in workspace.');
         }
 
-        $updates = ['assigned_user_id' => $request->user_id];
-        if ($request->user_id) {
-            $updates += ['assigned_to' => 'human', 'ai_paused_at' => now(), 'ai_pause_reason' => 'assigned'];
-        }
-        if ((int) $conversation->joined_user_id !== (int) $request->user_id) {
-            $updates += ['joined_user_id' => null, 'joined_at' => null];
-        }
-        $this->ownership->synchronized($conversation, fn () => $conversation->update($updates));
-        ConversationAssigned::dispatch($conversation, $assignedTo);
+        $updated = $this->ownership->assign($conversation, $assignedTo, $request->user());
+        ConversationAssigned::dispatch($updated, $assignedTo);
 
         return response()->json(['ok' => true, 'assigned_user_id' => $request->user_id]);
     }
@@ -408,11 +413,7 @@ class MobileConversationController extends WorkspaceScopedController
 
         $request->validate(['status' => ['required', 'in:open,pending,resolved,snoozed']]);
 
-        if ($request->status === 'resolved') {
-            $this->ownership->resolve($conversation);
-        } else {
-            $this->ownership->synchronized($conversation, fn () => $conversation->update(['status' => $request->status, 'resolved_at' => null]));
-        }
+        $this->ownership->changeStatus($conversation, $request->status, $request->user());
 
         return response()->json(['ok' => true, 'status' => $request->status]);
     }
@@ -750,6 +751,7 @@ class MobileConversationController extends WorkspaceScopedController
             'id' => $c->id,
             'uuid' => $c->uuid,
             'status' => $c->status,
+            'started_from' => $c->started_from,
             'channel' => $c->channelAccount?->channel,
             'channel_account_id' => $c->channel_account_id,
             'unread_count' => (int) $c->unread_count,

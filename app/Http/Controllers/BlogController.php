@@ -6,6 +6,8 @@ use App\Models\BlogCategory;
 use App\Models\BlogPost;
 use App\Models\BlogPostRedirect;
 use App\Models\BlogTag;
+use App\Services\BlogContentAnalyzer;
+use App\Services\BlogContentSanitizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,6 +16,11 @@ use Inertia\Response;
 
 class BlogController extends Controller
 {
+    public function __construct(
+        private readonly BlogContentSanitizer $sanitizer,
+        private readonly BlogContentAnalyzer $analyzer,
+    ) {}
+
     public function index(Request $request): Response
     {
         $category = null;
@@ -68,8 +75,12 @@ class BlogController extends Controller
             ->when($post->category_id, fn ($q) => $q->where('category_id', $post->category_id))
             ->latest('published_at')->limit(3)->get()->map(fn ($item) => $this->summary($item));
 
+        $content = $this->sanitizer->sanitize($post->content);
+        $analysis = $this->analyzer->analyze($content);
+
         return Inertia::render('marketing/Blog/Show', [
-            'post' => array_merge($post->toArray(), [
+            'post' => array_merge($post->toArray(), $analysis, [
+                'content' => $content,
                 'seo_title' => $post->seo_title,
                 'seo_description' => $post->seo_description,
                 'canonical' => $post->canonical_url ?: route('blog.show', $post->slug),
@@ -86,8 +97,12 @@ class BlogController extends Controller
         abort_unless($request->hasValidSignature(), 403);
         $blogPost->load(['category:id,name,slug', 'author:id,name', 'tags:id,name,slug']);
 
+        $content = $this->sanitizer->sanitize($blogPost->content);
+        $analysis = $this->analyzer->analyze($content);
+
         return Inertia::render('marketing/Blog/Show', [
-            'post' => array_merge($blogPost->toArray(), [
+            'post' => array_merge($blogPost->toArray(), $analysis, [
+                'content' => $content,
                 'seo_title' => $blogPost->seo_title,
                 'seo_description' => $blogPost->seo_description,
                 'canonical' => route('blog.show', $blogPost->slug),
