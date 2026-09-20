@@ -5,10 +5,10 @@ namespace Tests\Feature\Api\V1;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Models\AiProviderConfig;
-use App\Services\AddonEntitlementService;
 use App\Support\ApiAbilities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AiChatbotApiTest extends TestCase
@@ -46,6 +46,13 @@ class AiChatbotApiTest extends TestCase
 
         $this->assertCount(1, $res->json('data'));
         $res->assertJsonPath('data.0.answer_outside_knowledge_base', true)
+            ->assertJsonPath('data.0.answer_scope', 'general')
+            ->assertJsonPath('data.0.trusted_research_enabled', false)
+            ->assertJsonPath('data.0.kb_exact_wording', false)
+            ->assertJsonPath('data.0.starter_questions_enabled', false)
+            ->assertJsonPath('data.0.starter_questions', [])
+            ->assertJsonPath('data.0.live_product_facts_enabled', false)
+            ->assertJsonPath('data.0.unsupported_fallback_action', 'clarify_then_handoff')
             ->assertJsonPath('data.0.unsupported_answer_action', 'general')
             ->assertJsonPath('data.0.enabled', true);
     }
@@ -107,14 +114,23 @@ class AiChatbotApiTest extends TestCase
             ->assertStatus(404);
     }
 
-    private function enableDeveloperTools(int $clientId, int $userId): void
+    public function test_knowledge_base_api_normalises_website_input_and_returns_url_provenance(): void
     {
-        app(AddonEntitlementService::class)->activate(
-            $clientId,
-            AddonEntitlementService::DEVELOPER_TOOLS,
-            $userId,
-            'manual',
-            'test-developer-tools-'.$clientId,
-        );
+        Queue::fake();
+        ['user' => $user, 'workspace' => $workspace, 'client' => $client] = $this->createWorkspaceContext();
+        $this->enableDeveloperTools($client->id, $user->id);
+        $token = $user->createToken('t', [ApiAbilities::AI_WRITE])->plainTextToken;
+        $kb = AiKnowledgeBase::factory()->create(['workspace_id' => $workspace->id]);
+
+        $this->withToken($token)
+            ->postJson("/api/v1/ai/knowledge-bases/{$kb->id}/documents", [
+                'source_type' => 'sitemap',
+                'source_ref' => 'example.com',
+                'title' => 'Website',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('source_ref', 'https://example.com')
+            ->assertJsonPath('original_source_ref', 'example.com')
+            ->assertJsonPath('canonical_url', null);
     }
 }

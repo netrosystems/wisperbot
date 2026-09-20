@@ -819,7 +819,8 @@ class InboxSetupController extends Controller
             return false;
         }
 
-        $callbackUrl = route('webhooks.meta.receive', ['token' => $verifyToken]);
+        // Meta must call the public APP_URL, not whichever host the admin used.
+        $callbackUrl = rtrim((string) config('app.url'), '/').route('webhooks.meta.receive', ['token' => $verifyToken], false);
 
         try {
             $res = Http::post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
@@ -939,7 +940,8 @@ class InboxSetupController extends Controller
             return false;
         }
 
-        $callbackUrl = route('webhooks.meta.receive', ['token' => $verifyToken]);
+        // Meta must call the public APP_URL, not whichever host the admin used.
+        $callbackUrl = rtrim((string) config('app.url'), '/').route('webhooks.meta.receive', ['token' => $verifyToken], false);
 
         try {
             $res = Http::post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [

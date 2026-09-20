@@ -11,12 +11,21 @@ use App\Services\StorageManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class MetaDirectMessageAttachmentTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Cached media is keyed by message id, which restarts every run; never
+        // read or write the real public disk.
+        Storage::fake('public');
+    }
 
     public function test_messenger_inbound_image_is_stored_as_renderable_media_and_available_to_mobile(): void
     {

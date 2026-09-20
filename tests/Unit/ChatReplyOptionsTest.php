@@ -33,6 +33,21 @@ class ChatReplyOptionsTest extends TestCase
         $this->assertSame('হ্যালো', $service->parse('{"reply":"হ্যালো","quick_replies":[]}')['reply']);
     }
 
+    public function test_valid_json_is_recovered_when_a_provider_adds_surrounding_prose(): void
+    {
+        $content = 'Here is the response: '.json_encode([
+            'reply' => 'Which option do you need?',
+            'quick_replies' => ['First option', 'Second option'],
+            'grounded' => true,
+            'response_type' => 'clarification',
+        ]);
+
+        $result = (new ChatReplyOptions)->parse($content);
+
+        $this->assertSame('Which option do you need?', $result['display_body']);
+        $this->assertSame(['First option', 'Second option'], array_column($result['quick_replies'], 'label'));
+    }
+
     public function test_malformed_or_truncated_structured_output_is_rejected(): void
     {
         $service = new ChatReplyOptions;
@@ -55,11 +70,11 @@ class ChatReplyOptionsTest extends TestCase
     public function test_yes_no_recovery_is_conservative_and_can_be_disabled(): void
     {
         $service = new ChatReplyOptions;
-        foreach (['Does your phone support eSIM?', 'Open Settings. Can you see the eSIM?', 'Please reply Yes or No.'] as $reply) {
+        foreach (['Does your phone support eSIM?', 'Open Settings. Can you see the eSIM?', 'Please reply Yes or No.', 'Plans vary by country. Would you like assistance with anything else?', 'Do you want the installation steps?', 'Browse plans in the app or website and complete the purchase. Would you like help with anything else?'] as $reply) {
             $this->assertSame(['Yes', 'No'], array_column($service->parse($reply, true)['quick_replies'], 'label'));
             $this->assertSame([], $service->parse($reply, false)['quick_replies']);
         }
-        foreach (['Which phone do you have?', 'How can we help?', 'Is your phone iOS or Android?', 'Have you tried restarting? Can you see the eSIM?', 'Is your email address correct?', 'Your device is supported or not supported depending on the model.', 'Hello.'] as $reply) {
+        foreach (['Which phone do you have?', 'How can we help?', 'Is your phone iOS or Android?', 'Have you tried restarting? Can you see the eSIM?', 'Is your email address correct?', 'Your device is supported or not supported depending on the model.', 'Hello.', 'Would you like the iOS or Android steps?', 'How can I help you today?'] as $reply) {
             $this->assertSame([], $service->parse($reply, true)['quick_replies'], $reply);
         }
         $result = $service->parse('{"reply":"Does your phone support eSIM?","quick_replies":["Supported","Not supported","Not sure"]}', true);

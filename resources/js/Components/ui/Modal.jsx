@@ -52,7 +52,7 @@ export default function Modal({
                     leaveTo="opacity-0 scale-95"
                 >
                     <DialogPanel
-                        className={`relative w-full overflow-hidden rounded-soft-lg bg-white dark:bg-neutral-900 shadow-soft-xl border border-soft border-neutral-200 dark:border-neutral-800 transition-all sm:mx-auto ${maxWidthClass} text-neutral-900 dark:text-neutral-100`}
+                        className={`relative w-full overflow-hidden rounded-soft-xl bg-white dark:bg-neutral-900 shadow-soft-xl border border-neutral-200/80 dark:border-neutral-800 transition-all sm:mx-auto ${maxWidthClass} text-neutral-900 dark:text-neutral-100`}
                     >
                         {children}
                     </DialogPanel>

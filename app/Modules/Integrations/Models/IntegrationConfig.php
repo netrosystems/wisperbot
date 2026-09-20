@@ -120,6 +120,8 @@ class IntegrationConfig extends Model
         'oauth_linkedin' => [
             ['key' => 'client_id',     'label' => 'Client ID',     'type' => 'text',     'required' => true],
             ['key' => 'client_secret', 'label' => 'Client Secret', 'type' => 'password', 'required' => true],
+            ['key' => 'pages_client_id',     'label' => 'Company Page Client ID',     'type' => 'text',     'required' => false, 'hint' => 'From a SECOND LinkedIn app that has only the Community Management API. LinkedIn refuses to add that product to an app that also has Sign In or Share, so Company Page posting needs its own app. Leave both fields empty to keep LinkedIn personal-profile only.'],
+            ['key' => 'pages_client_secret', 'label' => 'Company Page Client Secret', 'type' => 'password', 'required' => false],
         ],
         'oauth_youtube' => [
             ['key' => 'client_id',     'label' => 'Client ID',     'type' => 'text',     'required' => true],

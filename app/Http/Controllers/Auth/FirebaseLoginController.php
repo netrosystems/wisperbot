@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\ClientSetting;
 use App\Models\SocialAccount;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\PlanSelectionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +20,8 @@ use Illuminate\Support\Str;
 
 class FirebaseLoginController extends Controller
 {
+    public function __construct(private PlanSelectionService $planSelection) {}
+
     public function login(Request $request): JsonResponse|RedirectResponse
     {
         if (SystemSetting::get('firebase_enabled', 'false') !== 'true') {
@@ -71,27 +75,39 @@ class FirebaseLoginController extends Controller
                 return response()->json(['message' => 'No account found. Please register first.'], 403);
             }
 
-            $user = DB::transaction(function () use ($name, $email) {
-                $client = Client::create([
-                    'name' => $name,
-                    'email' => $email,
-                    'status' => Client::STATUS_ACTIVE,
-                    'base_currency' => 'USD',
-                    'currency_symbol' => '$',
-                    'currency_position' => 'before',
-                ]);
+            try {
+                $user = DB::transaction(function () use ($name, $email) {
+                    $client = Client::create([
+                        'name' => $name,
+                        'email' => $email,
+                        'status' => Client::STATUS_ACTIVE,
+                        'base_currency' => 'USD',
+                        'currency_symbol' => '$',
+                        'currency_position' => 'before',
+                    ]);
 
-                return User::create([
-                    'name' => $name,
-                    'email' => $email,
-                    'password' => bcrypt(Str::random(32)),
-                    'role' => User::ROLE_CLIENT,
-                    'status' => User::STATUS_ACTIVE,
-                    'email_verified_at' => now(),
-                    'client_id' => $client->id,
-                    'client_role' => User::CLIENT_ROLE_ADMINISTRATOR,
-                ]);
-            });
+                    ClientSetting::set($client->id, 'plan_selection_required', '1');
+
+                    $newUser = User::create([
+                        'name' => $name,
+                        'email' => $email,
+                        'password' => bcrypt(Str::random(32)),
+                        'role' => User::ROLE_CLIENT,
+                        'status' => User::STATUS_ACTIVE,
+                        'email_verified_at' => now(),
+                        'client_id' => $client->id,
+                        'client_role' => User::CLIENT_ROLE_ADMINISTRATOR,
+                    ]);
+
+                    $this->planSelection->activateDefaultFreePlan($newUser);
+
+                    return $newUser;
+                });
+            } catch (\DomainException) {
+                return response()->json([
+                    'message' => 'Account creation is temporarily unavailable. Please contact support.',
+                ], 503);
+            }
         }
 
         if (! $user->isActive() || ($user->client && ! $user->client->isActive())) {

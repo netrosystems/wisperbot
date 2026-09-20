@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, CheckCircle, Trash2, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const SETUP_GUIDES = {
     twilio: {
         steps: [
@@ -236,8 +237,8 @@ function ProviderCard({ provider }) {
         put(route('client.sms-gateways.update', provider.provider), { preserveScroll: true });
     };
 
-    const handleDelete = () => {
-        if (!confirm(t('sms.remove_confirm', { label: provider.label }))) return;
+    const handleDelete = async () => {
+        if (!(await confirmDialog({ message: t('sms.remove_confirm', { label: provider.label }), confirmLabel: t('common.remove') }))) return;
         router.delete(route('client.sms-gateways.destroy', provider.provider), { preserveScroll: true });
     };
 

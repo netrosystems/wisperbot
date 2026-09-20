@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Modules\AI\Services\VideoResourceService;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -37,6 +38,27 @@ class VideoResourceServiceTest extends TestCase
         $this->assertSame('Configure the widget', $resources[0]['title']);
         $this->assertSame('youtube', $resources[0]['provider']);
         $this->assertStringContainsString('Widget setup', $resources[0]['match_text']);
+    }
+
+    public function test_untitled_discovered_video_uses_the_provider_title(): void
+    {
+        Http::fake(['https://www.youtube.com/oembed*' => Http::response(['title' => 'How to activate your eSIM'], 200)]);
+        $service = app(VideoResourceService::class);
+
+        $resources = $service->withProviderTitles($service->discover('Video tutorial: https://youtu.be/dQw4w9WgXcQ'));
+
+        $this->assertSame('How to activate your eSIM', $resources[0]['title']);
+    }
+
+    public function test_provider_title_failure_leaves_the_video_untitled(): void
+    {
+        Http::fake(['https://www.youtube.com/oembed*' => Http::response('Not found', 404)]);
+        $service = app(VideoResourceService::class);
+
+        $resources = $service->withProviderTitles($service->discover('Video tutorial: https://youtu.be/dQw4w9WgXcQ'));
+
+        $this->assertSame('', $resources[0]['title']);
+        $this->assertArrayNotHasKey('title', $service->publicSnapshot($resources[0], 0.9));
     }
 
     public function test_it_reads_legacy_and_discovered_video_metadata(): void

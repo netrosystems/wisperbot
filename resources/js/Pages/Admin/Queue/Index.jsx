@@ -4,6 +4,7 @@ import { Server, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
 import { formatUnixTz } from '@/Utils/datetime';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 export default function QueueIndex({ tab, failedJobs, batches }) {
     const { t } = useTranslation();
     const adminTz = usePage().props.timezone || 'Asia/Dhaka';
@@ -13,7 +14,7 @@ export default function QueueIndex({ tab, failedJobs, batches }) {
     ];
 
     const retry = (id) => router.post(route('admin.queue.retry', id));
-    const del   = (id) => { if (confirm(t('queue.delete_job_confirm'))) router.delete(route('admin.queue.delete-failed', id)); };
+    const del   = async (id) => { if ((await confirmDialog({ message: t('queue.delete_job_confirm') }))) router.delete(route('admin.queue.delete-failed', id)); };
 
     return (
         <AdminLayout title={t('queue.title')}>
@@ -29,7 +30,7 @@ export default function QueueIndex({ tab, failedJobs, batches }) {
                             <button onClick={() => router.post(route('admin.queue.retry-all'))} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
                                 <RefreshCw className="h-3.5 w-3.5" /> {t('queue.retry_all')}
                             </button>
-                            <button onClick={() => { if (confirm(t('queue.flush_confirm'))) router.post(route('admin.queue.flush')); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10">
+                            <button onClick={async () => { if ((await confirmDialog({ message: t('queue.flush_confirm'), confirmLabel: t('common.delete_all') }))) router.post(route('admin.queue.flush')); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10">
                                 <Trash2 className="h-3.5 w-3.5" /> {t('queue.flush_all')}
                             </button>
                         </div>

@@ -12,6 +12,7 @@ use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Services\EmbeddingStore;
 use App\Modules\AI\Services\KnowledgeBaseTestService;
 use App\Modules\AI\Services\KnowledgeBaseWorkflowService;
+use App\Modules\AI\Services\KnowledgeSourceUrlResolver;
 use App\Modules\AI\Services\KnowledgeUrlGuard;
 use App\Modules\AI\Services\LlmGateway;
 use App\Modules\AI\Services\VideoResourceService;
@@ -33,6 +34,7 @@ class AiKnowledgeBaseController extends Controller
         private KnowledgeBaseWorkflowService $workflow,
         private KnowledgeBaseTestService $tests,
         private KnowledgeUrlGuard $urls,
+        private KnowledgeSourceUrlResolver $urlResolver,
         private LlmGateway $llm,
     ) {}
 
@@ -152,14 +154,13 @@ class AiKnowledgeBaseController extends Controller
         $this->authorise($request, $kb);
 
         $sourceType = (string) $request->input('source_type');
+        $originalSourceRef = null;
         if (in_array($sourceType, ['url', 'sitemap'], true)) {
-            $request->merge([
-                'source_ref' => $this->normaliseSourceUrl((string) $request->input('source_ref')),
-            ]);
-        }
-        if (config('knowledge_base.guarded_publishing') && in_array($sourceType, ['url', 'sitemap'], true)) {
+            $originalSourceRef = trim((string) $request->input('source_ref'));
             try {
-                $request->merge(['source_ref' => $this->urls->assertSafe((string) $request->input('source_ref'))]);
+                $normalised = $this->urlResolver->normaliseInput($originalSourceRef);
+                $normalised = $this->urls->assertSafe($normalised);
+                $request->merge(['source_ref' => $normalised]);
             } catch (\InvalidArgumentException $exception) {
                 return back()->withErrors(['source_ref' => $exception->getMessage()]);
             }
@@ -188,6 +189,9 @@ class AiKnowledgeBaseController extends Controller
             $validated['source_ref'] = $this->videoIndexText($validated);
         }
         unset($validated['video_url'], $validated['video_transcript'], $validated['thumbnail_url'], $validated['trigger_phrases']);
+        if ($originalSourceRef !== null) {
+            $validated['original_source_ref'] = $originalSourceRef;
+        }
 
         // Handle file upload
         if ($request->hasFile('file')) {
@@ -247,18 +251,31 @@ class AiKnowledgeBaseController extends Controller
             'trigger_phrases' => ['nullable', 'string', 'max:4000'],
         ]);
         $sourceRef = $validated['source_ref'] ?? '';
+        $originalSourceRef = $document->original_source_ref;
+        $canonicalUrl = $document->canonical_url;
         $resource = $document->resource_json;
         if ($document->source_type === 'video') {
             $resource = $this->videos->normalise($validated['video_url'], $validated['title'], $validated['thumbnail_url'] ?? null);
             $resource['transcript'] = $validated['video_transcript'];
             $resource['trigger_phrases'] = $validated['trigger_phrases'] ?? '';
             $sourceRef = $this->videoIndexText($validated);
+        } elseif (in_array($document->source_type, ['url', 'sitemap'], true)) {
+            $originalSourceRef = trim($sourceRef);
+            try {
+                $sourceRef = $this->urlResolver->normaliseInput($originalSourceRef);
+                $sourceRef = $this->urls->assertSafe($sourceRef);
+            } catch (\InvalidArgumentException $exception) {
+                return back()->withErrors(['source_ref' => $exception->getMessage()]);
+            }
+            $canonicalUrl = null;
         }
 
         $target = $this->workflow->editableDocument($document, $request->user()->id);
         $target->update([
             'title' => $validated['title'],
             'source_ref' => $sourceRef,
+            'original_source_ref' => $originalSourceRef,
+            'canonical_url' => $canonicalUrl,
             'resource_json' => $resource,
             'status' => 'pending',
             'review_status' => 'needs_review',
@@ -275,7 +292,15 @@ class AiKnowledgeBaseController extends Controller
         $kb = $document->load('knowledgeBase')->knowledgeBase;
         $this->authorise($request, $kb);
         $target = $this->workflow->editableDocument($document, $request->user()->id);
-        $target->update(['status' => 'pending', 'error_message' => null, 'review_status' => 'needs_review']);
+        $hasActiveIndex = $target->chunks()
+            ->where('index_generation', (string) ($target->active_index_generation ?: 'legacy'))
+            ->where('embedding_status', 'ready')
+            ->exists();
+        $target->update([
+            'status' => $hasActiveIndex ? 'indexed' : 'pending',
+            'error_message' => null,
+            'review_status' => 'needs_review',
+        ]);
 
         try {
             IndexDocumentJob::dispatch($target->id)->onQueue('ai');
@@ -505,15 +530,5 @@ class AiKnowledgeBaseController extends Controller
             'file' => ['nullable', 'string', 'max:512'],
             default => ['nullable', 'string', 'max:512'],
         };
-    }
-
-    private function normaliseSourceUrl(string $url): string
-    {
-        $url = trim($url);
-        if ($url === '' || preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $url)) {
-            return $url;
-        }
-
-        return 'https://'.$url;
     }
 }

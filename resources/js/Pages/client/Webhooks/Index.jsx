@@ -5,6 +5,7 @@ import { Webhook, Plus, Pencil, Trash2, RefreshCw, Play, Eye, ChevronRight, Chec
 import { formatInTz } from '@/Utils/datetime';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const EVENTS = [
     'subscription.created', 'subscription.cancelled', 'subscription.renewed',
     'payment.succeeded', 'payment.failed',
@@ -100,8 +101,8 @@ export default function WebhooksIndex({ endpoints }) {
     const [editing, setEditing] = useState(null);
     const [revealedSecret, setRevealedSecret] = useState({});
 
-    const handleDelete = (ep) => {
-        if (!confirm(t('webhook.delete_confirm', { url: ep.url }))) return;
+    const handleDelete = async (ep) => {
+        if (!(await confirmDialog({ message: t('webhook.delete_confirm', { url: ep.url }) }))) return;
         router.delete(route('client.webhooks.destroy', ep.id));
     };
 

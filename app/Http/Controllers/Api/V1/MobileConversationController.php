@@ -763,13 +763,15 @@ class MobileConversationController extends WorkspaceScopedController
             'assigned_user' => $c->assignedUser ? [
                 'id' => $c->assignedUser->id,
                 'name' => $c->assignedUser->name,
-                'avatar' => $c->assignedUser->avatar ?? null,
+                'avatar' => $c->assignedUser->avatarUrl(),
+                'avatar_url' => $c->assignedUser->avatarUrl(),
             ] : null,
             'joined_at' => $c->joined_at?->toIso8601String(),
             'joined_user' => $c->joinedUser ? [
                 'id' => $c->joinedUser->id,
                 'name' => $c->joinedUser->name,
-                'avatar' => $c->joinedUser->avatar ?? null,
+                'avatar' => $c->joinedUser->avatarUrl(),
+                'avatar_url' => $c->joinedUser->avatarUrl(),
             ] : null,
             'contact' => $c->contact ? [
                 'id' => $c->contact->id,
@@ -818,7 +820,7 @@ class MobileConversationController extends WorkspaceScopedController
 
     private function formatMessage(Message $m): array
     {
-        $m->loadMissing('conversation');
+        $m->loadMissing(['conversation', 'sender']);
 
         return [
             'id' => $m->id,
@@ -830,6 +832,12 @@ class MobileConversationController extends WorkspaceScopedController
             'payload' => $this->safeMessagePayload($m),
             'status' => $m->status,
             'sent_by' => $m->sent_by,
+            'sender' => $m->sender ? [
+                'id' => $m->sender->id,
+                'name' => $m->sender->name,
+                'avatar' => $m->sender->avatarUrl(),
+                'avatar_url' => $m->sender->avatarUrl(),
+            ] : null,
             'sent_at' => $m->sent_at?->toIso8601String(),
             'created_at' => $m->created_at->toIso8601String(),
         ];

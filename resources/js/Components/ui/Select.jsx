@@ -24,7 +24,7 @@ export default function Select({
             <select
                 id={selectId}
                 className={[
-                    'w-full rounded-soft border border-soft border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 shadow-inner transition duration-150 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20',
+                    'min-h-10 w-full rounded-soft border border-soft border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 shadow-inner transition duration-150 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20',
                     error && 'border-red-500 focus:border-red-500 focus:ring-red-500/20',
                     className,
                 ].filter(Boolean).join(' ')}

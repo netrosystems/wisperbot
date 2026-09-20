@@ -63,6 +63,12 @@ class Plan extends Model
         };
     }
 
+    public function isFree(): bool
+    {
+        return ($this->priceCentsForCycle('month') ?? 0) === 0
+            && ($this->priceCentsForCycle('year') ?? 0) === 0;
+    }
+
     /** @return BelongsTo<Currency, $this> */
     public function currency(): BelongsTo
     {

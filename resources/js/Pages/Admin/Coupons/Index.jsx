@@ -6,6 +6,7 @@ import { Tag, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import { formatDateTz } from '@/Utils/datetime';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 function CouponForm({ coupon = null, onClose }) {
     const { t } = useTranslation();
     const { data, setData, post, put, processing, errors, reset } = useForm({
@@ -132,8 +133,8 @@ export default function CouponsIndex({ coupons }) {
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState(null);
 
-    const handleDelete = (coupon) => {
-        if (! confirm(t('coupons.delete_confirm', { code: coupon.code }))) return;
+    const handleDelete = async (coupon) => {
+        if (! (await confirmDialog({ message: t('coupons.delete_confirm', { code: coupon.code }) }))) return;
         router.delete(route('admin.coupons.destroy', coupon.id));
     };
 

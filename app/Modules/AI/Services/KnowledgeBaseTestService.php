@@ -10,15 +10,78 @@ class KnowledgeBaseTestService
     public function __construct(
         private readonly LlmGateway $llm,
         private readonly EmbeddingStore $embeddings,
+        private readonly BusinessAwareTurnRouter $turnRouter,
+        private readonly KnowledgeRetrievalService $retrieval,
     ) {}
 
     public function test(AiKnowledgeBase $kb, string $question, ?AiKbRevision $revision = null): array
     {
+        if (config('chatbot.business_aware_routing_enabled')
+            && ($conversation = $this->turnRouter->conversationalResult($question, $kb))) {
+            return [
+                'answer' => $conversation['reply'],
+                'decision' => 'answer',
+                'response_mode' => 'answer',
+                'answer_origin' => 'conversation',
+                'confidence' => 1,
+                'semantic_score' => 1,
+                'lexical_score' => 1,
+                'retrieval_strategy' => 'deterministic_conversation',
+                'acceptance_reason' => 'conversational_turn',
+                'estimated_prompt_tokens' => 0,
+                'sources' => [],
+                'warnings' => [],
+            ];
+        }
+
         // Management tests must evaluate unpublished source changes, not the
         // previous live revision. First-time setup also uses the draft.
         $revision ??= $kb->draftRevision ?? $kb->publishedRevision;
         if (! $revision) {
             return $this->emptyResult();
+        }
+        if (config('knowledge_base.hybrid_retrieval_enabled')) {
+            $result = $this->retrieval->retrieve(
+                $kb,
+                (int) $kb->workspace_id,
+                $question,
+                [],
+                (int) config('knowledge_base.max_context_chunks', 3),
+                $revision->id,
+                (float) config('knowledge_base.retrieval_match_threshold', 0.60),
+                1200,
+            );
+            $selected = array_slice($result['candidates'], 0, max(0, $result['passages_used']));
+
+            return [
+                'answer' => $result['response_mode'] === 'fallback'
+                    ? null
+                    : ($result['response_mode'] === 'clarification'
+                        ? 'The Smart Bot will ask one grounded follow-up question before answering.'
+                        : mb_substr((string) ($selected[0]['chunk']->content ?? ''), 0, 1200)),
+                'decision' => $result['response_mode'],
+                'response_mode' => $result['response_mode'],
+                'answer_origin' => $result['response_mode'] === 'fallback' ? 'fallback' : 'knowledge_base',
+                'confidence' => round($result['best_score'], 4),
+                'semantic_score' => round($result['semantic_score'], 4),
+                'lexical_score' => round($result['lexical_score'], 4),
+                'retrieval_strategy' => $result['retrieval_strategy'],
+                'acceptance_reason' => $result['acceptance_reason'],
+                'estimated_prompt_tokens' => $result['context_tokens'],
+                'sources' => array_map(function (array $candidate): array {
+                    $document = $candidate['chunk']->loadMissing('document')->document;
+
+                    return [
+                        'document_id' => $document?->id,
+                        'title' => $document?->title,
+                        'score' => round((float) $candidate['rank_score'], 4),
+                        'semantic_score' => round((float) $candidate['semantic_score'], 4),
+                        'lexical_score' => round((float) $candidate['lexical_score'], 4),
+                        'excerpt' => mb_substr((string) $candidate['chunk']->content, 0, 400),
+                    ];
+                }, $selected),
+                'warnings' => $result['response_mode'] === 'fallback' ? ['No source confidently supports this request.'] : [],
+            ];
         }
         $vector = $this->llm->embed((int) $kb->workspace_id, [$question])[0] ?? [];
         if ($vector === []) {
@@ -41,6 +104,8 @@ class KnowledgeBaseTestService
         return [
             'answer' => $selected === [] ? null : mb_substr((string) $selected[0]['chunk']->content, 0, 1200),
             'decision' => $selected === [] ? 'handoff' : 'answer',
+            'response_mode' => $selected === [] ? 'fallback' : 'answer',
+            'answer_origin' => $selected === [] ? 'fallback' : 'knowledge_base',
             'confidence' => round($best, 4),
             'estimated_prompt_tokens' => (int) ceil(array_sum(array_map(fn ($result) => mb_strlen((string) $result['chunk']->content), $selected)) / 4),
             'sources' => array_map(function ($result) {
@@ -92,7 +157,20 @@ class KnowledgeBaseTestService
 
     private function emptyResult(): array
     {
-        return ['answer' => null, 'decision' => 'handoff', 'confidence' => 0, 'estimated_prompt_tokens' => 0, 'sources' => [], 'warnings' => ['No ready source is available.']];
+        return [
+            'answer' => null,
+            'decision' => 'fallback',
+            'response_mode' => 'fallback',
+            'answer_origin' => 'fallback',
+            'confidence' => 0,
+            'semantic_score' => 0,
+            'lexical_score' => 0,
+            'retrieval_strategy' => 'none',
+            'acceptance_reason' => 'no_ready_source',
+            'estimated_prompt_tokens' => 0,
+            'sources' => [],
+            'warnings' => ['No ready source is available.'],
+        ];
     }
 
     private function terms(string $text): array

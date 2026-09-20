@@ -16,11 +16,13 @@ export default function ChatWidgetSettings({
 }) {
     const flash = usePage().props.flash ?? {};
 
-    const submit = (payload) => {
+    const submit = (payload, callbacks = {}) => {
         router.post(
             route('client.inbox.chat-widgets.update', widget.id),
             { ...payload, _method: 'put' },
-            { preserveScroll: true, forceFormData: true },
+            // "indices" keeps nested objects together (windows[0][start]); the
+            // default "brackets" splits each schedule window into two items.
+            { preserveScroll: true, forceFormData: true, queryStringArrayFormat: 'indices', ...callbacks },
         );
     };
 

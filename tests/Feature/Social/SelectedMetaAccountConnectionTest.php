@@ -133,7 +133,6 @@ class SelectedMetaAccountConnectionTest extends TestCase
 
     public function test_instagram_connection_repair_registers_webhook_and_resubscribes_page(): void
     {
-        $this->withoutMiddleware();
         config(['app.url' => 'https://wisperbot.test']);
 
         IntegrationConfig::create([
@@ -149,9 +148,8 @@ class SelectedMetaAccountConnectionTest extends TestCase
         ]);
 
         /** @var User $user */
-        $user = User::factory()->create();
-        $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
-        $user->forceFill(['workspace_id' => $workspace->id])->save();
+        // A real client user: web routes run the client-app middleware.
+        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
         $account = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'instagram',
@@ -192,12 +190,10 @@ class SelectedMetaAccountConnectionTest extends TestCase
 
     public function test_disconnect_does_not_unsubscribe_shared_meta_page_used_by_messenger(): void
     {
-        $this->withoutMiddleware();
 
         /** @var User $user */
-        $user = User::factory()->create();
-        $workspace = Workspace::factory()->create(['owner_id' => $user->id]);
-        $user->forceFill(['workspace_id' => $workspace->id])->save();
+        // A real client user: web routes run the client-app middleware.
+        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
         $instagram = ChannelAccount::create([
             'workspace_id' => $workspace->id,
             'channel' => 'instagram',

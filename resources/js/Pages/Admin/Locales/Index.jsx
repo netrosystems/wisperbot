@@ -4,6 +4,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const TAB_LANGUAGES = 0;
 const TAB_TRANSLATIONS = 1;
 
@@ -188,8 +189,8 @@ function LocaleRow({ locale, locales }) {
     const handleSetDefault = () => {
         router.post(route('admin.locales.set-default', locale.code), {}, { preserveScroll: true });
     };
-    const handleDelete = () => {
-        if (confirm(t('locales.remove_language'))) {
+    const handleDelete = async () => {
+        if ((await confirmDialog({ message: t('locales.remove_language'), confirmLabel: t('common.remove') }))) {
             router.delete(route('admin.locales.destroy', locale.code), { preserveScroll: true });
         }
     };

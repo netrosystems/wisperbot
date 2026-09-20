@@ -4,6 +4,7 @@ namespace App\Modules\AI\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -27,11 +28,13 @@ class AiKbDocument extends Model
     }
 
     protected $fillable = [
-        'kb_id', 'source_type', 'source_ref', 'resource_json', 'title', 'status',
+        'kb_id', 'source_type', 'source_ref', 'original_source_ref', 'canonical_url', 'resource_json', 'title', 'status',
         'enabled', 'authoritative', 'priority', 'detected_language', 'review_status',
         'publication_status', 'quality_score', 'quality_findings', 'extracted_content',
-        'content_hash', 'reviewed_by', 'reviewed_at', 'last_refreshed_at',
-        'next_refresh_at', 'error_message', 'tokens', 'last_indexed_at',
+        'content_hash', 'index_version', 'active_index_generation', 'pending_index_generation',
+        'reviewed_by', 'reviewed_at', 'last_refreshed_at',
+        'next_refresh_at', 'product_detection_status', 'product_detection_message',
+        'products_verified_at', 'error_message', 'tokens', 'last_indexed_at',
     ];
 
     protected function casts(): array
@@ -41,11 +44,13 @@ class AiKbDocument extends Model
             'reviewed_at' => 'datetime',
             'last_refreshed_at' => 'datetime',
             'next_refresh_at' => 'datetime',
+            'products_verified_at' => 'datetime',
             'tokens' => 'integer',
             'enabled' => 'boolean',
             'authoritative' => 'boolean',
             'priority' => 'integer',
             'quality_score' => 'integer',
+            'index_version' => 'integer',
             'resource_json' => 'array',
             'quality_findings' => 'array',
         ];
@@ -63,8 +68,38 @@ class AiKbDocument extends Model
         return $this->hasMany(AiKbChunk::class, 'document_id');
     }
 
-    public function revisions()
+    /** @return BelongsToMany<AiKbRevision, $this> */
+    public function revisions(): BelongsToMany
     {
         return $this->belongsToMany(AiKbRevision::class, 'ai_kb_revision_documents', 'document_id', 'revision_id')->withTimestamps();
+    }
+
+    /** @return HasMany<AiKbProduct, $this> */
+    public function products(): HasMany
+    {
+        return $this->hasMany(AiKbProduct::class, 'document_id');
+    }
+
+    /**
+     * Ordering bonus from the client's source settings. It decides which of
+     * several relevant passages leads, never whether a passage is relevant.
+     */
+    public function retrievalWeight(): float
+    {
+        $priority = max(0, min(100, (int) ($this->priority ?? 50)));
+
+        return ($this->authoritative ? 0.06 : 0.0) + (($priority - 50) / 50) * 0.04;
+    }
+
+    public function passageLabel(): string
+    {
+        $title = trim((string) $this->title);
+        $label = ($this->authoritative ? 'Authoritative source: ' : 'Source: ').($title !== '' ? $title : 'Knowledge passage');
+        $source = trim((string) $this->source_ref);
+        if (filter_var($source, FILTER_VALIDATE_URL)) {
+            $label .= ' ('.$source.')';
+        }
+
+        return $label;
     }
 }

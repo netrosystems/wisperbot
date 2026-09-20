@@ -14,6 +14,7 @@ use App\Models\BlogCategory;
 use App\Models\BlogPost;
 use App\Models\CmsPage;
 use App\Models\SystemSetting;
+use App\Support\MarketingCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -42,6 +43,10 @@ Route::get('/faq', [LandingController::class, 'faq'])->name('faq');
 Route::get('/use-cases', [LandingController::class, 'useCases'])->name('use-cases');
 Route::get('/about', [LandingController::class, 'about'])->name('about');
 Route::get('/integrations', [LandingController::class, 'integrations'])->name('integrations');
+Route::get('/products/{slug}', [LandingController::class, 'pillar'])->name('marketing.product');
+Route::get('/solutions/{slug}', [LandingController::class, 'pillar'])->name('marketing.solution');
+Route::get('/channels/{slug}', [LandingController::class, 'pillar'])->name('marketing.channel');
+Route::get('/developers', [LandingController::class, 'pillar'])->name('marketing.developers');
 
 // SEO blog
 Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
@@ -63,6 +68,11 @@ Route::get('/sitemap.xml', function () {
     $urls = $landingEnabled
         ? [url('/'), url('/pricing'), url('/faq'), url('/use-cases'), url('/about'), url('/integrations'), url('/contact'), route('login'), route('register')]
         : [route('login'), route('register')];
+    if ($landingEnabled) {
+        foreach (array_keys(MarketingCatalog::pages()) as $slug) {
+            $urls[] = url('/'.$slug);
+        }
+    }
     try {
         $urls[] = route('blog.index');
         foreach (BlogPost::publiclyVisible()->where('allow_indexing', true)->get(['slug']) as $post) {

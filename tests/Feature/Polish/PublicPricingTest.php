@@ -32,6 +32,12 @@ class PublicPricingTest extends TestCase
 
     public function test_register_with_plan_redirects(): void
     {
+        Plan::factory()->create([
+            'name' => 'Free',
+            'price_cents' => 0,
+            'monthly_price_cents' => 0,
+            'yearly_price_cents' => 0,
+        ]);
         $plan = Plan::factory()->create(['slug' => 'pro', 'monthly_price_cents' => 2900]);
 
         $response = $this->post(route('register'), [
@@ -39,10 +45,11 @@ class PublicPricingTest extends TestCase
             'email' => 'newuser@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
+            'agree_terms' => true,
             'plan_id' => $plan->id,
-            'cycle' => 'monthly',
+            'cycle' => 'month',
         ]);
 
-        $response->assertRedirect();
+        $response->assertRedirect(route('client.pricing'));
     }
 }

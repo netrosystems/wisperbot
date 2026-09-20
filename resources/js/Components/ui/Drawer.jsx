@@ -45,7 +45,7 @@ export default function Drawer({
                         leaveTo="translate-x-full"
                         className={`w-screen ${widthClass}`}
                     >
-                        <div className="flex h-full flex-col bg-white dark:bg-neutral-900 shadow-soft-xl border-l border-soft border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100">
+                        <div className="flex h-full flex-col border-l border-neutral-200/80 bg-white text-neutral-900 shadow-soft-xl dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100">
                             {title && (
                                 <div className="flex items-center justify-between border-b border-soft border-neutral-200 dark:border-neutral-800 px-5 py-4">
                                     <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{title}</h2>

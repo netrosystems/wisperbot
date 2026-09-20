@@ -1,207 +1,140 @@
-import { useForm, usePage } from '@inertiajs/react';
-import { Mail, Send, MessageSquare, Clock, CheckCircle2 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-import LandingLayout from '@/Layouts/LandingLayout';
-import SeoHead from '@/Components/SeoHead';
-import { Reveal } from '@/Components/Reveal';
-
-function Badge({ text }) {
-    if (!text) return null;
-    return (
-        <span className="inline-flex items-center gap-2 rounded-full bg-brand-500/15 text-brand-300 text-xs font-semibold px-3.5 py-1.5 border border-brand-500/25">
-            <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-70 animate-pulse-ring" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-500" />
-            </span>
-            {text}
-        </span>
-    );
-}
-
-const inputClass =
-    'w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2.5 text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 transition-colors focus:border-[#ff762e] focus:outline-none focus:ring-2 focus:ring-[#ff762e]/30';
-
-export default function Contact({ landing = {} }) {
-    const { t } = useTranslation();
-    const { flash } = usePage().props;
-    const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
-    const contactEmail = landing['landing.contact_email'] || `support@${appName.toLowerCase().replace(/\s+/g, '')}.com`;
-
-    const { data, setData, post, processing, errors, recentlySuccessful } = useForm({
+import { useForm, usePage } from '@inertiajs/react'
+import { Mail, Send } from 'lucide-react'
+import LandingLayout from '@/Layouts/LandingLayout'
+import SeoHead from '@/Components/SeoHead'
+import { PageHero, MLink, useMarketing } from '@/Components/marketing/MarketingUI'
+export default function Contact() {
+    const { text: t, setting } = useMarketing()
+    const { flash } = usePage().props
+    const { data, setData, post, processing, errors, recentlySuccessful, reset } = useForm({
         name: '',
         email: '',
-        subject: '',
+        subject: 'Sales & product questions',
         message: '',
-    });
-
+    })
     const submit = (e) => {
-        e.preventDefault();
-        post(route('contact.store'), { preserveScroll: true, onSuccess: () => setData({ name: '', email: '', subject: '', message: '' }) });
-    };
-
-    const infoCards = [
-        {
-            icon: Mail,
-            label: t('contact_page.email_label', { defaultValue: 'Email us' }),
-            desc: t('contact_page.email_desc', { defaultValue: 'We reply to every message.' }),
-            value: contactEmail,
-            href: `mailto:${contactEmail}`,
-        },
-        {
-            icon: MessageSquare,
-            label: t('contact_page.chat_label', { defaultValue: 'Live chat' }),
-            desc: t('contact_page.chat_desc', { defaultValue: 'Available in your dashboard, Mon–Fri.' }),
-        },
-        {
-            icon: Clock,
-            label: t('contact_page.response_label', { defaultValue: 'Response time' }),
-            desc: t('contact_page.response_desc', { defaultValue: 'Within one business day.' }),
-        },
-    ];
-
+        e.preventDefault()
+        post('/contact', { preserveScroll: true, onSuccess: () => reset('name', 'email', 'message') })
+    }
     return (
         <LandingLayout>
             <SeoHead
-                title={`${t('contact_page.title', { defaultValue: 'Contact Us' })} — ${appName}`}
-                description={t('contact_page.subtitle')}
+                title={t('contact.seo', 'Contact WisperBot')}
+                description={t(
+                    'contact.description',
+                    'Talk to WisperBot about customer support, product setup, integrations, or your next step.',
+                )}
             />
-
-            {/* Hero */}
-            <section
-                className="relative overflow-hidden"
-                style={{ background: 'radial-gradient(ellipse 70% 65% at 50% 0%, rgba(255,118,46,0.18) 0%, transparent 60%), #14100c' }}
-            >
-                <div className="pointer-events-none absolute -left-24 top-6 h-72 w-72 rounded-full bg-brand-500/20 blur-3xl animate-float-slow" />
-                <div className="pointer-events-none absolute -right-16 top-24 h-80 w-80 rounded-full bg-brand-600/15 blur-3xl animate-float" />
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20 text-center relative">
-                    <Reveal className="flex justify-center mb-6" y={12}>
-                        <Badge text={t('contact_page.badge', { defaultValue: 'Get in touch' })} />
-                    </Reveal>
-                    <Reveal as="h1" delay={80} className="text-4xl sm:text-5xl font-bold tracking-tight text-white max-w-3xl mx-auto leading-tight">
-                        {t('contact_page.title', { defaultValue: 'Contact Us' })}
-                    </Reveal>
-                    <Reveal as="p" delay={170} className="mt-6 text-lg text-neutral-300 max-w-2xl mx-auto leading-relaxed">
-                        {t('contact_page.subtitle')}
-                    </Reveal>
-                </div>
-            </section>
-
-            {/* Body */}
-            <section className="py-20 sm:py-24">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="grid gap-10 lg:grid-cols-5 lg:gap-12">
-                        {/* Contact info */}
-                        <div className="lg:col-span-2">
-                            <Reveal as="h2" className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
-                                {t('contact_page.info_heading', { defaultValue: 'Other ways to reach us' })}
-                            </Reveal>
-                            <div className="mt-6 space-y-4">
-                                {infoCards.map((card, idx) => {
-                                    const Icon = card.icon;
-                                    const inner = (
-                                        <>
-                                            <div className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(255,118,46,0.12)' }}>
-                                                <Icon className="h-5 w-5" style={{ color: '#ff762e' }} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">{card.label}</h3>
-                                                <p className="mt-0.5 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">{card.desc}</p>
-                                                {card.value && (
-                                                    <p className="mt-1 text-sm font-medium text-brand-600 dark:text-brand-400 break-all">{card.value}</p>
-                                                )}
-                                            </div>
-                                        </>
-                                    );
-                                    const cls = 'flex items-start gap-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 transition-all duration-300';
-                                    return card.href ? (
-                                        <Reveal as="a" key={idx} href={card.href} delay={idx * 90} y={16} className={`${cls} hover:-translate-y-1 hover:border-brand-400/40 hover:shadow-lg hover:shadow-brand-500/10`}>
-                                            {inner}
-                                        </Reveal>
-                                    ) : (
-                                        <Reveal key={idx} delay={idx * 90} y={16} className={cls}>{inner}</Reveal>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Form */}
-                        <Reveal delay={120} className="lg:col-span-3">
-                            <div className="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 sm:p-8 shadow-sm">
-                                <h2 className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight mb-6">
-                                    {t('contact_page.form_heading', { defaultValue: 'Send us a message' })}
-                                </h2>
-
-                                {(flash?.success || recentlySuccessful) && (
-                                    <div className="mb-6 flex items-start gap-2.5 rounded-xl bg-[#ff762e]/10 border border-[#ff762e]/30 px-4 py-3 text-sm text-neutral-800 dark:text-neutral-100">
-                                        <CheckCircle2 className="h-5 w-5 flex-shrink-0" style={{ color: '#65A30D' }} />
-                                        <span>{flash?.success || t('contact_page.title')}</span>
-                                    </div>
+            <PageHero
+                eyebrow={t('nav.contact', 'Contact us')}
+                title={t('contact.title', 'Let us talk about your next conversation.')}
+                description={t(
+                    'contact.body',
+                    'Choosing a channel, planning your rollout, or need a hand? Tell us a little about what you are working on.',
+                )}
+            />
+            <section className="m-section-sm m-container">
+                <div className="m-contact-grid">
+                    <div className="m-contact-options">
+                        <div className="m-contact-option">
+                            <h2>{t('contact.sales', 'Find the right fit.')}</h2>
+                            <p>
+                                {t(
+                                    'contact.sales_body',
+                                    'Talk through your customer channels, team workflow, and AI support goals.',
                                 )}
-
-                                <form onSubmit={submit} className="space-y-5">
-                                    <div className="grid gap-5 sm:grid-cols-2">
-                                        <div>
-                                            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">{t('common.name')}</label>
-                                            <input
-                                                type="text"
-                                                value={data.name}
-                                                onChange={(e) => setData('name', e.target.value)}
-                                                placeholder={t('contact_page.name_placeholder', { defaultValue: '' })}
-                                                className={inputClass}
-                                                required
-                                            />
-                                            {errors.name && <p className="text-coral-600 text-xs mt-1.5">{errors.name}</p>}
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">{t('common.email')}</label>
-                                            <input
-                                                type="email"
-                                                value={data.email}
-                                                onChange={(e) => setData('email', e.target.value)}
-                                                placeholder={t('contact_page.email_placeholder', { defaultValue: '' })}
-                                                className={inputClass}
-                                                required
-                                            />
-                                            {errors.email && <p className="text-coral-600 text-xs mt-1.5">{errors.email}</p>}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">{t('contact_page.subject')}</label>
-                                        <input
-                                            type="text"
-                                            value={data.subject}
-                                            onChange={(e) => setData('subject', e.target.value)}
-                                            placeholder={t('contact_page.subject_placeholder', { defaultValue: '' })}
-                                            className={inputClass}
-                                        />
-                                        {errors.subject && <p className="text-coral-600 text-xs mt-1.5">{errors.subject}</p>}
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">{t('contact_page.message')}</label>
-                                        <textarea
-                                            value={data.message}
-                                            onChange={(e) => setData('message', e.target.value)}
-                                            rows={6}
-                                            placeholder={t('contact_page.message_placeholder', { defaultValue: '' })}
-                                            className={`${inputClass} resize-y`}
-                                            required
-                                        />
-                                        {errors.message && <p className="text-coral-600 text-xs mt-1.5">{errors.message}</p>}
-                                    </div>
-                                    <button
-                                        type="submit"
-                                        disabled={processing}
-                                        className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand-500 to-brand-600 px-7 py-3 text-base font-bold text-white shadow-[0_10px_30px_-6px_rgba(255,118,46,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-6px_rgba(255,118,46,0.7)] disabled:opacity-50 disabled:translate-y-0 sm:w-auto"
-                                    >
-                                        <Send className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                                        {processing ? t('contact_page.sending', { defaultValue: 'Sending…' }) : t('contact_page.send_message')}
-                                    </button>
-                                </form>
-                            </div>
-                        </Reveal>
+                            </p>
+                            <button
+                                className="m-text-link"
+                                onClick={() => {
+                                    setData('subject', 'Sales & product questions')
+                                    document.getElementById('contact-message')?.focus()
+                                }}
+                            >
+                                {t('contact.sales_action', 'Ask about WisperBot')}
+                                <Send size={14} />
+                            </button>
+                        </div>
+                        <div className="m-contact-option">
+                            <h2>{t('contact.support', 'Already with us?')}</h2>
+                            <p>
+                                {t(
+                                    'contact.support_body',
+                                    'Share the workspace or feature you need help with. Keep passwords and access tokens out of your message.',
+                                )}
+                            </p>
+                            <MLink
+                                href={'mailto:' + setting('contact_email', 'support@wisperbot.com')}
+                                className="m-text-link"
+                            >
+                                <Mail size={14} />
+                                {setting('contact_email', 'support@wisperbot.com')}
+                            </MLink>
+                        </div>
                     </div>
+                    <form className="m-contact-form" onSubmit={submit}>
+                        {(flash?.success || recentlySuccessful) && (
+                            <div role="status" className="m-form-success">
+                                {flash?.success || t('contact.sent', 'Your message has been received.')}
+                            </div>
+                        )}
+                        <div className="m-contact-fields">
+                            {[
+                                ['name', 'Your name', 'text'],
+                                ['email', 'Work email', 'email'],
+                            ].map(([key, label, type]) => (
+                                <label key={key}>
+                                    {t('contact.' + key, label)}
+                                    <input
+                                        name={key}
+                                        type={type}
+                                        value={data[key]}
+                                        onChange={(e) => setData(key, e.target.value)}
+                                        required
+                                        maxLength={255}
+                                        autoComplete={key === 'name' ? 'name' : 'email'}
+                                        aria-invalid={Boolean(errors[key])}
+                                    />
+                                    {errors[key] && <span className="m-error">{errors[key]}</span>}
+                                </label>
+                            ))}
+                        </div>
+                        <label>
+                            {t('contact.subject', 'What can we help with?')}
+                            <select value={data.subject} onChange={(e) => setData('subject', e.target.value)}>
+                                {[
+                                    'Sales & product questions',
+                                    'Product support',
+                                    'Integration & SDK help',
+                                    'Something else',
+                                ].map((label, i) => (
+                                    <option key={label} value={label}>
+                                        {t('contact.reason_' + i, label)}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label>
+                            {t('contact.message', 'Tell us a little more')}
+                            <textarea
+                                id="contact-message"
+                                name="message"
+                                rows={6}
+                                maxLength={5000}
+                                required
+                                value={data.message}
+                                onChange={(e) => setData('message', e.target.value)}
+                                aria-invalid={Boolean(errors.message)}
+                            />
+                            {errors.message && <span className="m-error">{errors.message}</span>}
+                        </label>
+                        <button disabled={processing} className="m-button" type="submit">
+                            {processing ? t('contact.sending', 'Sending…') : t('contact.send', 'Send message')}
+                            <Send size={16} />
+                        </button>
+                    </form>
                 </div>
             </section>
         </LandingLayout>
-    );
+    )
 }

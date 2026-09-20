@@ -15,6 +15,8 @@ Schedule::call(function () {
 })->everyFifteenMinutes()->name('social-comments-sync')->withoutOverlapping();
 
 use App\Http\Controllers\Admin\CronSetupController;
+use App\Modules\AI\Jobs\RefreshLiveProductDocumentJob;
+use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Services\AiCreditService;
 use App\Modules\Broadcasting\Jobs\LaunchScheduledCampaignsJob;
 use App\Modules\Broadcasting\Models\UsageMeter;
@@ -34,6 +36,7 @@ use App\Services\WebhookIdempotencyService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -112,6 +115,30 @@ Schedule::call(fn () => app(AiCreditService::class)->reconcileStaleReservations(
     ->name('reconcile-ai-credit-reservations')
     ->withoutOverlapping()
     ->onOneServer();
+
+Schedule::call(function (): void {
+    if (! config('knowledge_base.live_product_facts_enabled')) {
+        return;
+    }
+    $cutoff = now()->subMinutes(max(5, (int) config('knowledge_base.live_product_freshness_minutes', 15)));
+    AiKbDocument::query()
+        ->where('source_type', 'url')
+        ->where('enabled', true)
+        ->where('publication_status', 'published')
+        ->where(fn ($query) => $query->whereNull('products_verified_at')->orWhere('products_verified_at', '<=', $cutoff))
+        ->whereHas('knowledgeBase.chatbots', fn ($query) => $query->where('live_product_facts_enabled', true))
+        ->whereExists(function ($query): void {
+            $query->select(DB::raw(1))
+                ->from('ai_knowledge_bases as live_product_kb')
+                ->join('ai_kb_revision_documents as live_product_revision_documents', 'live_product_revision_documents.revision_id', '=', 'live_product_kb.published_revision_id')
+                ->whereColumn('live_product_kb.id', 'ai_kb_documents.kb_id')
+                ->whereColumn('live_product_revision_documents.document_id', 'ai_kb_documents.id');
+        })
+        ->orderBy('products_verified_at')
+        ->limit(max(1, min(200, (int) config('knowledge_base.live_product_refresh_batch', 50))))
+        ->pluck('id')
+        ->each(fn (int $id) => RefreshLiveProductDocumentJob::dispatch($id)->onQueue('ai'));
+})->everyFiveMinutes()->name('refresh-live-kb-products')->withoutOverlapping()->onOneServer();
 
 // Prune inbound webhook idempotency records older than 30 days
 Schedule::call(function () {

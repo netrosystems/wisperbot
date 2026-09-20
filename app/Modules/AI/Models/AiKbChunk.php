@@ -12,6 +12,7 @@ class AiKbChunk extends Model
     protected $fillable = [
         'kb_id', 'document_id', 'ord', 'content', 'content_hash', 'tokens',
         'embedding', 'embedding_model', 'embedding_status', 'revision_id',
+        'index_generation', 'section_label', 'chunk_kind',
     ];
 
     protected function casts(): array

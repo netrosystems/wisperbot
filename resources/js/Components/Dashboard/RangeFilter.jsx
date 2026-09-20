@@ -27,7 +27,7 @@ export default function RangeFilter({ value = 30, routeName, params = {} }) {
         <div
             role="group"
             aria-label={t('dashboard.date_range') || 'Date range'}
-            className="inline-flex items-center gap-0.5 rounded-soft-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/70 p-0.5 shadow-soft"
+            className="inline-flex items-center gap-0.5 rounded-soft border border-neutral-200 bg-white p-1 shadow-soft dark:border-neutral-800 dark:bg-neutral-900"
         >
             {OPTIONS.map((opt) => {
                 const active = value === opt.value;
@@ -38,7 +38,7 @@ export default function RangeFilter({ value = 30, routeName, params = {} }) {
                         onClick={() => change(opt.value)}
                         aria-pressed={active}
                         className={[
-                            'rounded-soft px-3 py-1.5 text-sm font-medium transition',
+                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
                             active
                                 ? 'bg-brand-500 text-white shadow-soft'
                                 : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700/60',

@@ -4,6 +4,7 @@ import { useForm, router } from '@inertiajs/react';
 import { FileText, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 function PageForm({ page = null, onClose }) {
     const { t } = useTranslation();
     const { data, setData, post, put, processing, errors } = useForm({
@@ -129,7 +130,7 @@ export default function CmsPagesIndex({ pages }) {
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2 justify-end">
                                                     <button onClick={() => setEditing(p)} className="p-1 text-neutral-400 hover:text-brand-600 dark:hover:text-brand-400 transition"><Pencil className="h-4 w-4" /></button>
-                                                    <button onClick={() => { if (confirm(t('cms.delete_confirm'))) router.delete(route('admin.cms-pages.destroy', p.id)); }} className="p-1 text-neutral-400 hover:text-coral-600"><Trash2 className="h-4 w-4" /></button>
+                                                    <button onClick={async () => { if ((await confirmDialog({ message: t('cms.delete_confirm') }))) router.delete(route('admin.cms-pages.destroy', p.id)); }} className="p-1 text-neutral-400 hover:text-coral-600"><Trash2 className="h-4 w-4" /></button>
                                                 </div>
                                             </td>
                                         </>

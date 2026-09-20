@@ -9,21 +9,24 @@ use App\Modules\AI\Services\EmbeddingStore;
 use App\Modules\AI\Services\KnowledgeBaseWorkflowService;
 use App\Modules\AI\Services\KnowledgeQualityService;
 use App\Modules\AI\Services\KnowledgeSourceExtractor;
+use App\Modules\AI\Services\KnowledgeSourceUrlResolver;
 use App\Modules\AI\Services\KnowledgeUrlGuard;
+use App\Modules\AI\Services\KnowledgeUrlResolutionException;
 use App\Modules\AI\Services\Llm\LlmManager;
 use App\Modules\AI\Services\LlmGateway;
 use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Modules\AI\Services\VideoResourceService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Http\Client\Response;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
-class IndexDocumentJob implements ShouldQueue
+class IndexDocumentJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -31,7 +34,14 @@ class IndexDocumentJob implements ShouldQueue
 
     public int $timeout = 120;
 
+    public int $uniqueFor = 300;
+
     public function __construct(public readonly int $documentId) {}
+
+    public function uniqueId(): string
+    {
+        return (string) $this->documentId;
+    }
 
     public function handle(
         LlmGateway $llm,
@@ -40,6 +50,7 @@ class IndexDocumentJob implements ShouldQueue
         KnowledgeQualityService $quality,
         KnowledgeBaseWorkflowService $workflow,
         KnowledgeUrlGuard $urls,
+        KnowledgeSourceUrlResolver $urlResolver,
         VideoResourceService $videos,
     ): void {
         $doc = AiKbDocument::with('chunks')->find($this->documentId);
@@ -47,14 +58,22 @@ class IndexDocumentJob implements ShouldQueue
             return;
         }
 
-        $doc->update(['status' => 'extracting', 'error_message' => null]);
+        $generation = (string) Str::uuid();
+        $activeGeneration = (string) ($doc->active_index_generation ?: 'legacy');
+        $activeChunks = $doc->chunks->where('index_generation', $activeGeneration);
+        $hasActiveIndex = $activeChunks->where('embedding_status', 'ready')->isNotEmpty();
+        $doc->update(array_filter([
+            'status' => $hasActiveIndex ? null : 'extracting',
+            'pending_index_generation' => $generation,
+            'error_message' => null,
+        ], fn ($value) => $value !== null));
 
         try {
             $kb = $doc->knowledgeBase ?? $doc->load('knowledgeBase')->knowledgeBase;
             $revision = $doc->revisions()->where('status', 'draft')->latest('version')->first()
                 ?? $doc->revisions()->latest('version')->first();
             if ($doc->source_type === 'sitemap') {
-                $this->processSitemap($doc, $urls, $workflow);
+                $this->processSitemap($doc, $urls, $urlResolver, $workflow);
                 $doc->update([
                     'status' => 'indexed',
                     'enabled' => false,
@@ -62,15 +81,20 @@ class IndexDocumentJob implements ShouldQueue
                     'quality_score' => 100,
                     'extracted_content' => 'Sitemap expanded into individually reviewed page sources.',
                     'last_indexed_at' => now(),
+                    'index_version' => (int) config('knowledge_base.current_index_version', 2),
+                    'pending_index_generation' => null,
                 ]);
 
                 return;
             }
 
             $text = $extractor->extract($doc);
-            $documentUpdate = ['status' => 'validating', 'extracted_content' => $text];
+            $documentUpdate = ['extracted_content' => $text];
+            if (! $hasActiveIndex) {
+                $documentUpdate['status'] = 'validating';
+            }
             if ($doc->source_type !== 'video') {
-                $discoveredVideos = $videos->discover($text, $doc->title ?: 'Video guide');
+                $discoveredVideos = $videos->withProviderTitles($videos->discover($text));
                 $documentUpdate['resource_json'] = $discoveredVideos === [] ? null : [
                     'version' => 1,
                     'kind' => 'video_collection',
@@ -89,14 +113,18 @@ class IndexDocumentJob implements ShouldQueue
                 'review_status' => config('knowledge_base.guarded_publishing') ? $inspection['review_status'] : 'auto_approved',
             ]);
             if (config('knowledge_base.guarded_publishing') && $inspection['review_status'] === 'blocked') {
-                $doc->update(['status' => 'degraded', 'error_message' => 'Resolve the blocking quality findings before publishing.']);
+                $doc->update([
+                    'status' => $hasActiveIndex ? 'indexed' : 'degraded',
+                    'pending_index_generation' => null,
+                    'error_message' => 'Resolve the blocking quality findings before publishing.',
+                ]);
 
                 return;
             }
 
-            $chunks = $this->chunk($text);
+            $chunks = $this->chunk($text, (string) ($doc->title ?: $kb?->name));
 
-            if (empty($chunks) && $doc->source_type !== 'sitemap') {
+            if (empty($chunks)) {
                 throw new \RuntimeException(match ($doc->source_type) {
                     'url' => 'URL indexing failed: no readable text was found on this page.',
                     'file' => 'Document indexing failed: the uploaded file could not be read or contained no extractable text.',
@@ -104,33 +132,29 @@ class IndexDocumentJob implements ShouldQueue
                 });
             }
 
-            $oldEmbeddings = $doc->chunks->keyBy('content_hash')->map(fn (AiKbChunk $chunk) => [
+            $oldEmbeddings = $activeChunks->keyBy('content_hash')->map(fn (AiKbChunk $chunk) => [
                 'embedding' => $chunk->embedding,
                 'model' => $chunk->embedding_model,
                 'status' => $chunk->embedding_status,
             ]);
 
-            // Remove old vectors before deleting the relational chunks. Without
-            // this, re-indexing leaves stale Qdrant points that can be returned
-            // for a knowledge base even though their document no longer exists.
-            $store->deleteDocumentEmbeddings($doc->id);
-
-            // Remove old chunks
-            $doc->chunks()->delete();
-
             $kbId = $kb?->id ?? 0;
 
             $chunkModels = [];
-            foreach ($chunks as $i => $chunkText) {
-                $chunkModels[] = AiKbChunk::create([
+            foreach ($chunks as $i => $chunkData) {
+                $chunk = AiKbChunk::create([
                     'kb_id' => $kbId,
                     'document_id' => $doc->id,
                     'ord' => $i,
-                    'content' => $chunkText,
-                    'content_hash' => hash('sha256', $chunkText),
-                    'tokens' => (int) ceil(mb_strlen($chunkText) / 4),
+                    'content' => $chunkData['content'],
+                    'content_hash' => hash('sha256', $chunkData['embedding_text']),
+                    'tokens' => (int) ceil(mb_strlen($chunkData['content']) / 4),
                     'revision_id' => $revision?->id,
+                    'index_generation' => $generation,
+                    'section_label' => $chunkData['section_label'],
+                    'chunk_kind' => $chunkData['kind'],
                 ]);
+                $chunkModels[] = ['chunk' => $chunk, 'embedding_text' => $chunkData['embedding_text']];
             }
 
             // Embed all chunks.
@@ -142,13 +166,15 @@ class IndexDocumentJob implements ShouldQueue
             // A transient embedding API error, by contrast, is allowed to propagate so
             // the queue retries — rather than silently marking the document "indexed"
             // with no vectors.
-            $workspaceId = $kb?->workspace_id ?? 0;
+            $workspaceId = $kb->workspace_id;
+            $embeddingProviderAvailable = $workspaceId > 0 && $this->embedProviderAvailable($workspaceId);
 
-            if ($workspaceId && ! empty($chunkModels)) {
-                if ($this->embedProviderAvailable($workspaceId)) {
-                    $model = (string) ($kb?->embedding_model ?: config('ai_credits.managed.embedding_model'));
+            if ($workspaceId) {
+                if ($embeddingProviderAvailable) {
+                    $model = (string) ($kb->embedding_model ?: config('ai_credits.managed.embedding_model'));
                     $needsEmbedding = [];
-                    foreach ($chunkModels as $chunk) {
+                    foreach ($chunkModels as $entry) {
+                        $chunk = $entry['chunk'];
                         $reusable = $oldEmbeddings->get($chunk->content_hash);
                         $cached = AiKbEmbeddingCache::where('content_hash', $chunk->content_hash)
                             ->where('model', $model)
@@ -159,20 +185,30 @@ class IndexDocumentJob implements ShouldQueue
                             $embedding = json_decode((string) ($reusable['embedding'] ?? ''), true);
                         }
                         if (is_array($embedding) && $embedding !== []) {
-                            $chunk->update(['embedding_model' => $model, 'embedding_status' => 'ready']);
-                            $store->storeEmbedding($chunk, $embedding);
+                            $chunk->update([
+                                'embedding' => json_encode($embedding),
+                                'embedding_model' => $model,
+                                'embedding_status' => 'ready',
+                            ]);
                         } else {
-                            $needsEmbedding[] = $chunk;
+                            $needsEmbedding[] = $entry;
                         }
                     }
                     foreach (array_chunk($needsEmbedding, 20) as $batch) {
-                        $texts = array_map(fn ($chunk) => $chunk->content, $batch);
+                        $texts = array_column($batch, 'embedding_text');
                         $embeddings = $llm->embed($workspaceId, $texts);
+                        if (count($embeddings) !== count($batch)) {
+                            throw new \RuntimeException('Embedding provider returned an incomplete batch. The current Knowledge Base index remains active.');
+                        }
 
-                        foreach ($batch as $j => $chunk) {
+                        foreach ($batch as $j => $entry) {
+                            $chunk = $entry['chunk'];
                             if (isset($embeddings[$j])) {
-                                $chunk->update(['embedding_model' => $model, 'embedding_status' => 'ready']);
-                                $store->storeEmbedding($chunk, $embeddings[$j]);
+                                $chunk->update([
+                                    'embedding' => json_encode($embeddings[$j]),
+                                    'embedding_model' => $model,
+                                    'embedding_status' => 'ready',
+                                ]);
                                 AiKbEmbeddingCache::updateOrCreate(
                                     ['content_hash' => $chunk->content_hash, 'model' => $model],
                                     ['embedding' => $embeddings[$j], 'expires_at' => null],
@@ -189,22 +225,53 @@ class IndexDocumentJob implements ShouldQueue
                 }
             }
 
-            $hasReadyEmbeddings = collect($chunkModels)->every(fn (AiKbChunk $chunk) => $chunk->fresh()->embedding_status === 'ready');
+            $hasReadyEmbeddings = collect($chunkModels)->every(fn (array $entry) => $entry['chunk']->fresh()->embedding_status === 'ready');
+            // A first index may remain readable source text without an embedding
+            // provider. Never replace an existing vector index with such a build.
+            $canActivate = $hasReadyEmbeddings || (! $hasActiveIndex && ! $embeddingProviderAvailable);
+            if ($hasReadyEmbeddings) {
+                foreach ($chunkModels as $entry) {
+                    $chunk = $entry['chunk']->fresh();
+                    $embedding = json_decode((string) $chunk->embedding, true);
+                    if (is_array($embedding) && $embedding !== []) {
+                        $store->storeEmbedding($chunk, $embedding);
+                    }
+                }
+            }
+            $oldChunkIds = $activeChunks->pluck('id')->map(fn ($id) => (int) $id)->all();
             $doc->update([
-                'status' => $hasReadyEmbeddings ? 'indexed' : 'degraded',
+                'status' => ($canActivate || $hasActiveIndex) ? 'indexed' : 'degraded',
                 'error_message' => null,
                 'last_indexed_at' => now(),
                 'last_refreshed_at' => now(),
-                'tokens' => array_sum(array_map(fn ($c) => $c->tokens, $chunkModels)),
+                'tokens' => array_sum(array_map(fn (array $entry) => $entry['chunk']->tokens, $chunkModels)),
+                'active_index_generation' => $canActivate ? $generation : $activeGeneration,
+                'pending_index_generation' => null,
+                'index_version' => $canActivate
+                    ? (int) config('knowledge_base.current_index_version', 2)
+                    : (int) $doc->index_version,
             ]);
+            if ($canActivate) {
+                $store->deleteChunkEmbeddings($oldChunkIds);
+                $doc->chunks()->where('index_generation', '!=', $generation)->delete();
+            } else {
+                $doc->chunks()->where('index_generation', $generation)->delete();
+            }
             if (! config('knowledge_base.guarded_publishing')) {
                 $doc->update(['publication_status' => 'published', 'review_status' => 'auto_approved']);
             } elseif ($hasReadyEmbeddings && in_array($doc->fresh()->review_status, ['auto_approved', 'approved'], true)) {
                 $workflow->attemptAutoPublish($kb);
             }
+            if ($doc->source_type === 'url' && config('knowledge_base.live_product_facts_enabled')) {
+                RefreshLiveProductDocumentJob::dispatch($doc->id)->onQueue('ai');
+            }
         } catch (\Throwable $e) {
+            $stagedIds = $doc->chunks()->where('index_generation', $generation)->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $store->deleteChunkEmbeddings($stagedIds);
+            $doc->chunks()->where('index_generation', $generation)->delete();
             $doc->update([
-                'status' => 'error',
+                'status' => $hasActiveIndex ? 'indexed' : 'error',
+                'pending_index_generation' => null,
                 'error_message' => $this->safeErrorMessage($e),
             ]);
             throw $e;
@@ -213,8 +280,18 @@ class IndexDocumentJob implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
-        AiKbDocument::whereKey($this->documentId)->update([
-            'status' => 'error',
+        $document = AiKbDocument::with('chunks')->find($this->documentId);
+        if (! $document) {
+            return;
+        }
+        $activeGeneration = (string) ($document->active_index_generation ?: 'legacy');
+        $hasActiveIndex = $document->chunks
+            ->where('index_generation', $activeGeneration)
+            ->where('embedding_status', 'ready')
+            ->isNotEmpty();
+        $document->update([
+            'status' => $hasActiveIndex ? 'indexed' : 'error',
+            'pending_index_generation' => null,
             'error_message' => $this->safeErrorMessage($exception),
         ]);
     }
@@ -272,36 +349,44 @@ class IndexDocumentJob implements ShouldQueue
      * nested sitemaps, e.g. Yoast/WordPress) — for the latter, each nested sitemap
      * is enqueued as its own "sitemap" child and expanded recursively.
      */
-    private function processSitemap(AiKbDocument $doc, KnowledgeUrlGuard $urls, KnowledgeBaseWorkflowService $workflow): string
-    {
+    private function processSitemap(
+        AiKbDocument $doc,
+        KnowledgeUrlGuard $urls,
+        KnowledgeSourceUrlResolver $urlResolver,
+        KnowledgeBaseWorkflowService $workflow,
+    ): string {
         $sitemapUrl = $doc->source_ref ?? '';
         if (empty($sitemapUrl)) {
             return '';
+        }
+        if (blank($doc->original_source_ref)) {
+            $doc->update(['original_source_ref' => $sitemapUrl]);
         }
         // A streaming homepage can remain open indefinitely even when its
         // sitemap and inner pages are healthy. Discover first for root URLs.
         $sitemapUrl = $urls->assertSafe($sitemapUrl);
         $rootInput = in_array(parse_url($sitemapUrl, PHP_URL_PATH) ?: '/', ['/', ''], true);
         $pageHtml = '';
-        $discovered = $rootInput ? $this->discoverSitemap($sitemapUrl, '', $urls) : null;
+        $discovered = $rootInput ? $this->discoverSitemap($sitemapUrl, '', $urls, $urlResolver) : null;
         if ($discovered !== null) {
             [$resolvedUrl, $parsed] = $discovered;
-            $doc->update(['source_ref' => $resolvedUrl]);
+            $doc->update(['source_ref' => $resolvedUrl, 'canonical_url' => $resolvedUrl]);
         } else {
-            [$response, $resolvedUrl] = $this->fetchSiteResource($sitemapUrl, $urls);
+            [$response, $resolvedUrl] = $this->fetchSiteResource($sitemapUrl, $urlResolver);
             $pageHtml = $response->body();
             $parsed = $this->parseSitemapXml($pageHtml);
+            $doc->update(['source_ref' => $resolvedUrl, 'canonical_url' => $resolvedUrl]);
         }
 
         // Non-technical users commonly paste their homepage in the Sitemap tab.
         // Resolve a declared/common sitemap first; if the site has none, safely
         // fan out the homepage and its same-host links instead of failing.
         if ($parsed === null) {
-            $discovered = $this->discoverSitemap($resolvedUrl, $pageHtml, $urls,
+            $discovered = $this->discoverSitemap($resolvedUrl, $pageHtml, $urls, $urlResolver,
                 ! $rootInput || $this->origin($resolvedUrl) !== $this->origin($sitemapUrl));
             if ($discovered !== null) {
                 [$resolvedUrl, $parsed] = $discovered;
-                $doc->update(['source_ref' => $resolvedUrl]);
+                $doc->update(['source_ref' => $resolvedUrl, 'canonical_url' => $resolvedUrl]);
             } else {
                 $pageUrls = $this->discoverPageLinks($resolvedUrl, $pageHtml, $urls);
                 $this->createSitemapChildren($doc, $pageUrls, 'url', (string) parse_url($resolvedUrl, PHP_URL_HOST), $urls, $workflow);
@@ -327,63 +412,46 @@ class IndexDocumentJob implements ShouldQueue
     }
 
     /** @return array{0:Response,1:string} */
-    private function fetchSiteResource(string $url, KnowledgeUrlGuard $urls, int $timeout = 12, int $attempts = 1): array
+    private function fetchSiteResource(string $url, KnowledgeSourceUrlResolver $urlResolver, int $timeout = 12, int $attempts = 1): array
     {
-        $url = $urls->assertSafe($url);
-        for ($redirects = 0; $redirects <= 4; $redirects++) {
-            $connectedIp = null;
-            try {
-                $response = Http::withOptions([
-                    'allow_redirects' => false,
-                    'on_stats' => function ($stats) use (&$connectedIp): void {
-                        $connectedIp = $stats->getHandlerStats()['primary_ip'] ?? null;
-                    },
-                ])->withHeaders([
-                    'User-Agent' => 'WisperBotKnowledgeIndexer/2.0 (+https://wisperbot.com)',
-                    'Accept' => 'application/xml,text/xml,text/html,text/plain;q=0.9,*/*;q=0.5',
-                    'Accept-Language' => 'en,*;q=0.5',
-                ])->retry($attempts, 400, throw: false)->connectTimeout(5)->timeout($timeout)->get($url);
-            } catch (\Throwable $exception) {
-                $reason = match (true) {
-                    str_contains($exception->getMessage(), 'cURL error 28') => 'the website took too long to finish responding. Try its sitemap URL or a specific page instead.',
-                    str_contains($exception->getMessage(), 'cURL error 6') => 'the website address could not be resolved. Check the address and its DNS settings.',
-                    str_contains($exception->getMessage(), 'cURL error 60') => 'the website HTTPS certificate could not be verified. Ask the website owner to check its certificate.',
-                    default => 'the connection to the website failed. Retry later or upload a reviewed file.',
-                };
-                throw new \RuntimeException('Sitemap indexing failed: '.$reason, 0, $exception);
-            }
-            if ($connectedIp !== null) {
-                $urls->assertPublicIp($connectedIp);
-            }
-            if (in_array($response->status(), [301, 302, 303, 307, 308], true)) {
-                if ($redirects === 4) {
-                    throw new \RuntimeException('Sitemap indexing failed: too many redirects.');
-                }
-                $location = (string) $response->header('Location');
-                $url = $urls->assertSafe($this->resolveUrl($url, $location));
-
-                continue;
-            }
-            if (! $response->successful()) {
-                if (in_array($response->status(), [401, 403], true)) {
-                    throw new \RuntimeException('Sitemap indexing failed: the website blocked automated access. Allow WisperBotKnowledgeIndexer on the site or upload reviewed files instead.');
-                }
-                if ($response->status() === 429) {
-                    throw new \RuntimeException('Sitemap indexing failed: the website temporarily rate-limited indexing. Wait a few minutes and retry.');
-                }
-                if ($response->serverError()) {
-                    throw new \RuntimeException('Sitemap indexing failed: the website is temporarily unavailable. Retry after the site recovers.');
-                }
-                throw new \RuntimeException('Sitemap indexing failed: '.$url.' returned HTTP '.$response->status().'.');
-            }
-            if (strlen($response->body()) > (int) config('knowledge_base.sitemap_response_max_bytes', 20_000_000)) {
-                throw new \RuntimeException('Sitemap indexing failed: the response is too large.');
-            }
-
-            return [$response, $url];
+        try {
+            $resolved = $urlResolver->fetch($url, [
+                'accept' => 'application/xml,text/xml,text/html,text/plain;q=0.9,*/*;q=0.5',
+                'timeout' => $timeout,
+                'attempts' => $attempts,
+            ]);
+        } catch (KnowledgeUrlResolutionException $exception) {
+            $reason = match ($exception->reason) {
+                'timeout' => 'the website took too long to finish responding. Try its sitemap URL or a specific page instead.',
+                'dns' => 'the website address could not be resolved. Check the address and its DNS settings.',
+                'certificate' => 'the website HTTPS certificate could not be verified. Ask the website owner to check its certificate.',
+                'redirect_loop' => 'the website has a redirect loop. Ask the website owner to correct its redirect rules.',
+                'too_many_redirects' => 'the website uses too many redirects.',
+                'cross_site_redirect' => 'the website redirects to a different domain. Add that canonical domain as the source instead.',
+                default => 'the connection to the website failed. Retry later or upload a reviewed file.',
+            };
+            throw new \RuntimeException('Sitemap indexing failed: '.$reason, 0, $exception);
         }
 
-        throw new \RuntimeException('Sitemap indexing failed: the site could not be reached.');
+        $response = $resolved['response'];
+        $canonicalUrl = $resolved['canonical_url'];
+        if (! $response->successful()) {
+            if (in_array($response->status(), [401, 403], true)) {
+                throw new \RuntimeException('Sitemap indexing failed: the website blocked automated access. Allow WisperBotKnowledgeIndexer on the site or upload reviewed files instead.');
+            }
+            if ($response->status() === 429) {
+                throw new \RuntimeException('Sitemap indexing failed: the website temporarily rate-limited indexing. Wait a few minutes and retry.');
+            }
+            if ($response->serverError()) {
+                throw new \RuntimeException('Sitemap indexing failed: the website is temporarily unavailable. Retry after the site recovers.');
+            }
+            throw new \RuntimeException('Sitemap indexing failed: '.$canonicalUrl.' returned HTTP '.$response->status().'.');
+        }
+        if (strlen($response->body()) > (int) config('knowledge_base.sitemap_response_max_bytes', 20_000_000)) {
+            throw new \RuntimeException('Sitemap indexing failed: the response is too large.');
+        }
+
+        return [$response, $canonicalUrl];
     }
 
     /** @return array{is_index:bool,urls:array<int,string>}|null */
@@ -421,8 +489,13 @@ class IndexDocumentJob implements ShouldQueue
     }
 
     /** @return array{0:string,1:array{is_index:bool,urls:array<int,string>}}|null */
-    private function discoverSitemap(string $pageUrl, string $html, KnowledgeUrlGuard $urls, bool $includeCommon = true): ?array
-    {
+    private function discoverSitemap(
+        string $pageUrl,
+        string $html,
+        KnowledgeUrlGuard $urls,
+        KnowledgeSourceUrlResolver $urlResolver,
+        bool $includeCommon = true,
+    ): ?array {
         $candidates = [];
         if (preg_match_all('/<link\b[^>]*>/iu', $html, $linkTags)) {
             foreach ($linkTags[0] as $tag) {
@@ -436,7 +509,7 @@ class IndexDocumentJob implements ShouldQueue
         $origin = $this->origin($pageUrl);
         if ($includeCommon) {
             try {
-                [$robots] = $this->fetchSiteResource($origin.'/robots.txt', $urls, 8, 1);
+                [$robots] = $this->fetchSiteResource($origin.'/robots.txt', $urlResolver, 8, 1);
                 if (preg_match_all('/^\s*Sitemap\s*:\s*(\S+)\s*$/im', $robots->body(), $matches)) {
                     array_push($candidates, ...$matches[1]);
                 }
@@ -448,7 +521,7 @@ class IndexDocumentJob implements ShouldQueue
 
         foreach (array_values(array_unique($candidates)) as $candidate) {
             try {
-                [$response, $resolved] = $this->fetchSiteResource($candidate, $urls, 8, 1);
+                [$response, $resolved] = $this->fetchSiteResource($candidate, $urlResolver, 8, 1);
                 $parsed = $this->parseSitemapXml($response->body());
                 if ($parsed !== null && $parsed['urls'] !== []) {
                     return [$resolved, $parsed];
@@ -467,7 +540,7 @@ class IndexDocumentJob implements ShouldQueue
         $host = (string) parse_url($pageUrl, PHP_URL_HOST);
         $found = [$pageUrl => true];
         preg_match_all('/<a\b[^>]*\bhref\s*=\s*(["\'])([^"\']+)\1/iu', $html, $matches);
-        foreach ($matches[2] ?? [] as $href) {
+        foreach ($matches[2] as $href) {
             try {
                 $url = $this->resolveUrl($pageUrl, html_entity_decode((string) $href, ENT_QUOTES | ENT_HTML5));
                 $parts = parse_url($url);
@@ -494,13 +567,6 @@ class IndexDocumentJob implements ShouldQueue
         $limit = (int) config('knowledge_base.sitemap_page_limit', 200);
         foreach (array_slice($locations, 0, (int) config('knowledge_base.sitemap_page_limit', 200)) as $location) {
             try {
-                $locationHost = strtolower((string) parse_url($location, PHP_URL_HOST));
-                if ($locationHost !== $host && ($locationHost === 'www.'.$host || $host === 'www.'.$locationHost)) {
-                    // Fetch only the canonical sitemap host, never an arbitrary
-                    // subdomain. Validate the original authority before rewriting.
-                    $urls->assertSafe($location);
-                    $location = preg_replace('#^https://'.preg_quote($locationHost, '#').'(?=[:/]|$)#i', 'https://'.$host, $location);
-                }
                 $location = $urls->assertSafe($location, $host);
             } catch (\Throwable) {
                 continue;
@@ -517,6 +583,8 @@ class IndexDocumentJob implements ShouldQueue
                 'title' => $location,
                 'source_type' => $childType,
                 'source_ref' => $location,
+                'original_source_ref' => $location,
+                'canonical_url' => $location,
                 'status' => 'pending',
             ]);
             $workflow->attachToDraft($child);
@@ -557,40 +625,117 @@ class IndexDocumentJob implements ShouldQueue
         return $origin.($directory === '' ? '' : $directory).'/'.$location;
     }
 
-    private function chunk(string $text): array
+    /**
+     * Build small semantic chunks without blending unrelated FAQ or sample-chat turns.
+     *
+     * @return array<int,array{content:string,embedding_text:string,section_label:?string,kind:string}>
+     */
+    private function chunk(string $text, string $documentTitle = ''): array
     {
-        $size = (int) config('knowledge_base.chunk_target_words', 280);
-        $overlap = (int) config('knowledge_base.chunk_overlap_words', 35);
-        $sections = preg_split('/\n(?=(?:#{1,6}\s|Q:\s|\d+[.)]\s))|\n{2,}/u', trim($text)) ?: [];
+        $target = max(80, (int) config('knowledge_base.semantic_chunk_target_words', 160));
+        $overlap = max(0, min(50, (int) config('knowledge_base.semantic_chunk_overlap_words', 24)));
         $chunks = [];
+
+        foreach ($this->semanticBlocks($text) as $block) {
+            $words = preg_split('/\s+/u', trim($block['content'])) ?: [];
+            $offset = 0;
+            while ($offset < count($words)) {
+                $part = array_slice($words, $offset, $target);
+                $content = trim(implode(' ', $part));
+                if ($content !== '') {
+                    $embeddingText = implode("\n", array_filter([
+                        trim($documentTitle),
+                        $block['section_label'],
+                        $content,
+                    ]));
+                    $chunks[hash('sha256', $embeddingText)] = [
+                        'content' => $content,
+                        'embedding_text' => $embeddingText,
+                        'section_label' => $block['section_label'],
+                        'kind' => $block['kind'],
+                    ];
+                }
+                if ($offset + $target >= count($words)) {
+                    break;
+                }
+                $offset += max(1, $target - $overlap);
+            }
+        }
+
+        return array_values($chunks);
+    }
+
+    /**
+     * Keep headings, FAQ pairs and each Customer/AI example together while separating
+     * the next unrelated example. These rules are structural and industry-independent.
+     *
+     * @return array<int,array{content:string,section_label:?string,kind:string}>
+     */
+    private function semanticBlocks(string $text): array
+    {
+        $lines = preg_split('/\R/u', str_replace(["\r\n", "\r"], "\n", trim($text))) ?: [];
+        $blocks = [];
         $buffer = [];
-        foreach ($sections as $section) {
-            $words = preg_split('/\s+/', trim($section)) ?: [];
-            if (count($buffer) + count($words) <= $size) {
-                $buffer = array_merge($buffer, $words);
+        $sectionLabel = null;
+        $kind = 'prose';
+        $hasQuestionLead = false;
+
+        $flush = function () use (&$blocks, &$buffer, &$sectionLabel, &$kind, &$hasQuestionLead): void {
+            $content = trim(implode("\n", $buffer));
+            if ($content !== '') {
+                $blocks[] = [
+                    'content' => $content,
+                    'section_label' => $sectionLabel,
+                    'kind' => $kind,
+                ];
+            }
+            $buffer = [];
+            $kind = 'prose';
+            $hasQuestionLead = false;
+        };
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                if ($buffer !== [] && end($buffer) !== '') {
+                    $buffer[] = '';
+                }
 
                 continue;
             }
-            if ($buffer !== []) {
-                $chunks[] = trim(implode(' ', $buffer));
-                $buffer = array_slice($buffer, -$overlap);
-            }
-            $i = 0;
-            while ($i < count($words)) {
-                $space = max(1, $size - count($buffer));
-                $part = array_slice($words, $i, $space);
-                $buffer = array_merge($buffer, $part);
-                $i += count($part);
-                if (count($buffer) >= $size) {
-                    $chunks[] = trim(implode(' ', $buffer));
-                    $buffer = array_slice($buffer, -$overlap);
-                }
-            }
-        }
-        if ($buffer !== []) {
-            $chunks[] = trim(implode(' ', $buffer));
-        }
 
-        return array_values(array_unique(array_filter($chunks)));
+            if (preg_match('/^#{1,6}\s*(.+)$/u', $trimmed, $heading)) {
+                $flush();
+                $sectionLabel = mb_substr(trim($heading[1]), 0, 190);
+                $buffer[] = $trimmed;
+                $kind = preg_match('/^conversation\b/iu', $sectionLabel) ? 'conversation' : 'prose';
+
+                continue;
+            }
+
+            $isQuestionLead = (bool) preg_match('/^(?:customer|user|q(?:uestion)?)\s*:/iu', $trimmed);
+            $newKind = preg_match('/^(?:customer|user)\s*:/iu', $trimmed) ? 'conversation' : 'faq';
+            // A headed sample conversation may contain several customer turns.
+            // Keep that entire flow together so a follow-up answer does not lose
+            // the original intent (for example, country selection followed by
+            // purchase steps). Unheaded FAQ/chat transcripts still split at the
+            // next question to avoid blending unrelated examples.
+            $headedConversation = $sectionLabel !== null
+                && (bool) preg_match('/^conversation\b/iu', $sectionLabel);
+            if ($isQuestionLead && $hasQuestionLead && ! $headedConversation
+                && ($kind === 'conversation' || $newKind === 'conversation')) {
+                $flush();
+            }
+            if ($isQuestionLead) {
+                $hasQuestionLead = true;
+                $kind = $newKind;
+            } elseif (preg_match('/^(?:[-*+]\s+|\d+[.)]\s+)/u', $trimmed) && $kind === 'prose') {
+                $kind = 'list';
+            }
+            $buffer[] = $trimmed;
+        }
+        $flush();
+
+        return $blocks;
     }
 }

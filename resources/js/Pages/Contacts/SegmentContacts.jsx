@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { UserPlus, Trash2, ArrowLeft, Search, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 function ContactRow({ contact }) {
     const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || '—';
     return (
@@ -44,8 +45,8 @@ export default function SegmentContacts({ segment, segmentContacts, availableCon
         });
     };
 
-    const handleDetach = (contactId) => {
-        if (!confirm(t('contacts_page.seg_confirm_remove'))) return;
+    const handleDetach = async (contactId) => {
+        if (!(await confirmDialog({ message: t('contacts_page.seg_confirm_remove'), confirmLabel: t('common.remove') }))) return;
         router.delete(route('client.segments.contacts.detach', [segment.id, contactId]), { preserveScroll: true });
     };
 

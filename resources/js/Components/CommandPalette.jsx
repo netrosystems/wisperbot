@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { router } from '@inertiajs/react';
-import { Search, Loader2, FileText, Users, Building2, Package, CreditCard, LayoutDashboard, User, Settings, X } from 'lucide-react';
+import { Search, Loader2, FileText, Users, Building2, Package, CreditCard, LayoutDashboard, User, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const ICON_MAP = {
@@ -17,32 +17,42 @@ export default function CommandPalette({ searchRoute }) {
     const inputRef = useRef(null);
     const abortRef = useRef(null);
 
+    const openPalette = useCallback(() => {
+        setQuery('');
+        setResults([]);
+        setSelected(0);
+        setOpen(true);
+    }, []);
+
     // Open on Cmd+K / Ctrl+K
     useEffect(() => {
         const handler = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
-                setOpen(v => !v);
+                if (open) setOpen(false);
+                else openPalette();
             }
             if (e.key === 'Escape') setOpen(false);
         };
+        const openFromTopbar = () => openPalette();
         window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, []);
+        window.addEventListener('wisperbot:command-palette', openFromTopbar);
+        return () => {
+            window.removeEventListener('keydown', handler);
+            window.removeEventListener('wisperbot:command-palette', openFromTopbar);
+        };
+    }, [open, openPalette]);
 
     // Focus input on open
     useEffect(() => {
         if (open) {
             setTimeout(() => inputRef.current?.focus(), 50);
-            setQuery('');
-            setResults([]);
-            setSelected(0);
         }
     }, [open]);
 
     // Debounced search
     useEffect(() => {
-        if (! open || query.length < 2) { setResults([]); return; }
+        if (! open || query.length < 2) return;
 
         const timer = setTimeout(() => {
             abortRef.current?.abort();
@@ -84,7 +94,10 @@ export default function CommandPalette({ searchRoute }) {
                         ref={inputRef}
                         type="text"
                         value={query}
-                        onChange={e => setQuery(e.target.value)}
+                        onChange={e => {
+                            setQuery(e.target.value);
+                            if (e.target.value.length < 2) setResults([]);
+                        }}
                         onKeyDown={handleKeyDown}
                         placeholder={t('ui.search_placeholder')}
                         className="flex-1 bg-transparent text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 outline-none"

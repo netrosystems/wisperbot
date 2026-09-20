@@ -15,7 +15,9 @@ php artisan migrate
 composer dev
 ```
 
-`composer dev` starts Laravel, a queue listener, Pail, and Vite. Local `.env` must use local URLs/database and test credentials. Do not copy production `.env` into source control.
+`composer dev` starts Laravel, a queue listener for every queue (`default,whatsapp,broadcast,ai,social,leads,automation`, 120-second timeout), Pail, and Vite. Website-chat Smart Bot replies are generated on the `ai` queue, so a local listener that consumes only `default` produces no widget AI replies. Local `.env` must use local URLs/database and test credentials. Do not copy production `.env` into source control.
+
+Local Pusher/Reverb credentials are optional for basic inbox testing. When realtime is not configured, the visible Omni inbox reconciles new messages every four seconds, so widget messages still appear without a manual refresh. This fallback does not replace production websocket monitoring: production should configure and verify Pusher/Reverb for immediate events and uses a slower 30-second reconciliation only as recovery.
 
 ## Production deployment
 
@@ -26,6 +28,8 @@ Website widget / customer SDK separation (2026-09-16, local implementation): dep
 Mobile rate-limit change (2026-09-14, local implementation): deploy matching `routes/api.php`, `AppServiceProvider`, and `config/rate_limits.php`, then rebuild config/routes (`php artisan config:cache` and `php artisan route:cache`) and reload any persistent HTTP workers. `MOBILE_API_RATE_LIMIT_PER_MINUTE` defaults to 300; setting it to 60 restores the previous allowance while retaining isolation from developer traffic. No migration or frontend bundle is required for this backend change. Monitor mobile 429 responses, PHP/DB load, and client request frequency. The setting does not repair duplicate polling timers; native clients should honor `Retry-After`, stop polling in the background, and not auto-retry replies without idempotency protection.
 
 Managed OpenAI model overrides must be tested with the active project key. The admin test now exercises both distinct `AI_MANAGED_ROUTINE_MODEL` and `AI_MANAGED_COMPLEX_MODEL` values plus `AI_MANAGED_EMBEDDING_MODEL`; after changing these values rebuild config and restart `ai` workers. A provider test alone does not verify widget assignment, queues, retrieval, or credit finalization. Indexing status label changes in `resources/js/locales/en.json` are served by `/i18n/{locale}` and do not require a Vite rebuild when no JS component changes.
+
+Knowledge-source canonical URL support requires migration `2026_09_16_000100_add_canonical_urls_to_ai_kb_documents.php`, matching backend/frontend code, and an `ai` worker restart. Existing sources are populated lazily on their next reindex; no bulk external crawl runs during migration.
 
 Follow [DEPLOYMENT.md](../DEPLOYMENT.md). The essential properties are:
 
@@ -51,6 +55,8 @@ Long-running `schedule:work` is also valid where process supervision exists. Imp
 Workspace-segment Omni/email Smart Bot replies run on `ai`; inbound Meta/WhatsApp work still requires `whatsapp`, and mailbox sync requires `default` plus the scheduler. `OMNICHANNEL_AI_ANSWERING_ENABLED` and `EMAIL_AI_ANSWERING_ENABLED` pause delivery without deleting the two saved segment policies. `INBOX_AI_REPLY_DEBOUNCE_SECONDS` defaults to 2. Deploy both the original channel-policy migration and the corrective segment-policy migration before restarting matching workers.
 
 The scheduler also runs `reconcile-ai-credit-reservations` every five minutes. It refunds reservations older than `config/ai_credits.php`'s configured ten-minute window; a stopped scheduler can therefore leave managed credits temporarily reserved.
+
+Live product pricing is disabled by default. Deploy `2026_09_19_000100_create_live_kb_products.php`, matching backend/frontend code, and set `KB_LIVE_PRODUCT_FACTS_ENABLED=true` only for staged rollout. `refresh-live-kb-products` runs every five minutes and queues at most `KB_LIVE_PRODUCT_REFRESH_BATCH` due published URL sources on `ai`; records are considered current for `KB_LIVE_PRODUCT_FRESHNESS_MINUTES` (default 15), with `KB_LIVE_PRODUCT_REQUESTS_PER_MINUTE` limiting each host. Clear configuration caches and restart `ai` and message workers after changing these settings. Monitor source detection status, queue failures, verification latency, host rate limits, and `product_diagnostics`; do not weaken robots, HTTPS, redirect, DNS, or SSRF controls to make an unsupported site pass.
 
 The Super Admin Cron Setup heartbeat confirms scheduler activity; it does not prove every queue is being consumed.
 
@@ -198,3 +204,19 @@ Operational checks: `php artisan migrate --force`, restart the `ai` worker, clea
 # Crawler / managed AI production checks (2026-09-05)
 
 After deploying a runtime-model or crawler change, finalize deployment to refresh cached configuration and restart `ai` workers. Test the actual configured managed models, not only credential validity. Website homepage responses can stall even when `/sitemap.xml` and individual pages work: discovery probes sitemaps first and extraction uses bounded timeouts. Qdrant credentials need payload-index creation rights for `kb_chunks.document_id` and `kb_chunks.kb_id`. Retry only affected Knowledge Base documents; do not replay unrelated failed jobs. SQL migrations and Vite rebuilding are not required for the v1.3.42 backend/locale-only hotfix.
+
+# Smart Bot reply style (2026-09-19)
+
+Website-chat Smart Bot replies now run on the `ai` queue (`ProcessWebchatAiReplyJob`). Production must keep an `ai` worker running (already required for indexing and other channels); without one, widget visitors get no AI reply. Restart workers after deploying. The new zero-credit action `kb_search_translation` appears in the credit ledger for non-English Knowledge Base searches; it never consumes client credits or the per-minute request budget.
+
+Deploy migration `2026_09_19_000200_add_kb_exact_wording_to_ai_chatbots.php` (additive, default off, so every bot starts with natural wording), matching backend, the Vite bundle for the new Smart Bot switch, and `public/widget/wisperbot-chat-widget.js`. Restart `ai` and message workers. The default private-chat window becomes 5 passages / 1,600 tokens unless `KB_MAX_CONTEXT_CHUNKS`/`KB_MAX_CONTEXT_TOKENS` are set, so refresh cached configuration. Monitor fallback and handoff rates and `llm.chat_failed` `AiOutputRejectedException` counts; rejections now mostly mean an unsupported figure or an ungrounded factual statement.
+
+# Business-aware Smart Bot rollout (2026-09-16)
+
+Deploy migration `2026_09_16_000200_add_business_aware_answering_to_ai_chatbots`, matching backend and Vite assets, then restart `ai` and message workers. Keep `SMART_BOT_BUSINESS_AWARE_ROUTING=false` during deployment. Enable it first internally, clear configuration caches, and verify the four Knowledge Base regression checks plus a live widget conversation before selected-client rollout. Approved-source research defaults off per Smart Bot and requires no new queue, but production egress/DNS must permit configured public HTTPS sources. Monitor `ai_kb_retrieval_diagnostics` for answer origin, research outcome, latency, and credit result; never log fetched pages or customer prompts.
+
+# Semantic retrieval rollout (2026-09-16)
+
+Deploy migration `2026_09_16_000300_add_index_generations_to_knowledge_base_chunks.php` with matching backend and frontend assets. Keep `KB_HYBRID_RETRIEVAL_ENABLED=false`, clear cached configuration, and restart the `ai` plus message workers. Queue active Smart Bot sources first with `php artisan ai:kb-reindex-outdated --active-only --limit=100`; repeat bounded batches while monitoring provider limits, queue failures, document status, and retrieval latency. Inactive sources are rebuilt on their next edit/manual reindex, or may be queued later without `--active-only`.
+
+The reindex command never switches a document until the pending generation is complete. A failed extraction or embedding call preserves an existing active generation and records a safe error. Do not bulk-retry unrelated historical failed jobs. After active sources reach index version 2, enable the flag only for the internal workspace/environment, clear config cache, and verify greeting → shorthand clarification → selected CTA → grounded answer in the widget and direct API. Also verify configured Qdrant; MySQL remains the safe fallback and active-generation authority.

@@ -14,6 +14,7 @@ import AiPlannerModal from '../Posts/AiPlannerModal';
 import SocialWorkspaceTabs from '@/Components/Social/SocialWorkspaceTabs';
 import CommentPlatformAvailability from '@/Components/Social/CommentPlatformAvailability';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const NETWORKS = [
     { id: 'facebook', label: 'Facebook' },
     { id: 'instagram', label: 'Instagram' },
@@ -87,7 +88,9 @@ function AccountMenu({ account, onDisconnect }) {
             </MenuButton>
             <MenuItems anchor="bottom end" className="z-50 mt-1 w-48 rounded-lg border border-neutral-200 bg-white p-1 shadow-soft-md focus:outline-none dark:border-neutral-700 dark:bg-neutral-900">
                 <MenuItem>
-                    <a href={route('client.social.accounts.connect', account.network)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-neutral-700 data-[focus]:bg-neutral-100 dark:text-neutral-300 dark:data-[focus]:bg-neutral-800">
+                    <a href={route('client.social.accounts.connect', account.meta?.actor_type === 'organization'
+                        ? { network: account.network, target: 'pages' }
+                        : account.network)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-neutral-700 data-[focus]:bg-neutral-100 dark:text-neutral-300 dark:data-[focus]:bg-neutral-800">
                         <RefreshCw className="h-4 w-4" /> {t('social.reconnect', { defaultValue: 'Reconnect' })}
                     </a>
                 </MenuItem>
@@ -102,8 +105,28 @@ function AccountMenu({ account, onDisconnect }) {
     );
 }
 
-function ProviderPicker({ open, onClose, platforms }) {
+function ProviderPicker({ open, onClose, platforms, linkedinPagesEnabled = false }) {
     const { t } = useTranslation();
+    // LinkedIn Company Pages authorize through a separate LinkedIn app, so they
+    // are offered as their own entry rather than a second step.
+    const connectTargets = NETWORKS.flatMap(network => [
+        {
+            ...network,
+            // LinkedIn splits into Profile and Page, like the other platforms do.
+            label: network.id === 'linkedin' && linkedinPagesEnabled ? t('social.linkedin_profile') : network.label,
+            summary: network.id === 'linkedin' && linkedinPagesEnabled ? t('social.linkedin_profile_hint') : undefined,
+            href: route('client.social.accounts.connect', network.id),
+        },
+        ...(network.id === 'linkedin' && linkedinPagesEnabled
+            ? [{
+                id: 'linkedin',
+                key: 'linkedin-pages',
+                label: t('social.linkedin_page'),
+                summary: t('social.linkedin_page_hint'),
+                href: route('client.social.accounts.connect', { network: 'linkedin', target: 'pages' }),
+            }]
+            : []),
+    ]);
     return (
         <Dialog open={open} onClose={onClose} className="relative z-50">
             <div className="fixed inset-0 bg-neutral-950/40 backdrop-blur-[2px]" aria-hidden="true" />
@@ -119,12 +142,12 @@ function ProviderPicker({ open, onClose, platforms }) {
                         </button>
                     </div>
                     <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {NETWORKS.map(network => (
-                            <a key={network.id} href={route('client.social.accounts.connect', network.id)} className="flex items-center gap-3 rounded-lg border border-neutral-200 px-3 py-3 text-sm font-medium text-neutral-800 transition hover:border-brand-400 hover:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-brand-900/20">
+                        {connectTargets.map(network => (
+                            <a key={network.key ?? network.id} href={network.href} className="flex items-center gap-3 rounded-lg border border-neutral-200 px-3 py-3 text-sm font-medium text-neutral-800 transition hover:border-brand-400 hover:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-brand-900/20">
                                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-50 dark:bg-neutral-800">
                                     <SocialBrandIcon network={network.id} className="h-5 w-5" />
                                 </span>
-                                <span>{network.label}<span className="mt-1 block text-[11px] font-normal leading-4 text-neutral-500">{t(`social.comments_platform_${network.id}_summary`, { defaultValue: platforms?.[network.id]?.summary || 'Publishing connection' })}</span></span>
+                                <span>{network.label}<span className="mt-1 block text-[11px] font-normal leading-4 text-neutral-500">{network.summary ?? t(`social.comments_platform_${network.id}_summary`, { defaultValue: platforms?.[network.id]?.summary || 'Publishing connection' })}</span></span>
                             </a>
                         ))}
                     </div>
@@ -140,8 +163,8 @@ function ConnectedAccounts({ accounts, onConnect }) {
     const [expanded, setExpanded] = useState(null);
     const grouped = useMemo(() => Object.fromEntries(NETWORKS.map(network => [network.id, accounts.filter(account => account.network === network.id)])), [accounts]);
 
-    const disconnect = account => {
-        if (window.confirm(t('social.disconnect_confirm', { name: account.name }))) {
+    const disconnect = async account => {
+        if ((await confirmDialog({ message: t('social.disconnect_confirm', { name: account.name }), confirmLabel: t('common.disconnect') }))) {
             router.delete(route('client.social.accounts.disconnect', account.id), { preserveScroll: true });
         }
     };
@@ -189,6 +212,11 @@ function ConnectedAccounts({ accounts, onConnect }) {
                                                 <div className="min-w-0 flex-1">
                                                     <AccountAvatar account={account} />
                                                     <p className={`ml-9 text-[10px] ${isExpired(account) ? 'text-amber-600' : account.active ? 'text-emerald-600' : 'text-neutral-400'}`}>
+                                                        {account.network === 'linkedin' && (
+                                                            <span className="mr-1 text-neutral-400">
+                                                                {account.meta?.actor_type === 'organization' ? t('social.linkedin_page') : t('social.linkedin_profile')} ·
+                                                            </span>
+                                                        )}
                                                         {isExpired(account) ? t('social.token_expired') : account.active ? t('common.active') : t('social.inactive', { defaultValue: 'Inactive' })}
                                                     </p>
                                                 </div>
@@ -235,14 +263,14 @@ function PostActions({ post, accountMap }) {
     const confirmPost = (message, url) => {
         if (window.confirm(message)) router.post(url, {}, { preserveScroll: true });
     };
-    const deletePost = () => {
+    const deletePost = async () => {
         const message = lifecycle.has_remote_posts
             ? t('social.confirm_delete_remote_post')
             : t('social.confirm_delete_post');
-        if (window.confirm(message)) router.delete(route('client.social.posts.destroy', post.id), { preserveScroll: true });
+        if ((await confirmDialog({ message }))) router.delete(route('client.social.posts.destroy', post.id), { preserveScroll: true });
     };
-    const removeLocal = () => {
-        if (window.confirm(t('social.confirm_remove_local'))) router.delete(route('client.social.posts.remove-local', post.id), { preserveScroll: true });
+    const removeLocal = async () => {
+        if ((await confirmDialog({ message: t('social.confirm_remove_local'), confirmLabel: t('common.remove') }))) router.delete(route('client.social.posts.remove-local', post.id), { preserveScroll: true });
     };
 
     return (
@@ -435,7 +463,7 @@ export default function SocialAutomation({ accounts = [], activeAccounts = [], p
                 </section>
             </div>
 
-            <ProviderPicker open={providerPicker} onClose={() => setProviderPicker(false)} platforms={props.commentPlatforms} />
+            <ProviderPicker open={providerPicker} onClose={() => setProviderPicker(false)} platforms={props.commentPlatforms} linkedinPagesEnabled={props.linkedinPagesEnabled} />
             <PostDetails post={detailPost} accountMap={accountMap} timezone={timezone} onClose={() => setDetailPost(null)} />
             <AiPlannerModal show={plannerOpen} onClose={() => setPlannerOpen(false)} accounts={activeAccounts} onSuccess={() => { setPlannerOpen(false); router.reload({ only: ['posts', 'tabCounts'] }); }} />
         </ClientLayout>

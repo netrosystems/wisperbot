@@ -529,7 +529,8 @@ class ChatWidgetPublicController extends Controller
         $host = preg_replace('/^www\./', '', $host);
 
         foreach ($allowed as $d) {
-            $d = strtolower(preg_replace(['/^https?:\/\//', '/^www\./', '/\/.*$/'], '', (string) $d));
+            // Entries may include a scheme, path, or port ("localhost:8000"); only the host is compared.
+            $d = strtolower(preg_replace(['/^https?:\/\//', '/^www\./', '/\/.*$/', '/:\d+$/'], '', trim((string) $d)));
             if ($d !== '' && ($host === $d || str_ends_with($host, '.'.$d))) {
                 return;
             }
