@@ -93,4 +93,10 @@ class AiKnowledgeBase extends Model
     {
         return $this->hasMany(AiKbRetrievalDiagnostic::class, 'kb_id');
     }
+
+    /** @return HasMany<AiKbProduct, $this> */
+    public function products(): HasMany
+    {
+        return $this->hasMany(AiKbProduct::class, 'kb_id');
+    }
 }

@@ -5,6 +5,7 @@ import AiAnsweringControl from '@/Components/Inbox/AiAnsweringControl';
 import { AlertTriangle, Check, ChevronRight, EllipsisVertical, Mail, RefreshCw, Server, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const providers = {
     gmail: { name: 'Gmail / Google Workspace', short: 'G', color: 'bg-red-50 text-red-600' },
     microsoft_365: { name: 'Microsoft 365 / Outlook', short: 'M', color: 'bg-blue-50 text-blue-600' },
@@ -22,7 +23,7 @@ function AccountCard({ account }) {
                 {account.last_sync_error && <p className="mt-1 line-clamp-2 text-[11px] text-red-600">{account.last_sync_error}</p>}
             </div>
             <button onClick={() => router.post(route('client.inbox.email.sync', account.id))} className="rounded-lg p-2 text-neutral-400 hover:bg-white hover:text-brand-600 dark:hover:bg-neutral-900" aria-label="Sync now" title="Sync now"><RefreshCw className="h-4 w-4" /></button>
-            <Menu as="div" className="relative"><MenuButton className="rounded-lg p-2 text-neutral-400 hover:bg-white hover:text-neutral-700 dark:hover:bg-neutral-900" aria-label="Mailbox actions"><EllipsisVertical className="h-4 w-4" /></MenuButton><MenuItems anchor="bottom end" className="z-40 mt-1 w-44 rounded-xl border border-neutral-200 bg-white p-1 shadow-lg [--anchor-gap:4px] dark:border-neutral-700 dark:bg-neutral-900"><MenuItem><button onClick={() => confirm('Disconnect this mailbox? Existing conversations will be kept.') && router.delete(route('client.inbox.email.destroy', account.id))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-red-600 data-[focus]:bg-red-50 dark:data-[focus]:bg-red-950/30"><Trash2 className="h-3.5 w-3.5" />Disconnect</button></MenuItem></MenuItems></Menu>
+            <Menu as="div" className="relative"><MenuButton className="rounded-lg p-2 text-neutral-400 hover:bg-white hover:text-neutral-700 dark:hover:bg-neutral-900" aria-label="Mailbox actions"><EllipsisVertical className="h-4 w-4" /></MenuButton><MenuItems anchor="bottom end" className="z-40 mt-1 w-44 rounded-xl border border-neutral-200 bg-white p-1 shadow-lg [--anchor-gap:4px] dark:border-neutral-700 dark:bg-neutral-900"><MenuItem><button onClick={async () => (await confirmDialog({ message: 'Disconnect this mailbox? Existing conversations will be kept.', confirmLabel: 'Disconnect' })) && router.delete(route('client.inbox.email.destroy', account.id))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-red-600 data-[focus]:bg-red-50 dark:data-[focus]:bg-red-950/30"><Trash2 className="h-3.5 w-3.5" />Disconnect</button></MenuItem></MenuItems></Menu>
         </div>
     </div>;
 }

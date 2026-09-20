@@ -14,6 +14,7 @@ $actions = [
     'workflow_generate' => ['label' => 'Generate an automation workflow', 'credits' => 5],
     'social_plan' => ['label' => 'Generate a multi-post social plan', 'credits' => 5],
     'document_embedding' => ['label' => 'Knowledge Base indexing', 'credits' => 0],
+    'kb_search_translation' => ['label' => 'Knowledge Base search translation', 'credits' => 0],
     'provider_test' => ['label' => 'AI provider connection test', 'credits' => 0],
 ];
 

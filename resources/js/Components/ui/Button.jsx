@@ -16,9 +16,9 @@ const variantClasses = {
 };
 
 const sizeClasses = {
-    sm: 'px-3 py-1.5 text-sm rounded-soft',
-    md: 'px-4 py-2 text-sm rounded-soft',
-    lg: 'px-5 py-2.5 text-base rounded-soft-lg',
+    sm: 'min-h-9 px-3 py-1.5 text-xs rounded-soft',
+    md: 'min-h-10 px-4 py-2 text-sm rounded-soft',
+    lg: 'min-h-11 px-5 py-2.5 text-sm rounded-soft-lg',
 };
 
 export default function Button({
@@ -35,7 +35,7 @@ export default function Button({
             type={type}
             disabled={disabled}
             className={[
-                'inline-flex items-center justify-center font-medium border transition-all duration-150 ease-smooth focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none',
+                'inline-flex items-center justify-center gap-2 font-semibold border transition-all duration-150 ease-smooth focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none',
                 variantClasses[variant] ?? variantClasses.primary,
                 sizeClasses[size] ?? sizeClasses.md,
                 className,

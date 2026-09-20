@@ -5,6 +5,7 @@ import { useState, useRef, useCallback } from 'react';
 import { UserPlus, Upload, Search, Tag, Trash2, Eye, Users, Table2, Download, CheckSquare, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 function ContactAvatar({ contact, size = 8 }) {
     const { t } = useTranslation();
     const name = `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim();
@@ -122,14 +123,14 @@ export default function ContactsIndex({ contacts, filters, segments = [] }) {
         router.get(route('client.contacts.index'), { search }, { preserveState: true, replace: true });
     };
 
-    const handleDelete = (uuid) => {
-        if (confirm(t('contacts_page.confirm_delete_one'))) {
+    const handleDelete = async (uuid) => {
+        if ((await confirmDialog({ message: t('contacts_page.confirm_delete_one') }))) {
             router.delete(route('client.contacts.destroy', uuid), { preserveScroll: true });
         }
     };
 
-    const handleBulkDelete = () => {
-        if (!confirm(t('contacts_page.confirm_delete_selected', { count: selected.size }))) return;
+    const handleBulkDelete = async () => {
+        if (!(await confirmDialog({ message: t('contacts_page.confirm_delete_selected', { count: selected.size }) }))) return;
         router.delete(route('client.contacts.bulk-destroy'), {
             data: { uuids: [...selected] },
             preserveScroll: true,

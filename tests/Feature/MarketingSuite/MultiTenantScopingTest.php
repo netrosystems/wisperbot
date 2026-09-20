@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\MarketingSuite;
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
@@ -40,10 +41,8 @@ class MultiTenantScopingTest extends TestCase
             'phone_e164' => '+8801999999999',
         ]);
 
-        // Compute the actual Inertia asset version from the Vite manifest
-        $inertiaVersion = file_exists(public_path('build/manifest.json'))
-            ? hash_file('xxh128', public_path('build/manifest.json'))
-            : '';
+        // Send the Inertia version the app itself advertises (derived from APP_VERSION).
+        $inertiaVersion = (string) app(HandleInertiaRequests::class)->version(request());
 
         $response = $this->actingAs($userA)
             ->withHeaders(['X-Inertia' => 'true', 'X-Inertia-Version' => $inertiaVersion])
@@ -66,7 +65,7 @@ class MultiTenantScopingTest extends TestCase
             'phone_e164' => '+8801888888888',
         ]);
 
-        $response = $this->actingAs($userA)->delete("/app/contacts/{$contactB->id}");
+        $response = $this->actingAs($userA)->delete(route('client.contacts.destroy', $contactB));
         $response->assertStatus(403);
         $this->assertDatabaseHas('contacts', ['id' => $contactB->id]);
     }

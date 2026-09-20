@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client';
 import i18n, { initI18n } from '@/i18n';
 import LocaleSync from '@/Components/LocaleSync';
 import BrandingFavicon from '@/Components/BrandingFavicon';
+import { ConfirmDialogHost } from '@/Components/ConfirmDialog';
 import ErrorBoundary from '@/Components/ErrorBoundary';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { toast } from 'sonner';
@@ -101,6 +102,7 @@ createInertiaApp({
         root.render(
             <ErrorBoundary>
                 <App {...props} />
+                <ConfirmDialogHost />
             </ErrorBoundary>
         );
     },

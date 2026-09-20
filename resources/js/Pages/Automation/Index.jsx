@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const STATUS_COLORS = {
     active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
     paused: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
@@ -89,8 +90,8 @@ export default function AutomationIndex({ automations }) {
         router.put(route('client.automations.update', automation.uuid), { status: newStatus }, { preserveScroll: true });
     };
 
-    const handleDelete = (automation) => {
-        if (confirm(t('automation.delete_confirm', { name: automation.name }))) {
+    const handleDelete = async (automation) => {
+        if ((await confirmDialog({ message: t('automation.delete_confirm', { name: automation.name }) }))) {
             router.delete(route('client.automations.destroy', automation.uuid));
         }
     };

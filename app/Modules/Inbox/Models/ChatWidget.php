@@ -2,14 +2,18 @@
 
 namespace App\Modules\Inbox\Models;
 
+use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\AI\Services\StarterQuestions;
+use App\Modules\Inbox\Services\TeamAvailabilityService;
 use App\Modules\Inbox\Services\WeeklySchedule;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\PusherPublicConfig;
 use App\Services\StorageManager;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
@@ -184,6 +188,8 @@ class ChatWidget extends Model
         $launcherLogoUrl = $this->launcher_logo_url
             ?: $this->browserSafePublicUrl(url('/wisperbot-icon-white.svg'));
         $teamMembers = $this->publicTeamMembers();
+        $this->loadMissing('aiChatbot');
+        $aiNow = $this->shouldAiAnswerNow();
 
         return [
             'key' => $accessKey ?: $this->widget_key,
@@ -206,7 +212,10 @@ class ChatWidget extends Model
             'team_members' => $teamMembers,
             'team_member_count' => count($teamMembers),
             // Only expose whether AI is active; never expose the internal bot id.
-            'ai_enabled' => $this->shouldAiAnswerNow(),
+            'ai_enabled' => $aiNow,
+            // Question labels only; the saved answers stay on the server. Shown
+            // only while the Smart Bot answers, since it sends those answers.
+            'starter_questions' => $aiNow ? app(StarterQuestions::class)->publicLabels($this->aiChatbot) : [],
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,
@@ -251,11 +260,27 @@ class ChatWidget extends Model
             return [];
         }
 
-        return collect([$workspace->owner])
-            ->merge($workspace->members)
-            ->merge($workspace->users)
-            ->filter(fn ($user) => $user && $user->status === 'active')
-            ->unique('id')
+        $members = [];
+        $candidates = array_merge(
+            [$workspace->owner],
+            $workspace->members->all(),
+            $workspace->users->all(),
+        );
+
+        foreach ($candidates as $candidate) {
+            if (! $candidate instanceof User || ! $candidate->isActive()) {
+                continue;
+            }
+
+            $members[$candidate->id] = $candidate;
+        }
+
+        $available = app(TeamAvailabilityService::class)->available(
+            (int) $workspace->id,
+            new EloquentCollection(array_values($members))
+        );
+
+        return $available
             ->take(5)
             ->map(fn ($user) => [
                 'name' => $user->name,

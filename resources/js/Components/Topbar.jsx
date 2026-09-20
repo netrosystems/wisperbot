@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Dropdown } from '@/Components/ui';
 import { useTheme } from '@/context/ThemeContext';
 import { useLocale } from '@/hooks/useLocale';
-import { Bell, X, CheckCheck, ExternalLink, Coins } from 'lucide-react';
+import { Bell, X, CheckCheck, ExternalLink, Coins, Menu, Search } from 'lucide-react';
 import GlobalSearch from '@/Components/GlobalSearch';
 import axios from 'axios';
 
@@ -22,6 +22,8 @@ export default function Topbar({
     showGlobalSearch = false,
     showLanguage = true,
     unreadCount: externalUnreadCount,
+    onOpenNavigation,
+    showAdminSearch = false,
 }) {
     const { t } = useTranslation();
     const page = usePage();
@@ -88,8 +90,11 @@ export default function Topbar({
     };
 
     useEffect(() => {
-        setNotifOpen(false);
-        setRecentNotifs([]);
+        const timer = window.setTimeout(() => {
+            setNotifOpen(false);
+            setRecentNotifs([]);
+        }, 0);
+        return () => window.clearTimeout(timer);
     }, [currentWorkspaceId]);
 
     const markAllRead = () => {
@@ -143,8 +148,18 @@ export default function Topbar({
     };
 
     return (
-        <header className="topbar sticky top-0 z-30 flex h-14 items-center justify-between border-b border-soft border-gray-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-neutral-900/80 px-4 shadow-soft dark:shadow-none">
+        <header className="topbar sticky top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200/80 bg-white/90 px-3 shadow-[0_1px_0_rgba(24,24,27,.02)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/82 dark:border-neutral-800 dark:bg-neutral-950/88 dark:supports-[backdrop-filter]:bg-neutral-950/82 sm:px-5">
             <div className="flex min-w-0 flex-1 items-center gap-3">
+                {onOpenNavigation && (
+                    <button
+                        type="button"
+                        onClick={onOpenNavigation}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-neutral-600 transition hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 dark:text-neutral-300 dark:hover:bg-neutral-800 lg:hidden"
+                        aria-label={t('open_menu')}
+                    >
+                        <Menu className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                )}
                 {showLogo && (
                     <Link href={logoHref} className="shrink-0">
                         <img
@@ -155,7 +170,23 @@ export default function Topbar({
                     </Link>
                 )}
                 {title && (
-                    <h1 className="truncate text-sm font-semibold text-gray-900 dark:text-neutral-100">{title}</h1>
+                    <div className="min-w-0">
+                        <p className="hidden text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400 sm:block">
+                            {isAdmin ? t('nav.admin', { defaultValue: 'Administration' }) : t('client.panel', { defaultValue: 'Workspace' })}
+                        </p>
+                        <h1 className="truncate text-sm font-semibold text-neutral-950 dark:text-neutral-100">{title}</h1>
+                    </div>
+                )}
+                {showAdminSearch && (
+                    <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new window.CustomEvent('wisperbot:command-palette'))}
+                        className="ml-auto hidden min-w-52 items-center gap-2 rounded-[10px] border border-neutral-200 bg-neutral-50 px-3 py-2 text-left text-xs text-neutral-500 transition hover:border-neutral-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:bg-neutral-900 md:flex"
+                    >
+                        <Search className="h-4 w-4" aria-hidden="true" />
+                        <span className="flex-1">{t('ui.search_placeholder', { defaultValue: 'Search platform…' })}</span>
+                        <kbd className="rounded border border-neutral-200 bg-white px-1.5 py-0.5 text-[10px] dark:border-neutral-700 dark:bg-neutral-800">⌘K</kbd>
+                    </button>
                 )}
                 {showGlobalSearch && (
                     <div className="hidden min-w-0 flex-1 justify-end sm:flex">

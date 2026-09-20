@@ -65,6 +65,7 @@ Meta renames/deprecates products and permissions. Confirm the current names in M
 - Messenger/Instagram private-message attachments must be normalized into typed inbox messages (`image`, `video`, `audio`, `document`, or `sticker`) instead of text-only payloads. Meta attachment URLs are treated as temporary provider URLs; web clients use the authenticated inbox media endpoint, and mobile payloads use an expiring signed mobile media endpoint so native image/video components can render without authorization headers while keeping cache keys stable across ordinary payload refreshes. The media proxy streams cached/provider files instead of depending on the public storage URL, so broken storage aliases do not block app rendering. HEIC/HEIF photos from staff uploads, website-widget uploads, Meta, or WhatsApp should be converted to cached JPEG previews server-side when one supported converter is available: PHP Imagick with HEIC support, ImageMagick `magick`/`convert`, `heif-convert`, or `ffmpeg`.
 - Mobile conversation summaries may expose generic media preview labels such as `Image`, `Audio`, `Video`, or a document filename in `last_message.body` and `latest_message_preview` when the actual media message body is empty. Message detail payloads must keep the real body empty so provider-facing sends do not turn media-only attachments into customer-visible text.
 - Outbound Messenger media replies must use attachment sends for `image`, `video`, and `audio`; generic voice labels such as `Voice message` are UI/body fallbacks and must not be sent as customer-visible text. Mobile voice uploads may arrive with generic MIME types, so the server normalizes common audio extensions such as `.m4a`, `.weba`, and `.opus` before provider upload.
+- Outbound provider images are normalized at the server boundary for staff web and mobile sends. Actual JPEG/PNG bytes pass through; HEIC/HEIF, WebP and GIF become JPEGs. WhatsApp receives a temporary JPEG upload through the conversation-bound phone number, while Messenger, Instagram and Telegram receive a persisted provider-safe JPEG URL. Client filenames remain display metadata, captions are preserved, and a JPEG retaining an iOS `.heic` name is not needlessly decoded.
 
 ### WhatsApp Embedded Signup modes
 
@@ -107,7 +108,7 @@ For every requested permission, record the complete flow: login/authorization, e
 
 - Workspace AI credentials are encrypted in the database; UI placeholders mean “keep current key.”
 - Knowledge ingestion discovers YouTube, Vimeo (including retained unlisted `h` hashes), and direct public HTTPS MP4 links in extracted websites and files. WisperBot derives player URLs and never stores arbitrary embed markup; clients do not create a separate Video source.
-- YouTube/Vimeo are rendered only after Play is selected. Customer-site CSP may need `https://www.youtube.com`, `https://www.youtube-nocookie.com`, or `https://player.vimeo.com` in `frame-src`; Vimeo domain-level privacy must also permit the embedding customer domain.
+- In the website widget, YouTube/Vimeo videos open on the provider's own page from a “See Tutorial →” link (2026-09-19), so no customer-site CSP change or Vimeo embed-domain permission is needed. The agent Inbox still renders them after Play is selected.
 - External messaging channels cannot render web players, so AI answers append `Watch video: CANONICAL_URL` while WisperBot clients use the structured resource card.
 - Provider tests must surface the actual category (invalid key, model unavailable, quota, network), not collapse everything into “bad credentials.”
 - Only select chat/embedding models that the provider project can list/access.
@@ -121,6 +122,22 @@ For every requested permission, record the complete flow: login/authorization, e
 ## Billing
 
 Only Stripe, PayPal, and Paddle are supported. Webhooks are CSRF-exempt but must be signature-verified in their controllers. Provider price IDs and recurring subscription reconciliation are operational configuration, not client-supplied values.
+
+## LinkedIn (2026-09-20)
+
+LinkedIn needs **two developer apps**, because its Community Management API "requires that it be the only product on the application": an app that also has Sign In with LinkedIn or Share on LinkedIn can never be granted it.
+
+| App | Products | Scopes | Used for |
+|---|---|---|---|
+| Sign-in app | Sign In with LinkedIn (OIDC), Share on LinkedIn | `openid profile email w_member_social` | The member's own profile |
+| Company Page app | Community Management API only | `r_organization_admin w_organization_social` | Pages the member administers |
+
+Both apps register the same callback (`{APP_URL}/app/social/accounts/callback/linkedin`). Admin → Integrations → LinkedIn OAuth holds the sign-in keys plus optional **Company Page Client ID/Secret**; Company Page connecting appears only when that pair is filled, so LinkedIn stays personal-profile only until the second app is approved.
+
+- **Connecting.** `GET .../accounts/connect/linkedin` authorizes the member; `?target=pages` authorizes the Company Page app instead, and the variant travels in the OAuth state. The Page authorization has no sign-in scopes, so no member profile is read; Pages come from `GET /v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED`. The client then picks targets on `client.social.accounts.linkedin.select`, and only ids from that authorization can be stored.
+- **Publishing.** Each connected target is its own `social_media_accounts` row. `meta.actor_type` (`member` or `organization`) selects the author URN: `urn:li:person:{id}` or `urn:li:organization:{id}` (`LinkedInDriver::publish()`).
+- **Tokens.** LinkedIn issues no per-Page token and rotates refresh tokens, so every row from one authorization shares and rotates together (`RefreshSocialTokensJob::shareWithSiblings()`), refreshed with the keys of the app that issued them.
+- **Comments** remain not integrated; they need Community Management comment permissions on top of posting access.
 
 ## Realtime and mobile
 

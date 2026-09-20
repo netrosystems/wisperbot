@@ -44,7 +44,7 @@ function Content({ align = 'right', width = '48', children }) {
             leaveTo="opacity-0 scale-95"
         >
             <div
-                className={`absolute z-50 mt-2 ${alignClass} ${widthClass} rounded-soft-lg border border-soft border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 py-1 shadow-soft-lg dark:shadow-none`}
+                className={`absolute z-50 mt-2 ${alignClass} ${widthClass} rounded-soft-lg border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-1.5 shadow-soft-lg dark:shadow-none`}
                 onClick={() => setOpen(false)}
             >
                 {children}
@@ -54,7 +54,7 @@ function Content({ align = 'right', width = '48', children }) {
 }
 
 function Item({ as = 'button', className = '', children, ...props }) {
-    const base = 'block w-full px-4 py-2.5 text-left rtl:text-right text-sm text-neutral-700 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800 transition duration-150 first:rounded-t-soft last:rounded-b-soft';
+    const base = 'block min-h-10 w-full rounded-soft px-3 py-2 text-left rtl:text-right text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800 transition duration-150';
     if (as === 'link') {
         return (
             <Link className={`${base} ${className}`} {...props}>

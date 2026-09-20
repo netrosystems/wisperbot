@@ -13,6 +13,7 @@ use App\Http\Middleware\EnsureClientScope;
 use App\Http\Middleware\EnsureInstalled;
 use App\Http\Middleware\EnsureLicensed;
 use App\Http\Middleware\EnsureNotDemoMode;
+use App\Http\Middleware\EnsurePlanSelected;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -71,7 +72,7 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware(['web'])
                 ->group(base_path('routes/webhooks.php'));
 
-            Route::middleware(['web', 'auth', 'role:client', 'client.scope', 'demo'])
+            Route::middleware(['web', 'auth', 'role:client', 'client.scope', 'plan.selected', 'demo'])
                 ->prefix('app')
                 ->name('client.')
                 ->group(base_path('routes/client.php'));
@@ -132,6 +133,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => RequirePermission::class,
             'redirect.if.admin' => RedirectIfAdminAuthenticated::class,
             'client.scope' => EnsureClientScope::class,
+            'plan.selected' => EnsurePlanSelected::class,
             'licensed' => EnsureLicensed::class,
             'limit' => EnforceLimit::class,
             'api.ability' => CheckApiAbility::class,
@@ -145,6 +147,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified',
             'role:client',
             EnsureClientScope::class,
+            EnsurePlanSelected::class,
             EnsureNotDemoMode::class,
         ]);
         // Trust all proxies so X-Forwarded-For is used for real client IPs.

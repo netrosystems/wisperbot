@@ -4,6 +4,7 @@ import { ArrowLeft, MessageSquare, Phone, Mail, Globe, Camera, Trash2, Upload } 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 function OptInBadge({ label, active }) {
     return (
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'}`}>
@@ -63,8 +64,8 @@ function AvatarUploader({ contact }) {
         if (file) uploadFile(file);
     };
 
-    const handleDelete = () => {
-        if (!confirm(t('contacts_page.avatar_confirm_remove'))) return;
+    const handleDelete = async () => {
+        if (!(await confirmDialog({ message: t('contacts_page.avatar_confirm_remove'), confirmLabel: t('common.remove') }))) return;
         setPreview(null);
         setUploadError(null);
         router.delete(route('client.contacts.avatar.delete', contact.uuid), {

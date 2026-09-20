@@ -22,7 +22,8 @@ class ConversationResource extends JsonResource
             'joined_user' => $this->whenLoaded('joinedUser', fn () => $this->joinedUser ? [
                 'id' => $this->joinedUser->id,
                 'name' => $this->joinedUser->name,
-                'avatar' => $this->joinedUser->avatar,
+                'avatar' => $this->joinedUser->avatarUrl(),
+                'avatar_url' => $this->joinedUser->avatarUrl(),
             ] : null),
             'unread_count' => (int) $this->unread_count,
             'last_message_at' => $this->last_message_at?->toIso8601String(),

@@ -3,6 +3,7 @@
 namespace App\Modules\Social\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Integrations\Services\CredentialResolver;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Services\PublishedPostLifecycle;
@@ -41,7 +42,7 @@ class SocialAutomationController extends Controller
             ->where('workspace_id', $workspaceId)
             ->orderBy('network')
             ->orderBy('name')
-            ->get(['id', 'network', 'name', 'picture_url', 'active', 'token_expires_at']);
+            ->get(['id', 'network', 'name', 'picture_url', 'active', 'token_expires_at', 'meta']);
 
         $activeAccounts = $accounts
             ->filter(fn (SocialAccount $account): bool => $account->active && ! $account->isTokenExpired())
@@ -96,6 +97,8 @@ class SocialAutomationController extends Controller
 
         return Inertia::render('Social/Automation/Index', [
             'commentsEnabled' => (bool) config('social_comments.enabled'),
+            // Company Pages need the separate LinkedIn app to be configured.
+            'linkedinPagesEnabled' => (bool) CredentialResolver::system()->oauth('linkedin')?->allowsOrganizationPosting(),
             'commentPlatforms' => SocialCommentCapabilities::catalog(),
             'accounts' => $accounts,
             'activeAccounts' => $activeAccounts,

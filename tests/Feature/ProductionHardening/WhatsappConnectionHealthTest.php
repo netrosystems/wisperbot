@@ -315,7 +315,8 @@ class WhatsappConnectionHealthTest extends TestCase
     public function test_new_manual_operations_are_rate_limited(): void
     {
         $key = 'wa-health:request:'.$this->waba->workspace_id.':'.$this->waba->id;
-        for ($i = 0; $i < 3; $i++) {
+        // Six new operations per minute (commit 0b25332 "throttle doubled").
+        for ($i = 0; $i < 6; $i++) {
             RateLimiter::hit($key, 60);
         }
         $request = Request::create('/');

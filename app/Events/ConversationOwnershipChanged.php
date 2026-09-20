@@ -29,6 +29,7 @@ class ConversationOwnershipChanged implements ShouldBroadcastNow
         return 'ConversationOwnershipChanged';
     }
 
+    /** @return array<string, mixed> */
     public function broadcastWith(): array
     {
         $this->conversation->loadMissing('joinedUser');
@@ -43,7 +44,8 @@ class ConversationOwnershipChanged implements ShouldBroadcastNow
             'joined_user' => $joined ? [
                 'id' => $joined->id,
                 'name' => $joined->name,
-                'avatar' => $joined->avatar,
+                'avatar' => $joined->avatarUrl(),
+                'avatar_url' => $joined->avatarUrl(),
                 'available' => app(TeamAvailabilityService::class)->isAvailable((int) $this->conversation->workspace_id, $joined),
             ] : null,
         ];

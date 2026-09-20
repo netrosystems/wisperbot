@@ -75,13 +75,53 @@ class WidgetPayloadBuilder
             'file_size' => $message->payload['file_size'] ?? null,
             'resources' => $isActivity ? [] : $this->videos->sanitisePublicList($message->payload['resources'] ?? []),
             'quick_replies' => $isAgent && ! $isActivity ? app(ChatReplyOptions::class)->sanitize($message->payload['quick_replies'] ?? []) : [],
+            'answer_origin' => $isAgent && ! $isActivity && in_array($message->payload['answer_origin'] ?? null, ['conversation', 'knowledge_base', 'business_guidance', 'trusted_research', 'live_product', 'fallback', 'starter_question'], true)
+                ? $message->payload['answer_origin'] : null,
+            'response_mode' => $isAgent && ! $isActivity && in_array($message->payload['response_mode'] ?? null, ['answer', 'clarification', 'fallback'], true)
+                ? $message->payload['response_mode'] : null,
+            // Sources stay on the stored message for staff; customers only see the answer.
+            'citations' => [],
+            'product_facts' => $isAgent && ! $isActivity ? $this->productFacts($message->payload['product_facts'] ?? []) : [],
             'display_body' => $isAgent && ! $isActivity && is_string($message->payload['display_body'] ?? null)
                 ? $message->payload['display_body'] : $body,
             'sent_by' => $isActivity ? 'system' : $message->sent_by,
             'agent_name' => $agentName,
+            'agent_avatar_url' => $isAgent && ! $isActivity && $message->sender
+                ? $this->browserSafePublicUrl($message->sender->avatarUrl())
+                : null,
             'activity' => $activity,
             'created_at' => optional($message->sent_at ?? $message->created_at)->toIso8601String(),
         ];
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    private function productFacts(mixed $facts): array
+    {
+        if (! is_array($facts)) {
+            return [];
+        }
+        $textFields = ['product', 'variant', 'sku', 'currency', 'availability', 'verified_at'];
+        $priceFields = ['price', 'regular_price', 'sale_price', 'min_price', 'max_price'];
+
+        return collect($facts)->filter(fn ($fact) => is_array($fact)
+            && is_string($fact['product'] ?? null)
+            && is_string($fact['url'] ?? null)
+            && str_starts_with(strtolower($fact['url']), 'https://'))
+            ->take(3)->map(function (array $fact) use ($textFields, $priceFields): array {
+                $safe = ['url' => mb_substr($fact['url'], 0, 2048)];
+                foreach ($textFields as $field) {
+                    if (is_string($fact[$field] ?? null)) {
+                        $safe[$field] = mb_substr(strip_tags($fact[$field]), 0, 512);
+                    }
+                }
+                foreach ($priceFields as $field) {
+                    if (is_numeric($fact[$field] ?? null)) {
+                        $safe[$field] = (string) $fact[$field];
+                    }
+                }
+
+                return $safe;
+            })->values()->all();
     }
 
     /**
@@ -100,7 +140,7 @@ class WidgetPayloadBuilder
             'status' => $joined ? 'connected' : ($waiting ? 'waiting' : 'bot'),
             'agent' => $joined ? [
                 'name' => $joined->name,
-                'avatar_url' => $this->browserSafePublicUrl($joined->avatar),
+                'avatar_url' => $this->browserSafePublicUrl($joined->avatarUrl()),
             ] : null,
             'joined_at' => $joined ? $conversation->joined_at?->toIso8601String() : null,
         ];

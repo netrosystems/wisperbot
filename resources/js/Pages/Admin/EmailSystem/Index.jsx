@@ -6,6 +6,7 @@ import axios from 'axios';
 import { Send, Settings, Pencil, Trash2, Mail, Server, Lock, User, CheckCircle2, XCircle, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const ENCRYPTION_OPTIONS = [
     { value: 'tls', label: 'TLS' },
     { value: 'ssl', label: 'SSL' },
@@ -95,8 +96,8 @@ export default function AdminEmailSystemIndex({ smtpConfigurations = [], emailTe
                                                 key={c.id}
                                                 config={c}
                                                 onEdit={() => { setEditSmtp(c); setAddSmtpOpen(true); }}
-                                                onDelete={() => {
-                                                    if (confirm(t('email_server.remove_confirm'))) {
+                                                onDelete={async () => {
+                                                    if ((await confirmDialog({ message: t('email_server.remove_confirm'), confirmLabel: t('common.remove') }))) {
                                                         router.delete(route('admin.smtp-configurations.destroy', c.id));
                                                     }
                                                 }}

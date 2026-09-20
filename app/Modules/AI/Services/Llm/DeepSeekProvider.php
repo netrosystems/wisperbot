@@ -16,13 +16,17 @@ class DeepSeekProvider implements LlmProviderInterface
     public function chat(array $messages, array $opts = []): LlmResponse
     {
         $start = microtime(true);
+        $payload = [
+            'model' => $opts['model'] ?? $this->chatModel,
+            'messages' => $messages,
+            'max_tokens' => $opts['max_tokens'] ?? 1024,
+            'temperature' => $opts['temperature'] ?? 0.7,
+        ];
+        if (($opts['json_object'] ?? false) === true) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
         $response = Http::withToken($this->apiKey)->retry(2, 500)->timeout(60)
-            ->post(self::BASE.'/chat/completions', [
-                'model' => $opts['model'] ?? $this->chatModel,
-                'messages' => $messages,
-                'max_tokens' => $opts['max_tokens'] ?? 1024,
-                'temperature' => $opts['temperature'] ?? 0.7,
-            ]);
+            ->post(self::BASE.'/chat/completions', $payload);
         if (! $response->successful()) {
             throw new \RuntimeException('DeepSeek chat failed: '.$response->body());
         }

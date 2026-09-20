@@ -54,7 +54,7 @@ class MobileInboxController extends WorkspaceScopedController
 
         $teamMembers = User::where('workspace_id', $wsId)
             ->orderBy('name')
-            ->get(['id', 'name', 'email']);
+            ->get(['id', 'name', 'email', 'avatar']);
 
         $liveUsersCount = Conversation::where('workspace_id', $wsId)
             ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
@@ -77,6 +77,8 @@ class MobileInboxController extends WorkspaceScopedController
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,
+                'avatar' => $u->avatarUrl(),
+                'avatar_url' => $u->avatarUrl(),
             ]),
             'live_users_count' => $liveUsersCount,
         ]);
@@ -175,7 +177,7 @@ class MobileInboxController extends WorkspaceScopedController
     public function contactSearch(Request $request): JsonResponse
     {
         $wsId = $this->workspaceId($request);
-        $q = $request->input('q', '');
+        $q = trim((string) ($request->input('q') ?: $request->input('query', '')));
 
         $contacts = Contact::where('workspace_id', $wsId)
             ->withCount([

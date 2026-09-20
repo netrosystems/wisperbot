@@ -19,6 +19,7 @@ use App\Support\WebchatVisitorToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class WidgetRealtimeTest extends TestCase
@@ -34,14 +35,31 @@ class WidgetRealtimeTest extends TestCase
         $message = Message::create([
             'conversation_id' => $conversationId, 'direction' => 'out', 'channel' => 'webchat',
             'type' => 'text', 'body' => "Which app?\n\n1. iOS app\n2. Android app", 'status' => 'sent', 'sent_by' => 'bot',
-            'payload' => ['display_body' => 'Which app?', 'quick_replies' => [['id' => 'qr_1', 'label' => 'iOS app'], ['id' => 'qr_2', 'label' => 'Android app']]],
+            'payload' => [
+                'display_body' => 'Which app?',
+                'quick_replies' => [['id' => 'qr_1', 'label' => 'iOS app'], ['id' => 'qr_2', 'label' => 'Android app']],
+                'answer_origin' => 'trusted_research',
+                'citations' => [['title' => 'Setup guide', 'url' => 'https://example.com/setup']],
+                'product_facts' => [
+                    ['product' => 'Travel Pack', 'price' => '49.90', 'currency' => 'GBP', 'url' => 'https://example.com/travel', 'verified_at' => '2026-09-19T10:00:00Z'],
+                    ['product' => 'Unsafe', 'price' => '1', 'currency' => 'USD', 'url' => 'http://private.example/item'],
+                ],
+            ],
         ]);
         $builder = app(WidgetPayloadBuilder::class);
         $this->assertSame('iOS app', $builder->message($message, $widget)['quick_replies'][0]['label']);
+        $this->assertSame('trusted_research', $builder->message($message, $widget)['answer_origin']);
+        $this->assertSame([], $builder->message($message, $widget)['citations']);
+        $this->assertSame('https://example.com/setup', $message->payload['citations'][0]['url']);
+        $this->assertSame('Travel Pack', $builder->message($message, $widget)['product_facts'][0]['product']);
+        $this->assertCount(1, $builder->message($message, $widget)['product_facts']);
         $this->assertSame($builder->message($message, $widget), $builder->messages($conversationId, $widget, 0)[0]);
         $this->withHeader('X-Widget-Token', $session->json('token'))
             ->getJson(route('widget.poll', ['key' => $widget->widget_key, 'after' => 0]))
             ->assertOk()->assertJsonPath('messages.0.quick_replies.0.label', 'iOS app')
+            ->assertJsonPath('messages.0.answer_origin', 'trusted_research')
+            ->assertJsonPath('messages.0.citations', [])
+            ->assertJsonPath('messages.0.product_facts.0.currency', 'GBP')
             ->assertJsonPath('messages.0.display_body', 'Which app?');
         $this->assertSame('iOS app', (new WidgetMessageCreated($conversationId, $builder->message($message, $widget)))->broadcastWith()['message']['quick_replies'][0]['label']);
         $this->withHeader('X-Widget-Token', $session->json('token'))
@@ -263,6 +281,26 @@ class WidgetRealtimeTest extends TestCase
                 'channel_name' => 'private-widget-conversation.999999',
             ])
             ->assertForbidden();
+    }
+
+    public function test_allowed_domain_entries_with_a_port_or_scheme_match_their_host(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        [$widget] = $this->createWebchatWidget($workspace->id, [
+            'allowed_domains' => ['localhost:8000', ' https://shop.example:8443/store '],
+        ]);
+
+        $this->withHeader('Origin', 'http://localhost:8000')
+            ->postJson(route('widget.session'), ['key' => $widget->widget_key])
+            ->assertOk();
+        $this->withHeader('Origin', 'https://shop.example')
+            ->postJson(route('widget.session'), ['key' => $widget->widget_key])
+            ->assertOk();
+        $this->withHeader('Origin', 'https://evil.example')
+            ->postJson(route('widget.session'), ['key' => $widget->widget_key])
+            ->assertForbidden();
+
+        $this->get('/widgets/chat/'.$widget->widget_key.'.js')->assertOk()->assertSee(".split('/')[0].split(':')[0]", false);
     }
 
     public function test_widget_broadcast_auth_rejects_disallowed_domains(): void
@@ -500,9 +538,12 @@ class WidgetRealtimeTest extends TestCase
 
     public function test_agent_and_bot_webchat_replies_broadcast_widget_safe_payloads(): void
     {
+        Storage::fake('public');
         Event::fake([WidgetMessageCreated::class]);
 
         ['workspace' => $workspace, 'user' => $agent] = $this->createWorkspaceContext();
+        $agent->update(['avatar' => 'avatars/agent.jpg']);
+        Storage::disk('public')->put('avatars/agent.jpg', 'agent image');
         [$widget, $account] = $this->createWebchatWidget($workspace->id);
         $conversation = $this->createConversation($workspace->id, $account->id);
 
@@ -525,8 +566,19 @@ class WidgetRealtimeTest extends TestCase
             return $event->conversationId === $conversation->id
                 && $event->message['role'] === 'agent'
                 && $event->message['body'] === 'Agent reply'
+                && str_contains($event->message['agent_avatar_url'], '/storage/avatars/agent.jpg')
                 && ! array_key_exists('provider_message_id', $event->message);
         });
+
+        $conversation->update([
+            'assigned_to' => 'human',
+            'assigned_user_id' => $agent->id,
+            'joined_user_id' => $agent->id,
+            'joined_at' => now(),
+        ]);
+        $handoff = app(WidgetPayloadBuilder::class)->handoff($widget, $conversation->fresh());
+        $this->assertSame('connected', $handoff['status']);
+        $this->assertStringContainsString('/storage/avatars/agent.jpg', $handoff['agent']['avatar_url']);
 
         $botMessage = Message::create([
             'conversation_id' => $conversation->id,
@@ -556,7 +608,8 @@ class WidgetRealtimeTest extends TestCase
                 && $event->message['body'] === 'Bot reply'
                 && $event->message['resources'][0]['provider'] === 'youtube'
                 && ! array_key_exists('transcript', $event->message['resources'][0])
-                && $event->message['agent_name'] === ($widget->agent_name ?: 'Support');
+                && $event->message['agent_name'] === ($widget->agent_name ?: 'Support')
+                && $event->message['agent_avatar_url'] === null;
         });
     }
 

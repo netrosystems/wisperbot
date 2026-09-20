@@ -108,6 +108,14 @@ class MobileRateLimitTest extends TestCase
                 'api/v1/auth/me', 'api/v1/auth/logout', 'api/v1/auth/profile', 'api/v1/broadcasting/auth',
             ], true)) {
                 $middleware = $route->gatherMiddleware();
+                // Media links for <img>/<video> tags cannot send a Bearer token;
+                // they are protected by an expiring signature instead.
+                if (str_ends_with($uri, '/media/signed')) {
+                    $this->assertContains('signed', $middleware, $uri);
+                    $this->assertNotContains('auth:sanctum', $middleware, $uri);
+
+                    continue;
+                }
                 $this->assertContains('auth:sanctum', $middleware, $uri);
                 $this->assertContains('throttle:mobile-api', $middleware, $uri);
                 $this->assertNotContains('throttle:api', $middleware, $uri);

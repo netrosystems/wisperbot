@@ -41,7 +41,7 @@ class SchedulerTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->post(route('client.campaigns.launch', $campaign->id))
+            ->post(route('client.campaigns.launch', $campaign))
             ->assertRedirect();
 
         $campaign->refresh();
@@ -69,7 +69,7 @@ class SchedulerTest extends TestCase
 
         // POST without schedule_at — must keep the existing schedule.
         $this->actingAs($user)
-            ->post(route('client.campaigns.launch', $campaign->id))
+            ->post(route('client.campaigns.launch', $campaign))
             ->assertRedirect();
 
         $campaign->refresh();
@@ -132,7 +132,7 @@ class SchedulerTest extends TestCase
 
         // Empty string explicitly clears the schedule and sends now.
         $this->actingAs($user)
-            ->post(route('client.campaigns.launch', $campaign->id), ['schedule_at' => ''])
+            ->post(route('client.campaigns.launch', $campaign), ['schedule_at' => ''])
             ->assertRedirect();
 
         $campaign->refresh();
@@ -211,7 +211,7 @@ class SchedulerTest extends TestCase
         $iso = '2030-06-01T18:00:00.000Z';
 
         $response = $this->actingAs($user)
-            ->patch(route('client.campaigns.update', $campaign->id), [
+            ->patch(route('client.campaigns.update', $campaign), [
                 'name' => $campaign->name,
                 'channel' => $campaign->channel,
                 'audience_type' => $campaign->audience_type,

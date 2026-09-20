@@ -43,7 +43,7 @@ class ChatWidgetEmbedController extends Controller
     var _host = (window.location.hostname || '').toLowerCase().replace(/^www\\./, '');
     var _ok = false;
     for (var _i = 0; _i < _allowed.length; _i++) {
-      var _d = (_allowed[_i] || '').toLowerCase().replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0];
+      var _d = (_allowed[_i] || '').trim().toLowerCase().replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0].split(':')[0];
       if (_d && (_host === _d || _host.slice(-(_d.length + 1)) === '.' + _d)) { _ok = true; break; }
     }
     if (!_ok) return;

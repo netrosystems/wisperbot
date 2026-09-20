@@ -243,6 +243,14 @@ class MobileConversationController extends WorkspaceScopedController
             $file = $request->file('attachment');
             $upload = $this->attachmentService->processUpload($file, 'message-media');
 
+            if (in_array($channel, ['messenger', 'instagram', 'telegram'], true)) {
+                try {
+                    $upload = $this->attachmentService->normaliseExternalImage($file, $upload);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['error' => $e->getMessage()], 422);
+                }
+            }
+
             if ($msgType === 'text' || empty($msgType)) {
                 $msgType = $upload['type'];
             } elseif ($msgType === 'audio' && in_array($upload['type'], ['audio', 'video', 'document'], true)) {
@@ -267,26 +275,28 @@ class MobileConversationController extends WorkspaceScopedController
             ];
 
             if ($channel === 'whatsapp') {
-                $client = CloudApiClient::forWorkspace($conversation->workspace_id);
+                $phoneNumberId = (string) ($conversation->channelAccount?->phone_number_id ?? '');
+                $client = $phoneNumberId !== ''
+                    ? CloudApiClient::forPhoneNumber($phoneNumberId, $conversation->workspace_id)
+                    : CloudApiClient::forWorkspace($conversation->workspace_id);
                 if (! $client) {
                     return response()->json(['error' => 'No active WhatsApp account.'], 422);
                 }
 
-                $tempPath = null;
-                if ($upload['is_converted_heic']) {
-                    $tempPath = tempnam(sys_get_temp_dir(), 'wa_upload_').'.jpg';
-                    file_put_contents($tempPath, $this->storageManager->disk()->get($upload['path']));
-                    $uploadPath = $tempPath;
-                } else {
-                    $uploadPath = $file->getRealPath();
-                }
-
                 try {
-                    $attachmentPayload['media_id'] = $client->uploadMedia($uploadPath, $upload['mime_type']);
-                } finally {
-                    if ($tempPath && file_exists($tempPath)) {
-                        @unlink($tempPath);
+                    $prepared = $this->attachmentService->prepareForWhatsapp($file, $upload);
+                    try {
+                        $attachmentPayload['media_id'] = $client->uploadMedia(
+                            $prepared['path'],
+                            $prepared['mime_type'],
+                        );
+                    } finally {
+                        if ($prepared['temporary'] && file_exists($prepared['path'])) {
+                            @unlink($prepared['path']);
+                        }
                     }
+                } catch (\Throwable $e) {
+                    return response()->json(['error' => $e->getMessage()], 422);
                 }
             }
 
@@ -753,13 +763,15 @@ class MobileConversationController extends WorkspaceScopedController
             'assigned_user' => $c->assignedUser ? [
                 'id' => $c->assignedUser->id,
                 'name' => $c->assignedUser->name,
-                'avatar' => $c->assignedUser->avatar ?? null,
+                'avatar' => $c->assignedUser->avatarUrl(),
+                'avatar_url' => $c->assignedUser->avatarUrl(),
             ] : null,
             'joined_at' => $c->joined_at?->toIso8601String(),
             'joined_user' => $c->joinedUser ? [
                 'id' => $c->joinedUser->id,
                 'name' => $c->joinedUser->name,
-                'avatar' => $c->joinedUser->avatar ?? null,
+                'avatar' => $c->joinedUser->avatarUrl(),
+                'avatar_url' => $c->joinedUser->avatarUrl(),
             ] : null,
             'contact' => $c->contact ? [
                 'id' => $c->contact->id,
@@ -808,7 +820,7 @@ class MobileConversationController extends WorkspaceScopedController
 
     private function formatMessage(Message $m): array
     {
-        $m->loadMissing('conversation');
+        $m->loadMissing(['conversation', 'sender']);
 
         return [
             'id' => $m->id,
@@ -820,6 +832,12 @@ class MobileConversationController extends WorkspaceScopedController
             'payload' => $this->safeMessagePayload($m),
             'status' => $m->status,
             'sent_by' => $m->sent_by,
+            'sender' => $m->sender ? [
+                'id' => $m->sender->id,
+                'name' => $m->sender->name,
+                'avatar' => $m->sender->avatarUrl(),
+                'avatar_url' => $m->sender->avatarUrl(),
+            ] : null,
             'sent_at' => $m->sent_at?->toIso8601String(),
             'created_at' => $m->created_at->toIso8601String(),
         ];

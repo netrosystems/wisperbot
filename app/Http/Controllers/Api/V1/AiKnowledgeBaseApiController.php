@@ -7,6 +7,7 @@ use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Services\KnowledgeBaseTestService;
 use App\Modules\AI\Services\KnowledgeBaseWorkflowService;
+use App\Modules\AI\Services\KnowledgeSourceUrlResolver;
 use App\Modules\AI\Services\KnowledgeUrlGuard;
 use App\Modules\AI\Services\VideoResourceService;
 use App\Services\StorageManager;
@@ -21,6 +22,7 @@ class AiKnowledgeBaseApiController extends WorkspaceScopedController
         private KnowledgeBaseWorkflowService $workflow,
         private KnowledgeBaseTestService $tests,
         private KnowledgeUrlGuard $urls,
+        private KnowledgeSourceUrlResolver $urlResolver,
     ) {}
 
     /**
@@ -89,16 +91,15 @@ class AiKnowledgeBaseApiController extends WorkspaceScopedController
         }
 
         $sourceType = (string) $request->input('source_type');
+        $originalSourceRef = null;
         if (in_array($sourceType, ['url', 'sitemap'], true)) {
-            $request->merge([
-                'source_ref' => $this->normaliseSourceUrl((string) $request->input('source_ref')),
-            ]);
-            if (config('knowledge_base.guarded_publishing')) {
-                try {
-                    $request->merge(['source_ref' => $this->urls->assertSafe((string) $request->input('source_ref'))]);
-                } catch (\InvalidArgumentException $exception) {
-                    return response()->json(['error' => $exception->getMessage()], 422);
-                }
+            $originalSourceRef = trim((string) $request->input('source_ref'));
+            try {
+                $normalised = $this->urlResolver->normaliseInput($originalSourceRef);
+                $normalised = $this->urls->assertSafe($normalised);
+                $request->merge(['source_ref' => $normalised]);
+            } catch (\InvalidArgumentException $exception) {
+                return response()->json(['error' => $exception->getMessage()], 422);
             }
         }
 
@@ -126,6 +127,9 @@ class AiKnowledgeBaseApiController extends WorkspaceScopedController
             $validated['source_ref'] = trim("Title: {$validated['title']}\nDescription or transcript:\n{$validated['video_transcript']}\nTrigger phrases:\n".($validated['trigger_phrases'] ?? ''));
         }
         unset($validated['video_url'], $validated['video_transcript'], $validated['thumbnail_url'], $validated['trigger_phrases']);
+        if ($originalSourceRef !== null) {
+            $validated['original_source_ref'] = $originalSourceRef;
+        }
 
         if ($request->hasFile('file')) {
             $request->validate(['file' => ['file', 'max:20480', 'mimes:pdf,txt,md,csv,docx,xlsx,json']]);
@@ -243,6 +247,8 @@ class AiKnowledgeBaseApiController extends WorkspaceScopedController
             'kb_id' => $doc->kb_id,
             'source_type' => $doc->source_type,
             'source_ref' => $doc->source_ref,
+            'original_source_ref' => $doc->original_source_ref,
+            'canonical_url' => $doc->canonical_url,
             'resource' => $doc->resource_json,
             'title' => $doc->title,
             'status' => $doc->status,
@@ -257,15 +263,5 @@ class AiKnowledgeBaseApiController extends WorkspaceScopedController
             'extracted_content' => $doc->extracted_content,
             'created_at' => $doc->created_at->toIso8601String(),
         ];
-    }
-
-    private function normaliseSourceUrl(string $url): string
-    {
-        $url = trim($url);
-        if ($url === '' || preg_match('/^[a-z][a-z0-9+.-]*:\/\//i', $url)) {
-            return $url;
-        }
-
-        return 'https://'.$url;
     }
 }

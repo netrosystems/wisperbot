@@ -2,6 +2,8 @@
 
 namespace App\Modules\AI\Services;
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
 class VideoResourceService
@@ -16,7 +18,7 @@ class VideoResourceService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function discover(string $content, string $fallbackTitle = 'Video'): array
+    public function discover(string $content, string $fallbackTitle = ''): array
     {
         preg_match_all('~https://[^\s<>"\']+~iu', $content, $matches, PREG_OFFSET_CAPTURE);
 
@@ -31,7 +33,7 @@ class VideoResourceService
             }
 
             try {
-                $resource = $this->normalise($url, $title ?: 'Video');
+                $resource = $this->normalise($url, $title);
             } catch (ValidationException) {
                 continue;
             }
@@ -48,6 +50,23 @@ class VideoResourceService
         }
 
         return $resources;
+    }
+
+    /**
+     * Fill untitled discovered videos with the provider's public title.
+     *
+     * @param  array<int, array<string, mixed>>  $resources
+     * @return array<int, array<string, mixed>>
+     */
+    public function withProviderTitles(array $resources): array
+    {
+        return array_map(function (array $resource): array {
+            if (trim((string) ($resource['title'] ?? '')) === '') {
+                $resource['title'] = $this->providerTitle($resource) ?? '';
+            }
+
+            return $resource;
+        }, $resources);
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -137,7 +156,7 @@ class VideoResourceService
             'kind' => 'video',
             'provider' => $resource['provider'] ?? null,
             'video_id' => $resource['video_id'] ?? null,
-            'title' => $resource['title'] ?? 'Video',
+            'title' => $resource['title'] ?? null,
             'canonical_url' => $resource['canonical_url'] ?? null,
             'playback_url' => $resource['playback_url'] ?? null,
             'thumbnail_url' => $resource['thumbnail_url'] ?? null,
@@ -160,7 +179,7 @@ class VideoResourceService
             try {
                 $normalised = $this->normalise(
                     (string) ($resource['canonical_url'] ?? ''),
-                    (string) ($resource['title'] ?? 'Video'),
+                    (string) ($resource['title'] ?? ''),
                     $resource['thumbnail_url'] ?? null,
                 );
                 $safe[] = $this->publicSnapshot($normalised, (float) ($resource['match_score'] ?? 0));
@@ -170,6 +189,40 @@ class VideoResourceService
         }
 
         return $safe;
+    }
+
+    private function providerTitle(array $resource): ?string
+    {
+        $endpoint = match ($resource['provider'] ?? null) {
+            'youtube' => 'https://www.youtube.com/oembed',
+            'vimeo' => 'https://vimeo.com/api/oembed.json',
+            default => null,
+        };
+        $url = (string) ($resource['canonical_url'] ?? '');
+        if ($endpoint === null || $url === '') {
+            return null;
+        }
+
+        $cacheKey = 'kb-video-title:'.sha1($url);
+        $cached = Cache::get($cacheKey);
+        if (is_string($cached) && $cached !== '') {
+            return $cached;
+        }
+
+        try {
+            $response = Http::timeout(4)->acceptJson()->get($endpoint, ['url' => $url, 'format' => 'json']);
+            $title = $response->successful() ? $response->json('title') : null;
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $title = is_string($title) ? mb_substr(trim((string) preg_replace('/\s+/u', ' ', strip_tags($title))), 0, 160) : '';
+        if ($title === '') {
+            return null;
+        }
+        Cache::put($cacheKey, $title, now()->addDays(7));
+
+        return $title;
     }
 
     /** @return array<string, mixed> */

@@ -248,6 +248,7 @@ function VideoResourceCard({ resource }) {
     const [loaded, setLoaded] = useState(false);
     const [failed, setFailed] = useState(false);
     if (!resource?.canonical_url) return null;
+    const label = resource.title || ({ youtube: 'YouTube', vimeo: 'Vimeo' }[resource.provider] ?? 'Video');
 
     let playbackUrl = resource.playback_url;
     if (resource.provider === 'youtube' && playbackUrl) {
@@ -256,20 +257,20 @@ function VideoResourceCard({ resource }) {
 
     return (
         <div className="mb-2 overflow-hidden rounded-xl border border-white/20 bg-black text-white shadow-sm">
-            <div className="relative aspect-video min-h-[200px] bg-neutral-950">
+            <div className="relative aspect-video bg-neutral-950">
                 {!playing && !failed && (
-                    <button type="button" onClick={() => setPlaying(true)} className="absolute inset-0 flex w-full items-center justify-center overflow-hidden" aria-label={`Play ${resource.title || 'video'}`}>
+                    <button type="button" onClick={() => setPlaying(true)} className="absolute inset-0 flex w-full items-center justify-center overflow-hidden" aria-label={`Play ${label}`}>
                         {resource.thumbnail_url && <img src={resource.thumbnail_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" onError={e => { e.currentTarget.style.display = 'none'; }} />}
                         <span className="relative grid h-14 w-14 place-items-center rounded-full bg-brand-600 text-2xl shadow-lg" aria-hidden="true">▶</span>
                     </button>
                 )}
                 {playing && !loaded && !failed && <div className="absolute inset-0 grid place-items-center"><Loader2 className="h-6 w-6 animate-spin text-white/70" /></div>}
                 {playing && resource.provider === 'direct' && <video src={playbackUrl} controls autoPlay className="relative h-full w-full object-contain" onCanPlay={() => setLoaded(true)} onError={() => setFailed(true)} />}
-                {playing && resource.provider !== 'direct' && <iframe src={playbackUrl} title={resource.title || 'Video'} className="relative h-full w-full" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />}
+                {playing && resource.provider !== 'direct' && <iframe src={playbackUrl} title={label} className="relative h-full w-full" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />}
                 {failed && <div className="absolute inset-0 grid place-items-center px-4 text-center text-xs text-neutral-300">Video preview is unavailable.</div>}
             </div>
             <div className="flex items-center justify-between gap-2 px-3 py-2">
-                <span className="truncate text-xs font-medium">{resource.title || 'Video'}</span>
+                <span className="truncate text-xs font-medium">{label}</span>
                 <a href={resource.canonical_url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs text-brand-300 hover:underline">Open video</a>
             </div>
         </div>

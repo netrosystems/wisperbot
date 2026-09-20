@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\URL;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class MessageMediaResolver
 {
@@ -151,7 +152,7 @@ class MessageMediaResolver
             $mimeType = (string) ($response->header('Content-Type') ?: ($payload['mime_type'] ?? 'application/octet-stream'));
 
             return $this->storeAndRedirect($message, $payload, $response->body(), $mimeType, $request);
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             throw $e;
         } catch (\Throwable $e) {
             abort(502, 'Could not fetch media: '.$e->getMessage());
@@ -301,7 +302,9 @@ class MessageMediaResolver
             return $previewPath;
         }
 
-        $prefix = $this->storageManager->prefixedPath("message-media/{$message->id}");
+        // Match "{id}.{ext}" exactly: a bare prefix would let message 1 serve
+        // message 12's cached media.
+        $prefix = $this->storageManager->prefixedPath("message-media/{$message->id}.");
         $files = $disk->files($this->storageManager->prefixedPath('message-media'));
 
         $matches = collect($files)->filter(fn ($file) => str_starts_with($file, $prefix));

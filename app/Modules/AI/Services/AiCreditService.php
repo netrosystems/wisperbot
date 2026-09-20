@@ -178,10 +178,14 @@ class AiCreditService
                 $perMinute = $period->allowance <= 100
                     ? (int) config('ai_credits.free_managed_requests_per_minute', 10)
                     : (int) config('ai_credits.managed_requests_per_minute', 30);
-                if (RateLimiter::tooManyAttempts($rateKey, $perMinute)) {
-                    throw new AiCreditsException('Too many AI requests. Try again in a minute.', 'ai_rate_limited', 429);
+                // Zero-credit internal steps (such as translating a search query)
+                // belong to a customer action that is already rate limited.
+                if ($credits > 0) {
+                    if (RateLimiter::tooManyAttempts($rateKey, $perMinute)) {
+                        throw new AiCreditsException('Too many AI requests. Try again in a minute.', 'ai_rate_limited', 429);
+                    }
+                    RateLimiter::hit($rateKey, 60);
                 }
-                RateLimiter::hit($rateKey, 60);
 
                 $available = max(0, $period->allowance + $period->adjustment_credits - $period->used_credits - $period->reserved_credits);
                 if ($credits > $available && config('ai_credits.enforce', false)) {

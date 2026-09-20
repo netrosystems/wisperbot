@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import AdminLayout from '@/Layouts/AdminLayout';
 import { Percent, Plus, Pencil, Trash2 } from 'lucide-react';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 function TaxRateForm({ taxRate = null, onClose }) {
     const { t } = useTranslation();
     const { data, setData, post, put, processing, errors } = useForm({
@@ -104,8 +105,8 @@ export default function TaxRatesIndex({ taxRates }) {
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState(null);
 
-    const handleDelete = (taxRate) => {
-        if (! confirm(t('admin.tax_delete_confirm', { name: taxRate.name }))) return;
+    const handleDelete = async (taxRate) => {
+        if (! (await confirmDialog({ message: t('admin.tax_delete_confirm', { name: taxRate.name }) }))) return;
         router.delete(route('admin.tax-rates.destroy', taxRate.id));
     };
 

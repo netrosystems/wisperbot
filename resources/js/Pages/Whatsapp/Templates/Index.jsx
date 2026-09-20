@@ -6,6 +6,7 @@ import { Plus, RefreshCw, CheckCircle, XCircle, Clock, PauseCircle, FileText, Se
 import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const STATUS_CONFIG = {
     APPROVED: { color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', icon: <CheckCircle className="h-3 w-3" />, labelKey: 'whatsapp.templates_status_approved' },
     REJECTED: { color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',         icon: <XCircle className="h-3 w-3" />, labelKey: 'whatsapp.templates_status_rejected' },
@@ -43,8 +44,8 @@ export default function WhatsappTemplatesIndex({ templates, phoneNumbers = [], f
     const handleStatus = (status) => applyFilters({ status: status || undefined });
     const handlePhone = (e) => applyFilters({ phone_number_id: e.target.value || undefined });
 
-    const handleDelete = (tpl) => {
-        if (!window.confirm(t('whatsapp.templates_delete_confirm', { name: tpl.name }))) return;
+    const handleDelete = async (tpl) => {
+        if (!(await confirmDialog({ message: t('whatsapp.templates_delete_confirm', { name: tpl.name }) }))) return;
         router.delete(route('client.whatsapp.templates.destroy', tpl.id), { preserveScroll: true });
     };
 

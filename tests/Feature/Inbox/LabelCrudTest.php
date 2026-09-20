@@ -82,7 +82,7 @@ class LabelCrudTest extends TestCase
             'status' => 'open',
         ]);
 
-        $response = $this->actingAs($user)->postJson(route('client.inbox.labels.attach', $conv->id), [
+        $response = $this->actingAs($user)->postJson(route('client.inbox.labels.attach', $conv), [
             'label_id' => $label->id,
         ]);
 
@@ -114,7 +114,7 @@ class LabelCrudTest extends TestCase
         // First attach
         $conv->labels()->attach($label->id);
 
-        $response = $this->actingAs($user)->deleteJson(route('client.inbox.labels.detach', [$conv->id, $label->id]));
+        $response = $this->actingAs($user)->deleteJson(route('client.inbox.labels.detach', [$conv, $label->id]));
         $response->assertOk();
         $this->assertDatabaseMissing('inbox_label_conversation', [
             'conversation_id' => $conv->id,
@@ -140,7 +140,7 @@ class LabelCrudTest extends TestCase
             'status' => 'open',
         ]);
 
-        $response = $this->actingAs($user)->postJson(route('client.inbox.labels.attach', $conv->id), [
+        $response = $this->actingAs($user)->postJson(route('client.inbox.labels.attach', $conv), [
             'label_id' => $label->id,
         ]);
 

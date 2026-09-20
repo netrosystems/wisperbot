@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Pencil, Trash2, X, Check } from 'lucide-react';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const PRESET_COLORS = [
     '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
     '#f97316', '#eab308', '#22c55e', '#14b8a6',
@@ -51,8 +52,8 @@ export default function LabelsIndex({ labels }) {
         });
     };
 
-    const destroy = (label) => {
-        if (!confirm(t('inbox.label_delete_confirm', { name: label.name }))) return;
+    const destroy = async (label) => {
+        if (!(await confirmDialog({ message: t('inbox.label_delete_confirm', { name: label.name }) }))) return;
         router.delete(route('client.inbox.labels.destroy', label.id), { preserveScroll: true });
     };
 

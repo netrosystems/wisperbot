@@ -5,11 +5,12 @@ namespace Tests\Feature\Api\V1;
 use App\Models\WebhookEndpoint;
 use App\Support\ApiAbilities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\UsesDeveloperApi;
 use Tests\TestCase;
 
 class OutboundWebhookApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UsesDeveloperApi;
 
     public function test_unauthenticated_returns_401(): void
     {

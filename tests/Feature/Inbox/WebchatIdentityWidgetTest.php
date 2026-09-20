@@ -7,6 +7,7 @@ use App\Events\MessageReceived;
 use App\Models\Plan;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Models\ChatWidget;
+use App\Modules\Inbox\Models\WorkspaceMemberAvailability;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -235,6 +236,35 @@ class WebchatIdentityWidgetTest extends TestCase
         $this->assertSame('https://example.com/jane.jpg', $contact->avatar);
         $this->assertSame('customer-123', $contact->custom_fields['webchat_external_id']);
         $this->assertFalse($contact->opt_in_email);
+    }
+
+    public function test_widget_header_lists_only_teammates_available_on_their_schedule(): void
+    {
+        ['workspace' => $workspace, 'user' => $owner] = $this->createWorkspaceContext();
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+        $widget = ChatWidget::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'name' => 'Website chat',
+            'position' => 'bottom_right',
+        ]);
+        WorkspaceMemberAvailability::create([
+            'workspace_id' => $workspace->id,
+            'user_id' => $owner->id,
+            'enabled' => true,
+            'timezone' => 'UTC',
+            'schedule_json' => [],
+        ]);
+
+        $this->postJson(route('widget.session'), ['key' => $widget->widget_key])
+            ->assertOk()
+            ->assertJsonPath('config.team_member_count', 0)
+            ->assertJsonPath('config.team_members', []);
     }
 
     public function test_logged_in_widget_session_still_accepts_visitor_image_uploads(): void

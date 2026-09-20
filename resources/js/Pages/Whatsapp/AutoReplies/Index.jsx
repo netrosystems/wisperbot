@@ -5,6 +5,7 @@ import { Plus, Trash2, ToggleLeft, ToggleRight, Zap, Pencil, X } from 'lucide-re
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const TRIGGER_TYPES  = ['keyword', 'welcome', 'away', 'out_of_hours'];
 const MATCH_MODES    = ['exact', 'contains', 'regex'];
 const RESPONSE_KINDS = ['text', 'template', 'media'];
@@ -265,8 +266,8 @@ export default function WhatsappAutoRepliesIndex({ rules }) {
         );
     };
 
-    const handleDelete = (id) => {
-        if (confirm(t('whatsapp.auto_replies_delete_confirm'))) {
+    const handleDelete = async (id) => {
+        if ((await confirmDialog({ message: t('whatsapp.auto_replies_delete_confirm') }))) {
             router.delete(route('client.whatsapp.auto-replies.destroy', id), { preserveScroll: true });
         }
     };

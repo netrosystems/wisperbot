@@ -30,6 +30,7 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="BROADCAST_CONNECTION" value="log"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="SMART_BOT_BUSINESS_AWARE_ROUTING" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="VITE_TESTING" value="true"/>
     </php>

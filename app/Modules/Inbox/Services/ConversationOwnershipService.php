@@ -234,6 +234,7 @@ class ConversationOwnershipService
             $locked->update([
                 'status' => 'resolved',
                 'resolved_at' => now(),
+                'unread_count' => 0,
                 'assigned_user_id' => null,
                 'joined_user_id' => null,
                 'joined_at' => null,
@@ -489,7 +490,12 @@ class ConversationOwnershipService
     /** @return array{id:int,name:string,avatar:mixed}|null */
     private function publicUser(?User $user): ?array
     {
-        return $user ? ['id' => $user->id, 'name' => $user->name, 'avatar' => $user->avatar] : null;
+        return $user ? [
+            'id' => $user->id,
+            'name' => $user->name,
+            'avatar' => $user->avatarUrl(),
+            'avatar_url' => $user->avatarUrl(),
+        ] : null;
     }
 
     public function synchronized(Conversation $conversation, callable $callback): mixed

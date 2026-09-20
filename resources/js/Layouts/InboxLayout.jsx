@@ -10,21 +10,15 @@ import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
 export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
     const { t } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, branding, demo_mode, currentWorkspace } = usePage().props;
+    const { auth, impersonation, branding, demo_mode, currentWorkspace } = usePage().props;
     const logoUrl = branding?.logo_url;
-    const [unreadCount, setUnreadCount] = useState(unreadNotificationsCount ?? 0);
     const clientNavGroups = useClientNav();
-
-    useEffect(() => {
-        setUnreadCount(unreadNotificationsCount ?? 0);
-    }, [unreadNotificationsCount]);
 
     useEffect(() => {
         if (!window.Echo || !auth?.user?.id) return;
         window.Echo.private(`App.Models.User.${auth.user.id}`)
             .notification((notification) => {
                 if (!isNotificationForWorkspace(notification, currentWorkspace?.id)) return;
-                setUnreadCount(prev => prev + 1);
                 const msg = notification.snippet ?? notification.name ?? notification.automation ?? notification.error ?? 'New notification';
                 const title = {
                     new_message: 'New message',
@@ -47,7 +41,7 @@ export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
     };
 
     return (
-        <div style={{ height: '100dvh' }} className="h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-950 flex flex-col">
+        <div style={{ height: '100dvh' }} className="app-shell h-screen overflow-hidden bg-[#f4f5f7] dark:bg-neutral-950 flex flex-col">
             {impersonation?.active && (
                 <div className="flex items-center justify-between gap-4 bg-amber-500/90 text-white px-4 py-2 text-sm font-medium shrink-0">
                     <span>{t('impersonation.impersonating', { name: impersonation.clientName })}</span>
@@ -75,7 +69,7 @@ export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
                     }))}
                 />
 
-                <div className="lg:pl-64 rtl:lg:pl-0 rtl:lg:pr-64 min-h-0 min-w-0 flex-1 overflow-hidden flex flex-col">
+                <div className="lg:pl-[236px] rtl:lg:pl-0 rtl:lg:pr-[236px] min-h-0 min-w-0 flex-1 overflow-hidden flex flex-col">
                     <header className="flex shrink-0 items-center gap-2 border-b border-neutral-200 bg-white px-2 py-1 dark:border-neutral-800 dark:bg-neutral-900 lg:hidden">
                         <button
                             type="button"

@@ -3,10 +3,11 @@
 namespace Tests\Feature\ProductionHardening;
 
 use App\Modules\AI\Jobs\IndexDocumentJob;
+use App\Modules\AI\Models\AiKbChunk;
 use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Models\AiProviderConfig;
-use App\Modules\AI\Services\KnowledgeUrlGuard;
+use App\Modules\AI\Services\KnowledgeSourceUrlResolver;
 use App\Services\StorageManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -54,17 +55,17 @@ class KbIndexingTest extends TestCase
         $method = new \ReflectionMethod(IndexDocumentJob::class, 'fetchSiteResource');
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('took too long');
-        $method->invoke(new IndexDocumentJob(-1), 'https://example.com', app(KnowledgeUrlGuard::class));
+        $method->invoke(new IndexDocumentJob(-1), 'https://example.com', app(KnowledgeSourceUrlResolver::class));
     }
 
-    public function test_www_sitemap_links_are_normalized_without_allowing_other_hosts(): void
+    public function test_apex_and_www_sitemap_links_are_preserved_without_allowing_other_hosts(): void
     {
         Queue::fake();
         Http::fake(['*' => Http::response('<urlset><url><loc>https://example.com/help</loc></url><url><loc>https://attacker.example.org/help</loc></url></urlset>')]);
         $kb = $this->seedKb();
         $doc = AiKbDocument::create(['kb_id' => $kb->id, 'title' => 'Website', 'source_type' => 'sitemap', 'source_ref' => 'https://www.example.com/sitemap.xml', 'status' => 'pending']);
         $this->runIndexer($doc->id);
-        $this->assertDatabaseHas('ai_kb_documents', ['kb_id' => $kb->id, 'source_ref' => 'https://www.example.com/help']);
+        $this->assertDatabaseHas('ai_kb_documents', ['kb_id' => $kb->id, 'source_ref' => 'https://example.com/help']);
         $this->assertDatabaseMissing('ai_kb_documents', ['kb_id' => $kb->id, 'source_ref' => 'https://attacker.example.org/help']);
         Queue::assertPushed(IndexDocumentJob::class, 1);
     }
@@ -75,7 +76,7 @@ class KbIndexingTest extends TestCase
         $method = new \ReflectionMethod(IndexDocumentJob::class, 'fetchSiteResource');
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('blocked automated access');
-        $method->invoke(new IndexDocumentJob(-1), 'https://example.com', app(KnowledgeUrlGuard::class), 1, 2);
+        $method->invoke(new IndexDocumentJob(-1), 'https://example.com', app(KnowledgeSourceUrlResolver::class), 1, 2);
     }
 
     private function fakeEmbeddings(): void
@@ -295,7 +296,7 @@ class KbIndexingTest extends TestCase
 
         $this->runIndexer($doc->id);
 
-        $content = $doc->chunks()->orderBy('ord')->first()?->content ?? '';
+        $content = $doc->chunks()->orderBy('ord')->pluck('content')->implode("\n");
 
         $this->assertStringContainsString('Q: What is your refund policy?', $content);
         $this->assertStringContainsString('A: 30 days money back.', $content);
@@ -303,5 +304,70 @@ class KbIndexingTest extends TestCase
         // The raw JSON structure must not leak into the embedded text.
         $this->assertStringNotContainsString('"question"', $content);
         $this->assertStringNotContainsString('"answer"', $content);
+        $this->assertSame((int) config('knowledge_base.current_index_version'), $doc->fresh()->index_version);
+        $this->assertNotSame('legacy', $doc->fresh()->active_index_generation);
+    }
+
+    public function test_a_headed_multi_turn_sample_conversation_stays_in_one_semantic_block(): void
+    {
+        $method = new \ReflectionMethod(IndexDocumentJob::class, 'semanticBlocks');
+        $blocks = $method->invoke(new IndexDocumentJob(-1), <<<'TEXT'
+#CONVERSATION 1
+Customer: What is the price?
+AI: Which country do you need?
+Customer: Japan
+AI: Open the app, choose the destination, select a package, and pay.
+
+#CONVERSATION 2
+Customer: How do I install it?
+AI: Open My eSIM and follow the installation steps.
+TEXT);
+
+        $this->assertCount(2, $blocks);
+        $this->assertStringContainsString('Which country do you need?', $blocks[0]['content']);
+        $this->assertStringContainsString('choose the destination', $blocks[0]['content']);
+        $this->assertSame('CONVERSATION 1', $blocks[0]['section_label']);
+    }
+
+    public function test_failed_reindex_keeps_the_previous_active_generation_available(): void
+    {
+        $kb = $this->seedKb();
+        $doc = AiKbDocument::create([
+            'kb_id' => $kb->id,
+            'title' => 'Stable source',
+            'source_type' => 'faq',
+            'source_ref' => json_encode([['question' => 'What is covered?', 'answer' => 'Verified support guidance.']]),
+            'status' => 'indexed',
+            'enabled' => true,
+            'review_status' => 'auto_approved',
+            'publication_status' => 'published',
+            'active_index_generation' => 'stable-generation',
+        ]);
+        $old = AiKbChunk::create([
+            'kb_id' => $kb->id,
+            'document_id' => $doc->id,
+            'ord' => 0,
+            'content' => 'Verified support guidance.',
+            'content_hash' => hash('sha256', 'stable'),
+            'tokens' => 8,
+            'embedding' => json_encode([0.1, 0.2, 0.3]),
+            'embedding_model' => 'text-embedding-3-small',
+            'embedding_status' => 'ready',
+            'index_generation' => 'stable-generation',
+        ]);
+        Http::fake(['api.openai.com/*' => Http::response(['error' => ['message' => 'temporary failure']], 500)]);
+
+        try {
+            $this->runIndexer($doc->id);
+            $this->fail('The failed embedding request must be surfaced for a queue retry.');
+        } catch (\Throwable) {
+            $doc->refresh();
+        }
+
+        $this->assertSame('indexed', $doc->status);
+        $this->assertSame('stable-generation', $doc->active_index_generation);
+        $this->assertNull($doc->pending_index_generation);
+        $this->assertDatabaseHas('ai_kb_chunks', ['id' => $old->id, 'index_generation' => 'stable-generation']);
+        $this->assertSame(1, $doc->chunks()->count());
     }
 }

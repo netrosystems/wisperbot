@@ -28,7 +28,12 @@ class OAuthManager
 
     public function __construct(private readonly CredentialResolver $credentials) {}
 
-    public function getAuthUrl(string $network, int $workspaceId, string $callbackUrl): string
+    /**
+     * @param  array<string, mixed>  $options  `variant: 'pages'` authorizes LinkedIn
+     *                                         Company Pages through the separate
+     *                                         Community Management app.
+     */
+    public function getAuthUrl(string $network, int $workspaceId, string $callbackUrl, array $options = []): string
     {
         $creds = $this->credentials->oauth($network);
 
@@ -38,7 +43,7 @@ class OAuthManager
 
         return match ($network) {
             'facebook', 'instagram' => $this->facebookAuthUrl($creds, $callbackUrl, $network),
-            'linkedin' => $this->linkedinAuthUrl($creds, $callbackUrl),
+            'linkedin' => $this->linkedinAuthUrl($creds, $callbackUrl, ($options['variant'] ?? null) === 'pages'),
             'youtube' => $this->googleAuthUrl($creds, $callbackUrl),
             'tiktok' => $this->tiktokAuthUrl($creds, $callbackUrl),
             default => throw new \InvalidArgumentException("Unsupported network: {$network}"),
@@ -59,7 +64,7 @@ class OAuthManager
 
         return match ($network) {
             'facebook', 'instagram' => $this->facebookExchange($creds, $code, $callbackUrl),
-            'linkedin' => $this->linkedinExchange($creds, $code, $callbackUrl),
+            'linkedin' => $this->linkedinExchange($creds, $code, $callbackUrl, ($storedState['variant'] ?? null) === 'pages'),
             'youtube' => $this->googleExchange($creds, $code, $callbackUrl),
             'tiktok' => $this->tiktokExchange($creds, $code, $callbackUrl),
             default => throw new \InvalidArgumentException("Unsupported network: {$network}"),
@@ -130,7 +135,12 @@ class OAuthManager
      * Refresh an access token using a refresh_token.
      * Returns ['access_token', 'refresh_token' (if rotated), 'expires_in'] or throws on failure.
      */
-    public function refresh(string $network, string $refreshToken): array
+    /**
+     * @param  array<string, mixed>  $options  `variant: 'pages'` refreshes a LinkedIn
+     *                                         Company Page token, which belongs to
+     *                                         the Community Management app.
+     */
+    public function refresh(string $network, string $refreshToken, array $options = []): array
     {
         $creds = $this->credentials->oauth($network);
         if ($creds === null) {
@@ -140,7 +150,7 @@ class OAuthManager
         return match ($network) {
             'youtube' => $this->googleRefresh($creds, $refreshToken),
             'tiktok' => $this->tiktokRefresh($creds, $refreshToken),
-            'linkedin' => $this->linkedinRefresh($creds, $refreshToken),
+            'linkedin' => $this->linkedinRefresh($creds, $refreshToken, ($options['variant'] ?? null) === 'pages'),
             'facebook',
             'instagram' => throw new \RuntimeException('Facebook/Instagram tokens are long-lived; use token extension instead.'),
             default => throw new \InvalidArgumentException("Unsupported network for refresh: {$network}"),
@@ -211,27 +221,45 @@ class OAuthManager
 
     // ── LinkedIn ────────────────────────────────────────────────────────────
 
-    private function linkedinAuthUrl($creds, string $redirect): string
+    private function linkedinAuthUrl($creds, string $redirect, bool $pages = false): string
     {
-        $state = $this->storeState(['network' => 'linkedin']);
+        if ($pages && ! $creds->allowsOrganizationPosting()) {
+            throw new \RuntimeException('LinkedIn Company Page credentials are not configured.');
+        }
+
+        $state = $this->storeState(array_filter(['network' => 'linkedin', 'variant' => $pages ? 'pages' : null]));
 
         return 'https://www.linkedin.com/oauth/v2/authorization?'.http_build_query([
             'response_type' => 'code',
-            'client_id' => $creds->clientId() ?? '',
+            'client_id' => ($pages ? $creds->pagesClientId() : $creds->clientId()) ?? '',
             'redirect_uri' => $redirect,
-            'scope' => 'openid profile email w_member_social',
+            'scope' => implode(' ', $this->linkedinScopes($pages)),
             'state' => $state,
         ]);
     }
 
-    private function linkedinExchange($creds, string $code, string $redirect): array
+    /**
+     * The two LinkedIn apps carry different permissions. The Community
+     * Management app has no sign-in product, so it cannot request the OpenID
+     * Connect scopes; Company Pages are identified from organizationAcls.
+     *
+     * @return list<string>
+     */
+    private function linkedinScopes(bool $pages): array
+    {
+        return $pages
+            ? ['r_organization_admin', 'w_organization_social']
+            : ['openid', 'profile', 'email', 'w_member_social'];
+    }
+
+    private function linkedinExchange($creds, string $code, string $redirect, bool $pages = false): array
     {
         $response = Http::asForm()->timeout(15)->post('https://www.linkedin.com/oauth/v2/accessToken', [
             'grant_type' => 'authorization_code',
             'code' => $code,
             'redirect_uri' => $redirect,
-            'client_id' => $creds->clientId() ?? '',
-            'client_secret' => $creds->clientSecret() ?? '',
+            'client_id' => ($pages ? $creds->pagesClientId() : $creds->clientId()) ?? '',
+            'client_secret' => ($pages ? $creds->pagesClientSecret() : $creds->clientSecret()) ?? '',
         ]);
         $this->assertSuccessful($response, 'LinkedIn token exchange');
         $res = $response->json();
@@ -351,13 +379,13 @@ class OAuthManager
         return ['access_token' => $token, 'refresh_token' => $res['refresh_token'] ?? $refreshToken, 'expires_in' => $res['expires_in'] ?? null];
     }
 
-    private function linkedinRefresh($creds, string $refreshToken): array
+    private function linkedinRefresh($creds, string $refreshToken, bool $pages = false): array
     {
         $response = Http::asForm()->timeout(15)->post('https://www.linkedin.com/oauth/v2/accessToken', [
             'grant_type' => 'refresh_token',
             'refresh_token' => $refreshToken,
-            'client_id' => $creds->clientId() ?? '',
-            'client_secret' => $creds->clientSecret() ?? '',
+            'client_id' => ($pages ? $creds->pagesClientId() : $creds->clientId()) ?? '',
+            'client_secret' => ($pages ? $creds->pagesClientSecret() : $creds->clientSecret()) ?? '',
         ]);
         $this->assertSuccessful($response, 'LinkedIn token refresh');
         $res = $response->json();

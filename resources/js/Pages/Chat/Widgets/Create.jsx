@@ -4,8 +4,8 @@ import { ArrowLeft } from 'lucide-react';
 import ChatWidgetForm from './Partials/ChatWidgetForm';
 
 export default function ChatWidgetCreate({ chatbots = [], canUseCustomLauncherLogo = false }) {
-    const submit = (payload) => {
-        router.post(route('client.inbox.chat-widgets.store'), payload, { forceFormData: true });
+    const submit = (payload, callbacks = {}) => {
+        router.post(route('client.inbox.chat-widgets.store'), payload, { forceFormData: true, queryStringArrayFormat: 'indices', ...callbacks });
     };
 
     return (

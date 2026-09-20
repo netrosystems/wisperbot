@@ -5,8 +5,9 @@ namespace App\Listeners;
 use App\Events\MessageReceived;
 use App\Events\MessageSent;
 use App\Modules\AI\Models\AiChatbot;
-use App\Modules\AI\Services\ChatbotRunner;
+use App\Modules\AI\Services\StarterQuestions;
 use App\Modules\Inbox\Jobs\ProcessChannelAiReplyJob;
+use App\Modules\Inbox\Jobs\ProcessWebchatAiReplyJob;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Inbox\Services\SegmentAiPolicyService;
@@ -18,20 +19,19 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Phrases that trigger AI-to-human handover.
- * Case-insensitive substring matching.
- */
-const HANDOVER_PHRASES = [
-    'talk to human', 'talk to agent', 'speak to agent', 'speak to human',
-    'human please', 'real person', 'live agent', 'live support',
-    'need a human', 'connect me to', 'transfer me',
-];
-
 class AutoReplyListener
 {
+    /**
+     * Phrases that trigger AI-to-human handover.
+     * Case-insensitive substring matching.
+     */
+    public const HANDOVER_PHRASES = [
+        'talk to human', 'talk to agent', 'speak to agent', 'speak to human',
+        'human please', 'real person', 'live agent', 'live support',
+        'need a human', 'connect me to', 'transfer me',
+    ];
+
     public function __construct(
-        private readonly ChatbotRunner $runner,
         private readonly ChannelManager $channelManager,
         private readonly HumanHandoffService $humanHandoff,
         private readonly SegmentAiPolicyService $aiPolicy,
@@ -95,7 +95,7 @@ class AutoReplyListener
 
         // ── 2. Handover phrase detection ─────────────────────────────────────
         $body = strtolower($message->body ?? '');
-        foreach (HANDOVER_PHRASES as $phrase) {
+        foreach (self::HANDOVER_PHRASES as $phrase) {
             if (str_contains($body, $phrase)) {
                 $this->triggerHandover($conversation, 'user_request');
 
@@ -154,66 +154,15 @@ class AutoReplyListener
             return;
         }
 
-        try {
-            $result = $this->runner->run($chatbot, $message);
-            $reply = $result['reply'] ?? null;
-            if ($reply === null) {
-                return;
-            }
+        // Saved starter answers need no model call, so they are sent within the
+        // customer's request and appear instantly; AI replies stay queued.
+        if (app(StarterQuestions::class)->match($chatbot, (string) $message->body) !== null) {
+            ProcessWebchatAiReplyJob::dispatchSync($message->id, $chatbot->id);
 
-            $resources = $result['resources'] ?? [];
-            $providerBody = $this->providerBodyWithResourceLinks($reply, $resources, $message->channel);
-
-            $botMessage = Message::create([
-                'conversation_id' => $conversation->id,
-                'direction' => 'out',
-                'channel' => $message->channel,
-                'type' => 'text',
-                'body' => $providerBody,
-                'payload' => [
-                    'resources' => $resources,
-                    'quick_replies' => $result['quick_replies'] ?? [],
-                    'display_body' => $result['display_body'] ?? $reply,
-                ],
-                'status' => 'queued',
-                'sent_by' => 'bot',
-                'sent_at' => now(),
-            ]);
-
-            try {
-                $driver = $this->channelManager->driver($message->channel);
-                $providerId = $driver->send($botMessage);
-                $botMessage->update(['status' => 'sent', 'provider_message_id' => $providerId]);
-            } catch (\Throwable $sendErr) {
-                $botMessage->update(['status' => 'failed', 'error_json' => ['message' => $sendErr->getMessage()]]);
-                Log::warning('AutoReplyListener AI chatbot send failed', [
-                    'message_id' => $botMessage->id,
-                    'channel' => $message->channel,
-                    'error' => $sendErr->getMessage(),
-                ]);
-            }
-
-            $conversation->update(['last_message_at' => now()]);
-            $botMessage->load('conversation');
-            MessageSent::dispatch($botMessage);
-        } catch (\Throwable $e) {
-            Log::error('AutoReplyListener AI chatbot run failed', [
-                'message_id' => $message->id,
-                'chatbot_id' => $chatbotId,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    private function providerBodyWithResourceLinks(string $reply, array $resources, string $channel): string
-    {
-        if ($channel === 'webchat' || $resources === []) {
-            return $reply;
+            return;
         }
 
-        $url = $resources[0]['canonical_url'] ?? null;
-
-        return $url && ! str_contains($reply, $url) ? rtrim($reply)."\n\nWatch video: {$url}" : $reply;
+        ProcessWebchatAiReplyJob::dispatch($message->id, $chatbot->id);
     }
 
     private function findMatchingAutoReply(

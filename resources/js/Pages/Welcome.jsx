@@ -1,906 +1,1058 @@
-import { useState } from 'react';
-import { Link, usePage } from '@inertiajs/react';
-import SeoHead from '@/Components/SeoHead';
-import CookieConsent from '@/Components/CookieConsent';
-import { Reveal } from '@/Components/Reveal';
-import { FeatureIcon } from '@/Components/LandingIcons';
-import { useTranslation } from 'react-i18next';
+import { useEffect, useRef, useState } from 'react'
+import {
+    ArrowUpRight,
+    Check,
+    CheckCheck,
+    ChevronRight,
+    Code2,
+    Globe2,
+    MessageCircle,
+    Smartphone,
+    ShieldCheck,
+    Sparkles,
+    Tag,
+    Users,
+    Workflow,
+    Zap,
+} from 'lucide-react'
+import LandingLayout from '@/Layouts/LandingLayout'
+import SeoHead from '@/Components/SeoHead'
+import { Reveal } from '@/Components/Reveal'
+import HeroBackdrop from '@/Components/marketing/HeroBackdrop'
+import HeroHeadline, { HeroLaunch } from '@/Components/marketing/HeroHeadline'
+import {
+    MButton,
+    MLink,
+    Eyebrow,
+    SectionHeading,
+    CheckList,
+    FAQList,
+    FinalCTA,
+    DownloadLinks,
+    ProductIcon,
+    getFaqs,
+    useMarketing,
+} from '@/Components/marketing/MarketingUI'
+import {
+    MotionStage,
+    BrandMark,
+    ProductDemo,
+    InboxDemo,
+    ChatDemo,
+    AIDemo,
+    AutomationDemo,
+    MobileDemo,
+    EmailDemo,
+    SocialDemo,
+    CommerceDemo,
+    DeveloperDemo,
+} from '@/Components/marketing/MarketingDemos'
 
-/*
- * Editorial, warm-cream marketing landing page for WisperBot.
- * Self-contained (its own header + footer) so the shared LandingLayout — and
- * therefore every sub-page — is left untouched. All copy is read from the
- * admin-editable `landing.*` settings. Supporting image areas remain intentional
- * placeholders, while the hero uses the shipped WisperBot landscape artwork.
- */
-
-// ─── Small building blocks ──────────────────────────────────────────────────
-
-const INK = '#241f1a';
-
-function Sparkle({ className = 'h-3.5 w-3.5' }) {
+function GooglePlayIcon({ className = '' }) {
     return (
-        <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2l1.6 5.2L19 9l-5.4 1.8L12 16l-1.6-5.2L5 9l5.4-1.8L12 2z" />
-        </svg>
-    );
-}
-
-function ArrowUpRight({ className = 'h-4 w-4' }) {
-    return (
-        <svg className={className} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M8 7h9v9" />
-        </svg>
-    );
-}
-
-function Eyebrow({ children }) {
-    if (!children) return null;
-    return (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-black/5 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-[#3a332c] shadow-sm backdrop-blur">
-            <span className="text-brand-500"><Sparkle /></span>
-            {children}
-        </span>
-    );
-}
-
-/** Serif heading that italicises + orange-accents the trailing clause (after the
- *  last comma) or, failing that, the final word — mirroring the sample's style. */
-function AccentHeading({ text, className = '' }) {
-    const trimmed = (text || '').trim();
-    if (!trimmed) return <span className={className} />;
-    const ci = trimmed.lastIndexOf(',');
-    let head;
-    let tail;
-    if (ci !== -1 && ci < trimmed.length - 1) {
-        head = trimmed.slice(0, ci + 1);
-        tail = trimmed.slice(ci + 1).trim();
-    } else {
-        const parts = trimmed.split(' ');
-        tail = parts.pop();
-        head = parts.join(' ');
-    }
-    return (
-        <span className={className}>
-            {head}
-            {head ? ' ' : ''}
-            <span className="italic text-brand-500">{tail}</span>
-        </span>
-    );
-}
-
-function DarkButton({ href, children, as = Link, external = false, className = '' }) {
-    const cls = `group inline-flex items-center gap-2 rounded-full bg-[#241f1a] px-6 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-[#3a332c] hover:-translate-y-0.5 ${className}`;
-    const inner = (
-        <>
-            {children}
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
-                <ArrowUpRight className="h-3.5 w-3.5" />
-            </span>
-        </>
-    );
-    if (external) return <a href={href} className={cls}>{inner}</a>;
-    const Tag = as;
-    return <Tag href={href} className={cls}>{inner}</Tag>;
-}
-
-function GhostButton({ href, children }) {
-    return (
-        <Link href={href} className="inline-flex items-center gap-2 rounded-full border border-[#241f1a]/15 bg-transparent px-6 py-3 text-sm font-semibold text-[#241f1a] transition-all duration-200 hover:border-[#241f1a]/40 hover:bg-[#241f1a]/[0.03]">
-            {children}
-        </Link>
-    );
-}
-
-/** Warm, intentional image placeholder — replace with a real asset later. */
-function Placeholder({ className = '', label = 'Image placeholder', hint = 'Upload later', rounded = 'rounded-3xl' }) {
-    return (
-        <div className={`relative flex flex-col items-center justify-center gap-2 overflow-hidden border border-dashed border-[#dcc7a8] bg-gradient-to-br from-[#fbf3e6] to-[#f1e2cd] ${rounded} ${className}`}>
-            <div className="pointer-events-none absolute inset-0 opacity-50" style={{ backgroundImage: 'radial-gradient(circle at 28% 26%, rgba(255,118,46,0.12), transparent 55%)' }} />
-            <svg className="relative h-9 w-9 text-[#c9a878]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <rect x="3" y="4" width="18" height="16" rx="2.5" />
-                <circle cx="8.5" cy="9.5" r="1.6" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 17l4.5-4.5a2 2 0 012.8 0L16 17m-1.5-2l1.8-1.8a2 2 0 012.8 0L21 15" />
+        <span className={`m-store-mark is-google-play ${className}`.trim()} aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+                <path d="M22.018 13.298 18.1 15.516l-3.516-3.493 3.543-3.521 3.891 2.202a1.49 1.49 0 0 1 0 2.594ZM1.337.924a1.486 1.486 0 0 0-.112.568v21.017c0 .217.045.419.124.6l11.155-11.087L1.337.924Zm12.207 10.065 3.258-3.238L3.45.195a1.466 1.466 0 0 0-.946-.179l11.04 10.973Zm0 2.067-11 10.933c.298.036.612-.016.906-.183l13.324-7.54-3.23-3.21Z" />
             </svg>
-            <span className="relative text-sm font-semibold text-[#a9895f]">{label}</span>
-            <span className="relative text-xs text-[#c0a67e]">{hint}</span>
+        </span>
+    )
+}
+
+function AppStoreIcon({ className = '' }) {
+    return (
+        <span className={`m-store-mark is-app-store ${className}`.trim()} aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+                <path d="m8.81 14.92 6.11-11.04c.08-.15.17-.3.24-.46.07-.14.13-.29.17-.44.08-.33.06-.67-.07-.97a1.48 1.48 0 0 0-.62-.74 1.42 1.42 0 0 0-.92-.19c-.32.04-.61.2-.84.43-.11.11-.2.24-.29.37-.09.15-.17.3-.26.45l-.38.7-.39-.7c-.08-.15-.17-.3-.26-.45a2.1 2.1 0 0 0-.28-.37c-.23-.23-.52-.39-.84-.43a1.42 1.42 0 0 0-.92.19c-.28.17-.5.43-.62.74-.13.3-.15.64-.07.97.04.15.1.3.17.44.07.16.16.31.24.46l1.25 2.25-4.86 8.79H2.03c-.17 0-.34 0-.5.01-.16.01-.3.03-.45.07-.31.09-.58.28-.78.55-.2.27-.3.59-.3.93s.1.66.3.93c.2.27.47.45.78.54.15.05.3.07.45.08.16.01.33 0 .5 0H15.13c.02-.04.06-.13.1-.27.42-1.42-.61-2.84-2.03-2.84H8.81Zm-5.7 3.62-.79 1.5c-.08.16-.16.31-.24.47-.06.15-.12.3-.16.45-.08.34-.06.69.06 1.01.12.32.34.58.61.75.27.18.59.24.9.2.32-.04.6-.2.83-.44.1-.11.2-.24.28-.38.09-.15.17-.3.25-.46L6 19.46c-.09-.15-.95-1.47-2.89-.92Zm20.59-3a1.47 1.47 0 0 0-.78-.54c-.15-.05-.3-.07-.45-.08-.17-.01-.34 0-.5 0h-3.32l-4.39-7.82c-.67.7-.96 1.49-1.08 2.2-.16 1.03.04 2.09.55 3l5.27 9.39c.09.15.17.3.26.44.09.13.18.26.29.37.23.23.52.38.85.42.32.05.64-.02.92-.19.28-.16.5-.42.62-.72.13-.31.15-.65.07-.97-.04-.15-.1-.29-.17-.43-.07-.16-.16-.31-.24-.46l-1.22-2.16h1.6c.16 0 .33 0 .5-.01.15-.01.3-.03.45-.07.31-.09.58-.28.78-.54.2-.27.3-.59.3-.93s-.1-.66-.3-.93Z" />
+            </svg>
+        </span>
+    )
+}
+
+export function AgentAppMenu({ iosUrl, androidUrl, label = 'Get Agent App' }) {
+    const { text: t } = useMarketing()
+    const [open, setOpen] = useState(false)
+    const root = useRef(null)
+    const trigger = useRef(null)
+
+    useEffect(() => {
+        if (!open) return undefined
+        const dismiss = (event) => {
+            if (event.type === 'keydown' && event.key === 'Escape') {
+                setOpen(false)
+                trigger.current?.focus()
+            }
+            if (event.type === 'pointerdown' && !root.current?.contains(event.target)) setOpen(false)
+        }
+        document.addEventListener('keydown', dismiss)
+        document.addEventListener('pointerdown', dismiss)
+        return () => {
+            document.removeEventListener('keydown', dismiss)
+            document.removeEventListener('pointerdown', dismiss)
+        }
+    }, [open])
+
+    return (
+        <div className="m-agent-app-menu" ref={root}>
+            <button
+                ref={trigger}
+                type="button"
+                className="m-button m-button-secondary"
+                onClick={() => setOpen((current) => !current)}
+                aria-expanded={open}
+                aria-controls="hero-agent-app-menu"
+                aria-haspopup="menu"
+            >
+                <Smartphone size={17} aria-hidden="true" />
+                {t('home.get_agent_app', label)}
+                <ChevronRight className={open ? 'is-open' : ''} size={14} aria-hidden="true" />
+            </button>
+            <div id="hero-agent-app-menu" role="menu" hidden={!open} className="m-agent-app-popover">
+                <a href={androidUrl} target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => setOpen(false)}>
+                    <GooglePlayIcon />
+                    <strong>Android</strong>
+                    <small>{t('downloads.google_play', 'Google Play')}</small>
+                </a>
+                <a href={iosUrl} target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => setOpen(false)}>
+                    <AppStoreIcon />
+                    <strong>iOS</strong>
+                    <small>{t('downloads.app_store', 'App Store')}</small>
+                </a>
+            </div>
         </div>
-    );
+    )
 }
 
-function Stars() {
+function PlatformTabs() {
+    const { text: t } = useMarketing()
+    const [selected, setSelected] = useState(0)
+    const items = [
+        [
+            'inbox',
+            'Omni Inbox',
+            'A clear home for every customer conversation.',
+            'Read the context, take ownership, and keep the reply moving. Your channels and your team, working together.',
+            '/products/omnichannel-inbox',
+            'inbox',
+        ],
+        [
+            'ai',
+            'Smart AI Agent',
+            'Your business knowledge, ready to help.',
+            'Connect a Knowledge Base, test the answers, and let your Smart Bot guide customers toward a useful next step.',
+            '/products/smart-ai-agent',
+            'sparkles',
+        ],
+        [
+            'automation',
+            'Automations',
+            'Make the next step happen naturally.',
+            'Build visual workflows around the way your team works. Route, respond, and follow up with supported actions.',
+            '/products/automation',
+            'workflow',
+        ],
+        [
+            'social',
+            'Social Media',
+            'A shared rhythm for your social presence.',
+            'Prepare and schedule content for supported accounts, with publishing status and provider-aware controls.',
+            '/products/social-media',
+            'share',
+        ],
+        [
+            'commerce',
+            'Commerce',
+            'The context behind the conversation.',
+            'Bring supported store products, orders, and seller workflows closer to the people helping your customers.',
+            '/solutions/ecommerce-marketplaces',
+            'store',
+        ],
+    ]
+    const [demo, , title, body, href] = items[selected]
     return (
-        <div className="flex gap-0.5 text-brand-500">
-            {[0, 1, 2, 3, 4].map((i) => (
-                <svg key={i} className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.05 2.93c.3-.92 1.6-.92 1.9 0l1.07 3.29a1 1 0 00.95.69h3.46c.97 0 1.37 1.24.59 1.81l-2.8 2.03a1 1 0 00-.36 1.12l1.07 3.29c.3.92-.75 1.69-1.54 1.12l-2.8-2.03a1 1 0 00-1.18 0l-2.8 2.03c-.78.57-1.83-.2-1.53-1.12l1.07-3.29a1 1 0 00-.36-1.12l-2.8-2.03c-.78-.57-.38-1.81.59-1.81h3.46a1 1 0 00.95-.69L9.05 2.93z" />
-                </svg>
-            ))}
-        </div>
-    );
-}
-
-function ChannelGlyph({ name, className = 'h-6 w-6' }) {
-    const glyphs = {
-        whatsapp: <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.607zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.247-.694.247-1.289.173-1.413z" />,
-        messenger: <path d="M12 0C5.373 0 0 4.974 0 11.111c0 3.498 1.744 6.614 4.469 8.654V24l4.088-2.242c1.092.301 2.246.464 3.443.464 6.627 0 12-4.975 12-11.111C24 4.974 18.627 0 12 0zm1.191 14.963l-3.055-3.26-5.963 3.26L10.732 8.1l3.131 3.259L19.752 8.1l-6.561 6.863z" />,
-        instagram: <path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85C2.38 3.92 3.9 2.38 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.27 2.69.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-10.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z" />,
-        sms: <path d="M8 10.5h8M8 14h5m-9 6.5l1.5-3A8.38 8.38 0 013 11.5C3 6.81 7.03 3 12 3s9 3.81 9 8.5-4.03 8.5-9 8.5a9.7 9.7 0 01-3.2-.54L4 20.5z" />,
-        email: <path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />,
-        chat: <path d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />,
-    };
-    const filled = name === 'whatsapp' || name === 'messenger' || name === 'instagram';
-    return (
-        <svg className={className} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} strokeWidth={filled ? 0 : 1.6} strokeLinecap="round" strokeLinejoin="round">
-            {glyphs[name] || glyphs.chat}
-        </svg>
-    );
-}
-
-function HeroPlatformMark({ platform }) {
-    const marks = {
-        facebook: <span className="font-sans text-[25px] font-black leading-none text-[#1877f2]">f</span>,
-        telegram: <svg className="h-5 w-5 text-[#229ed9]" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 3.6 18.6 20c-.25 1.16-.91 1.45-1.84.9l-5.08-3.75-2.45 2.36c-.27.27-.5.5-1.02.5l.36-5.17 9.41-8.5c.41-.36-.09-.56-.63-.2L5.73 13.46.72 11.9c-1.09-.34-1.11-1.09.23-1.61L20.5 2.76c.9-.34 1.69.2 1.4.84Z" /></svg>,
-        ebay: <span className="font-sans text-[13px] font-black tracking-[-0.18em]"><b className="text-[#e53238]">e</b><b className="text-[#0064d2]">b</b><b className="text-[#f5af02]">a</b><b className="text-[#86b817]">y</b></span>,
-        shopify: <span className="flex h-6 w-5 items-center justify-center rounded-md bg-[#95bf47] text-[9px] font-black text-white">S</span>,
-        amazon: <span className="relative font-sans text-[10px] font-bold tracking-[-0.08em] text-[#1d1d1d]">amazon<span className="absolute -bottom-1 left-1.5 h-0.5 w-6 rotate-[6deg] rounded-full bg-[#ff9900]" /></span>,
-        youtube: <span className="flex h-4 w-6 items-center justify-center rounded-[5px] bg-[#ff0000] text-[9px] text-white">▶</span>,
-        tiktok: <span className="font-sans text-xl font-black leading-none text-[#111] [text-shadow:-1px_1px_0_#25f4ee,1px_-1px_0_#fe2c55]">♪</span>,
-        whatsapp: <ChannelGlyph name="whatsapp" className="h-5 w-5 text-[#25d366]" />,
-        instagram: <ChannelGlyph name="instagram" className="h-5 w-5 text-[#e4405f]" />,
-        email: <ChannelGlyph name="email" className="h-5 w-5 text-[#6f6660]" />,
-    };
-    return marks[platform] || null;
-}
-
-// ─── Header ─────────────────────────────────────────────────────────────────
-
-function Header({ auth, landing }) {
-    const { t } = useTranslation();
-    const { branding } = usePage().props;
-    const [open, setOpen] = useState(false);
-    const nav = [
-        { label: t('nav.features', { defaultValue: 'Features' }), href: '/#features' },
-        { label: t('nav.use_cases', { defaultValue: 'Use Cases' }), href: '/use-cases' },
-        { label: t('nav.integrations', { defaultValue: 'Integrations' }), href: '/integrations' },
-        { label: t('nav.pricing', { defaultValue: 'Pricing' }), href: '/pricing' },
-        { label: t('nav.blog', { defaultValue: 'Blog' }), href: '/blog' },
-        { label: t('nav.faq', { defaultValue: 'FAQ' }), href: '/faq' },
-    ];
-    const getStarted = landing['landing.getstarted_label'] || t('welcome.get_started_free', { defaultValue: 'Get started' });
-    return (
-        <header className="absolute inset-x-0 top-0 z-50 border-b border-black/[0.06] bg-white/70 backdrop-blur-xl">
-            <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
-                <Link href={route('home')} className="flex items-center">
-                    <img src={branding?.logo_url || '/wisperbot-logo-with-title.svg'} alt={branding?.app_name || 'WisperBot'} className="h-7 w-auto max-w-[190px] object-contain" />
-                </Link>
-                <nav className="hidden items-center gap-1 md:flex">
-                    {nav.map((l) => (
-                        <Link key={l.href} href={l.href} className="rounded-full px-3.5 py-2 text-sm font-medium text-[#57504a] transition-colors hover:text-[#241f1a]">
-                            {l.label}
-                        </Link>
-                    ))}
-                </nav>
-                <div className="flex items-center gap-2">
-                    {auth?.user ? (
-                        <Link href={route('client.dashboard')} className="hidden rounded-full bg-[#241f1a] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3a332c] sm:inline-flex">
-                            {t('nav.dashboard', { defaultValue: 'Dashboard' })}
-                        </Link>
-                    ) : (
-                        <>
-                            <Link href={route('login')} className="hidden px-3.5 py-2 text-sm font-medium text-[#57504a] transition-colors hover:text-[#241f1a] sm:inline-flex">
-                                {landing['landing.signin_label'] || t('nav.sign_in', { defaultValue: 'Log in' })}
-                            </Link>
-                            <Link href={route('register')} className="hidden rounded-full bg-[#241f1a] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3a332c] sm:inline-flex">
-                                {getStarted}
-                            </Link>
-                        </>
-                    )}
-                    <button type="button" onClick={() => setOpen(!open)} className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#241f1a] md:hidden" aria-label="Menu">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" d={open ? 'M6 18L18 6M6 6l12 12' : 'M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5'} /></svg>
+        <>
+            <div role="tablist" aria-label={t('home.product_tabs', 'Explore the platform')} className="m-tabs">
+                {items.map(([id, label, , , , icon], i) => (
+                    <button
+                        key={id}
+                        role="tab"
+                        id={'product-tab-' + id}
+                        aria-selected={selected === i}
+                        aria-controls="product-panel"
+                        tabIndex={selected === i ? 0 : -1}
+                        onClick={() => setSelected(i)}
+                        onKeyDown={(e) => {
+                            if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+                                e.preventDefault()
+                                const next =
+                                    e.key === 'Home'
+                                        ? 0
+                                        : e.key === 'End'
+                                          ? items.length - 1
+                                          : (i + (e.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length
+                                setSelected(next)
+                                document.getElementById('product-tab-' + items[next][0])?.focus()
+                            }
+                        }}
+                    >
+                        <ProductIcon name={icon} size={15} />
+                        {t('home.tabs.' + id, label)}
                     </button>
+                ))}
+            </div>
+            <div
+                role="tabpanel"
+                id="product-panel"
+                aria-labelledby={'product-tab-' + demo}
+                className="m-product-switcher"
+            >
+                <div className="m-switcher-copy">
+                    <h3>{t('home.tabs.' + demo + '_title', title)}</h3>
+                    <p>{t('home.tabs.' + demo + '_body', body)}</p>
+                    <MLink href={href} className="m-text-link">
+                        {t('actions.take_look', 'Take a closer look')}
+                        <ArrowUpRight size={16} />
+                    </MLink>
+                </div>
+                <div key={demo}>
+                    <ProductDemo type={demo} compact />
                 </div>
             </div>
-            {open && (
-                <div className="border-t border-black/5 bg-white/70 px-4 py-4 backdrop-blur-xl md:hidden">
-                    {nav.map((l) => (
-                        <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-[#57504a]">
-                            {l.label}
-                        </Link>
-                    ))}
-                    <div className="mt-2 flex flex-col gap-2 border-t border-black/5 pt-3">
-                        <Link href={route('login')} className="rounded-xl px-3 py-2.5 text-sm font-medium text-[#57504a]">{landing['landing.signin_label'] || 'Log in'}</Link>
-                        <Link href={route('register')} className="rounded-full bg-[#241f1a] px-3 py-2.5 text-center text-sm font-semibold text-white">{getStarted}</Link>
-                    </div>
-                </div>
-            )}
-        </header>
-    );
+        </>
+    )
 }
-
-// ─── Sections ───────────────────────────────────────────────────────────────
-
-function Hero({ landing, auth, canRegister }) {
-    const { t } = useTranslation();
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
-    if (s('hero_enabled') !== '1') return null;
-    const stats = [1, 2, 3].map((i) => ({ value: s(`metric_${i}_value`), label: s(`metric_${i}_label`) })).filter((m) => m.value);
-    const appDownloads = [
-        { name: 'Google Play', platform: 'Android', icon: '▶', href: s('android_app_url'), tone: 'bg-[#edf6e7] text-[#377a28]' },
-        { name: 'App Store', platform: 'iPhone & iPad', icon: '●', href: s('ios_app_url'), tone: 'bg-[#edf0f5] text-[#253349]' },
-    ];
+function Lifecycle() {
+    const { text: t } = useMarketing()
+    const ref = useRef(null)
+    const [active, setActive] = useState(0)
+    const steps = [
+        [
+            'connect',
+            'Connect the places customers already are.',
+            'Bring supported messaging channels, email, and commerce accounts into your workspace.',
+            'inbox',
+        ],
+        [
+            'understand',
+            'Give AI your business knowledge.',
+            'Add your sources, review what matters, and test how your Smart Bot answers.',
+            'ai',
+        ],
+        [
+            'respond',
+            'Make the next question feel easy.',
+            'Help customers in their own words, with meaningful reply choices when useful.',
+            'chat',
+        ],
+        [
+            'handoff',
+            'Bring in the right person.',
+            'Keep the conversation history and give a teammate clear ownership.',
+            'mobile',
+        ],
+        [
+            'improve',
+            'See what needs your attention.',
+            'Review conversation activity, AI usage, campaign status, and automation runs.',
+            'automation',
+        ],
+    ]
+    useEffect(() => {
+        if (typeof window.IntersectionObserver === 'undefined') return
+        const io = new window.IntersectionObserver(
+            (entries) => {
+                const current = entries
+                    .filter((e) => e.isIntersecting)
+                    .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+                if (current) setActive(Number(current.target.dataset.step))
+            },
+            { rootMargin: '-20% 0px -35% 0px', threshold: [0, 0.3, 0.7] },
+        )
+        ref.current?.querySelectorAll('[data-step]').forEach((node) => io.observe(node))
+        return () => io.disconnect()
+    }, [])
     return (
-        <section className="relative isolate min-h-[36rem] overflow-hidden bg-[#faf5ec] sm:min-h-[clamp(34rem,45vw,54rem)]">
-            <img
-                src="/images/wisperbot-hero.png"
-                alt=""
-                aria-hidden="true"
-                className="absolute inset-0 h-full w-full object-cover object-top"
-            />
-
-            <div className="relative z-10 mx-auto max-w-4xl px-4 pt-32 pb-16 text-center sm:px-6 sm:pt-40 sm:pb-24 lg:px-8">
-                <Reveal className="mb-6 flex justify-center" y={12}><Eyebrow>{s('hero_badge')}</Eyebrow></Reveal>
-                <Reveal as="h1" delay={80} className="mx-auto max-w-3xl font-display text-4xl font-semibold leading-[1.05] tracking-tight text-[#241f1a] sm:text-5xl lg:text-6xl">
-                    <AccentHeading text={s('hero_title')} />
-                </Reveal>
-                <Reveal as="p" delay={170} className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-[#6f6660] sm:text-lg">
-                    {s('hero_subtitle')}
-                </Reveal>
-                <Reveal delay={260} className="mt-9 flex flex-wrap items-center justify-center gap-3">
-                    {auth?.user ? (
-                        <DarkButton href={route('client.dashboard')}>{t('welcome.goToDashboard', { defaultValue: 'Go to dashboard' })}</DarkButton>
-                    ) : (
-                        canRegister && s('hero_cta_primary') && <DarkButton href={route('register')}>{s('hero_cta_primary')}</DarkButton>
-                    )}
-                    <div className="relative">
-                        <button
-                            type="button"
-                            onClick={() => setDownloadMenuOpen((open) => !open)}
-                            aria-expanded={downloadMenuOpen}
-                            aria-controls="hero-download-options"
-                            className="group inline-flex items-center gap-2 rounded-full border border-[#241f1a]/15 bg-white/40 px-6 py-3 text-sm font-semibold text-[#241f1a] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#241f1a]/40 hover:bg-white/60"
-                        >
-                            Download App
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#241f1a]/10 text-base leading-none transition-transform duration-200 group-hover:translate-y-0.5">↓</span>
-                        </button>
-                        {downloadMenuOpen && (
-                            <div id="hero-download-options" className="absolute bottom-full left-1/2 z-20 mb-3 w-72 -translate-x-1/2 rounded-2xl border border-[#e6dac8] bg-[#fffdf9] p-2 text-left shadow-[0_20px_45px_rgba(75,52,28,0.18)]">
-                                <div className="px-3 pb-2 pt-1">
-                                    <p className="text-sm font-semibold text-[#241f1a]">Choose your platform</p>
-                                    <p className="mt-0.5 text-xs text-[#877c73]">Take WisperBot with you.</p>
-                                </div>
-                                {appDownloads.map((download) => download.href ? (
-                                    <a key={download.name} href={download.href} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-[#f7efe5]">
-                                        <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${download.tone}`}>{download.icon}</span>
-                                        <span className="flex flex-1 flex-col"><span className="text-sm font-semibold text-[#2e2823]">{download.name}</span><span className="text-xs text-[#877c73]">{download.platform}</span></span>
-                                        <ArrowUpRight className="h-4 w-4 text-[#9b9086]" />
-                                    </a>
-                                ) : (
-                                    <div key={download.name} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left">
-                                        <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${download.tone}`}>{download.icon}</span>
-                                        <span className="flex flex-1 flex-col"><span className="text-sm font-semibold text-[#2e2823]">{download.name}</span><span className="text-xs text-[#877c73]">{download.platform}</span></span>
-                                        <span className="rounded-full bg-[#f7efe5] px-2 py-1 text-[10px] font-semibold text-[#9b6a3c]">Coming soon</span>
-                                    </div>
-                                ))}
-                            </div>
+        <section className="m-section m-container">
+            <div className="m-lifecycle" ref={ref}>
+                <div className="m-lifecycle-copy">
+                    <SectionHeading
+                        eyebrow={t('home.lifecycle.eyebrow', 'Connected from hello to handled')}
+                        title={t('home.lifecycle.title', 'One conversation. A whole team behind it.')}
+                        description={t(
+                            'home.lifecycle.description',
+                            'Give every message a path forward, with AI and people working from the same context.',
                         )}
-                    </div>
-                </Reveal>
-                {stats.length > 0 && (
-                    <Reveal delay={340} className="mx-auto mt-12 flex max-w-lg items-start justify-center gap-8 sm:gap-14">
-                        {stats.map((m, i) => (
-                            <div key={i} className="text-center">
-                                <p className="font-display text-2xl font-semibold text-[#241f1a] sm:text-3xl">{m.value}</p>
-                                <p className="mt-1 text-xs text-[#8a817a] sm:text-sm">{m.label}</p>
-                            </div>
-                        ))}
-                    </Reveal>
-                )}
-                <Reveal delay={420} className="mx-auto mt-12 max-w-4xl">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#756b62]">One workspace for every customer channel</p>
-                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2 rounded-3xl border border-white/60 bg-white/45 px-4 py-3 shadow-[0_14px_35px_rgba(87,60,31,0.08)] backdrop-blur-sm sm:gap-3 sm:px-5">
-                        {[
-                            ['whatsapp', 'WhatsApp'], ['facebook', 'Facebook'], ['instagram', 'Instagram'], ['email', 'Email'], ['telegram', 'Telegram'],
-                            ['ebay', 'eBay'], ['shopify', 'Shopify'], ['amazon', 'Amazon'], ['youtube', 'YouTube'], ['tiktok', 'TikTok'],
-                        ].map(([platform, label]) => (
-                            <div key={platform} className="inline-flex items-center gap-2 rounded-xl bg-white/70 px-2.5 py-2 text-xs font-semibold text-[#4a4038] shadow-[0_2px_8px_rgba(82,56,30,0.06)] sm:px-3">
-                                <span className="flex h-5 w-5 items-center justify-center"><HeroPlatformMark platform={platform} /></span>
-                                <span>{label}</span>
-                            </div>
-                        ))}
-                    </div>
-                </Reveal>
-            </div>
-        </section>
-    );
-}
-
-function LogoCloud({ landing }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    if (s('stats_enabled') !== '1') return null;
-    const brands = [1, 2, 3, 4, 5, 6].map((i) => s(`stats_${i}_label`)).filter(Boolean);
-    if (!brands.length) return null;
-    return (
-        <section className="border-y border-black/[0.06] bg-[#f6efe2] py-10">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#a99a86]">{s('stats_heading', 'Trusted by leading teams worldwide')}</p>
-                <div className="mt-7 flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
-                    {brands.map((b, i) => (
-                        <span key={i} className="font-display text-xl font-medium italic text-[#c3b39c] transition-colors hover:text-[#a99a86]">{b}</span>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-}
-
-function Editorial({ landing }) {
-    const { t } = useTranslation();
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    const statValue = s('metric_4_value', s('about_stat_1_value', '6x'));
-    const statLabel = s('metric_4_label', 'More replies than email');
-    return (
-        <section className="bg-[#faf5ec] py-20 sm:py-28">
-            <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:px-8">
-                <Reveal>
-                    <Eyebrow>{s('why_badge', 'Why WisperBot')}</Eyebrow>
-                    <h2 className="mt-6 font-display text-3xl font-medium leading-[1.15] tracking-tight text-[#241f1a] sm:text-4xl">
-                        <AccentHeading text={s('why_title', 'Built for support teams that care about results')} />
-                    </h2>
-                    <p className="mt-5 max-w-md text-base leading-relaxed text-[#6f6660]">
-                        {s('solution_desc', s('why_subtitle', ''))}
-                    </p>
-                    <div className="mt-8">
-                        <DarkButton href="/#features">{t('welcome.learn_more', { defaultValue: 'Learn more' })}</DarkButton>
-                    </div>
-                    <div className="mt-9 flex items-center gap-3">
-                        <div className="flex -space-x-2">
-                            {['#f6b17a', '#ff9a56', '#e07a3a', '#c9a878'].map((c, i) => (
-                                <span key={i} className="h-9 w-9 rounded-full border-2 border-[#faf5ec]" style={{ background: c }} />
-                            ))}
-                            <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#faf5ec] bg-brand-500 text-xs font-bold text-white">14k+</span>
-                        </div>
-                        <p className="max-w-[14rem] text-xs leading-relaxed text-[#8a817a]">Built for modern support teams who value clarity, speed and happy customers.</p>
-                    </div>
-                </Reveal>
-
-                <Reveal delay={120} className="relative">
-                    <img
-                        src="/images/landing/omnichannel-support-editorial.png"
-                        alt="A unified customer support inbox connecting conversations from every channel"
-                        className="aspect-[4/3] w-full rounded-3xl border border-[#d8bc93]/70 object-cover shadow-[0_28px_70px_rgba(105,68,27,0.13)]"
                     />
-                    <div className="absolute -bottom-6 -left-4 w-56 rounded-2xl bg-brand-500 p-6 text-white shadow-xl shadow-brand-500/25 sm:-left-8">
-                        <p className="font-display text-4xl font-semibold leading-none">{statValue}</p>
-                        <p className="mt-3 text-xs leading-relaxed text-white/90">{statLabel} — resolved faster across every channel.</p>
-                    </div>
-                </Reveal>
-            </div>
-        </section>
-    );
-}
-
-function Channels({ landing }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    if (s('channels_enabled') !== '1') return null;
-    const channels = [1, 2, 3, 4, 5].map((i) => ({
-        key: s(`channel_${i}_key`, 'chat'),
-        title: s(`channel_${i}_title`),
-        desc: s(`channel_${i}_desc`),
-    })).filter((c) => c.title);
-    if (!channels.length) return null;
-    return (
-        <section id="channels" className="scroll-mt-20 bg-[#f6efe2] py-20 sm:py-28">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="mx-auto max-w-2xl text-center">
-                    <Eyebrow>{s('channels_badge', 'Omnichannel')}</Eyebrow>
-                    <h2 className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
-                        <AccentHeading text={s('channels_title')} />
-                    </h2>
-                    <p className="mt-4 text-base text-[#6f6660]">{s('channels_subtitle')}</p>
-                </Reveal>
-                <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    {channels.map((c, i) => (
-                        <Reveal key={i} delay={(i % 3) * 80} className="group rounded-3xl border border-black/[0.06] bg-[#fffdf9] p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/[0.04]">
-                            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 transition-colors duration-300 group-hover:bg-brand-500 group-hover:text-white">
-                                <ChannelGlyph name={c.key} className="h-6 w-6" />
-                            </div>
-                            <h3 className="font-display text-lg font-medium text-[#241f1a]">{c.title}</h3>
-                            <p className="mt-2 text-sm leading-relaxed text-[#6f6660]">{c.desc}</p>
-                        </Reveal>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-}
-
-function ConnectedOperations({ landing }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    if (s('platforms_enabled', '1') !== '1') return null;
-    const items = [1, 2, 3, 4, 5, 6].map((i) => ({
-        icon: s(`platform_${i}_icon`, 'zap'),
-        title: s(`platform_${i}_title`),
-        desc: s(`platform_${i}_desc`),
-    })).filter((item) => item.title);
-    if (!items.length) return null;
-
-    return (
-        <section className="bg-[#faf5ec] py-20 sm:py-28" aria-labelledby="connected-operations-title">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="mx-auto max-w-3xl text-center">
-                    <Eyebrow>{s('platforms_badge', 'Connected customer operations')}</Eyebrow>
-                    <h2 id="connected-operations-title" className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
-                        <AccentHeading text={s('platforms_title', 'Messages, orders and AI replies in one workspace')} />
-                    </h2>
-                    <p className="mt-4 text-base leading-relaxed text-[#6f6660]">{s('platforms_subtitle')}</p>
-                </Reveal>
-                <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                    {items.map((item, index) => (
-                        <Reveal key={item.title} delay={(index % 3) * 80} className="group rounded-3xl border border-black/[0.06] bg-[#fffdf9] p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/[0.04]">
-                            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 transition-colors duration-300 group-hover:bg-brand-500 group-hover:text-white">
-                                <FeatureIcon name={item.icon} className="h-6 w-6" />
-                            </div>
-                            <h3 className="font-display text-lg font-medium text-[#241f1a]">{item.title}</h3>
-                            <p className="mt-2 text-sm leading-relaxed text-[#6f6660]">{item.desc}</p>
-                        </Reveal>
-                    ))}
-                </div>
-                <Reveal className="mt-10 flex justify-center">
-                    <GhostButton href="/integrations">Explore all integrations</GhostButton>
-                </Reveal>
-            </div>
-        </section>
-    );
-}
-
-function UseCases({ landing }) {
-    const { t } = useTranslation();
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    if (s('why_enabled') !== '1') return null;
-    const cards = [1, 2, 3].map((i) => ({
-        icon: s(`why_${i}_icon`, 'star'),
-        title: s(`why_${i}_title`),
-        desc: s(`why_${i}_desc`),
-    })).filter((c) => c.title);
-    if (!cards.length) return null;
-    return (
-        <section className="bg-[#faf5ec] py-20 sm:py-28">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
-                    <div className="max-w-xl">
-                        <Eyebrow>{t('nav.use_cases', { defaultValue: 'Use cases' })}</Eyebrow>
-                        <h2 className="mt-6 font-display text-3xl font-medium leading-[1.15] tracking-tight text-[#241f1a] sm:text-4xl">
-                            <AccentHeading text="Crafted for teams that move with clarity" />
-                        </h2>
-                    </div>
-                    <DarkButton href={route('register')}>{t('welcome.get_started_free', { defaultValue: 'Get started' })}</DarkButton>
-                </Reveal>
-
-                <Reveal delay={100} className="mt-12">
-                    <img
-                        src="/images/landing/wisperbot-dashboard.png"
-                        alt="WisperBot omnichannel support dashboard with inbox, customer conversations and agent details"
-                        className="aspect-[16/7] w-full rounded-3xl border border-[#d8bc93]/70 object-cover object-center shadow-[0_28px_70px_rgba(105,68,27,0.13)]"
-                    />
-                </Reveal>
-
-                <div className="mt-6 grid gap-5 sm:grid-cols-3">
-                    {cards.map((c, i) => {
-                        const featured = i === 1;
-                        return (
-                            <Reveal
-                                key={i}
-                                delay={i * 90}
-                                className={`rounded-3xl p-7 transition-all duration-300 ${featured ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/20' : 'border border-black/[0.06] bg-[#fffdf9] hover:-translate-y-1 hover:shadow-lg'}`}
+                    <div className="m-lifecycle-steps">
+                        {steps.map(([id, title, body], i) => (
+                            <div
+                                key={id}
+                                data-step={i}
+                                className={'m-lifecycle-step ' + (active === i ? 'is-active' : '')}
                             >
-                                <div className={`mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl ${featured ? 'bg-white/20 text-white' : 'bg-brand-500/10 text-brand-600'}`}>
-                                    <FeatureIcon name={c.icon} className="h-5 w-5" />
-                                </div>
-                                <h3 className={`font-display text-lg font-medium ${featured ? 'text-white' : 'text-[#241f1a]'}`}>{c.title}</h3>
-                                <p className={`mt-2 text-sm leading-relaxed ${featured ? 'text-white/90' : 'text-[#6f6660]'}`}>{c.desc}</p>
-                            </Reveal>
-                        );
-                    })}
-                </div>
-            </div>
-        </section>
-    );
-}
-
-function Process({ landing }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    if (s('howitworks_enabled') !== '1') return null;
-    const steps = [1, 2, 3].map((i) => ({ title: s(`step_${i}_title`), desc: s(`step_${i}_desc`) })).filter((st) => st.title);
-    if (!steps.length) return null;
-    return (
-        <section className="bg-[#f6efe2] py-20 sm:py-28">
-            <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="mx-auto max-w-2xl text-center">
-                    <Eyebrow>{s('howitworks_badge', 'Process')}</Eyebrow>
-                    <h2 className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
-                        <AccentHeading text={s('howitworks_title', 'From chaos to clarity in 3 simple steps')} />
-                    </h2>
-                    <p className="mt-4 text-base text-[#6f6660]">{s('howitworks_subtitle')}</p>
-                </Reveal>
-                <div className="mt-14 grid gap-6 sm:grid-cols-3">
-                    {steps.map((st, i) => (
-                        <Reveal key={i} delay={i * 110} className="relative rounded-3xl border border-black/[0.06] bg-[#fffdf9] p-7">
-                            <span className="font-display text-5xl font-semibold text-brand-500/25">0{i + 1}</span>
-                            <h3 className="mt-4 font-display text-lg font-medium text-[#241f1a]">{st.title}</h3>
-                            <p className="mt-2 text-sm leading-relaxed text-[#6f6660]">{st.desc}</p>
-                        </Reveal>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-}
-
-function Features({ landing }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    if (s('features_enabled') !== '1') return null;
-    const feats = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => ({
-        icon: s(`feature_${i}_icon`, 'zap'),
-        title: s(`feature_${i}_title`),
-        desc: s(`feature_${i}_desc`),
-    })).filter((f) => f.title);
-    if (!feats.length) return null;
-    return (
-        <section id="features" className="scroll-mt-20 bg-[#faf5ec] py-20 sm:py-28">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="mx-auto max-w-2xl text-center">
-                    <Eyebrow>{s('features_badge', 'Features')}</Eyebrow>
-                    <h2 className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
-                        <AccentHeading text={s('features_title')} />
-                    </h2>
-                    <p className="mt-4 text-base text-[#6f6660]">{s('features_subtitle')}</p>
-                </Reveal>
-                <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    {feats.map((f, i) => (
-                        <Reveal key={i} delay={(i % 3) * 80} className="group rounded-3xl border border-black/[0.06] bg-[#fffdf9] p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/[0.04]">
-                            <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 transition-colors duration-300 group-hover:bg-brand-500 group-hover:text-white">
-                                <FeatureIcon name={f.icon} className="h-6 w-6" />
+                                <small>0{i + 1}</small>
+                                <h3>{t('home.lifecycle.' + id, title)}</h3>
+                                <p>{t('home.lifecycle.' + id + '_body', body)}</p>
                             </div>
-                            <h3 className="font-display text-lg font-medium text-[#241f1a]">{f.title}</h3>
-                            <p className="mt-2 text-sm leading-relaxed text-[#6f6660]">{f.desc}</p>
-                        </Reveal>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-}
-
-function Testimonials({ landing }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    if (s('testimonials_enabled') !== '1') return null;
-    const items = [1, 2, 3, 4, 5, 6].map((i) => ({
-        name: s(`testimonial_${i}_name`),
-        role: s(`testimonial_${i}_role`),
-        text: s(`testimonial_${i}_text`),
-    })).filter((tm) => tm.name && tm.text);
-    if (!items.length) return null;
-    return (
-        <section className="bg-[#f6efe2] py-20 sm:py-28">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="mx-auto max-w-2xl text-center">
-                    <Eyebrow>{s('testimonials_badge', 'Loved by teams')}</Eyebrow>
-                    <h2 className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
-                        <AccentHeading text={s('testimonials_title')} />
-                    </h2>
-                </Reveal>
-                <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    {items.map((tm, i) => (
-                        <Reveal key={i} delay={(i % 3) * 80} className="flex flex-col rounded-3xl border border-black/[0.06] bg-[#fffdf9] p-7">
-                            <Stars />
-                            <p className="mt-4 flex-1 text-sm leading-relaxed text-[#4a433f]">“{tm.text}”</p>
-                            <div className="mt-6 flex items-center gap-3">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/15 text-sm font-bold text-brand-600">{tm.name.charAt(0)}</span>
-                                <div>
-                                    <p className="text-sm font-semibold text-[#241f1a]">{tm.name}</p>
-                                    <p className="text-xs text-[#8a817a]">{tm.role}</p>
-                                </div>
-                            </div>
-                        </Reveal>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-}
-
-function Team() {
-    const teams = [
-        {
-            initials: 'PS',
-            title: 'Product & strategy',
-            description: 'Turns customer needs into practical support experiences that teams can adopt quickly.',
-            tone: 'bg-[#f9d8bd] text-[#9d4218]',
-        },
-        {
-            initials: 'EN',
-            title: 'Engineering',
-            description: 'Builds the reliable connections, automations and AI workflows behind every conversation.',
-            tone: 'bg-[#d9eadf] text-[#256044]',
-        },
-        {
-            initials: 'CX',
-            title: 'Customer experience',
-            description: 'Keeps the product focused on clear, helpful and human customer interactions.',
-            tone: 'bg-[#e9ddf6] text-[#684397]',
-        },
-        {
-            initials: 'DX',
-            title: 'Design & experience',
-            description: 'Makes sophisticated support tools feel calm, clear and effortless to use.',
-            tone: 'bg-[#dceaf7] text-[#2b5c89]',
-        },
-    ];
-
-    return (
-        <section id="team" className="bg-[#f6efe2] py-20 sm:py-28">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-end">
-                    <div>
-                        <Eyebrow>Our Team</Eyebrow>
-                        <h2 className="mt-6 max-w-xl font-display text-4xl font-medium leading-[1.05] tracking-tight text-[#241f1a] sm:text-5xl">
-                            <AccentHeading text="One focused team behind better conversations." />
-                        </h2>
-                    </div>
-                    <p className="max-w-xl text-base leading-relaxed text-[#71675e] sm:text-lg">
-                        WisperBot brings product, engineering, design and customer experience together so growing teams can support people with more clarity and less busywork.
-                    </p>
-                </Reveal>
-
-                <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {teams.map((team, index) => (
-                        <Reveal key={team.title} delay={index * 70} className="h-full">
-                            <article className="flex h-full flex-col rounded-3xl border border-[#ddcfbc] bg-[#fffdf9] p-6 shadow-[0_16px_35px_rgba(105,68,27,0.06)]">
-                                <div className={`relative flex h-14 w-14 items-center justify-center rounded-2xl text-sm font-bold tracking-wide ${team.tone}`}>
-                                    {team.initials}
-                                    <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#fffdf9] bg-emerald-500" aria-label="Active" />
-                                </div>
-                                <h3 className="mt-7 font-display text-xl font-medium text-[#241f1a]">{team.title}</h3>
-                                <p className="mt-3 text-sm leading-relaxed text-[#71675e]">{team.description}</p>
-                            </article>
-                        </Reveal>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-}
-
-function LatestInsights({ posts = [] }) {
-    const formatDate = (value) => value
-        ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
-        : '';
-
-    return (
-        <section className="bg-[#fffdf9] py-20 sm:py-28" aria-labelledby="latest-insights-title">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-                    <div className="max-w-2xl">
-                        <Eyebrow>Ideas for better support</Eyebrow>
-                        <h2 id="latest-insights-title" className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
-                            Latest from the <span className="italic text-brand-500">WisperBot blog</span>
-                        </h2>
-                        <p className="mt-4 text-base leading-relaxed text-[#6f6660]">Practical guides on AI support, omnichannel messaging, automation and customer growth.</p>
-                    </div>
-                    <Link href={route('blog.index')} className="group inline-flex w-fit items-center gap-2 rounded-full border border-[#241f1a]/15 px-5 py-2.5 text-sm font-semibold text-[#241f1a] transition hover:border-brand-500 hover:text-brand-600">
-                        See all blogs
-                        <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                    </Link>
-                </Reveal>
-
-                {posts.length > 0 ? (
-                    <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {posts.map((post, index) => (
-                            <Reveal key={post.id} delay={(index % 3) * 80}>
-                                <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/[0.05]">
-                                    <Link href={route('blog.show', post.slug)} className="relative block aspect-[16/9] overflow-hidden bg-gradient-to-br from-[#fde8d7] via-[#faf0e3] to-[#eadbc8]">
-                                        {post.featured_image_url ? (
-                                            <img src={post.featured_image_url} alt={post.featured_image_alt || post.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
-                                        ) : (
-                                            <div className="flex h-full items-center justify-center text-brand-500">
-                                                <svg className="h-11 w-11" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 5.25A2.25 2.25 0 016.75 3h3A2.25 2.25 0 0112 5.25V21a2.25 2.25 0 00-2.25-2.25h-3A2.25 2.25 0 014.5 16.5V5.25zm15 0A2.25 2.25 0 0017.25 3h-3A2.25 2.25 0 0012 5.25V21a2.25 2.25 0 012.25-2.25h3a2.25 2.25 0 002.25-2.25V5.25z" />
-                                                </svg>
-                                            </div>
-                                        )}
-                                    </Link>
-                                    <div className="flex flex-1 flex-col p-6">
-                                        <div className="flex flex-wrap items-center gap-2 text-xs text-[#8a817a]">
-                                            {post.category && <span className="rounded-full bg-brand-500/10 px-2.5 py-1 font-semibold text-brand-600">{post.category.name}</span>}
-                                            {post.published_at && <time dateTime={post.published_at}>{formatDate(post.published_at)}</time>}
-                                            {post.reading_minutes > 0 && <><span aria-hidden="true">·</span><span>{post.reading_minutes} min read</span></>}
-                                        </div>
-                                        <h3 className="mt-4 font-display text-xl font-medium leading-snug text-[#241f1a] transition-colors group-hover:text-brand-600">
-                                            <Link href={route('blog.show', post.slug)}>{post.title}</Link>
-                                        </h3>
-                                        <p className="mt-3 line-clamp-3 flex-1 text-sm leading-relaxed text-[#6f6660]">{post.excerpt}</p>
-                                        <Link href={route('blog.show', post.slug)} className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600">
-                                            Read article <ArrowUpRight className="h-3.5 w-3.5" />
-                                        </Link>
-                                    </div>
-                                </article>
-                            </Reveal>
                         ))}
                     </div>
-                ) : (
-                    <Reveal className="mt-12 rounded-3xl border border-dashed border-[#dcc7a8] bg-[#faf5ec] px-6 py-12 text-center">
-                        <p className="font-display text-xl font-medium text-[#241f1a]">New practical guides are on the way.</p>
-                        <p className="mt-2 text-sm text-[#6f6660]">Visit the blog to browse every published WisperBot resource.</p>
-                        <Link href={route('blog.index')} className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600">
-                            See all blogs <ArrowUpRight className="h-3.5 w-3.5" />
-                        </Link>
-                    </Reveal>
-                )}
-            </div>
-        </section>
-    );
-}
-
-function Faq({ landing }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    const [open, setOpen] = useState(0);
-    if (s('faq_enabled') !== '1') return null;
-    const faqs = [1, 2, 3, 4, 5].map((i) => ({ q: s(`faq_${i}_q`), a: s(`faq_${i}_a`) })).filter((f) => f.q && f.a);
-    if (!faqs.length) return null;
-    return (
-        <section className="bg-[#faf5ec] py-20 sm:py-28">
-            <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-                <Reveal className="text-center">
-                    <Eyebrow>{s('faq_badge', 'FAQ')}</Eyebrow>
-                    <h2 className="mt-6 font-display text-3xl font-medium leading-tight tracking-tight text-[#241f1a] sm:text-4xl">
-                        <AccentHeading text={s('faq_title')} />
-                    </h2>
-                </Reveal>
-                <div className="mt-12 space-y-3">
-                    {faqs.map((f, i) => {
-                        const isOpen = open === i;
-                        return (
-                            <Reveal key={i} delay={i * 60} className={`rounded-2xl border bg-[#fffdf9] transition-colors ${isOpen ? 'border-brand-400/50' : 'border-black/[0.06]'}`}>
-                                <button className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left" onClick={() => setOpen(isOpen ? -1 : i)}>
-                                    <span className={`font-display text-base font-medium ${isOpen ? 'text-brand-600' : 'text-[#241f1a]'}`}>{f.q}</span>
-                                    <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-all duration-300 ${isOpen ? 'rotate-45 bg-brand-500 text-white' : 'bg-black/[0.04] text-[#8a817a]'}`}>
-                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24"><path strokeLinecap="round" d="M12 5v14M5 12h14" /></svg>
-                                    </span>
-                                </button>
-                                <div className={`grid transition-all duration-300 ease-smooth ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                                    <div className="overflow-hidden">
-                                        <p className="px-6 pb-5 text-sm leading-relaxed text-[#6f6660]">{f.a}</p>
-                                    </div>
-                                </div>
-                            </Reveal>
-                        );
-                    })}
+                </div>
+                <div className="m-lifecycle-stage">
+                    <ProductDemo type={steps[active][3]} compact />
+                    <p className="m-stage-note">
+                        {t('home.lifecycle.note', 'Illustrative workflow · your channels, your knowledge, your team')}
+                    </p>
                 </div>
             </div>
         </section>
-    );
+    )
 }
-
-function CtaBand({ landing, auth, canRegister }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    if (s('cta_enabled') !== '1') return null;
+function CapabilityTable() {
+    const { commentsEnabled, text: t } = useMarketing()
+    const rows = [
+        ['website', 'Website chat', true, false, false, 'Website embed'],
+        ['whatsapp', 'WhatsApp', true, false, false, 'Templates & business messaging'],
+        ['facebook', 'Facebook / Instagram', true, true, Boolean(commentsEnabled), 'Access depends on permissions'],
+        ['linkedin', 'LinkedIn / X / TikTok / YouTube', false, true, false, 'Supported publishing formats'],
+        ['gmail', 'Gmail / Microsoft / IMAP', false, false, false, 'Dedicated Email MasterBox'],
+        ['shopify', 'Shopify / WooCommerce / BigCommerce', false, false, false, 'Product & order context'],
+        ['amazon', 'Amazon / eBay', false, false, false, 'Provider-specific seller workflows'],
+    ]
     return (
-        <section className="bg-[#faf5ec] px-4 pb-24 sm:px-6 lg:px-8">
-            <Reveal className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] px-6 py-16 text-center sm:py-20" style={{ background: 'radial-gradient(ellipse 60% 90% at 50% 0%, rgba(255,118,46,0.18), transparent 70%), #241f1a' }}>
-                <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-brand-500/20 blur-3xl" />
-                <div className="pointer-events-none absolute -bottom-20 -left-16 h-64 w-64 rounded-full bg-brand-600/15 blur-3xl" />
-                <h2 className="relative mx-auto max-w-2xl font-display text-3xl font-medium leading-tight tracking-tight text-white sm:text-5xl">
-                    <AccentHeading text={s('cta_title')} />
-                </h2>
-                {s('cta_subtitle') && <p className="relative mx-auto mt-5 max-w-xl text-base text-white/70">{s('cta_subtitle')}</p>}
-                <div className="relative mt-9 flex flex-wrap items-center justify-center gap-3">
-                    {auth?.user ? (
-                        <Link href={route('client.dashboard')} className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-brand-600">{s('cta_primary', 'Open dashboard')}</Link>
-                    ) : (
-                        <>
-                            {canRegister && (
-                                <Link href={route('register')} className="group inline-flex items-center gap-2 rounded-full bg-brand-500 px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-6px_rgba(255,118,46,0.5)] transition-all hover:-translate-y-0.5 hover:bg-brand-600">
-                                    {s('cta_primary', 'Get started')}
-                                    <ArrowUpRight className="h-4 w-4" />
-                                </Link>
-                            )}
-                            <Link href="/contact" className="inline-flex items-center gap-2 rounded-full border border-white/20 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/10">{s('cta_secondary', 'Book a demo')}</Link>
-                        </>
-                    )}
-                </div>
-            </Reveal>
-        </section>
-    );
-}
-
-function Footer({ landing }) {
-    const { t } = useTranslation();
-    const year = new Date().getFullYear();
-    const cols = [
-        { title: t('landing_page_admin.footer_product', { defaultValue: 'Product' }), links: [
-            { label: t('nav.features', { defaultValue: 'Features' }), href: '/#features' },
-            { label: t('nav.integrations', { defaultValue: 'Integrations' }), href: '/integrations' },
-            { label: t('nav.pricing', { defaultValue: 'Pricing' }), href: '/pricing' },
-            { label: t('nav.faq', { defaultValue: 'FAQ' }), href: '/faq' },
-        ] },
-        { title: t('landing_page_admin.footer_company', { defaultValue: 'Company' }), links: [
-            { label: t('landing_page_admin.footer_about', { defaultValue: 'About' }), href: '/about' },
-            { label: t('nav.blog', { defaultValue: 'Blog' }), href: '/blog' },
-            { label: t('nav.use_cases', { defaultValue: 'Use Cases' }), href: '/use-cases' },
-            { label: t('nav.contact', { defaultValue: 'Contact' }), href: '/contact' },
-        ] },
-        { title: t('landing_page_admin.footer_legal', { defaultValue: 'Legal' }), links: [
-            { label: t('landing_page_admin.footer_privacy', { defaultValue: 'Privacy Policy' }), href: '/p/privacy' },
-            { label: t('landing_page_admin.footer_terms', { defaultValue: 'Terms of Service' }), href: '/p/terms' },
-        ] },
-    ];
-    return (
-        <footer className="bg-[#1c1814] pt-16 pb-10 text-white">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-                <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="lg:col-span-1">
-                        <img src="/wisperbot-logo-white.svg" alt="WisperBot" className="h-7 w-auto" />
-                        <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/50">{t('landing.footer_tagline', { defaultValue: 'Omnichannel customer support, automated with AI.' })}</p>
-                    </div>
-                    {cols.map((c) => (
-                        <div key={c.title}>
-                            <h4 className="text-xs font-semibold uppercase tracking-wider text-white/40">{c.title}</h4>
-                            <ul className="mt-4 space-y-2.5">
-                                {c.links.map((l) => (
-                                    <li key={l.href}><Link href={l.href} className="text-sm text-white/60 transition-colors hover:text-white">{l.label}</Link></li>
+        <>
+            <div className="m-capability-wrap">
+                <table className="m-capability-table">
+                    <thead>
+                        <tr>
+                            {['Connection', 'Omni Inbox', 'Publishing', 'Comments', 'Purpose'].map((label, i) => (
+                                <th key={label} scope="col">
+                                    {t('home.matrix.head_' + i, label)}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map(([key, name, inbox, publishing, comments, purpose], i) => (
+                            <tr key={key}>
+                                <td>
+                                    <BrandMark name={key} small />
+                                    {name}
+                                </td>
+                                {[inbox, publishing, comments].map((available, j) => (
+                                    <td key={j}>
+                                        {available ? (
+                                            <>
+                                                <Check size={15} />
+                                                <span className="sr-only">{t('common.supported', 'Supported')}</span>
+                                            </>
+                                        ) : (
+                                            <span
+                                                aria-label={t('common.not_listed', 'Not included in this capability')}
+                                            >
+                                                —
+                                            </span>
+                                        )}
+                                    </td>
                                 ))}
-                            </ul>
+                                <td>{t('home.matrix.purpose_' + i, purpose)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <p className="m-capability-note">
+                {t(
+                    'home.matrix.note',
+                    'Capabilities vary by account, provider permissions, region, and plan. Publishing access does not automatically include direct messages or comments.',
+                )}
+            </p>
+        </>
+    )
+}
+function RoleTabs() {
+    const { pages = [], text: t } = useMarketing()
+    const [selected, setSelected] = useState(0)
+    const roles = pages.filter((p) => p.slug.startsWith('solutions/'))
+    const page = roles[selected]
+    if (!page) return null
+    return (
+        <div className="m-roles">
+            <div
+                className="m-role-nav"
+                role="tablist"
+                aria-label={t('home.roles.label', 'Choose your team')}
+                aria-orientation="vertical"
+            >
+                {roles.map((role, i) => (
+                    <button
+                        role="tab"
+                        id={'role-tab-' + i}
+                        aria-controls="role-panel"
+                        aria-selected={selected === i}
+                        tabIndex={selected === i ? 0 : -1}
+                        key={role.slug}
+                        onClick={() => setSelected(i)}
+                        onKeyDown={(e) => {
+                            if (['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].includes(e.key)) {
+                                e.preventDefault()
+                                const next =
+                                    (i + (['ArrowDown', 'ArrowRight'].includes(e.key) ? 1 : -1) + roles.length) %
+                                    roles.length
+                                setSelected(next)
+                                document.getElementById('role-tab-' + next)?.focus()
+                            }
+                        }}
+                    >
+                        <ProductIcon name={role.icon} size={19} />
+                        {t('catalog.' + role.slug.replaceAll('/', '.') + '.name', role.name)}
+                        <ChevronRight size={16} />
+                    </button>
+                ))}
+            </div>
+            <div role="tabpanel" id="role-panel" aria-labelledby={'role-tab-' + selected} className="m-role-detail">
+                <h3>{t('catalog.' + page.slug.replaceAll('/', '.') + '.tagline', page.tagline)}</h3>
+                <p>{t('catalog.' + page.slug.replaceAll('/', '.') + '.description', page.description)}</p>
+                <MLink href={page.href} className="m-text-link">
+                    {t('home.roles.explore', 'Explore this solution')}
+                    <ArrowUpRight size={16} />
+                </MLink>
+            </div>
+        </div>
+    )
+}
+export default function Welcome({ latestPosts = [] }) {
+    const { setting, startHref, settings, integrations = [], text: t, commentsEnabled, freeWhiteLabel } = useMarketing()
+    const title = setting('hero_title', 'Every customer channel. One AI support team.')
+    const configuredSecondaryLabel = setting('hero_cta_secondary', 'Get Agent App')
+    const agentAppLabel = configuredSecondaryLabel === 'Explore the platform' ? 'Get Agent App' : configuredSecondaryLabel
+    const faqs = getFaqs(settings)
+    const proofItems = integrations.filter((i) =>
+        [
+            'whatsapp',
+            'facebook',
+            'instagram',
+            'telegram',
+            'gmail',
+            'shopify',
+            'linkedin',
+            'x',
+            'tiktok',
+            'youtube',
+            'microsoft',
+            'amazon',
+        ].includes(i.key),
+    )
+    const guides = latestPosts.length
+        ? latestPosts.slice(0, 3).map((p) => ({
+              href: '/blog/' + p.slug,
+              title: p.title,
+              body: p.excerpt,
+              image: p.featured_image_url,
+              category: p.category?.name || 'Guide',
+              icon: 'book',
+          }))
+        : [
+              {
+                  href: '/products/smart-ai-agent',
+                  title: 'Give your AI a business to understand.',
+                  body: 'Explore the path from your knowledge to a useful customer answer.',
+                  category: 'Smart AI',
+                  icon: 'sparkles',
+              },
+              {
+                  href: '/channels/customer-messaging',
+                  title: 'Choose the right channels for your team.',
+                  body: 'See how messaging, email, and provider permissions fit together.',
+                  category: 'Getting connected',
+                  icon: 'network',
+              },
+              {
+                  href: '/developers',
+                  title: 'Put a conversation inside your product.',
+                  body: 'Explore the Customer Chat SDK, authenticated APIs, and webhooks.',
+                  category: 'For developers',
+                  icon: 'code',
+              },
+          ]
+    return (
+        <LandingLayout darkHeader>
+            <SeoHead
+                title={setting('seo_title')}
+                description={setting('seo_description')}
+                keywords={setting('seo_keywords')}
+                image={setting('seo_og_image') || undefined}
+                jsonLd={{
+                    '@context': 'https://schema.org',
+                    '@type': 'SoftwareApplication',
+                    name: 'WisperBot',
+                    applicationCategory: 'BusinessApplication',
+                    operatingSystem: 'Web, Android, iOS',
+                    description: setting('seo_description'),
+                }}
+            />
+            <section className="m-hero">
+                <HeroLaunch />
+                <HeroBackdrop />
+                <div className="m-container">
+                    <div className="m-hero-intro">
+                        <span className="m-hero-badge">
+                            <Sparkles size={12} />
+                            <span>{t('home.free', 'FREE')}</span>
+                            {t('home.hero_badge', 'Your brand. Your chatbot. 100 AI credits every month.')}
+                        </span>
+                        <HeroHeadline title={title} />
+                        <p className="m-hero-lead">
+                            {setting(
+                                'hero_subtitle',
+                                'Bring conversations, knowledge, and your people together. Let AI handle the first hello. Give your team everything they need for what comes next.',
+                            )}
+                        </p>
+                        <div className="m-actions">
+                            <MButton href={startHref}>{setting('hero_cta_primary', 'Start free')}</MButton>
+                            <AgentAppMenu
+                                label={agentAppLabel}
+                                androidUrl={setting('agent_app_android_url', 'https://play.google.com/store/apps/details?id=com.wisperbot.app&pcampaignid=web_share')}
+                                iosUrl={setting('agent_app_ios_url', 'https://apps.apple.com/ng/app/wisperbot/id6797157205')}
+                            />
+                        </div>
+                        <div className="m-hero-footnote">
+                            <span>
+                                <Check size={10} />
+                                {t('home.no_card', 'No credit card')}
+                            </span>
+                            <span>
+                                <Check size={10} />
+                                {t('home.one_channel', '1 channel included')}
+                            </span>
+                            <span>
+                                <Check size={10} />
+                                {freeWhiteLabel
+                                    ? t('home.white_label', 'White-label chatbot')
+                                    : t('home.branded_chat', 'Customizable website chat')}
+                            </span>
+                        </div>
+                    </div>
+                    <MotionStage className="m-hero-stage">
+                        <InboxDemo />
+                        <p className="m-hero-caption">
+                            {t(
+                                'home.hero_caption',
+                                'AI when it helps. Your people when it matters. All in one workspace.',
+                            )}
+                        </p>
+                    </MotionStage>
+                </div>
+            </section>
+            <section className="m-channel-strip">
+                <p>{t('home.channels_caption', 'Connect the places your customers already call home.')}</p>
+                <MotionStage className="m-marquee">
+                    <div className="m-marquee-track">
+                        {[0, 1].map((copy) => (
+                            <div
+                                key={copy}
+                                aria-hidden={copy === 1 ? true : undefined}
+                                style={{ display: 'flex', gap: 38 }}
+                            >
+                                {proofItems.map((item) => (
+                                    <span className="m-marquee-item" key={item.key}>
+                                        <BrandMark name={item.key} />
+                                        {item.name}
+                                    </span>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </MotionStage>
+            </section>
+            <section id="platform" className="m-section m-container">
+                <SectionHeading
+                    centered
+                    eyebrow={t('home.platform.eyebrow', 'The whole customer conversation')}
+                    title={t('home.platform.title', 'A lot less switching. A lot more connecting.')}
+                    description={t(
+                        'home.platform.body',
+                        'Support, AI, email, social, and automations—connected around the people on the other side of the screen.',
+                    )}
+                />
+                <PlatformTabs />
+            </section>
+            <Lifecycle />
+            <section className="m-section m-soft">
+                <div className="m-container m-split">
+                    <div className="m-split-copy">
+                        <SectionHeading
+                            eyebrow={t('home.ai.eyebrow', 'Meet your Smart AI Agent')}
+                            title={t('home.ai.title', 'An answer that knows where it came from.')}
+                            description={t(
+                                'home.ai.body',
+                                'Turn your website and documents into useful customer support. Your Smart Bot works with the knowledge you give it, asks follow-up questions, and brings in a person when needed.',
+                            )}
+                        />
+                        <CheckList
+                            items={[
+                                t('home.ai.point1', 'Train on your business Knowledge Base'),
+                                t('home.ai.point2', 'Guide the conversation with dynamic reply choices'),
+                                t('home.ai.point3', 'Set answering hours, scope, and fallback behavior'),
+                            ]}
+                        />
+                        <MLink href="/products/smart-ai-agent" className="m-text-link">
+                            {t('home.ai.link', 'Get to know your AI teammate')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                    </div>
+                    <AIDemo />
+                </div>
+            </section>
+            <section className="m-section m-container">
+                <SectionHeading
+                    centered
+                    eyebrow={t('home.inboxes.eyebrow', 'A calmer place to work')}
+                    title={t('home.inboxes.title', 'Different channels. The same sense of clarity.')}
+                    description={t(
+                        'home.inboxes.body',
+                        'A focused place for instant conversations, and a dedicated space for email. Your team gets the right tools for both.',
+                    )}
+                />
+                <div className="m-product-bento">
+                    <Reveal className="m-bento-card">
+                        <h3>{t('home.inboxes.omni', 'One team. One Omni Inbox.')}</h3>
+                        <p>
+                            {t(
+                                'home.inboxes.omni_body',
+                                'Customer context, team ownership, notes, and replies. Keep the conversation moving without losing the thread.',
+                            )}
+                        </p>
+                        <MLink href="/products/omnichannel-inbox" className="m-text-link">
+                            {t('home.inboxes.omni_link', 'Explore Omni Inbox')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                        <InboxDemo compact />
+                    </Reveal>
+                    <Reveal className="m-bento-card email" delay={90}>
+                        <h3>{t('home.inboxes.email', 'Email, with room to breathe.')}</h3>
+                        <p>
+                            {t(
+                                'home.inboxes.email_body',
+                                'Connect Gmail, Microsoft, and IMAP mailboxes. Read and reply in Email MasterBox, built around the way email works.',
+                            )}
+                        </p>
+                        <MLink href="/products/email-masterbox" className="m-text-link">
+                            {t('home.inboxes.email_link', 'Explore Email MasterBox')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                        <EmailDemo />
+                    </Reveal>
+                </div>
+            </section>
+            <section className="m-section m-container m-border-top">
+                <SectionHeading
+                    eyebrow={t('home.surfaces.eyebrow', 'Your brand, in the conversation')}
+                    title={t('home.surfaces.title', 'Meet them on your website. Stay with them in your app.')}
+                    description={t(
+                        'home.surfaces.body',
+                        'A small, thoughtfully designed chat experience can make your entire business feel easier to reach.',
+                    )}
+                />
+                <div className="m-surface-grid">
+                    <ChatDemo />
+                    <div className="m-surface-list">
+                        {[
+                            [
+                                'messages',
+                                'Website chatbot',
+                                'A branded welcome, AI answers, and a clear path to a person.',
+                                '/products/chatbots',
+                            ],
+                            [
+                                'phone',
+                                'WhatsApp chatbot',
+                                'Make WhatsApp easy to reach and automate eligible connected conversations.',
+                                '/products/chatbots',
+                            ],
+                            [
+                                'code',
+                                'Customer Chat SDK',
+                                'Give your app team a Flutter integration for customer conversations.',
+                                '/developers',
+                            ],
+                        ].map(([icon, name, body, href], i) => (
+                            <MLink href={href} className="m-surface-item" key={name}>
+                                <span className="m-icon-tile">
+                                    <ProductIcon name={icon} size={23} />
+                                </span>
+                                <div>
+                                    <h3>{t('home.surfaces.name_' + i, name)}</h3>
+                                    <p>{t('home.surfaces.body_' + i, body)}</p>
+                                </div>
+                                <ArrowUpRight size={17} />
+                            </MLink>
+                        ))}
+                    </div>
+                </div>
+            </section>
+            <section className="m-section m-soft">
+                <div className="m-container m-split reverse">
+                    <div className="m-split-copy">
+                        <SectionHeading
+                            eyebrow={t('home.mobile.eyebrow', 'Good support goes with you')}
+                            title={t('home.mobile.title', 'Be there, even when you are not at your desk.')}
+                            description={t(
+                                'home.mobile.body',
+                                'The WisperBot Agent App gives your people a dedicated Android and iOS experience for customer conversations. See the right workspace, get notified, and keep helping.',
+                            )}
+                        />
+                        <CheckList
+                            items={[
+                                t('home.mobile.point1', 'Workspace-aware notifications'),
+                                t('home.mobile.point2', 'Customer conversation context'),
+                                t('home.mobile.point3', 'Agent access on Android and iOS'),
+                            ]}
+                        />
+                        <div className="m-actions">
+                            <DownloadLinks />
+                        </div>
+                        <MLink href="/products/mobile-agent-app" className="m-text-link">
+                            {t('home.mobile.link', 'Explore the Agent App')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                    </div>
+                    <MobileDemo />
+                </div>
+            </section>
+            <section className="m-section m-container">
+                <div className="m-split">
+                    <div className="m-split-copy">
+                        <SectionHeading
+                            eyebrow={t('home.flows.eyebrow', 'Build the follow-through')}
+                            title={t('home.flows.title', 'Your best process. On repeat.')}
+                            description={t(
+                                'home.flows.body',
+                                'Connect triggers, conditions, and actions on a visual canvas. Let repeatable work take care of itself while your team takes care of people.',
+                            )}
+                        />
+                        <MLink href="/products/automation" className="m-text-link">
+                            {t('home.flows.link', 'Explore visual automations')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                    </div>
+                    <AutomationDemo />
+                </div>
+                <div className="m-mini-features">
+                    {[
+                        [Workflow, 'Visual workflows', 'See the path from event to action.'],
+                        [Tag, 'Contacts & segments', 'Organize the people you need to reach.'],
+                        [CheckCheck, 'Run visibility', 'Review what happened and what needs attention.'],
+                    ].map(([Icon, title, body], i) => (
+                        <div key={title}>
+                            <Icon size={21} />
+                            <h3>{t('home.flows.feature_' + i, title)}</h3>
+                            <p>{t('home.flows.feature_body_' + i, body)}</p>
                         </div>
                     ))}
                 </div>
-                <div className="mt-12 border-t border-white/10 pt-6 text-center text-xs text-white/40">
-                    &copy; {year} {t('nav.all_rights_reserved', { defaultValue: 'WisperBot(A Netro Systems Limited Company) All rights reserved.' })}
+            </section>
+            <section className="m-section m-container m-border-top">
+                <div className="m-split reverse">
+                    <div className="m-split-copy">
+                        <SectionHeading
+                            eyebrow={t('home.social.eyebrow', 'Stay part of the conversation')}
+                            title={t('home.social.title', 'From the first post to the next customer.')}
+                            description={t(
+                                'home.social.body',
+                                'Plan your content, schedule supported posts, and keep a shared view of your social presence. Provider-aware controls keep the right actions within reach.',
+                            )}
+                        />
+                        {commentsEnabled && (
+                            <p className="m-capability-note">
+                                {t(
+                                    'home.social.comments',
+                                    'Manage supported Meta comments with additional account permissions. Public replies stay separate from private inbox conversations.',
+                                )}
+                            </p>
+                        )}
+                        <MLink href="/products/social-media" className="m-text-link">
+                            {t('home.social.link', 'Explore social media automation')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                    </div>
+                    <SocialDemo />
                 </div>
-            </div>
-        </footer>
-    );
-}
-
-// ─── Page ───────────────────────────────────────────────────────────────────
-
-export default function Welcome({ auth, canLogin, canRegister, landing = {}, plans = [], latestPosts = [] }) {
-    const s = (k, d = '') => landing[`landing.${k}`] ?? d;
-    const appName = import.meta.env.VITE_APP_NAME || 'WisperBot';
-    const metaTitle = s('seo_title') || s('hero_title') || appName;
-    const metaDesc = s('seo_description') || s('hero_subtitle') || '';
-
-    const faqs = [1, 2, 3, 4, 5].map((i) => ({ q: s(`faq_${i}_q`), a: s(`faq_${i}_a`) })).filter((f) => f.q && f.a);
-    const jsonLd = [
-        { '@context': 'https://schema.org', '@type': 'Organization', name: appName, description: metaDesc },
-        { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: appName, applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: metaDesc, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' } },
-    ];
-    if (faqs.length) {
-        jsonLd.push({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) });
-    }
-
-    return (
-        <div className="min-h-screen bg-[#faf5ec] font-sans text-[#241f1a]" style={{ color: INK }}>
-            <SeoHead title={metaTitle} description={metaDesc} keywords={s('seo_keywords')} image={s('seo_og_image') || undefined} jsonLd={jsonLd} />
-            <Header auth={auth} landing={landing} />
-            <main>
-                <Hero landing={landing} auth={auth} canRegister={canRegister} />
-                <LogoCloud landing={landing} />
-                <Editorial landing={landing} />
-                <Channels landing={landing} />
-                <ConnectedOperations landing={landing} />
-                <UseCases landing={landing} />
-                <Process landing={landing} />
-                <Features landing={landing} />
-                <Testimonials landing={landing} />
-                <Team />
-                <LatestInsights posts={latestPosts} />
-                <Faq landing={landing} />
-                <CtaBand landing={landing} auth={auth} canRegister={canRegister} />
-            </main>
-            <Footer landing={landing} />
-            <CookieConsent />
-        </div>
-    );
+            </section>
+            <section className="m-section m-soft">
+                <div className="m-container m-split">
+                    <div className="m-split-copy">
+                        <SectionHeading
+                            eyebrow={t('home.commerce.eyebrow', 'Know the story behind the order')}
+                            title={t('home.commerce.title', 'A better answer starts with better context.')}
+                            description={t(
+                                'home.commerce.body',
+                                'Connect supported stores and seller accounts. Give your team product and order context for more useful shopping conversations, with each marketplace handled on its own terms.',
+                            )}
+                        />
+                        <MLink href="/solutions/ecommerce-marketplaces" className="m-text-link">
+                            {t('home.commerce.link', 'Explore commerce connections')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                    </div>
+                    <CommerceDemo />
+                </div>
+            </section>
+            <section className="m-section m-container">
+                <div className="m-dark-section">
+                    <div className="m-engagement-grid">
+                        <div>
+                            <SectionHeading
+                                eyebrow={t('home.engagement.eyebrow', 'Keep the relationship growing')}
+                                title={t('home.engagement.title', 'Reach the right people. With a reason to reply.')}
+                                description={t(
+                                    'home.engagement.body',
+                                    'Build useful audience segments and connect them to supported WhatsApp templates, SMS campaigns, and workflow follow-ups.',
+                                )}
+                            />
+                            <MLink href="/solutions/marketing-engagement" className="m-text-link">
+                                {t('home.engagement.link', 'Explore marketing & engagement')}
+                                <ArrowUpRight size={16} />
+                            </MLink>
+                        </div>
+                        <MotionStage className="m-segment-card">
+                            <span>
+                                <Users size={17} />
+                                {t('home.engagement.audience', 'YOUR AUDIENCE')}
+                            </span>
+                            <h3>{t('home.engagement.card_title', 'A more thoughtful follow-up.')}</h3>
+                            <div className="m-segment-rows">
+                                <div>
+                                    <Tag size={15} />
+                                    {t('home.engagement.row1', 'Choose a contact segment')}
+                                    <span>01</span>
+                                </div>
+                                <div>
+                                    <MessageCircle size={15} />
+                                    {t('home.engagement.row2', 'Use an approved template')}
+                                    <span>02</span>
+                                </div>
+                                <div>
+                                    <Zap size={15} />
+                                    {t('home.engagement.row3', 'Connect the next action')}
+                                    <span>03</span>
+                                </div>
+                            </div>
+                            <div className="m-segment-tags">
+                                <span>WhatsApp</span>
+                                <span>SMS</span>
+                                <span>{t('home.engagement.workflows', 'Workflows')}</span>
+                            </div>
+                        </MotionStage>
+                    </div>
+                </div>
+            </section>
+            <section className="m-section m-container">
+                <SectionHeading
+                    centered
+                    eyebrow={t('home.matrix.eyebrow', 'The right connection for the job')}
+                    title={t('home.matrix.title', 'One platform does not mean one-size-fits-all.')}
+                    description={t(
+                        'home.matrix.body',
+                        'Messaging, publishing, email, and commerce each do something different. Here is how they fit into WisperBot.',
+                    )}
+                />
+                <CapabilityTable />
+                <div className="m-actions" style={{ justifyContent: 'center' }}>
+                    <MButton href="/integrations" secondary>
+                        {t('home.matrix.link', 'Find your integrations')}
+                    </MButton>
+                </div>
+            </section>
+            <section className="m-section m-soft">
+                <div className="m-container">
+                    <SectionHeading
+                        eyebrow={t('home.roles.eyebrow', 'Built around your team')}
+                        title={t('home.roles.title', 'Different goals. Better conversations.')}
+                        description={t(
+                            'home.roles.body',
+                            'Choose the workflow that fits your work today, with room to connect the rest tomorrow.',
+                        )}
+                    />
+                    <RoleTabs />
+                </div>
+            </section>
+            <section className="m-section m-container">
+                <div className="m-split">
+                    <div className="m-split-copy">
+                        <SectionHeading
+                            eyebrow={t('home.connect.eyebrow', 'Fits into your world')}
+                            title={t('home.connect.title', 'Keep your stack. Connect the conversation.')}
+                            description={t(
+                                'home.connect.body',
+                                'Bring supported channels and stores together, then extend your workspace through APIs, event webhooks, and the Customer Chat SDK.',
+                            )}
+                        />
+                        <div className="m-actions">
+                            <MButton href="/integrations" secondary>
+                                {t('home.connect.integrations', 'Explore integrations')}
+                            </MButton>
+                            <MLink href="/developers" className="m-text-link">
+                                {t('home.connect.developers', 'For developers')}
+                                <ArrowUpRight size={16} />
+                            </MLink>
+                        </div>
+                    </div>
+                    <MotionStage
+                        className="m-integrations-art"
+                        label={t('home.connect.art', 'Supported integration families')}
+                    >
+                        {integrations.slice(0, 20).map((item) => (
+                            <BrandMark key={item.key} name={item.key} />
+                        ))}
+                    </MotionStage>
+                </div>
+                <div className="m-split m-section-sm">
+                    <DeveloperDemo />
+                    <div className="m-split-copy">
+                        <SectionHeading
+                            eyebrow={t('home.build.eyebrow', 'Built to build on')}
+                            title={t('home.build.title', 'Your product. Your customer experience.')}
+                            description={t(
+                                'home.build.body',
+                                'Add chat to your app. Connect a workflow to your systems. Use authenticated APIs and event webhooks to make WisperBot part of your product.',
+                            )}
+                        />
+                        <MLink href="/developers" className="m-text-link">
+                            {t('home.build.link', 'Explore the developer platform')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                    </div>
+                </div>
+            </section>
+            <section className="m-section m-container m-border-top">
+                <SectionHeading
+                    centered
+                    eyebrow={t('home.trust.eyebrow', 'Trust starts with the foundations')}
+                    title={t('home.trust.title', 'Your workspace. Your people. Clear boundaries.')}
+                />
+                <div className="m-trust-grid">
+                    {[
+                        [
+                            ShieldCheck,
+                            'Workspace isolation',
+                            'Customer records and permissions stay within authorized workspaces.',
+                        ],
+                        [Users, 'Team access controls', 'Give teammates access through defined roles and ownership.'],
+                        [
+                            Globe2,
+                            'Official connections',
+                            'Connect accounts through supported provider authorization paths.',
+                        ],
+                        [Code2, 'Authenticated APIs', 'Use workspace-scoped tokens and explicit integration access.'],
+                    ].map(([Icon, title, body], i) => (
+                        <Reveal key={title} delay={i * 70}>
+                            <Icon size={25} />
+                            <h3>{t('home.trust.title_' + i, title)}</h3>
+                            <p>{t('home.trust.body_' + i, body)}</p>
+                        </Reveal>
+                    ))}
+                </div>
+            </section>
+            <section className="m-section m-container">
+                <SectionHeading
+                    centered
+                    eyebrow={t('home.pricing.eyebrow', 'A useful place to start')}
+                    title={t('home.pricing.title', 'Your brand. Your first channel. On us.')}
+                    description={t(
+                        'home.pricing.body',
+                        'Get a real feel for AI-powered support before your business needs more.',
+                    )}
+                />
+                <div className="m-free-panel">
+                    <div>
+                        <Eyebrow>{t('home.pricing.free', 'Free plan')}</Eyebrow>
+                        <div className="m-free-price">
+                            $0<span> / {t('home.pricing.month', 'month')}</span>
+                        </div>
+                        <h3>{t('home.pricing.card_title', 'A small start, with a lot of possibility.')}</h3>
+                        <p>
+                            {t(
+                                'home.pricing.card_body',
+                                'Connect your first channel and give your customers a helpful place to begin.',
+                            )}
+                        </p>
+                    </div>
+                    <div>
+                        <CheckList
+                            items={[
+                                t('home.pricing.point1', '1 connected channel'),
+                                t('home.pricing.point2', '100 AI credits every month'),
+                                freeWhiteLabel
+                                    ? t('home.pricing.point3', 'White-label website chatbot')
+                                    : t('home.pricing.branded', 'Customizable website chatbot'),
+                                t('home.pricing.point4', 'A shared workspace for customer conversations'),
+                            ]}
+                        />
+                        <div className="m-actions">
+                            <MButton href={startHref}>{t('home.pricing.start', 'Start free')}</MButton>
+                            <MLink href="/pricing" className="m-text-link">
+                                {t('home.pricing.compare', 'Compare plans')}
+                                <ArrowUpRight size={16} />
+                            </MLink>
+                        </div>
+                        <p className="m-free-note">
+                            {t('home.pricing.note', 'Provider messaging and API charges may apply separately.')}
+                        </p>
+                    </div>
+                </div>
+            </section>
+            <section className="m-section m-container">
+                <div className="m-inline-heading">
+                    <SectionHeading
+                        eyebrow={t('home.resources.eyebrow', 'A little guidance goes a long way')}
+                        title={t('home.resources.title', 'Build your next good conversation.')}
+                    />
+                    <MLink href="/blog" className="m-text-link">
+                        {t('home.resources.all', 'All guides & articles')}
+                        <ArrowUpRight size={16} />
+                    </MLink>
+                </div>
+                <div className="m-guide-grid">
+                    {guides.map((guide, i) => (
+                        <MLink href={guide.href} key={guide.href} className="m-guide-card">
+                            <div className="m-guide-art">
+                                {guide.image ? (
+                                    <img src={guide.image} alt="" loading="lazy" />
+                                ) : (
+                                    <ProductIcon name={guide.icon} />
+                                )}
+                            </div>
+                            <div className="m-guide-copy">
+                                <span>
+                                    {latestPosts.length
+                                        ? guide.category
+                                        : t('home.guides.category_' + i, guide.category)}
+                                </span>
+                                <h3>{latestPosts.length ? guide.title : t('home.guides.title_' + i, guide.title)}</h3>
+                                <p>{latestPosts.length ? guide.body : t('home.guides.body_' + i, guide.body)}</p>
+                                <span className="m-text-link">
+                                    {t('home.resources.read', 'Take a look')}
+                                    <ArrowUpRight size={14} />
+                                </span>
+                            </div>
+                        </MLink>
+                    ))}
+                </div>
+            </section>
+            <section className="m-section m-container m-border-top">
+                <div className="m-faq-grid">
+                    <SectionHeading
+                        eyebrow={t('home.faq.eyebrow', 'A few things you might be wondering')}
+                        title={t('home.faq.title', 'Good questions. Clear answers.')}
+                    >
+                        <MLink href="/faq" className="m-text-link" style={{ marginTop: 25 }}>
+                            {t('home.faq.link', 'Visit the help & FAQ page')}
+                            <ArrowUpRight size={16} />
+                        </MLink>
+                    </SectionHeading>
+                    <FAQList items={faqs.slice(0, 6)} />
+                </div>
+            </section>
+            <FinalCTA />
+        </LandingLayout>
+    )
 }

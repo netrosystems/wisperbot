@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AdminUser;
 use App\Models\Client;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\Workspace;
@@ -40,6 +41,14 @@ use Tests\TestCase;
 class InertiaVersionStabilityTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // AppVersionManager reads APP_VERSION from the real .env file; point it
+        // at a missing file so these tests control the version via config.
+        $this->app->instance(AppVersionManager::class, new AppVersionManager(sys_get_temp_dir().'/wisperbot-no-env-'.uniqid()));
+    }
 
     public function test_appearance_route_responds_200_for_inertia_request_during_impersonation(): void
     {
@@ -125,7 +134,7 @@ class InertiaVersionStabilityTest extends TestCase
             ['key' => Role::KEY_SUPER_ADMIN],
             ['name' => 'Super Admin', 'description' => 'All permissions'],
         );
-        $viewClients = \App\Models\Permission::firstOrCreate(
+        $viewClients = Permission::firstOrCreate(
             ['key' => 'view_clients'],
             ['name' => 'View Clients', 'category' => 'Clients'],
         );

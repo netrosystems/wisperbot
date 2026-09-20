@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Pencil, RefreshCw, Trash, Trash2, Globe, FileText, Typ
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const SOURCE_TYPES = {
     url:     { icon: Globe,    labelKey: 'ai.source_url' },
     file:    { icon: Upload,   labelKey: 'ai.source_file' },
@@ -169,8 +170,8 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
         });
     };
 
-    const handleDelete = (docId) => {
-        if (confirm(t('ai.remove_document_confirm'))) {
+    const handleDelete = async (docId) => {
+        if ((await confirmDialog({ message: t('ai.remove_document_confirm'), confirmLabel: t('common.remove') }))) {
             router.delete(route('client.ai.documents.destroy', docId), { preserveScroll: true });
         }
     };
@@ -236,8 +237,8 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
         });
     };
 
-    const handleDeleteKnowledgeBase = () => {
-        if (confirm(t('ai.delete_kb_confirm', { name: kb.name }))) {
+    const handleDeleteKnowledgeBase = async () => {
+        if ((await confirmDialog({ message: t('ai.delete_kb_confirm', { name: kb.name }) }))) {
             router.delete(route('client.ai.knowledge-bases.destroy', kb.uuid));
         }
     };
@@ -437,6 +438,11 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                                                         ) : doc.title && doc.source_ref && (
                                                             <p className="text-xs text-neutral-400 dark:text-neutral-500 truncate mt-0.5">{doc.source_ref}</p>
                                                         )}
+                                                        {doc.canonical_url && doc.original_source_ref && doc.canonical_url !== doc.original_source_ref && (
+                                                            <p className="mt-0.5 truncate text-[11px] text-emerald-700 dark:text-emerald-400">
+                                                                {t('ai.website_connected_as', { url: doc.canonical_url })}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </td>
@@ -522,7 +528,7 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                 )}
 
                 {guardedPublishing && activeStep === 4 && (
-                    <section className="mx-auto w-full max-w-3xl rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-900"><div className="flex items-start gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600"><FlaskConical className="h-4 w-4" /></div><div><p className="text-xs font-semibold uppercase tracking-wider text-brand-600">Step 4 of 5</p><h3 className="text-lg font-semibold">Test a real customer question</h3><p className="mt-1 text-sm text-neutral-500">Confirm that the answer uses the intended source before publishing. Try multiple questions when the Knowledge Base covers different topics.</p></div></div><form onSubmit={runTest} className="mt-6 flex flex-col gap-2 sm:flex-row"><input required value={testQuestion} onChange={e => setTestQuestion(e.target.value)} placeholder="How do I configure the widget?" className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-800" /><button disabled={testing} className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white">{testing ? 'Testing…' : 'Run test'}</button></form>{testResult && <div className={`mt-4 rounded-xl border p-4 text-sm ${testResult.decision === 'answer' ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20' : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/20'}`}><div className="flex justify-between gap-3"><span className="font-semibold capitalize">{testResult.decision}</span><span>{Math.round((testResult.confidence ?? 0) * 100)}% confidence</span></div><p className="mt-2 text-neutral-700 dark:text-neutral-200">{testResult.answer || testResult.warnings?.[0]}</p><p className="mt-2 text-xs text-neutral-500">Estimated prompt: {testResult.estimated_prompt_tokens ?? 0} tokens · {testResult.sources?.length ?? 0} matched passages</p>{testResult.sources?.map(source => <details key={`${source.document_id}-${source.score}`} className="mt-2"><summary className="cursor-pointer text-xs font-medium text-brand-600">{source.title || 'Source'} · {Math.round(source.score * 100)}%</summary><p className="mt-1 text-xs text-neutral-500">{source.excerpt}</p></details>)}</div>}<div className="mt-6 flex items-center justify-between border-t border-neutral-100 pt-4 dark:border-neutral-800"><button type="button" onClick={() => setActiveStep(3)} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700">Back</button><button type="button" disabled={!testResult || testResult.decision !== 'answer'} onClick={() => setActiveStep(5)} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Continue to publish <span aria-hidden="true">→</span></button></div></section>
+                    <section className="mx-auto w-full max-w-3xl rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-900"><div className="flex items-start gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600"><FlaskConical className="h-4 w-4" /></div><div><p className="text-xs font-semibold uppercase tracking-wider text-brand-600">Step 4 of 5</p><h3 className="text-lg font-semibold">Test customer wording</h3><p className="mt-1 text-sm text-neutral-500">Check exact questions, paraphrases, shorthand, typos, and ambiguous requests before publishing.</p></div></div><div className="mt-5"><p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Quick regression checks</p><div className="mt-2 flex flex-wrap gap-2">{[['Greeting', 'Hello 👋'], ['Paraphrase', 'Can you explain what this service helps with?'], ['Shorthand', 'need plan pls'], ['Typo', 'how do i activte it'], ['After greeting', 'Hi, I need help choosing'], ['Relevant ambiguity', 'I want one'], ['Unrelated topic', 'Who was the best president?']].map(([label, question]) => <button key={label} type="button" onClick={() => { setTestQuestion(question); setTestResult(null); }} className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:border-brand-300 hover:text-brand-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">{label}</button>)}</div></div><form onSubmit={runTest} className="mt-4 flex flex-col gap-2 sm:flex-row"><input required value={testQuestion} onChange={e => setTestQuestion(e.target.value)} placeholder="Ask this in a customer's own words" className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-800" /><button disabled={testing} className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white">{testing ? 'Testing…' : 'Run test'}</button></form>{testResult && <div className={`mt-4 rounded-xl border p-4 text-sm ${testResult.decision === 'answer' ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20' : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/20'}`}><div className="flex justify-between gap-3"><span className="font-semibold capitalize">{testResult.decision}</span><span>{Math.round((testResult.confidence ?? 0) * 100)}% hybrid confidence</span></div><p className="mt-2 text-neutral-700 dark:text-neutral-200">{testResult.answer || testResult.warnings?.[0]}</p><p className="mt-2 text-xs text-neutral-500">Meaning: {Math.round((testResult.semantic_score ?? testResult.confidence ?? 0) * 100)}% · Wording: {Math.round((testResult.lexical_score ?? 0) * 100)}% · Strategy: {(testResult.retrieval_strategy ?? 'semantic').replaceAll('_', ' ')} · {testResult.sources?.length ?? 0} passages</p>{testResult.sources?.map(source => <details key={`${source.document_id}-${source.score}`} className="mt-2"><summary className="cursor-pointer text-xs font-medium text-brand-600">{source.title || 'Source'} · {Math.round(source.score * 100)}%</summary><p className="mt-1 text-xs text-neutral-500">Meaning {Math.round((source.semantic_score ?? source.score ?? 0) * 100)}% · Wording {Math.round((source.lexical_score ?? 0) * 100)}%</p><p className="mt-1 text-xs text-neutral-500">{source.excerpt}</p></details>)}</div>}<div className="mt-6 flex items-center justify-between border-t border-neutral-100 pt-4 dark:border-neutral-800"><button type="button" onClick={() => setActiveStep(3)} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700">Back</button><button type="button" disabled={!testResult || testResult.decision !== 'answer'} onClick={() => setActiveStep(5)} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Continue to publish <span aria-hidden="true">→</span></button></div></section>
                 )}
 
                 {guardedPublishing && activeStep === 5 && (
