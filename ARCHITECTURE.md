@@ -243,6 +243,8 @@ Real-time browser and mobile synchronization is powered by **Laravel Reverb** (d
 
 The Omni inbox treats realtime as an acceleration layer rather than its only delivery path. Its visible first page reconciles workspace-scoped conversation data every 30 seconds with Echo available and every 4 seconds when realtime is not configured, subject to safe search, scroll, and in-flight request guards.
 
+Live website visitors use the same private workspace channel. A `LiveVisitorUpdated` event is emitted only when a visitor enters the 30-second online window or changes page context; browser and mobile clients then reconcile from their authenticated inbox APIs. The database timestamp remains authoritative and polling remains the offline/removal fallback.
+
 ```mermaid
 sequenceDiagram
     autonumber

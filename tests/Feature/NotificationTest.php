@@ -132,6 +132,69 @@ class NotificationTest extends TestCase
             ->assertJsonPath('data.0.workspace_id', $second->id);
     }
 
+    public function test_mobile_notification_api_enriches_legacy_conversation_notifications_with_uuid(): void
+    {
+        ['user' => $user, 'first' => $workspace] = $this->userWithTwoWorkspaces();
+        $contact = Contact::factory()->create(['workspace_id' => $workspace->id]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+        ]);
+        $user->notifications()->create([
+            'id' => (string) Str::uuid(),
+            'type' => NewMessageNotification::class,
+            'workspace_id' => $workspace->id,
+            'data' => ['conversation_id' => $conversation->id],
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.data.conversation_uuid', $conversation->uuid);
+    }
+
+    public function test_legacy_notification_uuid_fallback_is_workspace_scoped(): void
+    {
+        ['user' => $user, 'first' => $first, 'second' => $second] = $this->userWithTwoWorkspaces();
+        $contact = Contact::factory()->create(['workspace_id' => $second->id]);
+        $conversation = Conversation::create([
+            'workspace_id' => $second->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+        ]);
+        $user->notifications()->create([
+            'id' => (string) Str::uuid(),
+            'type' => NewMessageNotification::class,
+            'workspace_id' => $first->id,
+            'data' => ['conversation_id' => $conversation->id],
+        ]);
+        Sanctum::actingAs($user);
+
+        $data = $this->getJson('/api/v1/notifications')->assertOk()->json('data.0.data');
+
+        $this->assertArrayNotHasKey('conversation_uuid', $data);
+    }
+
+    public function test_notification_serialization_preserves_existing_conversation_uuid(): void
+    {
+        ['user' => $user, 'first' => $workspace] = $this->userWithTwoWorkspaces();
+        $user->notifications()->create([
+            'id' => (string) Str::uuid(),
+            'type' => NewMessageNotification::class,
+            'workspace_id' => $workspace->id,
+            'data' => [
+                'conversation_id' => 999999,
+                'conversation_uuid' => 'existing-uuid',
+            ],
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.data.conversation_uuid', 'existing-uuid');
+    }
+
     public function test_database_channel_uses_source_workspace_instead_of_users_active_workspace(): void
     {
         ['user' => $user, 'first' => $first, 'second' => $second] = $this->userWithTwoWorkspaces();
@@ -155,6 +218,7 @@ class NotificationTest extends TestCase
         $stored = $user->notifications()->sole();
         $this->assertSame($second->id, (int) $stored->workspace_id);
         $this->assertSame($second->id, (int) $stored->data['workspace_id']);
+        $this->assertSame($conversation->uuid, $stored->data['conversation_uuid']);
         $this->assertNotSame($first->id, (int) $stored->workspace_id);
     }
 

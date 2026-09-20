@@ -2,8 +2,10 @@
 
 namespace App\Modules\Inbox\Services;
 
+use App\Events\LiveVisitorUpdated;
 use App\Events\WidgetCommand;
 use App\Modules\Shared\Models\Conversation;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -35,10 +37,13 @@ class WebchatPresence
             return;
         }
 
-        $conversation->forceFill(['webchat_last_seen_at' => now()])->save();
+        $now = now();
+        $wasOnline = $conversation->webchat_last_seen_at?->gte($now->copy()->subSeconds(self::ONLINE_SECONDS)) ?? false;
+        $conversation->forceFill(['webchat_last_seen_at' => $now])->save();
 
         $conversation->loadMissing('contact');
         $contact = $conversation->contact;
+        $pageContextChanged = false;
         if ($contact) {
             $customFields = $contact->custom_fields ?? [];
             if ($ipAddress) {
@@ -60,9 +65,11 @@ class WebchatPresence
             }
 
             if ($pageUrl) {
+                $pageContextChanged = $pageContextChanged || ($customFields['webchat_page_url'] ?? null) !== $pageUrl;
                 $customFields['webchat_page_url'] = $pageUrl;
             }
             if ($pageTitle) {
+                $pageContextChanged = $pageContextChanged || ($customFields['webchat_page_title'] ?? null) !== $pageTitle;
                 $customFields['webchat_page_title'] = $pageTitle;
             }
 
@@ -70,6 +77,15 @@ class WebchatPresence
                 'last_seen_at' => now(),
                 'custom_fields' => $customFields,
             ]);
+        }
+
+        if (! $wasOnline || $pageContextChanged) {
+            broadcast(new LiveVisitorUpdated(
+                (int) $conversation->workspace_id,
+                (int) $conversation->id,
+                (string) $conversation->uuid,
+                $now->toIso8601String(),
+            ));
         }
     }
 
@@ -100,7 +116,7 @@ class WebchatPresence
         return is_array($command) ? $command : null;
     }
 
-    public function onlineSince(): \Illuminate\Support\Carbon
+    public function onlineSince(): Carbon
     {
         return now()->subSeconds(self::ONLINE_SECONDS);
     }

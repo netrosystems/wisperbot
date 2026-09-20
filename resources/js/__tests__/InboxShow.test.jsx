@@ -233,4 +233,34 @@ describe('Mobile chat reply layout', () => {
             preserveState: true,
         });
     });
+
+    it('reconciles live visitors when Pusher reports a presence change', () => {
+        const listeners = {};
+        const channel = {
+            listen: vi.fn((event, callback) => {
+                listeners[event] = callback;
+                return channel;
+            }),
+            notification: vi.fn(() => channel),
+        };
+        window.Echo = {
+            private: vi.fn(() => channel),
+            leave: vi.fn(),
+        };
+
+        render(<InboxIndex conversations={{ data: [], total: 0 }} filters={{ folder: 'live' }} />);
+
+        act(() => listeners['.LiveVisitorUpdated']({
+            conversation_id: 9,
+            conversation_uuid: 'live-9',
+            online: true,
+        }));
+
+        expect(router.reload).toHaveBeenCalledWith({
+            only: ['conversations', 'liveUsersCount'],
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: expect.any(Function),
+        });
+    });
 });
