@@ -5,6 +5,7 @@ import { Image, Upload, Trash2, Copy, Check } from 'lucide-react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 function formatBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -96,7 +97,7 @@ export default function MediaIndex({ files, usedBytes, quotaBytes }) {
     };
 
     const handleDelete = async (id) => {
-        if (!confirm(t('media.delete_confirm'))) return;
+        if (!(await confirmDialog({ message: t('media.delete_confirm') }))) return;
         try {
             await axios.delete(route('client.media.destroy', id));
             router.reload();

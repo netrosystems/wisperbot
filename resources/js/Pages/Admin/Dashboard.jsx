@@ -155,16 +155,17 @@ export default function AdminDashboard({ range = 30, stats = {}, charts = {}, ta
                     <RangeFilter value={range} routeName="admin.dashboard" />
                 </div>
 
-                {/* KPI tiles */}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                    {tiles.map((tile) => (
-                        <StatTile key={tile.label} {...tile} />
-                    ))}
+                {/* Priority KPIs first; supporting health remains one scan below. */}
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {tiles.slice(0, 4).map((tile) => <StatTile key={tile.label} {...tile} />)}
+                </div>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    {tiles.slice(4).map((tile) => <StatTile key={tile.label} {...tile} compact />)}
                 </div>
 
                 {/* Revenue + growth trends */}
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <WidgetCard title={t('admin.mrr_trend') || 'MRR trend (12 months)'}>
+                <div className="grid gap-4 lg:grid-cols-3">
+                    <WidgetCard title={t('admin.mrr_trend') || 'MRR trend (12 months)'} className="lg:col-span-2">
                         <LineChart data={charts.mrr_trend ?? []} xKey="month" yKeys={['mrr']} labels={{ mrr: t('admin.mrr_label') }} height={220} />
                     </WidgetCard>
                     <WidgetCard title={t('admin.revenue_by_day') || 'Revenue'} subtitle={t('admin.last_n_days', { n: range }) || `Last ${range} days`}>

@@ -125,6 +125,29 @@ class AiModuleTest extends TestCase
     }
 
     #[Test]
+    public function website_input_preserves_the_customer_value_and_queues_a_normalised_https_source(): void
+    {
+        Queue::fake();
+        [$user] = $this->createUserWithWorkspace();
+        $this->actingAs($user)->post('/app/ai/knowledge-bases', ['name' => 'Website KB']);
+        $kb = AiKnowledgeBase::where('name', 'Website KB')->firstOrFail();
+
+        $this->actingAs($user)->post("/app/ai/knowledge-bases/{$kb->uuid}/documents", [
+            'source_type' => 'sitemap',
+            'source_ref' => '  www.example.com  ',
+            'title' => 'Website',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('ai_kb_documents', [
+            'kb_id' => $kb->id,
+            'source_ref' => 'https://www.example.com',
+            'original_source_ref' => 'www.example.com',
+            'canonical_url' => null,
+        ]);
+        Queue::assertPushed(IndexDocumentJob::class);
+    }
+
+    #[Test]
     public function creating_chatbot_stores_in_database(): void
     {
         [$user] = $this->createUserWithWorkspace();

@@ -112,6 +112,10 @@ export default function useClientNav() {
         { label: t('nav.social_media_automation', { defaultValue: 'Social Media Automation' }), href: safeRoute('client.social.automation.index'), icon: <Share2 className={iconClass} />, activePattern: 'client.social.*' },
     ];
 
+    const automationItems = [
+        { label: t('nav.automations', { defaultValue: 'Automations' }), href: safeRoute('client.automations.index'), icon: <Zap className={iconClass} />, activePattern: 'client.automations.*' },
+    ];
+
     const ecommerceItems = [
         { label: t('nav.orders'),   href: safeRoute('client.ecommerce.orders.index'),   icon: <Package className={iconClass} />,     activePattern: 'client.ecommerce.orders.*' },
         { label: t('nav.products'), href: safeRoute('client.ecommerce.products.index'), icon: <Tag className={iconClass} />,         activePattern: 'client.ecommerce.products.*' },
@@ -121,29 +125,25 @@ export default function useClientNav() {
     const reportsItems = [
         { label: t('nav.inbox_agents'),        href: safeRoute('client.reports.inbox.index'),       icon: <Inbox className={iconClass} />,  activePattern: 'client.reports.inbox.*' },
         { label: t('nav.campaigns'),           href: safeRoute('client.reports.campaigns.index'),   icon: <Radio className={iconClass} />,  activePattern: 'client.reports.campaigns.*' },
-        { label: t('nav.automations'),         href: safeRoute('client.reports.automations.index'), icon: <Zap className={iconClass} />,    activePattern: 'client.reports.automations.*' },
+        { label: t('nav.automation_report', { defaultValue: 'Automation report' }), href: safeRoute('client.reports.automations.index'), icon: <Zap className={iconClass} />, activePattern: 'client.reports.automations.*' },
         { label: t('nav.ai_usage'),            href: safeRoute('client.reports.ai.index'),          icon: <Bot className={iconClass} />,    activePattern: 'client.reports.ai.*' },
-        { label: t('nav.social'),              href: safeRoute('client.reports.social.index'),      icon: <Share2 className={iconClass} />, activePattern: 'client.reports.social.*' },
+        { label: t('nav.social_report', { defaultValue: 'Social report' }), href: safeRoute('client.reports.social.index'), icon: <Share2 className={iconClass} />, activePattern: 'client.reports.social.*' },
     ];
 
-    // Group order: daily operations first, then growth tools, periodic review, then account-adjacent config (usage-frequency–based).
+    // Core work comes first so a new client can reach conversations, channel
+    // setup, business knowledge, and automation without scanning configuration.
+    // Every pre-redesign destination remains present; only its grouping changes.
     return [
-        { type: 'group', label: t('nav.group_landing'),       items: landingItems },
-        { type: 'group', label: t('nav.group_inbox'),         items: inboxItems },
-        { type: 'group', label: t('nav.group_chatbot_widget', { defaultValue: 'Chatbot Widget' }), items: chatbotSetupItems },
-        { type: 'group', label: t('nav.group_social_media'),  items: socialItems },
-        { type: 'group', label: t('nav.group_wa_messaging'),  items: waMessagingItems },
-        { type: 'group', label: t('nav.group_contacts'),      items: contactsItems },
-        { type: 'group', label: t('nav.group_broadcasting'),  items: broadcastItems },
-        { type: 'group', label: t('nav.group_ecommerce'),     items: ecommerceItems },
-        { type: 'group', label: t('nav.group_ai_automations'), items: aiItems },
-        { type: 'group', label: t('nav.group_reports'),       items: reportsItems },
-        { type: 'group', label: t('nav.group_assets'),        items: assetItems },
-        { type: 'group', label: t('nav.group_support'),       items: supportItems },
-        { type: 'group', label: t('nav.group_billing'),       items: billingItems },
+        { type: 'group', key: 'home', label: t('nav.group_landing'), items: landingItems },
+        { type: 'group', key: 'conversations', label: t('nav.group_inbox'), items: inboxItems },
+        { type: 'group', key: 'smart-ai', label: t('nav.group_ai_automations'), items: [...aiItems, ...chatbotSetupItems] },
+        { type: 'group', key: 'customers', label: t('nav.group_contacts'), items: [...contactsItems, ...broadcastItems, ...waMessagingItems] },
+        { type: 'group', key: 'automation-social', label: t('nav.group_social_media'), items: [...automationItems, ...socialItems] },
+        { type: 'group', key: 'commerce', label: t('nav.group_ecommerce'), items: ecommerceItems },
+        { type: 'group', key: 'reports-assets', label: t('nav.group_reports'), items: [...reportsItems, ...assetItems] },
+        { type: 'group', key: 'workspace', label: t('nav.group_account'), items: [...accountSettingsItems, ...billingItems, ...supportItems] },
         ...(entitlements?.developer_tools
-            ? [{ type: 'group', label: t('nav.group_developer'), items: developerItems }]
+            ? [{ type: 'group', key: 'developer', label: t('nav.group_developer'), items: developerItems }]
             : []),
-        { type: 'group', label: t('nav.group_account'),       items: accountSettingsItems },
     ];
 }

@@ -38,7 +38,7 @@ export default function Input({
                     id={inputId}
                     type={effectiveType}
                     className={[
-                        'w-full rounded-soft border bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 shadow-inner transition duration-150 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2',
+                        'min-h-10 w-full rounded-soft border bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 shadow-inner transition duration-150 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2',
                         // border-soft's color utility outranks border-red-500 in the
                         // compiled CSS, so it must be omitted entirely on error.
                         error

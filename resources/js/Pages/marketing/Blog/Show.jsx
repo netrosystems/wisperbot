@@ -1,75 +1,250 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from '@inertiajs/react';
-import { ArrowLeft, BookOpen, Calendar, Check, Clock, ListTree, Share2 } from 'lucide-react';
-import LandingLayout from '@/Layouts/LandingLayout';
-import SeoHead from '@/Components/SeoHead';
+import { Link } from '@inertiajs/react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, ArrowUpRight, BookOpen, ListTree, Share2 } from 'lucide-react'
+import LandingLayout from '@/Layouts/LandingLayout'
+import SeoHead from '@/Components/SeoHead'
+import { useMarketing, SectionHeading } from '@/Components/marketing/MarketingUI'
+const formatDate = (date) =>
+    date ? new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(new Date(date)) : ''
+const wasUpdated = (post) =>
+    post.updated_at_iso &&
+    post.published_at_iso &&
+    new Date(post.updated_at_iso) - new Date(post.published_at_iso) > 86_400_000
 
-const formatDate = (date) => date ? new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(new Date(date)) : '';
-const wasUpdated = (post) => post.updated_at_iso && post.published_at_iso && (new Date(post.updated_at_iso) - new Date(post.published_at_iso)) > 86_400_000;
-
-function TableOfContents({ outline, compact = false }) {
-    if (!outline?.length) return null;
-    const links = <nav aria-label="Article contents"><ol className="space-y-2.5">{outline.map((item) => <li key={`${item.id}-${item.level}`} className={item.level === 3 ? 'pl-3' : ''}><a href={`#${item.id}`} className="block text-sm leading-5 text-neutral-500 transition hover:text-brand-600 dark:text-neutral-400">{item.text}</a></li>)}</ol></nav>;
-    if (compact) return <details className="mb-10 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 lg:hidden dark:border-neutral-800 dark:bg-neutral-900"><summary className="flex cursor-pointer list-none items-center gap-2 font-semibold"><ListTree className="h-4 w-4 text-brand-500" /> In this article</summary><div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">{links}</div></details>;
-    return <aside className="sticky top-24 hidden self-start lg:block"><div className="mb-4 flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-white"><ListTree className="h-4 w-4 text-brand-500" /> In this article</div>{links}</aside>;
+function TableOfContents({ outline, label, compact = false }) {
+    if (!outline?.length) return null
+    const links = (
+        <nav aria-label={label}>
+            <ol className="space-y-2.5">
+                {outline.map((item) => (
+                    <li key={`${item.id}-${item.level}`} className={item.level === 3 ? 'pl-3' : ''}>
+                        <a
+                            href={`#${item.id}`}
+                            className="block text-sm leading-5 text-neutral-500 transition hover:text-brand-600 dark:text-neutral-400"
+                        >
+                            {item.text}
+                        </a>
+                    </li>
+                ))}
+            </ol>
+        </nav>
+    )
+    if (compact)
+        return (
+            <details className="m-blog-toc-compact">
+                <summary>
+                    <ListTree size={16} /> {label}
+                </summary>
+                <div>{links}</div>
+            </details>
+        )
+    return (
+        <aside className="m-blog-toc">
+            <div className="m-blog-toc-title">
+                <ListTree size={16} /> {label}
+            </div>
+            {links}
+        </aside>
+    )
 }
-
 export default function BlogShow({ post, related, preview = false }) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const articleRef = useRef(null);
-    const [progress, setProgress] = useState(0);
-    const [copied, setCopied] = useState(false);
-    const articleSchema = {
-        '@context': 'https://schema.org', '@type': post.schema_type || 'BlogPosting', headline: post.title,
-        description: post.seo_description, image: post.og_image_url || post.featured_image_url || undefined,
-        datePublished: post.published_at_iso, dateModified: post.updated_at_iso,
-        author: post.author ? { '@type': 'Person', name: post.author.name } : { '@type': 'Organization', name: 'WisperBot' },
-        publisher: { '@type': 'Organization', name: 'WisperBot', logo: { '@type': 'ImageObject', url: `${origin}/wisperbot-icon-512.png` } },
-        mainEntityOfPage: post.url,
-    };
-    const jsonLd = [articleSchema, {
-        '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'Blog', item: `${origin}/blog` },
-            { '@type': 'ListItem', position: 2, name: post.title, item: post.url },
-        ],
-    }];
-    if (post.faqs?.length) jsonLd.push({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: post.faqs.map((faq) => ({ '@type': 'Question', name: faq.question, acceptedAnswer: { '@type': 'Answer', text: faq.answer } })) });
-
+    const { text: t } = useMarketing()
+    const [shareStatus, setShareStatus] = useState('')
+    const [progress, setProgress] = useState(0)
+    const articleRef = useRef(null)
     useEffect(() => {
         const updateProgress = () => {
-            const article = articleRef.current;
-            if (!article) return;
-            const rect = article.getBoundingClientRect();
-            const readable = Math.max(article.offsetHeight - window.innerHeight, 1);
-            setProgress(Math.min(100, Math.max(0, (-rect.top / readable) * 100)));
-        };
-        updateProgress();
-        window.addEventListener('scroll', updateProgress, { passive: true });
-        window.addEventListener('resize', updateProgress);
-        return () => { window.removeEventListener('scroll', updateProgress); window.removeEventListener('resize', updateProgress); };
-    }, []);
-
+            const article = articleRef.current
+            if (!article) return
+            const rect = article.getBoundingClientRect()
+            const readable = Math.max(article.offsetHeight - window.innerHeight, 1)
+            setProgress(Math.min(100, Math.max(0, (-rect.top / readable) * 100)))
+        }
+        updateProgress()
+        window.addEventListener('scroll', updateProgress, { passive: true })
+        window.addEventListener('resize', updateProgress)
+        return () => {
+            window.removeEventListener('scroll', updateProgress)
+            window.removeEventListener('resize', updateProgress)
+        }
+    }, [])
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
     const share = async () => {
-        if (navigator.share) await navigator.share({ title: post.title, url: post.url });
-        else { await navigator.clipboard.writeText(post.url); setCopied(true); window.setTimeout(() => setCopied(false), 2000); }
-    };
-
+        try {
+            if (navigator.share) await navigator.share({ title: post.title, url: post.url })
+            else {
+                await navigator.clipboard.writeText(post.url)
+                setShareStatus(t('blog.copied', 'Link copied'))
+            }
+        } catch (error) {
+            if (error.name !== 'AbortError')
+                setShareStatus(t('blog.copy_failed', 'Use the address bar to copy this article link.'))
+        }
+    }
+    const articleSchema = {
+        '@context': 'https://schema.org',
+        '@type': post.schema_type || 'BlogPosting',
+        headline: post.title,
+        description: post.seo_description,
+        image: post.og_image_url || post.featured_image_url || undefined,
+        datePublished: post.published_at_iso,
+        dateModified: post.updated_at_iso,
+        author:
+            post.show_author && post.author
+                ? { '@type': 'Person', name: post.author.name }
+                : { '@type': 'Organization', name: 'WisperBot' },
+        publisher: {
+            '@type': 'Organization',
+            name: 'WisperBot',
+            logo: { '@type': 'ImageObject', url: origin + '/wisperbot-icon-512.png' },
+        },
+        mainEntityOfPage: post.url,
+    }
+    const jsonLd = [
+        articleSchema,
+        {
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+                { '@type': 'ListItem', position: 1, name: 'Blog', item: origin + '/blog' },
+                { '@type': 'ListItem', position: 2, name: post.title, item: post.url },
+            ],
+        },
+    ]
+    if (post.faqs?.length)
+        jsonLd.push({
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: post.faqs.map((faq) => ({
+                '@type': 'Question',
+                name: faq.question,
+                acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+            })),
+        })
+    const tocLabel = t('blog.contents', 'In this article')
     return (
         <LandingLayout>
-            <SeoHead title={post.seo_title} description={post.seo_description} keywords={post.meta_keywords} image={post.og_image_url || post.featured_image_url} canonical={post.canonical} jsonLd={jsonLd} type="article" noindex={preview || !post.allow_indexing} article={{ publishedTime: post.published_at_iso, modifiedTime: post.updated_at_iso, author: post.author?.name, section: post.category?.name }} />
-            <div className="fixed inset-x-0 top-0 z-[60] h-1 bg-transparent" aria-hidden="true"><div className="h-full bg-brand-500 transition-[width] duration-150" style={{ width: `${progress}%` }} /></div>
-            {preview && <div className="bg-amber-400 px-4 py-2 text-center text-sm font-semibold text-amber-950">Preview mode — this article is not necessarily public.</div>}
+            <SeoHead
+                title={post.seo_title}
+                description={post.seo_description}
+                keywords={post.meta_keywords}
+                image={post.og_image_url || post.featured_image_url}
+                canonical={post.canonical}
+                jsonLd={jsonLd}
+                type="article"
+                noindex={preview || !post.allow_indexing}
+                article={{
+                    publishedTime: post.published_at_iso,
+                    modifiedTime: post.updated_at_iso,
+                    author: post.show_author ? post.author?.name : undefined,
+                    section: post.category?.name,
+                }}
+            />
+            <div className="fixed inset-x-0 top-0 z-[60] h-1 bg-transparent" aria-hidden="true">
+                <div
+                    className="h-full bg-brand-500 transition-[width] duration-150"
+                    style={{ width: `${progress}%` }}
+                />
+            </div>
+            {preview && (
+                <div className="m-announcement">{t('blog.preview', 'Preview — this article may not be public.')}</div>
+            )}
             <article ref={articleRef}>
-                <header className="border-b border-neutral-200 bg-gradient-to-b from-orange-50 to-white py-16 dark:border-neutral-800 dark:from-orange-950/30 dark:to-neutral-950">
-                    <div className="mx-auto max-w-4xl px-4 sm:px-6"><Link href={route('blog.index')} className="inline-flex items-center gap-2 text-sm font-medium text-neutral-500 hover:text-brand-600"><ArrowLeft className="h-4 w-4" /> Back to the blog</Link>{post.category && <Link href={route('blog.index', { category: post.category.slug })} className="mt-8 block text-sm font-bold uppercase tracking-widest text-brand-600">{post.category.name}</Link>}<h1 className="mt-4 text-4xl font-black leading-tight tracking-tight text-neutral-950 sm:text-6xl dark:text-white">{post.title}</h1><p className="mt-6 text-xl leading-8 text-neutral-600 dark:text-neutral-300">{post.excerpt}</p><div className="mt-8 flex flex-wrap items-center gap-5 text-sm text-neutral-500"><span className="inline-flex items-center gap-2"><Calendar className="h-4 w-4" />{formatDate(post.published_at)}</span>{wasUpdated(post) && <span>Updated {formatDate(post.updated_at_iso)}</span>}<span className="inline-flex items-center gap-2"><Clock className="h-4 w-4" />{post.reading_minutes} min read</span>{post.show_author && post.author && <span>By {post.author.name}</span>}<button onClick={share} className="ml-auto inline-flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 hover:bg-white dark:border-neutral-700" aria-label="Share this article">{copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />} {copied ? 'Link copied' : 'Share'}</button></div></div>
+                <header className="m-page-hero m-container">
+                    <div className="m-breadcrumb">
+                        <Link href="/blog" className="m-text-link">
+                            <ArrowLeft size={13} />
+                            {t('blog.back', 'Back to the journal')}
+                        </Link>
+                    </div>
+                    {post.category && (
+                        <Link className="m-eyebrow" href={route('blog.index', { category: post.category.slug })}>
+                            {post.category.name}
+                        </Link>
+                    )}
+                    <h1>{post.title}</h1>
+                    <p>{post.excerpt}</p>
+                    <div className="m-article-meta">
+                        <span>{formatDate(post.published_at)}</span>
+                        {wasUpdated(post) && (
+                            <span>
+                                {t('blog.updated', 'Updated')} {formatDate(post.updated_at_iso)}
+                            </span>
+                        )}
+                        <span>
+                            {post.reading_minutes} {t('blog.minutes', 'min read')}
+                        </span>
+                        {post.show_author && post.author && (
+                            <span>
+                                {t('blog.by', 'By')} {post.author.name}
+                            </span>
+                        )}
+                        <button onClick={share}>
+                            <Share2 size={14} />
+                            {t('blog.share', 'Share')}
+                        </button>
+                        <span role="status">{shareStatus}</span>
+                    </div>
                 </header>
-                {post.featured_image_url && <div className="mx-auto -mb-4 mt-12 max-w-5xl px-4 sm:px-6"><img src={post.featured_image_url} alt={post.featured_image_alt || post.title} className="aspect-[16/8] w-full rounded-3xl object-cover shadow-xl" /></div>}
-                <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-                    <TableOfContents outline={post.outline} />
-                    <div className="min-w-0 max-w-3xl"><TableOfContents outline={post.outline} compact /><div className="cms-prose blog-prose max-w-none" dangerouslySetInnerHTML={{ __html: post.content }} />{post.tags?.length > 0 && <div className="mt-12 flex flex-wrap gap-2 border-t border-neutral-200 pt-8 dark:border-neutral-800">{post.tags.map((tag) => <Link key={tag.id} href={route('blog.index', { tag: tag.slug })} className="rounded-full bg-neutral-100 px-3 py-1.5 text-sm text-neutral-600 hover:bg-brand-50 hover:text-brand-700 dark:bg-neutral-900 dark:text-neutral-300">#{tag.name}</Link>)}</div>}</div>
+                {post.featured_image_url && (
+                    <div className="m-container m-article-image">
+                        <img src={post.featured_image_url} alt={post.featured_image_alt || post.title} />
+                    </div>
+                )}
+                <div className="m-section-sm m-container">
+                    <div className={post.outline?.length ? 'm-blog-layout' : undefined}>
+                        <TableOfContents outline={post.outline} label={tocLabel} />
+                        <div className="m-blog-reading">
+                            <TableOfContents outline={post.outline} label={tocLabel} compact />
+                            <div className="cms-prose blog-prose" dangerouslySetInnerHTML={{ __html: post.content }} />
+                            {post.tags?.length > 0 && (
+                                <div className="m-blog-categories">
+                                    {post.tags.map((tag) => (
+                                        <Link key={tag.id} href={route('blog.index', { tag: tag.slug })}>
+                                            #{tag.name}
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </article>
-            {related?.length > 0 && <section className="border-t border-neutral-200 bg-neutral-50 py-16 dark:border-neutral-800 dark:bg-neutral-900/50"><div className="mx-auto max-w-6xl px-4 sm:px-6"><h2 className="text-2xl font-bold">Continue reading</h2><div className="mt-7 grid gap-6 md:grid-cols-3">{related.map((item) => <Link key={item.id} href={route('blog.show', item.slug)} className="group rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900"><BookOpen className="h-6 w-6 text-brand-500" /><h3 className="mt-5 font-bold leading-snug group-hover:text-brand-600">{item.title}</h3><p className="mt-2 line-clamp-2 text-sm text-neutral-500">{item.excerpt}</p></Link>)}</div></div></section>}
+            {related?.length > 0 && (
+                <section className="m-section m-soft">
+                    <div className="m-container">
+                        <SectionHeading
+                            eyebrow={t('blog.keep_reading', 'Keep exploring')}
+                            title={t('blog.more', 'More food for thought.')}
+                        />
+                        <div className="m-guide-grid">
+                            {related.map((item) => (
+                                <Link className="m-guide-card" key={item.id} href={'/blog/' + item.slug}>
+                                    <div className="m-guide-art">
+                                        {item.featured_image_url ? (
+                                            <img
+                                                src={item.featured_image_url}
+                                                alt={item.featured_image_alt || item.title}
+                                                loading="lazy"
+                                            />
+                                        ) : (
+                                            <BookOpen />
+                                        )}
+                                    </div>
+                                    <div className="m-guide-copy">
+                                        <h3>{item.title}</h3>
+                                        <p>{item.excerpt}</p>
+                                        <span className="m-text-link">
+                                            {t('blog.read', 'Read article')}
+                                            <ArrowUpRight size={14} />
+                                        </span>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
         </LandingLayout>
-    );
+    )
 }

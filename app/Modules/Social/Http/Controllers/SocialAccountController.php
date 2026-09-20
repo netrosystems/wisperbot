@@ -3,6 +3,7 @@
 namespace App\Modules\Social\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Integrations\Services\CredentialResolver;
 use App\Modules\Integrations\Services\MetaPageDiscoveryService;
 use App\Modules\Social\Jobs\SyncSocialComments;
 use App\Modules\Social\Models\SocialAccount;
@@ -46,7 +47,10 @@ class SocialAccountController extends Controller
         $wid = $this->workspaceId($request);
         $accounts = SocialAccount::where('workspace_id', $wid)->get();
 
-        return Inertia::render('Social/Accounts/Index', ['accounts' => $accounts]);
+        return Inertia::render('Social/Accounts/Index', [
+            'accounts' => $accounts,
+            'linkedinPagesEnabled' => (bool) CredentialResolver::system()->oauth('linkedin')?->allowsOrganizationPosting(),
+        ]);
     }
 
     public function connect(Request $request, string $network): RedirectResponse
@@ -57,12 +61,18 @@ class SocialAccountController extends Controller
         Session::put('social_oauth_workspace', $this->workspaceId($request));
 
         $callbackUrl = $this->callbackUrl($network);
+        // LinkedIn Company Pages authorize through a second LinkedIn app, because
+        // LinkedIn refuses to put Community Management on an app that also signs
+        // members in.
+        $variant = $network === 'linkedin' && $request->query('target') === 'pages' ? 'pages' : null;
 
         try {
-            $authUrl = $this->oauth->getAuthUrl($network, $this->workspaceId($request), $callbackUrl);
+            $authUrl = $this->oauth->getAuthUrl($network, $this->workspaceId($request), $callbackUrl, ['variant' => $variant]);
         } catch (\RuntimeException $e) {
             return redirect()->route('client.social.automation.index')
-                ->with('error', "OAuth for {$network} is not configured. Please contact your administrator.");
+                ->with('error', $variant === 'pages'
+                    ? 'LinkedIn Company Page posting is not configured yet. Please contact your administrator.'
+                    : "OAuth for {$network} is not configured. Please contact your administrator.");
         }
 
         return redirect($authUrl);
@@ -97,8 +107,10 @@ class SocialAccountController extends Controller
             // below. Calling the Instagram Basic Display `/me` endpoint here
             // with a Facebook Login token can fail even when Page discovery is
             // valid, turning a good Instagram connection into a false error.
+            // A LinkedIn Company Page authorization carries no sign-in scopes, so
+            // there is no member profile to read.
             $driver = $this->drivers[$network] ?? null;
-            $accountInfo = in_array($network, ['facebook', 'instagram'], true)
+            $accountInfo = in_array($network, ['facebook', 'instagram'], true) || ($stored['variant'] ?? null) === 'pages'
                 ? ['account_id' => '', 'name' => '', 'picture_url' => null]
                 : ($driver
                     ? $driver->fetchAccountInfo($tokens['access_token'])
@@ -245,6 +257,34 @@ class SocialAccountController extends Controller
                 ->with('success', $connected.' '.ucfirst($network).' account(s) connected.');
         }
 
+        // LinkedIn can authorize a member plus the Company Pages they admin.
+        // Ask which of them to connect instead of silently posting as the person.
+        if ($network === 'linkedin' && ($stored['variant'] ?? null) === 'pages') {
+            try {
+                $organizations = $this->drivers['linkedin']->fetchOrganizations($tokens['access_token']);
+            } catch (\Throwable $e) {
+                Log::warning('LinkedIn organization lookup failed', [
+                    'workspace_id' => $wid,
+                    'error' => $e->getMessage(),
+                ]);
+                $organizations = [];
+            }
+
+            if ($organizations === []) {
+                return redirect()->route('client.social.automation.index')
+                    ->with('error', 'No LinkedIn Company Pages were found for this account. Connect with a LinkedIn profile that is an administrator of the Page.');
+            }
+
+            Session::put('linkedin_pending_connection', [
+                'workspace_id' => $wid,
+                'tokens' => $tokens,
+                'member' => null,
+                'organizations' => $organizations,
+            ]);
+
+            return redirect()->route('client.social.accounts.linkedin.select');
+        }
+
         if (empty($accountInfo['account_id'])) {
             return redirect()->route('client.social.automation.index')
                 ->with('error', ucfirst($network).' connected, but the provider did not return an account identity. Nothing was saved.');
@@ -272,6 +312,104 @@ class SocialAccountController extends Controller
         );
 
         return redirect()->route('client.social.automation.index')->with('success', ucfirst($network).' account connected.');
+    }
+
+    /**
+     * Choose which LinkedIn identities to connect: the member's own profile
+     * and/or the Company Pages they administer.
+     */
+    public function linkedinTargets(Request $request): Response|RedirectResponse
+    {
+        $pending = Session::get('linkedin_pending_connection');
+        if (! is_array($pending) || (int) ($pending['workspace_id'] ?? 0) !== $this->workspaceId($request)) {
+            return redirect()->route('client.social.automation.index')
+                ->with('error', 'That LinkedIn authorization expired. Please connect again.');
+        }
+
+        return Inertia::render('Social/Accounts/LinkedIn', [
+            'member' => is_array($pending['member'] ?? null) && ! empty($pending['member']['account_id'])
+                ? [
+                    'id' => $pending['member']['account_id'],
+                    'name' => $pending['member']['name'] ?? '',
+                    'picture_url' => $pending['member']['picture_url'] ?? null,
+                ]
+                : null,
+            'organizations' => $pending['organizations'] ?? [],
+        ]);
+    }
+
+    public function storeLinkedinTargets(Request $request): RedirectResponse
+    {
+        $pending = Session::get('linkedin_pending_connection');
+        if (! is_array($pending) || (int) ($pending['workspace_id'] ?? 0) !== $this->workspaceId($request)) {
+            return redirect()->route('client.social.automation.index')
+                ->with('error', 'That LinkedIn authorization expired. Please connect again.');
+        }
+
+        $validated = $request->validate([
+            'connect_member' => ['boolean'],
+            'organization_ids' => ['array'],
+            'organization_ids.*' => ['string', 'max:64'],
+        ]);
+
+        $wid = (int) $pending['workspace_id'];
+        $tokens = $pending['tokens'];
+        $member = $pending['member'];
+        // Only ids from this authorization may be stored, never ids posted back.
+        $organizations = collect($pending['organizations'] ?? [])
+            ->keyBy(fn (array $organization): string => (string) $organization['id'])
+            ->only($validated['organization_ids'] ?? []);
+
+        $targets = [];
+        if (($validated['connect_member'] ?? false) && is_array($member) && ! empty($member['account_id'])) {
+            $targets[] = [
+                'account_id' => (string) $member['account_id'],
+                'name' => (string) ($member['name'] ?? 'LinkedIn member'),
+                'picture_url' => $member['picture_url'] ?? null,
+                'meta' => ['actor_type' => 'member'],
+            ];
+        }
+        foreach ($organizations as $organization) {
+            $targets[] = [
+                'account_id' => (string) $organization['id'],
+                'name' => (string) $organization['name'],
+                'picture_url' => $organization['picture_url'] ?? null,
+                'meta' => [
+                    'actor_type' => 'organization',
+                    'organization_urn' => 'urn:li:organization:'.$organization['id'],
+                    'vanity_name' => $organization['vanity_name'] ?? null,
+                ],
+            ];
+        }
+
+        if ($targets === []) {
+            return back()->with('error', 'Select at least one LinkedIn profile or Company Page.');
+        }
+
+        foreach ($targets as $target) {
+            $identity = ['workspace_id' => $wid, 'network' => 'linkedin', 'account_id' => $target['account_id']];
+            $existing = SocialAccount::where($identity)->first();
+
+            SocialAccount::updateOrCreate($identity, [
+                'name' => $target['name'],
+                'picture_url' => $target['picture_url'],
+                // Company Pages are posted to with the member's own token; LinkedIn
+                // issues no separate page token.
+                'access_token' => $tokens['access_token'],
+                'refresh_token' => $tokens['refresh_token'] ?? $existing?->refresh_token,
+                'token_expires_at' => isset($tokens['expires_in']) ? now()->addSeconds((int) $tokens['expires_in']) : null,
+                'scopes' => isset($tokens['scope'])
+                    ? preg_split('/[ ,]+/', (string) $tokens['scope'], -1, PREG_SPLIT_NO_EMPTY)
+                    : $existing?->scopes,
+                'meta' => array_merge($existing?->meta ?? [], $target['meta']),
+                'active' => true,
+            ]);
+        }
+
+        Session::forget('linkedin_pending_connection');
+
+        return redirect()->route('client.social.automation.index')
+            ->with('success', count($targets).' LinkedIn account(s) connected.');
     }
 
     public function disconnect(Request $request, SocialAccount $account): RedirectResponse

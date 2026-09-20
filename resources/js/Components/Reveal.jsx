@@ -16,19 +16,14 @@ export function Reveal({ children, className = '', delay = 0, as: Tag = 'div', y
             setShown(true);
             return undefined;
         }
-        // Already in view on mount (e.g. above-the-fold hero). Reveal after a
-        // short timeout so the entrance transition plays. But when the tab is
-        // hidden (opened in the background), rAF is suspended and timers are
-        // heavily throttled, which would leave the hero stuck invisible — so in
-        // that case reveal synchronously (no one is watching the animation).
+        // Content already in view on mount must be visible synchronously. This
+        // also covers anchor navigation and background preview tabs, where
+        // browser timer throttling could otherwise leave an entire section at
+        // opacity zero until the user scrolls again.
         const rect = el.getBoundingClientRect();
         if (rect.top < window.innerHeight && rect.bottom > 0) {
-            if (typeof document !== 'undefined' && document.hidden) {
-                setShown(true);
-                return undefined;
-            }
-            const timer = setTimeout(() => setShown(true), 60);
-            return () => clearTimeout(timer);
+            setShown(true);
+            return undefined;
         }
         const io = new IntersectionObserver(
             ([entry]) => {

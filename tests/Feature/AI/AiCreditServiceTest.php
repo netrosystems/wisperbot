@@ -137,6 +137,29 @@ class AiCreditServiceTest extends TestCase
         $this->assertSame(1, $service->usage($workspace->id)['remaining']);
     }
 
+    public function test_zero_credit_internal_steps_do_not_use_the_per_minute_request_budget(): void
+    {
+        [, $workspace] = $this->subscribedWorkspace(100);
+        config()->set('ai_credits.free_managed_requests_per_minute', 2);
+        $service = app(AiCreditService::class);
+
+        for ($i = 0; $i < 5; $i++) {
+            $translation = $service->reserve($workspace->id, 'kb_search_translation', 'translate-'.$i);
+            $service->succeed($translation->ledger, $this->response(), 'openai');
+        }
+        foreach (['first', 'second'] as $key) {
+            $reply = $service->reserve($workspace->id, 'chatbot_reply', $key);
+            $service->succeed($reply->ledger, $this->response(), 'openai');
+        }
+
+        try {
+            $service->reserve($workspace->id, 'chatbot_reply', 'third');
+            $this->fail('Expected the per-minute limit for paid actions.');
+        } catch (AiCreditsException $e) {
+            $this->assertSame('ai_rate_limited', $e->errorCode);
+        }
+    }
+
     public function test_failed_and_stale_actions_refund_reserved_credits(): void
     {
         [, $workspace] = $this->subscribedWorkspace(5);

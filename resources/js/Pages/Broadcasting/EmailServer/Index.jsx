@@ -5,6 +5,7 @@ import { Eye, EyeOff, Mail, Send, Trash2, CheckCircle, AlertCircle, BookOpen, Ch
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const SMTP_GUIDES = [
     {
         label: 'Gmail / Google Workspace',
@@ -168,8 +169,8 @@ export default function EmailServerIndex({ config }) {
         }
     };
 
-    const handleDelete = () => {
-        if (!confirm(t('email_server.remove_confirm'))) return;
+    const handleDelete = async () => {
+        if (!(await confirmDialog({ message: t('email_server.remove_confirm'), confirmLabel: t('common.remove') }))) return;
         router.delete(route('client.email-server.destroy'), { preserveScroll: true });
     };
 

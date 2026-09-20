@@ -35,7 +35,7 @@ php artisan migrate
 composer dev
 ```
 
-`composer dev` runs the Laravel server, a queue listener, Laravel Pail, and Vite together. Configure a local database and non-production integration credentials before testing integration flows. Never commit `.env` or credentials.
+`composer dev` runs the Laravel server, a queue listener for every application queue (website-chat AI replies need the `ai` queue), Laravel Pail, and Vite together. Configure a local database and non-production integration credentials before testing integration flows. Never commit `.env` or credentials.
 
 ## Verification
 

@@ -56,6 +56,8 @@ class ChatbotRunnerTest extends TestCase
                 ]],
             ],
             'status' => 'indexed',
+            'review_status' => 'approved',
+            'publication_status' => 'published',
         ]);
         $chunk = AiKbChunk::create([
             'kb_id' => $kb->id,
@@ -64,6 +66,8 @@ class ChatbotRunnerTest extends TestCase
             'content' => 'Our refund policy is 30 days. Watch https://youtu.be/dQw4w9WgXcQ for the walkthrough.',
             'tokens' => 8,
             'embedding' => null,
+            'index_generation' => 'legacy',
+            'embedding_status' => 'ready',
         ]);
 
         // Manually store a small embedding that matches anything
@@ -110,6 +114,7 @@ class ChatbotRunnerTest extends TestCase
                         'reply' => 'Our refund policy is 30 days.',
                         'quick_replies' => [],
                         'grounded' => true,
+                        'show_video' => true,
                     ])]]],
                     'usage' => ['prompt_tokens' => 50, 'completion_tokens' => 20],
                     'model' => 'gpt-4o-mini',
@@ -140,11 +145,11 @@ class ChatbotRunnerTest extends TestCase
         // Assert that context chunks were included in the system prompt sent to OpenAI
         $this->assertNotNull($capturedSystemPrompt, 'System prompt should have been captured');
         $this->assertStringContainsString('refund policy is 30 days', $capturedSystemPrompt);
-        $this->assertStringContainsString('at most 60 words', $capturedSystemPrompt);
+        $this->assertStringContainsString('at most 4 short sentences and 70 words', $capturedSystemPrompt);
         $this->assertStringContainsString('Reply in the customer\'s language', $capturedSystemPrompt);
         $this->assertStringContainsString('Never substitute general knowledge for business facts', $capturedSystemPrompt);
         $this->assertStringContainsString('Markdown link', $capturedSystemPrompt);
-        $this->assertSame(160, $capturedMaxTokens);
+        $this->assertSame(320, $capturedMaxTokens);
     }
 
     public function test_knowledge_only_bot_bypasses_an_unrelated_question_without_calling_chat(): void
@@ -251,6 +256,8 @@ class ChatbotRunnerTest extends TestCase
             'source_type' => 'file',
             'source_ref' => 'returns.md',
             'status' => 'indexed',
+            'review_status' => 'approved',
+            'publication_status' => 'published',
         ]);
         $chunk = AiKbChunk::create([
             'kb_id' => $kb->id,
@@ -258,6 +265,8 @@ class ChatbotRunnerTest extends TestCase
             'ord' => 0,
             'content' => 'Customers may return unopened products within 30 days of delivery.',
             'tokens' => 10,
+            'index_generation' => 'legacy',
+            'embedding_status' => 'ready',
         ]);
         app(EmbeddingStore::class)->storeEmbedding($chunk, [1.0, 0.0, 0.0]);
 

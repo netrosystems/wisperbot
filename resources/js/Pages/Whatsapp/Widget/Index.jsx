@@ -6,14 +6,15 @@ import { ChannelBrandIcon } from '@/Components/BrandIcons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 export default function WhatsappWidgetIndex({ widgets }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
     const [copied, setCopied] = useState(null);
 
-    const handleDelete = (id) => {
-        if (confirm(t('whatsapp.widget_delete_confirm'))) {
+    const handleDelete = async (id) => {
+        if ((await confirmDialog({ message: t('whatsapp.widget_delete_confirm') }))) {
             router.delete(route('client.whatsapp.widgets.destroy', id), { preserveScroll: true });
         }
     };

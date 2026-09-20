@@ -9,10 +9,20 @@ use App\Models\Permission;
 use App\Models\Plan;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AddonEntitlementService;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Tests never call the external license server. License behaviour is
+        // covered explicitly by tests/Feature/License, which re-enables it.
+        config()->set('license.verify', false);
+    }
+
     /**
      * Create an AdminUser with the SUPER_ADMIN role and all permissions,
      * so RBAC middleware passes in feature tests.
@@ -84,6 +94,17 @@ abstract class TestCase extends BaseTestCase
         }
 
         return ['user' => $user, 'workspace' => $workspace, 'client' => $client];
+    }
+
+    protected function enableDeveloperTools(int $clientId, int $userId): void
+    {
+        app(AddonEntitlementService::class)->activate(
+            $clientId,
+            AddonEntitlementService::DEVELOPER_TOOLS,
+            $userId,
+            'manual',
+            'test-developer-tools-'.$clientId,
+        );
     }
 
     /**

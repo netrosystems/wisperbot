@@ -540,9 +540,19 @@ export default function InboxIndex({ conversations: initialConversations, filter
         document.addEventListener('visibilitychange', onVisible);
         window.addEventListener('focus', refreshIfSafe);
 
+        // Realtime is the fast path, but local environments may leave it
+        // unconfigured and production connections can briefly drop. Reconcile
+        // periodically so agents never need to discover new messages by
+        // manually refreshing the page.
+        const refreshInterval = window.setInterval(
+            refreshIfSafe,
+            window.Echo ? 30_000 : 4_000,
+        );
+
         return () => {
             document.removeEventListener('visibilitychange', onVisible);
             window.removeEventListener('focus', refreshIfSafe);
+            window.clearInterval(refreshInterval);
         };
     }, [loading, search, conversations?.current_page, conversations?.next_page_url, conversations?.data?.length]);
 

@@ -4,6 +4,47 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added LinkedIn Company Page publishing. Clients can connect the Pages they administer and post as the Page, choosing targets on a new screen after authorization. LinkedIn's Community Management API must be the only product on its app, so Company Pages use a second LinkedIn app: admin fills optional Company Page Client ID/Secret on the LinkedIn integration, and the Connect dialog then offers “LinkedIn Company Page” beside the personal connection. Each connection stores its actor type and publishes as person or organization; rows from one authorization share and rotate one token, refreshed with that app's keys. Existing personal-profile connections are unaffected.
+
+- Replaced the browser `confirm()` pop-up on every delete-type button (39 across client and admin pages: delete, remove, disconnect, revoke, move to trash, delete all) with a shared in-app confirmation dialog. Chrome silently suppresses repeated native prompts, which made Delete appear to do nothing after several deletions (reported on a Knowledge Base source). New `@/Components/ConfirmDialog` (`confirmDialog()` + `ConfirmDialogHost` in `app.jsx`), tests, and a guard test that fails if a delete button uses `confirm()` again. The 13 non-delete confirmations (publish, takeover, cancel subscription, rotate secret, etc.) are unchanged.
+
+- Fixed Website widget Appearance saving: with an AI schedule enabled, every save was rejected ("Enter a valid time") because multipart form data encoded schedule windows as `windows[][start]` / `windows[][end]`, which PHP splits into separate items. Settings and Create now send `queryStringArrayFormat: 'indices'`. The form also showed no validation errors (they arrived as page props, not on its `useForm` instance); it now names the first problem and shows “Saving…” while submitting. Clearing every allowed domain (or every pre-chat field) now saves: multipart data omits empty arrays, so the controller treats a missing list as empty.
+
+- Made the full test suite pass on `oris` after adopting `main` (913 backend tests). App fixes found along the way: cached message media is matched by exact message id (message 1 could previously be served message 12's cached file); Instagram/Messenger app webhooks are registered with the public `APP_URL` instead of the host the admin browsed from; new `User` records report the email-inbox alert preference as on (matching the column default), and the preference is mass-assignable. Test-only corrections: tests never call the external license server, Developer API tests enable the Developer Tools add-on, conversation/campaign/contact URLs use their uuid route keys, and several tests were aligned with current behaviour (signed media route, six-per-minute WhatsApp health checks, resolution no-op, `.env`-independent Inertia version).
+
+- Added Smart Bot **starter questions**: clients save up to five questions with fixed answers and switch them on or off in Smart Bot settings. Website-chat customers see them under the welcome message at the top of every chat; tapping (or typing the same question) returns the saved answer instantly with no AI call and zero credits (`answer_origin=starter_question`). The customer SDK receives `config.starter_questions` from the session endpoint and sends the label as a normal message. Exposed read-only on the AI chatbot API. Requires migration `2026_09_19_000300_add_starter_questions_to_ai_chatbots.php`, the updated `public/widget/wisperbot-chat-widget.js`, a dashboard build, and a worker restart.
+
+- Added experimental live product pricing for Smart Bots behind `KB_LIVE_PRODUCT_FACTS_ENABLED`: approved product pages are auto-detected from structured data, normalized into non-vector product/offer records, refreshed every 15 minutes on `ai`, and reverified before stale facts are used. Exact price/availability replies and product/variant clarifications are deterministic and zero-credit, prefer fresh same-host connected-commerce data, preserve text/CTA compatibility, and add optional `answer_origin=live_product`, citations, and safe `product_facts`. Requires migration `2026_09_19_000100_create_live_kb_products.php`, scheduler, config-cache refresh, and worker restart.
+
+- Moved Smart Bot retrieval tuning behind a bounded platform-managed policy. Clients now configure business-facing answer behavior without editing raw passage counts, confidence thresholds, token budgets, or video thresholds; legacy fields remain compatible, and public social replies keep a stricter evidence policy.
+
+- Redesigned the shared admin/client operational interface on experimental `oris`: a compact light/dark application shell, 236px grouped navigation, mobile topbar drawer, visible existing admin search, orange active rail, normalized controls and surfaces, priority-first dashboards, and direct links to the existing Inbox, Channel Setup, Smart Bots, Knowledge Bases, and Team journeys. Authentication now uses the same light/dark operational language. No feature, permission, route, API, schema, SDK, or entitlement behavior changed.
+
+- Replaced the homepage hero's “Explore the platform” action with **Get Agent App**. The action now opens a minimal keyboard-accessible iOS/Android dropdown linked to the official WisperBot App Store and Google Play listings.
+
+- Redesigned Sign in and Register to match the product-led website: a truthful graphite product story, recognizable channel artwork, focused responsive forms, full dark mode, and accessible controls. Removed fabricated auth-page customer, message-volume, uptime, productivity, and conversion claims. The streamlined automatic-Free and paid-intent signup journey is unchanged.
+
+- Simplified new-client conversion to a standard SaaS signup: registration no longer repeats the plan grid. Direct password, OAuth, and Firebase signups transactionally start on the configured Free plan with no card. A paid package chosen on public Pricing is shown as one compact intent summary, then continues to checkout after account creation; abandoning checkout retains usable Free access. The defensive no-plan gate, teammate organization access, and server-derived onboarding milestone remain. No database migration or application-version bump is required.
+
+- Replaced the public website's remaining letter and Unicode provider placeholders with centralized, recognizable local brand SVGs across the channel ribbon, integration directory, capability surfaces, and product illustrations. Gmail, Microsoft Mail, Telegram, social, commerce, and marketplace identities now retain their own artwork, while non-brand concepts and interface actions consistently use Lucide. Unknown integrations no longer degrade to misleading single-letter logos.
+
+- Rebuilt the homepage opening as a dark, cinematic WisperBot hero after direct Voiskey behavior inspection: a short brand launch, staggered text entrance, pointer-responsive dotted network, orange/amber horizon glow, and one rotating signal between “Every” and “customer.” The signal now uses real local WhatsApp, Facebook, Instagram, Messenger, Telegram, LinkedIn, X, TikTok, and YouTube SVG marks instead of generic email/chat symbols. The sticky header is dark over the hero and smoothly returns to white over page content. Removed the surrounding icon cloud. Coarse pointers, reduced motion, manual pause, accessible text, and client-authored headline fallback are protected. No backend, API, entitlement, or external animation-asset changes.
+
+- Rebuilt the public website as a full product-led experience: richer mega navigation, 14 product/solution/channel/developer pages, an interactive homepage product tour and lifecycle, lightweight animated product illustrations, provider capability matrix, mobile Agent App and separate customer SDK story, role-based solutions, and deeper product explanations. Refreshed Pricing, Integrations, FAQ, About, Contact, Blog, Use Cases, and CMS presentation. Added safe admin-managed official app-store/pub.dev destinations, categorized FAQs, and versioned public copy; absent download links stay hidden. Real plan values determine pricing and free branding claims, and social-comment marketing follows its rollout flag. Removed fictional proof and unverified guarantees. Includes reduced-motion support, a manual motion pause, accessible menus/tabs, responsive layouts, regression tests, and durable design documentation. Experimental on `oris`; no migration, SDK/API behavior change, production release, or manual version bump.
+
+- Restored the approved website-widget shell as one consistent implementation: compact white identity header, scheduled teammate stack with `Team available now`, slim peach top-positioned `Talk to an agent` control, outlined reply pills, voice recording, elevated panel shadow, and a shorter peach Powered by footer. Human replies retain joined-teammate identity while Smart Bot replies retain the company mark.
+
+- Added an authoritative Knowledge Base and Smart Bot guide covering business-aware routing, semantic retrieval, grounded clarification, approved-source research, evidence boundaries, credits, customer payloads, teammate identity, feature flags, rollout, and native SDK responsibilities. The documentation index and agent routing rules now require it for future AI/KB work.
+
+- Added client-admin teammate photo upload, preview, replacement, and removal on Team. Website chat now shows scheduled teammates in the header, the actual joined teammate in handoff state, and that teammate's photo on human replies instead of the company mark. Browser realtime and mobile APIs now return resolved avatar URLs through additive compatibility fields. Corrected the multipart Edit member submission so Save sends the update instead of failing in the browser before the request. No database migration or application version bump is required.
+
+- Added experimental semantic Knowledge Base retrieval behind `KB_HYBRID_RETRIEVAL_ENABLED`: current-turn-first vector, wording, and typo matching; grounded clarification for related ambiguity; active-generation filtering; smaller meaning-preserving chunks; safe atomic reindexing; active-first rollout command; richer tester diagnostics; and additive `response_mode` across web/widget/API/mobile-compatible payloads. Migration `2026_09_16_000300_add_index_generations_to_knowledge_base_chunks.php` and a controlled `ai` reindex are required.
+- Hardened Smart Bot buying guidance: headed multi-turn examples now retain their complete intent, lexical/fuzzy evidence cannot be dominated by one common word, capable providers receive a JSON-output constraint, and enabled approved-source research can enrich relevant purchase or fresh-information answers without replacing usable KB evidence.
+
+- Added experimental business-aware Smart Bot routing with zero-credit localized social replies, separate Business only / Verified sources only / General assistant scopes, conservative domain guidance, optional approved-source research with citations, compatible widget/mobile/API metadata, and richer safe diagnostics. The feature defaults off behind `SMART_BOT_BUSINESS_AWARE_ROUTING`; deployment requires its migration, matching frontend assets, cache refresh, and worker restart.
+
+- Added guarded Omni inbox reconciliation so incoming conversations appear within four seconds when local realtime is not configured, while retaining websocket delivery plus a slower recovery reconciliation in configured environments. No migration or mobile API change is required.
+
 - Normalized outbound provider images for staff web/mobile sends: JPEG/PNG pass through, HEIC/HEIF/WebP/GIF convert to JPEG for WhatsApp, Messenger, Instagram and Telegram, WhatsApp media upload follows the conversation-bound phone number, and provider delivery errors are retained for diagnosis.
 - Upgraded the public blog and editorial CMS with structural HTML repair, safe deterministic heading anchors, a visible table of contents, reading progress, meaningful freshness labels, Breadcrumb/FAQ structured data, responsive comparison tables, HTML-source editing, table and divider tools, and live content-quality signals. Legacy malformed articles are repaired on read without destructive database rewrites and persist normalized markup on their next save.
 
@@ -114,19 +155,29 @@ The documented baseline includes:
 - Pusher/Reverb realtime channels, OneSignal/web push notification foundations, scheduler/queue diagnostics, and deploy-time patch versioning.
 
 Earlier feature history is available in Git. Do not reconstruct historical dates from memory; add future entries as changes are completed.
+
 # Client WhatsApp setup simplification — 2026-09-05
 
 - Hide webhook configuration, raw WhatsApp account/phone IDs, and infrastructure diagnostic disclosures from client Channel Setup. Keep status, delivery timestamps, and contextual Check/Repair/Reconnect actions with plain-language guidance; preserve Super Admin diagnostics.
+
 # 2026-09-05 — Knowledge Base deletion hotfix
 
 - Fixed Qdrant retry handling preventing old document deletion when the vector collection is absent; the same fix restores first-write collection creation. Genuine vector cleanup failures remain blocking. Backend-only deployment; no database migration.
+
 # 2026-09-05 production v1.3.42
 
 - Fixed sitemap-first website discovery, canonical www aliases, bounded extraction timeouts, and readable indexing-state labels.
 - Aligned OpenAI admin validation with managed runtime models and rejected/refunded empty AI outputs.
 - Fixed missing Qdrant payload indexes for strict-mode document cleanup. Verified a real website chatbot reply and its one-credit charge.
+
 # Unreleased — 2026-09-06
 
 - Added AI-generated suggested customer reply buttons to the website widget and Smart Bot Playground, with read-only labels in the agent inbox and additive mobile payloads.
 - Added matching Flutter customer SDK decoding, prebuilt buttons and headless selection methods. Existing clients retain text fallback. No SQL migration; SDK and host apps require separate releases.
 - Playground now forwards bounded history for context-aware follow-up choices.
+
+# 2026-09-16 — Experimental Knowledge Base website normalisation
+
+- Accepted bare domains, `www` addresses, and HTTP-form website inputs through a shared HTTPS-only Knowledge Base resolver used by web, developer API, page extraction, and sitemap discovery.
+- Preserved the customer's submitted address, stored the verified canonical URL, safely selected working apex/`www` variants, detected redirect loops, and upgraded same-site HTTP redirect targets without making insecure requests.
+- Added compact **Connected securely as…** feedback, distinct safe crawler errors, migration-backed URL provenance, and regression coverage including the redirect pattern used by `telzen.net`.

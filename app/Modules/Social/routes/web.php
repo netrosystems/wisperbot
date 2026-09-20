@@ -28,6 +28,8 @@ Route::middleware(['web', 'client-app'])->prefix('app/social')->name('client.soc
     Route::get('/accounts', fn (Request $request) => redirect()->route('client.social.automation.index', $request->query()))->name('accounts.index');
     Route::get('/accounts/connect/{network}', [SocialAccountController::class, 'connect'])->name('accounts.connect');
     Route::get('/accounts/callback/{network}', [SocialAccountController::class, 'callback'])->name('oauth.callback');
+    Route::get('/accounts/linkedin/select', [SocialAccountController::class, 'linkedinTargets'])->name('accounts.linkedin.select');
+    Route::post('/accounts/linkedin/select', [SocialAccountController::class, 'storeLinkedinTargets'])->name('accounts.linkedin.store');
     Route::delete('/accounts/{account}', [SocialAccountController::class, 'disconnect'])->name('accounts.disconnect');
 
     Route::get('/posts', function (Request $request) {

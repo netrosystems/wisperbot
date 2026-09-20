@@ -41,7 +41,10 @@ class SubscriptionController extends Controller
         if ($effective) {
             $plan = $effective->plan;
             $isClientSubscription = $effective instanceof ClientSubscription;
-            $canCancel = ! $isClientSubscription && $effective instanceof Subscription && $effective->isActive();
+            $canCancel = ! $isClientSubscription
+                && $effective instanceof Subscription
+                && $effective->isActive()
+                && $effective->gateway !== 'free';
             $canUpgrade = ! $isClientSubscription;
 
             $renewsAt = null;
@@ -137,6 +140,11 @@ class SubscriptionController extends Controller
             return back()->with('error', __('No active subscription to change.'));
         }
 
+        if ($effective->gateway === 'free') {
+            return redirect()->route('client.pricing')
+                ->with('success', __('Choose a paid plan to upgrade from Free.'));
+        }
+
         $newPlan = Plan::where('enabled', true)->findOrFail($validated['plan_id']);
 
         if ($newPlan->id === $effective->plan_id && $validated['billing_cycle'] === $effective->billing_cycle) {
@@ -223,6 +231,11 @@ class SubscriptionController extends Controller
         if (! $effective->isActive()) {
             return redirect()->route('client.subscription.show')
                 ->with('error', __('No active subscription to cancel.'));
+        }
+
+        if ($effective->gateway === 'free') {
+            return redirect()->route('client.subscription.show')
+                ->with('error', __('The Free plan does not require cancellation. Choose another plan whenever you are ready.'));
         }
 
         $gateway = $this->gateways->get($effective->gateway ?? 'stripe');

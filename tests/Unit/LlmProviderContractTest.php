@@ -66,4 +66,39 @@ class LlmProviderContractTest extends TestCase
         $this->assertSame([[0.1, 0.2]], $vectors);
         Http::assertSent(fn (Request $request) => $request->header('OpenAI-Organization')[0] === 'org-123');
     }
+
+    public function test_openai_can_require_a_json_object_for_smart_bot_replies(): void
+    {
+        Http::fake([
+            'api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => '{"reply":"Hello","quick_replies":[]}']]],
+                'usage' => ['prompt_tokens' => 2, 'completion_tokens' => 4],
+                'model' => 'gpt-4o-mini',
+            ]),
+        ]);
+
+        (new OpenAiProvider('openai-key'))->chat(
+            [['role' => 'user', 'content' => 'hello']],
+            ['json_object' => true],
+        );
+
+        Http::assertSent(fn (Request $request) => $request['response_format'] === ['type' => 'json_object']);
+    }
+
+    public function test_gemini_can_require_json_for_smart_bot_replies(): void
+    {
+        Http::fake([
+            '*:generateContent' => Http::response([
+                'candidates' => [['content' => ['parts' => [['text' => '{"reply":"Hello","quick_replies":[]}']]]]],
+                'usageMetadata' => [],
+            ]),
+        ]);
+
+        (new GeminiProvider('gemini-key'))->chat(
+            [['role' => 'user', 'content' => 'hello']],
+            ['json_object' => true],
+        );
+
+        Http::assertSent(fn (Request $request) => $request['generationConfig']['responseMimeType'] === 'application/json');
+    }
 }

@@ -35,16 +35,21 @@ class QwenProvider implements LlmProviderInterface
     public function chat(array $messages, array $opts = []): LlmResponse
     {
         $start = microtime(true);
+        $payload = [
+            'model' => $opts['model'] ?? $this->chatModel,
+            'messages' => $messages,
+            'max_tokens' => $opts['max_tokens'] ?? 1024,
+            'temperature' => $opts['temperature'] ?? 0.7,
+            'enable_thinking' => false,
+        ];
+        if (($opts['json_object'] ?? false) === true) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
+
         $response = Http::withToken($this->apiKey)
             ->retry(2, 500)
             ->timeout(60)
-            ->post($this->baseUrl().'/chat/completions', [
-                'model' => $opts['model'] ?? $this->chatModel,
-                'messages' => $messages,
-                'max_tokens' => $opts['max_tokens'] ?? 1024,
-                'temperature' => $opts['temperature'] ?? 0.7,
-                'enable_thinking' => false,
-            ]);
+            ->post($this->baseUrl().'/chat/completions', $payload);
 
         if (! $response->successful()) {
             throw new \RuntimeException('Alibaba Qwen request failed with HTTP '.$response->status().'.');

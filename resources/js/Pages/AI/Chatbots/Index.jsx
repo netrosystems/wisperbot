@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarkdownLite from '@/Components/MarkdownLite';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const TONE_OPTIONS = ['professional', 'friendly', 'formal', 'casual'];
 
 const TONE_COLORS = {
@@ -164,49 +165,135 @@ function PlaygroundPanel({ chatbot, aiCredits }) {
                         <Send className="h-3.5 w-3.5 text-white" />
                     </button>
                 </div>
-                <p className="mt-1 px-1 text-[11px] text-neutral-400">1 credit · {remainingCredits} remaining</p>
+                <p className="mt-1 px-1 text-[11px] text-neutral-400">
+                    Generated answers use 1 credit · greetings are free · {remainingCredits} remaining
+                </p>
             </div>
         </div>
     );
 }
 
-function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
+const STARTER_MAX_ITEMS = 5;
+const STARTER_QUESTION_MAX = 80;
+const STARTER_ANSWER_MAX = 1000;
+
+// Up to five client-written questions shown at the top of website chats. The
+// saved answer is sent word for word, without AI.
+function StarterQuestionsEditor({ enabled, items, errors, onEnabledChange, onItemsChange }) {
+    const { t } = useTranslation();
+    const update = (index, field, value) => onItemsChange(items.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+    const remove = index => onItemsChange(items.filter((_, i) => i !== index));
+    const add = () => items.length < STARTER_MAX_ITEMS && onItemsChange([...items, { question: '', answer: '' }]);
+    const fieldClass = 'w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+
+    return (
+        <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 dark:border-neutral-800 dark:bg-neutral-900/40">
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.starter_questions')}</p>
+                    <p className="mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">{t('ai.starter_questions_hint')}</p>
+                </div>
+                <ToggleSwitch checked={enabled} onChange={onEnabledChange} label={t('ai.starter_questions')} />
+            </div>
+
+            {enabled && (
+                <>
+                    {errors.starter_questions && <p className="text-xs text-red-600 dark:text-red-400">{errors.starter_questions}</p>}
+                    {items.length === 0 && <p className="text-xs text-neutral-500 dark:text-neutral-400">{t('ai.starter_questions_empty')}</p>}
+                    <ol className="space-y-3">
+                        {items.map((item, index) => {
+                            const questionError = errors[`starter_questions.${index}.question`];
+                            const answerError = errors[`starter_questions.${index}.answer`];
+                            return (
+                                <li key={item.id ?? `new-${index}`} className="space-y-2 rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300">{t('ai.starter_question_number', { number: index + 1 })}</span>
+                                        <button type="button" onClick={() => remove(index)} aria-label={t('ai.starter_question_remove', { number: index + 1 })} className="rounded-md p-1 text-neutral-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40">
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <input
+                                            type="text"
+                                            value={item.question}
+                                            maxLength={STARTER_QUESTION_MAX}
+                                            onChange={e => update(index, 'question', e.target.value)}
+                                            placeholder={t('ai.starter_question_placeholder')}
+                                            aria-label={t('ai.starter_question_label', { number: index + 1 })}
+                                            className={fieldClass}
+                                        />
+                                        <div className="mt-1 flex justify-between gap-2 text-[11px]">
+                                            <span className="text-red-600 dark:text-red-400">{questionError}</span>
+                                            <span className="text-neutral-400">{item.question.length}/{STARTER_QUESTION_MAX}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <textarea
+                                            value={item.answer}
+                                            rows={3}
+                                            maxLength={STARTER_ANSWER_MAX}
+                                            onChange={e => update(index, 'answer', e.target.value)}
+                                            placeholder={t('ai.starter_answer_placeholder')}
+                                            aria-label={t('ai.starter_answer_label', { number: index + 1 })}
+                                            className={`${fieldClass} resize-y`}
+                                        />
+                                        <div className="mt-1 flex justify-between gap-2 text-[11px]">
+                                            <span className="text-red-600 dark:text-red-400">{answerError}</span>
+                                            <span className="text-neutral-400">{item.answer.length}/{STARTER_ANSWER_MAX}</span>
+                                        </div>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ol>
+                    <div className="flex items-center justify-between gap-2">
+                        <button
+                            type="button"
+                            onClick={add}
+                            disabled={items.length >= STARTER_MAX_ITEMS}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        >
+                            <Plus className="h-3.5 w-3.5" /> {t('ai.starter_question_add')}
+                        </button>
+                        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">{t('ai.starter_questions_count', { count: items.length, max: STARTER_MAX_ITEMS })}</span>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingEnabled, liveProductFactsAvailable }) {
     const { t } = useTranslation();
     const [tab, setTab] = useState(null); // null | 'settings' | 'playground'
 
-    const { data, setData, put, processing } = useForm({
+    const { data, setData, put, processing, errors } = useForm({
         name: chatbot.name,
         system_prompt: chatbot.system_prompt ?? '',
         tone: chatbot.tone ?? 'professional',
-        max_context_chunks: chatbot.max_context_chunks ?? 3,
-        retrieval_match_threshold: chatbot.retrieval_match_threshold ?? 0.60,
-        max_context_tokens: chatbot.max_context_tokens ?? 1200,
-        unsupported_answer_action: chatbot.unsupported_answer_action ?? 'clarify_then_handoff',
-        video_match_threshold: chatbot.video_match_threshold ?? 0.72,
+        answer_scope: chatbot.answer_scope ?? (chatbot.unsupported_answer_action === 'general' ? 'general' : 'business_only'),
+        unsupported_fallback_action: chatbot.unsupported_fallback_action ?? (chatbot.unsupported_answer_action === 'handoff' ? 'handoff' : 'clarify_then_handoff'),
+        trusted_research_enabled: Boolean(chatbot.trusted_research_enabled),
+        live_product_facts_enabled: Boolean(chatbot.live_product_facts_enabled),
+        kb_exact_wording: Boolean(chatbot.kb_exact_wording),
+        starter_questions_enabled: Boolean(chatbot.starter_questions_enabled),
+        starter_questions: Array.isArray(chatbot.starter_questions) ? chatbot.starter_questions : [],
         fallback_reply: chatbot.fallback_reply ?? '',
         ai_kb_id: chatbot.ai_kb_id ?? '',
     });
-    const [unsupportedFallbackAction, setUnsupportedFallbackAction] = useState(
-        chatbot.unsupported_answer_action === 'handoff' ? 'handoff' : 'clarify_then_handoff',
-    );
-    const answersOutsideKnowledgeBase = data.unsupported_answer_action === 'general';
-
-    const setAnswersOutsideKnowledgeBase = (enabled) => {
-        setData('unsupported_answer_action', enabled ? 'general' : unsupportedFallbackAction);
-    };
-
     const save = (e) => {
         e.preventDefault();
         put(route('client.ai.chatbots.update', chatbot.uuid), { preserveScroll: true });
     };
 
-    const handleDelete = () => {
-        if (confirm(t('ai.delete_chatbot_confirm', { name: chatbot.name }))) {
+    const handleDelete = async () => {
+        if ((await confirmDialog({ message: t('ai.delete_chatbot_confirm', { name: chatbot.name }) }))) {
             router.delete(route('client.ai.chatbots.destroy', chatbot.uuid), { preserveScroll: true });
         }
     };
 
-    const linkedKb = knowledgeBases.find(kb => kb.id == chatbot.ai_kb_id);
+    const linkedKb = knowledgeBases.find(kb => kb.id == data.ai_kb_id);
+    const profileComplete = Boolean(linkedKb?.brand?.trim() && linkedKb?.purpose?.trim()?.length >= 12 && linkedKb?.audience?.trim());
 
     const toggleTab = (t) => setTab(prev => prev === t ? null : t);
 
@@ -327,63 +414,92 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
                             <p className="text-xs text-neutral-400 dark:text-neutral-500">{t('ai.fallback_reply_hint')}</p>
                         </div>
 
-                        <div className="flex items-center gap-6">
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('ai.max_context_chunks')}</label>
-                                <input
-                                    type="number"
-                                    min={1}
-                                    max={20}
-                                    value={data.max_context_chunks}
-                                    onChange={e => setData('max_context_chunks', Number(e.target.value))}
-                                    className="w-20 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition"
-                                />
-                            </div>
-                            <div className="space-y-1"><label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Answer confidence</label><input type="number" min={0} max={1} step={0.01} value={data.retrieval_match_threshold} onChange={e => setData('retrieval_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" /></div>
-                            <div className="space-y-1"><label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Context budget</label><input type="number" min={200} max={4000} step={100} value={data.max_context_tokens} onChange={e => setData('max_context_tokens', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" /></div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('ai.video_match_threshold')}</label>
-                                <input type="number" min={0} max={1} step={0.01} value={data.video_match_threshold} onChange={e => setData('video_match_threshold', Number(e.target.value))} className="w-24 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100" />
-                            </div>
-                        </div>
-                        {data.ai_kb_id && <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                        {t('ai.answer_outside_kb', 'Answer outside the Knowledge Base')}
-                                    </p>
-                                    <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
-                                        {answersOutsideKnowledgeBase
-                                            ? t('ai.answer_outside_kb_on_hint', 'On: the Smart Bot may answer safe general questions. Business-specific facts still require Knowledge Base support.')
-                                            : t('ai.answer_outside_kb_off_hint', 'Off (recommended): unsupported or unrelated questions use your fallback instead of general AI knowledge.')}
-                                    </p>
+                        {data.ai_kb_id && <div className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.answer_scope')}</p>
+                                    {!businessAwareRoutingEnabled && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{t('ai.staged_rollout')}</span>}
                                 </div>
-                                <ToggleSwitch
-                                    checked={answersOutsideKnowledgeBase}
-                                    onChange={setAnswersOutsideKnowledgeBase}
-                                    label={t('ai.answer_outside_kb', 'Answer outside the Knowledge Base')}
-                                />
+                                <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{t('ai.answer_scope_hint')}</p>
+                                <p className="mt-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs leading-5 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+                                    {t('ai.managed_answer_quality', { defaultValue: 'Answer quality, context selection, confidence, and relevant video matching are optimized automatically by WisperBot.' })}
+                                </p>
+                                {data.answer_scope === 'business_only' && !profileComplete && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">{t('ai.business_profile_required')}</p>}
+                                <div className="mt-3 grid gap-2 lg:grid-cols-3">
+                                    {[
+                                        ['business_only', t('ai.scope_business_only'), t('ai.scope_business_only_hint')],
+                                        ['verified_only', t('ai.scope_verified_only'), t('ai.scope_verified_only_hint')],
+                                        ['general', t('ai.scope_general'), t('ai.scope_general_hint')],
+                                    ].map(([value, label, hint]) => (
+                                        <label key={value} className={`cursor-pointer rounded-lg border p-3 transition ${data.answer_scope === value ? 'border-brand-500 bg-white ring-1 ring-brand-500/20 dark:bg-neutral-900' : 'border-neutral-200 bg-white/60 hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900/40'}`}>
+                                            <span className="flex items-start gap-2">
+                                                <input type="radio" name={`answer-scope-${chatbot.id}`} value={value} checked={data.answer_scope === value} onChange={e => setData('answer_scope', e.target.value)} className="mt-0.5 text-brand-600 focus:ring-brand-500" />
+                                                <span>
+                                                    <span className="block text-xs font-semibold text-neutral-900 dark:text-neutral-100">{label}</span>
+                                                    <span className="mt-0.5 block text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">{hint}</span>
+                                                </span>
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
 
-                            {!answersOutsideKnowledgeBase && (
-                                <div className="mt-3 border-t border-neutral-200 pt-3 dark:border-neutral-700">
-                                    <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                                        {t('ai.when_no_verified_answer', 'When no verified answer exists')}
-                                    </label>
-                                    <select
-                                        value={data.unsupported_answer_action}
-                                        onChange={e => {
-                                            setUnsupportedFallbackAction(e.target.value);
-                                            setData('unsupported_answer_action', e.target.value);
-                                        }}
-                                        className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-                                    >
-                                        <option value="clarify_then_handoff">{t('ai.unsupported_clarify', 'Ask for a relevant detail, then offer human help')}</option>
-                                        <option value="handoff">{t('ai.unsupported_handoff', 'Offer human help immediately')}</option>
+                            <div className="grid gap-3 border-t border-neutral-200 pt-3 dark:border-neutral-700 lg:grid-cols-3">
+                                <div>
+                                    <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{t('ai.when_no_verified_answer')}</label>
+                                    <select value={data.unsupported_fallback_action} onChange={e => setData('unsupported_fallback_action', e.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                                        <option value="clarify_then_handoff">{t('ai.unsupported_clarify')}</option>
+                                        <option value="handoff">{t('ai.unsupported_handoff')}</option>
                                     </select>
                                 </div>
-                            )}
+                                <div className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                                    <div>
+                                        <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.research_approved_sources')}</p>
+                                        <p className="mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">{t('ai.research_approved_sources_hint')}</p>
+                                    </div>
+                                    <ToggleSwitch checked={data.trusted_research_enabled} onChange={value => setData('trusted_research_enabled', value)} label={t('ai.research_approved_sources')} />
+                                </div>
+                                <div className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                                    <div>
+                                        <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.kb_exact_wording')}</p>
+                                        <p className="mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">{t('ai.kb_exact_wording_hint')}</p>
+                                    </div>
+                                    <ToggleSwitch checked={data.kb_exact_wording} onChange={value => setData('kb_exact_wording', value)} label={t('ai.kb_exact_wording')} />
+                                </div>
+                                <div className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                                    <div>
+                                        <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.live_product_prices')}</p>
+                                        <p className="mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">
+                                            {t('ai.live_product_prices_hint', { count: linkedKb?.live_product_count ?? 0 })}
+                                        </p>
+                                        {linkedKb?.live_products_verified_at && (
+                                            <p className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">
+                                                {t('ai.live_product_last_verified', { date: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(linkedKb.live_products_verified_at)) })}
+                                            </p>
+                                        )}
+                                        {(linkedKb?.live_product_attention_count ?? 0) > 0 && (
+                                            <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                                                {t('ai.live_product_attention', { count: linkedKb.live_product_attention_count })}
+                                            </p>
+                                        )}
+                                        {!liveProductFactsAvailable && <p className="mt-1 text-[11px] text-neutral-400">{t('ai.live_product_staged')}</p>}
+                                    </div>
+                                    <ToggleSwitch
+                                        checked={data.live_product_facts_enabled}
+                                        onChange={value => setData('live_product_facts_enabled', value)}
+                                        label={t('ai.live_product_prices')}
+                                    />
+                                </div>
+                            </div>
                         </div>}
+
+                        <StarterQuestionsEditor
+                            enabled={data.starter_questions_enabled}
+                            items={data.starter_questions}
+                            errors={errors}
+                            onEnabledChange={value => setData('starter_questions_enabled', value)}
+                            onItemsChange={value => setData('starter_questions', value)}
+                        />
 
                         <div className="flex gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
                             <button
@@ -408,7 +524,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits }) {
     );
 }
 
-export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null }) {
+export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null, businessAwareRoutingEnabled = false, liveProductFactsAvailable = false }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
@@ -471,7 +587,7 @@ export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = 
                 {/* Chatbot list */}
                 <div className="space-y-3">
                     {chatbots.map(cb => (
-                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} />
+                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} businessAwareRoutingEnabled={businessAwareRoutingEnabled} liveProductFactsAvailable={liveProductFactsAvailable} />
                     ))}
                     {chatbots.length === 0 && (
                         <EmptyState

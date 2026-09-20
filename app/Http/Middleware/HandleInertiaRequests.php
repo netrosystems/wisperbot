@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\Admin\LandingPageController;
 use App\Models\Client;
 use App\Models\Currency;
 use App\Models\Locale;
@@ -18,6 +19,7 @@ use App\Services\OnboardingService;
 use App\Services\OneSignalService;
 use App\Services\PusherPublicConfig;
 use App\Services\StorageManager;
+use App\Support\MarketingCatalog;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -392,6 +394,10 @@ class HandleInertiaRequests extends Middleware
             'aiCredits' => $aiCredits,
             'aiCreditRates' => $user && ! $isAdminRoute ? config('ai_credits.rates', []) : [],
             'landingPageEnabled' => SystemSetting::get('landing.page_enabled', '1') === '1',
+            'marketing' => fn () => $request->is('/', 'pricing', 'faq', 'use-cases', 'about', 'integrations', 'contact', 'blog', 'blog/*', 'p/*', 'products/*', 'solutions/*', 'channels/*', 'developers')
+                ? MarketingCatalog::publicData() : null,
+            'marketingSettings' => fn () => $request->is('/', 'pricing', 'faq', 'use-cases', 'about', 'integrations', 'contact', 'blog', 'blog/*', 'p/*', 'products/*', 'solutions/*', 'channels/*', 'developers')
+                ? LandingPageController::getPublicSettings() : null,
             'branding' => $this->brandingShare(),
             'pusher' => $this->pusherPublicConfig(),
             'onesignal' => $this->oneSignalPublicConfig(),

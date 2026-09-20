@@ -28,7 +28,7 @@ class OnboardingController extends Controller
             'step' => ['required', 'string', 'in:'.implode(',', array_keys(OnboardingService::STEPS))],
         ]);
 
-        $ok = $this->onboarding->markStep($request->user(), $validated['step'], false);
+        $ok = $this->onboarding->markStep($request->user(), $validated['step']);
 
         return response()->json(['ok' => $ok]);
     }

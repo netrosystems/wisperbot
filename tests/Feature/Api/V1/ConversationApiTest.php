@@ -8,11 +8,12 @@ use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use App\Support\ApiAbilities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\UsesDeveloperApi;
 use Tests\TestCase;
 
 class ConversationApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UsesDeveloperApi;
 
     public function test_unauthenticated_returns_401(): void
     {

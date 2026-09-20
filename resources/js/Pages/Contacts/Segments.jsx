@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Plus, Trash2, Filter, UserPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const FIELDS = ['first_name', 'last_name', 'phone_e164', 'email', 'country', 'language', 'source', 'opt_in_whatsapp', 'opt_in_sms', 'opt_in_email'];
 const OPERATORS = ['=', '!=', 'like', 'not_like', 'is_null', 'is_not_null'];
 
@@ -56,8 +57,8 @@ export default function ContactsSegments({ segments }) {
         post(route('client.segments.store'), { onSuccess: () => { reset(); setShowCreate(false); } });
     };
 
-    const handleDelete = (id) => {
-        if (confirm(t('contacts_page.seg_confirm_delete'))) {
+    const handleDelete = async (id) => {
+        if ((await confirmDialog({ message: t('contacts_page.seg_confirm_delete') }))) {
             router.delete(route('client.segments.destroy', id), { preserveScroll: true });
         }
     };

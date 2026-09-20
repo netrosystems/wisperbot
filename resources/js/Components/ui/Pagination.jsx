@@ -19,6 +19,7 @@ export default function Pagination({
     className = '',
     data,
 }) {
+    const { t } = useTranslation();
     const meta = data
         ? {
               links: data.links ?? [],
@@ -54,7 +55,7 @@ export default function Pagination({
 
     const renderLink = (link, content, ariaLabel, isDisabled) => {
         const baseClass =
-            'inline-flex items-center justify-center min-w-[2.25rem] h-9 px-2.5 text-sm font-medium rounded-soft transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900';
+            'inline-flex min-h-10 min-w-10 items-center justify-center rounded-soft px-2.5 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:ring-offset-2 dark:focus:ring-offset-neutral-900';
         const activeClass =
             'bg-brand-500 text-white hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-500 shadow-sm';
         const inactiveClass =
@@ -94,15 +95,14 @@ export default function Pagination({
             .trim();
     };
 
-    const { t } = useTranslation();
     const btnClass =
-        'inline-flex items-center justify-center min-w-[2.25rem] h-9 px-2.5 text-sm font-medium rounded-soft text-neutral-600 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900';
+        'inline-flex min-h-10 min-w-10 items-center justify-center rounded-soft border border-neutral-200 bg-white px-2.5 text-sm font-semibold text-neutral-600 transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:focus:ring-offset-neutral-900';
 
     return (
         <nav
             role="navigation"
             aria-label={t('pagination.label')}
-            className={`flex flex-wrap items-center justify-center gap-1.5 py-4 border-t border-neutral-100 dark:border-neutral-800 ${className}`}
+            className={`flex flex-wrap items-center justify-center gap-1.5 border-t border-neutral-100 py-4 dark:border-neutral-800 sm:justify-end ${className}`}
         >
             {/* First page */}
             {last > 1 && cur > 1 && meta.first_page_url && (

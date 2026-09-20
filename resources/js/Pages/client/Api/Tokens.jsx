@@ -6,6 +6,7 @@ import { DatePicker } from '@/Components/ui';
 import { formatDateTz } from '@/Utils/datetime';
 import { useTranslation } from 'react-i18next';
 
+import { confirmDialog } from '@/Components/ConfirmDialog';
 const ALL_SCOPES = [
     { scope: 'contacts:read',       labelKey: 'api.scope_contacts_read' },
     { scope: 'contacts:write',      labelKey: 'api.scope_contacts_write' },
@@ -190,7 +191,7 @@ export default function ApiTokens({ tokens: initialTokens }) {
     };
 
     const handleRevoke = async (id) => {
-        if (!confirm(t('api.revoke_confirm'))) return;
+        if (!(await confirmDialog({ message: t('api.revoke_confirm'), confirmLabel: t('common.revoke') }))) return;
         await fetch(`/api/v1/tokens/${id}`, {
             method: 'DELETE',
             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },

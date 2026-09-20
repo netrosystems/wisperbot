@@ -5,13 +5,13 @@
 export default function WidgetCard({ title, subtitle, action, children, className = '', bodyClassName = '' }) {
     return (
         <div
-            className={`flex flex-col rounded-xl border border-neutral-200 bg-white p-4 shadow-soft dark:border-neutral-700/50 dark:bg-neutral-800/70 sm:p-5 ${className}`}
+            className={`flex flex-col rounded-soft-lg border border-neutral-200/80 bg-white p-4 shadow-soft dark:border-neutral-800 dark:bg-neutral-900 sm:p-5 ${className}`}
         >
             {(title || action) && (
                 <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                         {title && (
-                            <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">{title}</h3>
+                            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{title}</h3>
                         )}
                         {subtitle && (
                             <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{subtitle}</p>

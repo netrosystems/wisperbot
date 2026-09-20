@@ -23,8 +23,8 @@ export default {
             // Source of truth: ./.branding
             colors: {
                 surface: {
-                    DEFAULT: '#f7faec',
-                    subtle: '#eef4dd',
+                    DEFAULT: '#f4f5f7',
+                    subtle: '#eceef1',
                 },
                 secondary: {
                     50: '#eef2ec',
@@ -104,9 +104,9 @@ export default {
                 muted: 'rgb(228 228 231 / 0.4)',
             },
             borderRadius: {
-                soft: '0.5rem',
-                'soft-lg': '0.75rem',
-                'soft-xl': '1rem',
+                soft: '0.625rem',
+                'soft-lg': '0.875rem',
+                'soft-xl': '1.125rem',
             },
             // Subtle shadows
             boxShadow: {

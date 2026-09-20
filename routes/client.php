@@ -44,6 +44,7 @@ Route::middleware(['verified'])->group(function () {
     // Billing & Pricing
     Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
     Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
+    Route::post('/pricing/select-free', [PricingController::class, 'selectFree'])->name('pricing.select-free');
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
     Route::get('/addons', [AddonController::class, 'index'])->name('addons.index');
     Route::post('/addons/developer-tools/checkout', [AddonController::class, 'checkout'])->name('addons.developer-tools.checkout');

@@ -2,12 +2,13 @@ import AuthLayout from '@/Layouts/AuthLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { LogIn, Sparkles, ArrowUpRight, Eye, EyeOff } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ProviderBrandIcon } from '@/Components/BrandIcons';
 
 const PROVIDERS = [
-    { id: 'google',    label: 'Google',    color: 'text-red-500' },
-    { id: 'github',    label: 'GitHub',    color: 'text-neutral-800 dark:text-neutral-200' },
-    { id: 'microsoft', label: 'Microsoft', color: 'text-blue-500' },
+    { id: 'google', label: 'Google' },
+    { id: 'github', label: 'GitHub' },
+    { id: 'microsoft', label: 'Microsoft' },
 ];
 
 function GoogleIcon() {
@@ -26,7 +27,7 @@ function GoogleIcon() {
 function FirebaseGoogleButton() {
     const { t } = useTranslation();
     const { props } = usePage();
-    const firebase = props.firebase ?? {};
+    const firebase = useMemo(() => props.firebase ?? {}, [props.firebase]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const initRef = useRef(false);
@@ -112,12 +113,12 @@ function FirebaseGoogleButton() {
                 type="button"
                 onClick={handleClick}
                 disabled={loading}
-                className="group flex w-full items-center justify-center gap-3 rounded-full border border-black/[0.08] bg-white px-4 py-2.5 text-sm font-semibold text-[#241f1a] hover:border-brand-500/40 hover:bg-[#fffdf9] transition disabled:opacity-60 shadow-sm"
+                className="group flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#20241f] shadow-sm transition hover:border-brand-400 hover:bg-brand-50/30 focus:outline-none focus:ring-2 focus:ring-brand-500/25 disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:border-brand-500"
             >
                 <GoogleIcon />
                 {loading ? t('auth.signing_in') : t('auth.continue_with_google')}
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/[0.04] text-[#57504a] transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:bg-brand-500 group-hover:text-white">
-                    <ArrowUpRight className="h-3.5 w-3.5" />
+                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
             </button>
             {error && <p className="text-xs text-coral-600 text-center">{error}</p>}
@@ -133,7 +134,7 @@ function Field({ label, error, children, hint }) {
     return (
         <div className="w-full">
             {label && (
-                <label className="mb-1.5 block text-sm font-medium text-[#3a332c]">
+                <label htmlFor={children?.props?.id} className="mb-1.5 block text-sm font-medium text-[#3a332c] dark:text-neutral-300">
                     {label}
                 </label>
             )}
@@ -160,10 +161,10 @@ function CreamInput({ label, error, className = '', type, ...props }) {
                     {...props}
                     type={effectiveType}
                     className={[
-                        'w-full rounded-full border bg-white px-4 py-2.5 text-sm text-[#241f1a] placeholder:text-[#a99a86] transition focus:outline-none focus:ring-2',
+                        'min-h-12 w-full rounded-xl border bg-white px-4 py-2.5 text-sm text-[#20241f] placeholder:text-neutral-400 transition focus:outline-none focus:ring-2 dark:bg-neutral-800 dark:text-white dark:placeholder:text-neutral-500',
                         error
                             ? 'border-coral-500/50 focus:border-coral-500 focus:ring-coral-500/15'
-                            : 'border-black/[0.08] focus:border-brand-500/50 focus:ring-brand-500/15',
+                            : 'border-neutral-200 focus:border-brand-500/50 focus:ring-brand-500/15 dark:border-neutral-700',
                         isPassword ? 'pr-11' : '',
                         className,
                     ].filter(Boolean).join(' ')}
@@ -179,7 +180,7 @@ function CreamInput({ label, error, className = '', type, ...props }) {
                                 : (t('auth.toggle_password_show') || 'Show password')
                         }
                         aria-pressed={visible}
-                        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[#8a817a] hover:text-[#241f1a] transition"
+                        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-neutral-500 transition hover:text-[#20241f] dark:hover:text-white"
                     >
                         {visible
                             ? <EyeOff className="h-4 w-4" aria-hidden="true" />
@@ -274,7 +275,7 @@ function CreamDivider({ label }) {
                 <div className="w-full border-t border-black/[0.06]" />
             </div>
             <div className="relative flex justify-center">
-                <span className="bg-[#fffdf9] px-3 text-xs font-medium text-[#a99a86]">
+                <span className="bg-white px-3 text-xs font-medium text-neutral-400 dark:bg-neutral-900 dark:text-neutral-500">
                     {label}
                 </span>
             </div>
@@ -304,8 +305,9 @@ export default function Login({ status, canResetPassword, socialProviders = [], 
 
     return (
         <AuthLayout
+            eyebrow={t('auth.workspace_access', { defaultValue: 'Workspace access' })}
             title={t('auth.log_in') || 'Sign in to your account'}
-            subtitle={t('auth.login_subtitle') || 'Enter your credentials to continue'}
+            subtitle={t('auth.login_subtitle', { defaultValue: 'Continue to your conversations, automations, and team workspace.' })}
             status={status}
         >
             <Head title={t('auth.log_in') || 'Log in'} />
@@ -327,8 +329,9 @@ export default function Login({ status, canResetPassword, socialProviders = [], 
                             <a
                                 key={provider.id}
                                 href={route('auth.social.redirect', { provider: provider.id })}
-                                className="group flex w-full items-center justify-center gap-3 rounded-full border border-black/[0.08] bg-white px-4 py-2.5 text-sm font-semibold text-[#241f1a] hover:border-brand-500/40 hover:bg-[#fffdf9] transition shadow-sm"
+                                className="group flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#20241f] shadow-sm transition hover:border-brand-400 hover:bg-brand-50/30 focus:outline-none focus:ring-2 focus:ring-brand-500/25 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:border-brand-500"
                             >
+                                <ProviderBrandIcon provider={provider.id} className="h-4 w-4" />
                                 {t('auth.continue_with', { provider: provider.label })}
                                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/[0.04] text-[#57504a] transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:bg-brand-500 group-hover:text-white">
                                     <ArrowUpRight className="h-3.5 w-3.5" />
@@ -348,7 +351,6 @@ export default function Login({ status, canResetPassword, socialProviders = [], 
                     label={t('auth.email') || 'Email address'}
                     value={data.email}
                     autoComplete="username"
-                    autoFocus
                     placeholder="you@company.com"
                     onChange={(e) => setData('email', e.target.value)}
                     error={errors.email}
@@ -366,7 +368,7 @@ export default function Login({ status, canResetPassword, socialProviders = [], 
                     error={errors.password}
                 />
 
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
                     <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
                         <input
                             id="remember"
@@ -374,13 +376,13 @@ export default function Login({ status, canResetPassword, socialProviders = [], 
                             type="checkbox"
                             checked={data.remember}
                             onChange={(e) => setData('remember', e.target.checked)}
-                            className="h-4 w-4 rounded border-black/[0.15] text-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                            className="h-4 w-4 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/20 dark:border-neutral-600 dark:bg-neutral-800"
                         />
-                        <span className="text-sm text-[#3a332c]">
+                        <span className="text-sm text-neutral-700 dark:text-neutral-300">
                             {t('auth.remember_me') || 'Remember me'}
                         </span>
                     </label>
-                    <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center justify-between gap-3 text-sm sm:justify-end">
                         {canResetPassword && (
                             <Link
                                 href={route('password.request')}
@@ -391,7 +393,7 @@ export default function Login({ status, canResetPassword, socialProviders = [], 
                         )}
                         <Link
                             href={route('auth.magic-link')}
-                            className="text-sm text-[#8a817a] hover:text-[#241f1a]"
+                            className="text-sm text-[#8a817a] hover:text-[#241f1a] dark:text-neutral-400 dark:hover:text-white"
                         >
                             {t('auth.magic_link')}
                         </Link>
@@ -402,7 +404,7 @@ export default function Login({ status, canResetPassword, socialProviders = [], 
                 <button
                     type="submit"
                     disabled={processing}
-                    className="group mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#241f1a] px-6 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-[#3a332c] hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 shadow-[0_10px_30px_-10px_rgba(36,31,26,0.45)]"
+                    className="group mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_-14px_rgba(255,118,46,.75)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/35 focus:ring-offset-2 disabled:opacity-60 disabled:hover:translate-y-0 dark:focus:ring-offset-neutral-900"
                 >
                     {processing ? (
                         <>
@@ -424,7 +426,7 @@ export default function Login({ status, canResetPassword, socialProviders = [], 
                 </button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-[#6f6660]">
+            <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
                 {t('auth.no_account') || "Don't have an account?"}{' '}
                 <Link
                     href={route('register')}

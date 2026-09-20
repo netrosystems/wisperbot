@@ -63,4 +63,26 @@ describe('Sidebar scroll persistence', () => {
 
         expect(screen.getByTestId('sidebar-scroll-mobile').scrollTop).toBe(330);
     });
+
+    it('keeps the core group open and persists collapsed navigation groups', () => {
+        const navGroups = [
+            { key: 'home', label: 'Home', items: [{ label: 'Dashboard', href: '/app/dashboard', active: false }] },
+            { key: 'ai', label: 'Smart AI', items: [{ label: 'Smart Bots', href: '/app/ai/chatbots', active: false }] },
+        ];
+
+        const firstRender = render(
+            <Sidebar scrollKey="client" navGroups={navGroups} showCreateButton={false} />,
+        );
+
+        expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Smart Bots' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Smart AI' }));
+        expect(screen.getByRole('link', { name: 'Smart Bots' })).toBeInTheDocument();
+        expect(window.sessionStorage.getItem('wisperbot.sidebar.group.client.ai')).toBe('1');
+
+        firstRender.unmount();
+        render(<Sidebar scrollKey="client" navGroups={navGroups} showCreateButton={false} />);
+        expect(screen.getByRole('link', { name: 'Smart Bots' })).toBeInTheDocument();
+    });
 });

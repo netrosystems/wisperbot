@@ -1,6 +1,6 @@
 import ClientLayout from '@/Layouts/ClientLayout';
 import { Head, Link, router } from '@inertiajs/react';
-import { CheckCircle, Circle, ArrowRight } from 'lucide-react';
+import { CheckCircle, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const STEP_LINKS = {
@@ -77,12 +77,14 @@ export default function OnboardingWizard({ progress }) {
                                                 {t('client.go') || 'Go'} <ArrowRight className="h-3.5 w-3.5" />
                                             </Link>
                                         )}
-                                        <button
-                                            onClick={() => markComplete(step.key)}
-                                            className="text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
-                                        >
-                                            {t('onboarding.mark_done')}
-                                        </button>
+                                        {step.key !== 'choose_plan' && (
+                                            <button
+                                                onClick={() => markComplete(step.key)}
+                                                className="text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
+                                            >
+                                                {t('onboarding.mark_done')}
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>

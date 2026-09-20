@@ -4,12 +4,8 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import {
     Package,
-    CreditCard,
     ArrowRightCircle,
     Users,
-    Settings,
-    User,
-    FileText,
     Layers,
     CheckSquare,
     ArrowRight,
@@ -21,6 +17,8 @@ import {
     Workflow,
     Sparkles,
     AlertCircle,
+    Bot,
+    Database,
 } from 'lucide-react';
 import { LineChart, BarChart, DonutChart } from '@/Components/Charts';
 import { RangeFilter, StatTile, WidgetCard, EmptyState } from '@/Components/Dashboard';
@@ -165,6 +163,13 @@ export default function Dashboard({
             href: route('client.ai.chatbots.index'),
         },
     ];
+    const coreShortcuts = [
+        { label: t('nav.omni_channel_inbox'), description: t('client.shortcut_inbox', { defaultValue: 'Read and reply to customers' }), href: route('client.inbox.index'), icon: Inbox },
+        { label: t('nav.inbox_channel_setup'), description: t('client.shortcut_channels', { defaultValue: 'Connect your first channel' }), href: route('client.inbox.setup'), icon: MessageSquare },
+        { label: t('nav.smart_bots'), description: t('client.shortcut_smart_bots', { defaultValue: 'Configure AI answering' }), href: route('client.ai.chatbots.index'), icon: Bot },
+        { label: t('nav.knowledge_bases'), description: t('client.shortcut_knowledge', { defaultValue: 'Add trusted business knowledge' }), href: route('client.ai.knowledge-bases.index'), icon: Database },
+        ...(isClientAdministrator ? [{ label: t('nav.team'), description: t('client.shortcut_team', { defaultValue: 'Invite and manage teammates' }), href: route('client.team.index'), icon: Users }] : []),
+    ];
 
     return (
         <ClientLayout title={t('client.dashboard') || 'Dashboard'}>
@@ -182,6 +187,20 @@ export default function Dashboard({
                     </div>
                     {hasWorkspace && <RangeFilter value={range} routeName="client.dashboard" />}
                 </div>
+
+                <nav aria-label={t('client.core_shortcuts', { defaultValue: 'Core workspace actions' })} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    {coreShortcuts.map(({ label, description, href, icon: Icon }) => (
+                        <Link key={href} href={href} className="group flex min-h-[78px] items-center gap-3 rounded-soft-lg border border-neutral-200/80 bg-white px-4 py-3 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-soft-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-brand-800">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-soft bg-brand-50 text-brand-600 transition group-hover:bg-brand-500 group-hover:text-white dark:bg-brand-900/30 dark:text-brand-400">
+                                <Icon className="h-4 w-4" aria-hidden="true" />
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{label}</span>
+                                <span className="mt-0.5 block text-xs leading-4 text-neutral-500 dark:text-neutral-400">{description}</span>
+                            </span>
+                        </Link>
+                    ))}
+                </nav>
 
                 {/* Onboarding next-step nudge */}
                 {onboardingNextStep && onboardingPercent < 100 && (
@@ -229,13 +248,16 @@ export default function Dashboard({
                     </div>
                 )}
 
-                {/* KPI tiles */}
+                {/* Priority KPIs first; secondary metrics stay available below. */}
                 {hasWorkspace && stats && (
-                    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                        {tiles.map((tile) => (
-                            <StatTile key={tile.label} {...tile} />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                            {tiles.slice(0, 4).map((tile) => <StatTile key={tile.label} {...tile} />)}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                            {tiles.slice(4).map((tile) => <StatTile key={tile.label} {...tile} compact />)}
+                        </div>
+                    </>
                 )}
 
                 {/* Current plan */}
@@ -287,7 +309,7 @@ export default function Dashboard({
                 {hasWorkspace && (
                     <>
                         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                            <WidgetCard title={t('client.chart_messages') || 'Messages by channel'}>
+                            <WidgetCard title={t('client.chart_messages') || 'Messages by channel'} className="lg:col-span-2">
                                 {messageChannelKeys.length > 0 ? (
                                     <LineChart data={charts.messages ?? []} xKey="date" yKeys={messageChannelKeys} height={200} />
                                 ) : (
@@ -458,38 +480,6 @@ export default function Dashboard({
                     </WidgetCard>
                 </div>
 
-                {/* Shortcuts */}
-                <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-soft dark:border-neutral-700/50 dark:bg-neutral-800/70 sm:p-5">
-                    <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
-                        {t('client.quick_links') || 'Quick links'}
-                    </h2>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                        <Link href={route('client.pricing')} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-neutral-700 transition hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-200 dark:hover:bg-neutral-700/50 dark:hover:text-white">
-                            <CreditCard className="h-5 w-5 text-brand-600 dark:text-brand-400" />
-                            <span>{t('client.billing_plans') || 'Billing & plans'}</span>
-                        </Link>
-                        {isClientAdministrator && (
-                            <Link href={route('client.team.index')} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-neutral-700 transition hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-200 dark:hover:bg-neutral-700/50 dark:hover:text-white">
-                                <Users className="h-5 w-5 text-brand-600 dark:text-brand-400" />
-                                <span>{t('nav.team')}</span>
-                            </Link>
-                        )}
-                        {isClientAdministrator && (
-                            <Link href={route('client.audit-log.index')} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-neutral-700 transition hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-200 dark:hover:bg-neutral-700/50 dark:hover:text-white">
-                                <FileText className="h-5 w-5 text-brand-600 dark:text-brand-400" />
-                                <span>{t('client.audit_log') || 'Audit log'}</span>
-                            </Link>
-                        )}
-                        <Link href={route('client.settings.index')} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-neutral-700 transition hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-200 dark:hover:bg-neutral-700/50 dark:hover:text-white">
-                            <Settings className="h-5 w-5 text-brand-600 dark:text-brand-400" />
-                            <span>{t('nav.settings')}</span>
-                        </Link>
-                        <Link href={route('client.profile.edit')} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-neutral-700 transition hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-200 dark:hover:bg-neutral-700/50 dark:hover:text-white">
-                            <User className="h-5 w-5 text-brand-600 dark:text-brand-400" />
-                            <span>{t('nav.profile') || 'Profile'}</span>
-                        </Link>
-                    </div>
-                </div>
             </div>
         </ClientLayout>
     );

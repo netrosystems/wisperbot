@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureLicensed;
+use App\Models\Plan;
 use App\Models\SocialAccount;
 use App\Models\SystemSetting;
 use App\Models\User;
@@ -62,6 +63,12 @@ class FirebaseGoogleLoginTest extends TestCase
     public function test_verified_google_user_can_create_a_new_client_account(): void
     {
         config(['auth.allow_registration' => true]);
+        $free = Plan::factory()->create([
+            'name' => 'Free',
+            'price_cents' => 0,
+            'monthly_price_cents' => 0,
+            'yearly_price_cents' => 0,
+        ]);
         $this->fakeLookup([
             'email' => 'new-client@example.com',
             'displayName' => 'New Client',
@@ -76,6 +83,12 @@ class FirebaseGoogleLoginTest extends TestCase
         $this->assertAuthenticatedAs($user);
         $this->assertTrue($user->isClientAdministrator());
         $this->assertNotNull($user->client_id);
+        $this->assertDatabaseHas('subscriptions', [
+            'user_id' => $user->id,
+            'plan_id' => $free->id,
+            'status' => 'active',
+            'gateway' => 'free',
+        ]);
         $this->assertDatabaseHas('social_accounts', [
             'user_id' => $user->id,
             'provider' => 'firebase',

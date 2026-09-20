@@ -12,9 +12,9 @@ import { Link } from '@inertiajs/react';
  */
 export default function EmptyState({ icon, title, description, action, secondaryAction }) {
     return (
-        <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+        <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
             {icon && (
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-soft-lg border border-brand-100 bg-brand-50 text-brand-600 dark:border-brand-900/60 dark:bg-brand-950/40 dark:text-brand-400">
                     {icon}
                 </div>
             )}
@@ -33,7 +33,7 @@ export default function EmptyState({ icon, title, description, action, secondary
                             <Link
                                 href={action.href}
                                 method={action.method}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-soft transition-colors shadow-soft"
+                className="inline-flex min-h-10 items-center gap-2 rounded-soft bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                             >
                                 {action.label}
                             </Link>
@@ -41,7 +41,7 @@ export default function EmptyState({ icon, title, description, action, secondary
                             <button
                                 type="button"
                                 onClick={action.onClick}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-soft transition-colors shadow-soft"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-soft bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                             >
                                 {action.label}
                             </button>
@@ -51,7 +51,7 @@ export default function EmptyState({ icon, title, description, action, secondary
                         secondaryAction.href ? (
                             <Link
                                 href={secondaryAction.href}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 text-sm font-medium rounded-soft transition-colors"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-soft border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                             >
                                 {secondaryAction.label}
                             </Link>
@@ -59,7 +59,7 @@ export default function EmptyState({ icon, title, description, action, secondary
                             <button
                                 type="button"
                                 onClick={secondaryAction.onClick}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 text-sm font-medium rounded-soft transition-colors"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-soft border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                             >
                                 {secondaryAction.label}
                             </button>

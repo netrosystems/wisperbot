@@ -2,6 +2,7 @@ import { Head, useForm, usePage, router } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { confirmDialog } from '@/Components/ConfirmDialog';
 import {
     Eye, EyeOff, CheckCircle, AlertCircle, Clock, Trash2, RefreshCw,
     PlugZap, Copy, Check, ShoppingBag, Store,
@@ -100,8 +101,8 @@ function ConnectedStoreCard({ store }) {
         });
     };
 
-    const disconnect = () => {
-        if (!confirm(t('ecommerce.confirm_disconnect') || 'Disconnect this store?')) return;
+    const disconnect = async () => {
+        if (!(await confirmDialog({ message: t('ecommerce.confirm_disconnect') || 'Disconnect this store?', confirmLabel: t('common.disconnect') }))) return;
         router.delete(route('client.ecommerce.stores.destroy', store.id), { preserveScroll: true });
     };
 
