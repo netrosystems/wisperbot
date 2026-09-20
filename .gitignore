@@ -9,6 +9,7 @@
 .env
 .env.backup
 .env.production
+/.env.docker.local
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
@@ -29,6 +30,9 @@ database/.DS_Store
 /WhatsMe
 /release
 /Chat-Agent-App
+/backups
+/wisperbot.sql
+/wisperbot-storage.tar.gz
 
 # Claude Code local tooling
 /.claude

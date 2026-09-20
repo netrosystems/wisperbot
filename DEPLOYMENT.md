@@ -1,5 +1,25 @@
 # WisperBot deployment
 
+## Production Docker deployment
+
+The supported single-VPS Docker stack builds the PHP dependencies and Vite
+assets into immutable images, runs MariaDB and Redis privately, and starts the
+scheduler plus every named queue worker. Host Nginx/Certbot proxy HTTPS to the
+loopback-only container port. See [`docker/README.md`](docker/README.md).
+
+Initial deployment and subsequent updates use:
+
+```bash
+./deploy.sh
+```
+
+The script imports a root `wisperbot.sql` only when the database has no tables,
+backs up the database before migrations, runs the deployment finalizer, and
+checks `/up`. The `.env`, database volume, Redis volume, and storage volume are
+persistent. Never use `docker compose down -v` in production.
+
+The manual deployment below remains valid for non-Docker servers.
+
 Run these steps from the WisperBot application directory after the new code is
 merged into `main`:
 

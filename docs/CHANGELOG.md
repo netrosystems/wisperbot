@@ -4,6 +4,16 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added a production Docker deployment for a single Ubuntu VPS: immutable
+  PHP/Vite images, private MariaDB and Redis, hosted Pusher configuration, all
+  named queue workers, scheduler, guarded legacy SQL import, pre-migration and
+  operator backups, loopback-only HTTP exposure, and host Nginx/Certbot setup.
+  The PHP image includes IMAP for generic mailbox sync, and container startup
+  repairs persistent Laravel storage ownership before workers begin. An isolated
+  Docker test target verifies the backend without adding dev packages to runtime
+  images; the test command now matches its installed dependencies. Refreshed the
+  production PHP dependency lock to remove all reported security advisories.
+
 - Added LinkedIn Company Page publishing. Clients can connect the Pages they administer and post as the Page, choosing targets on a new screen after authorization. LinkedIn's Community Management API must be the only product on its app, so Company Pages use a second LinkedIn app: admin fills optional Company Page Client ID/Secret on the LinkedIn integration, and the Connect dialog then offers “LinkedIn Company Page” beside the personal connection. Each connection stores its actor type and publishes as person or organization; rows from one authorization share and rotate one token, refreshed with that app's keys. Existing personal-profile connections are unaffected.
 
 - Replaced the browser `confirm()` pop-up on every delete-type button (39 across client and admin pages: delete, remove, disconnect, revoke, move to trash, delete all) with a shared in-app confirmation dialog. Chrome silently suppresses repeated native prompts, which made Delete appear to do nothing after several deletions (reported on a Knowledge Base source). New `@/Components/ConfirmDialog` (`confirmDialog()` + `ConfirmDialogHost` in `app.jsx`), tests, and a guard test that fails if a delete button uses `confirm()` again. The 13 non-delete confirmations (publish, takeover, cancel subscription, rotate secret, etc.) are unchanged.

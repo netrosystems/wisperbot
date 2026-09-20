@@ -21,6 +21,16 @@ Local Pusher/Reverb credentials are optional for basic inbox testing. When realt
 
 ## Production deployment
 
+The single-VPS production Docker path is documented in
+[`docker/README.md`](../docker/README.md). It uses hosted Pusher, a host-managed
+Nginx/Certbot proxy, private MariaDB/Redis containers, an immutable PHP/Vite
+build, persistent named volumes, one worker per required queue, a dedicated
+scheduler container, and daily database/storage backups retained on the VPS.
+`./deploy.sh` safely imports `wisperbot.sql` only into an empty database,
+creates a pre-migration backup, runs migrations/finalization, and verifies the
+loopback HTTP health endpoint. Do not use
+`docker compose down -v` because it removes production data volumes.
+
 Blog platform upgrade (2026-09-18): deploy matching backend and frontend assets, then run the normal deployment finalizer/cache rebuild. No migration, scheduler, or queue change is required. Public requests sanitize and structurally repair legacy article HTML without rewriting the stored row; the next editorial save persists the normalized HTML through the existing revision flow. After deployment, verify `/blog`, a legacy rich article, its contents anchors, a responsive table, and Article/Breadcrumb/FAQ JSON-LD where applicable. Do not run a bulk database rewrite for old articles.
 
 Website widget / customer SDK separation (2026-09-16, local implementation): deploy the matching backend/frontend, run the additive `2026_09_16_000100_add_sdk_access_to_chat_widgets` and `2026_09_16_000200_add_started_from_to_conversations` migrations, rebuild the Vite bundle, and clear/rebuild route/config caches if the deployment uses cached routes/config. Existing website widgets and old SDK builds stay on by default. Give app teams the Mobile SDK key from Widget Integrations and update customer apps to use it; after that, `SDK enabled` can be used without affecting the website embed. New conversations will record whether they started from the website widget or customer SDK; historical conversations remain unlabelled. No separate queue worker is introduced.

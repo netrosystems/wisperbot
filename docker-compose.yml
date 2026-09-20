@@ -1,0 +1,246 @@
+name: wisperbot-prod
+
+x-app: &app
+    image: wisperbot-app:local
+    build:
+        context: .
+        target: app
+        args:
+            APP_UID: ${APP_UID:-1000}
+            APP_GID: ${APP_GID:-1000}
+    env_file:
+        - ${WISPERBOT_ENV_FILE:-.env}
+    environment:
+        APP_ENV: ${APP_ENV:-production}
+        APP_DEBUG: ${APP_DEBUG:-false}
+        DB_CONNECTION: mariadb
+        DB_HOST: db
+        DB_PORT: 3306
+        QUEUE_CONNECTION: redis
+        CACHE_STORE: redis
+        REDIS_HOST: redis
+        REDIS_PORT: 6379
+        REDIS_QUEUE_RETRY_AFTER: 900
+    volumes:
+        - ${WISPERBOT_ENV_FILE:-.env}:/var/www/html/.env
+        - storage-data:/var/www/html/storage
+    restart: unless-stopped
+    depends_on:
+        db:
+            condition: service_healthy
+        redis:
+            condition: service_healthy
+
+services:
+    db:
+        image: mariadb:10.11
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: ${DB_DATABASE:-wisperbot_prod}
+            MYSQL_USER: ${DB_USERNAME:-wisperbot}
+            MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+            MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+        command:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+            - --max-allowed-packet=128M
+        volumes:
+            - database-data:/var/lib/mysql
+        healthcheck:
+            test: ['CMD-SHELL', 'mariadb-admin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent']
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 30s
+
+    redis:
+        image: redis:7.4-alpine
+        restart: unless-stopped
+        environment:
+            REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+        command: ['sh', '-c', 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+        volumes:
+            - redis-data:/data
+        healthcheck:
+            test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+
+    app:
+        <<: *app
+        healthcheck:
+            test: ['CMD', 'php-fpm', '-t']
+            interval: 30s
+            timeout: 5s
+            retries: 3
+
+    web:
+        image: wisperbot-web:local
+        build:
+            context: .
+            target: web
+        restart: unless-stopped
+        ports:
+            - '127.0.0.1:${APP_HTTP_PORT:-8080}:80'
+        volumes:
+            - storage-data:/var/www/html/storage:ro
+        depends_on:
+            app:
+                condition: service_healthy
+        healthcheck:
+            test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1/up || exit 1']
+            interval: 30s
+            timeout: 5s
+            retries: 3
+
+    backup:
+        image: wisperbot-backup:local
+        build:
+            context: .
+            target: backup
+        restart: unless-stopped
+        env_file:
+            - ${WISPERBOT_ENV_FILE:-.env}
+        environment:
+            DB_HOST: db
+            BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+            BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+        volumes:
+            - ./backups:/backups
+            - storage-data:/storage:ro
+        depends_on:
+            db:
+                condition: service_healthy
+            app:
+                condition: service_healthy
+
+    scheduler:
+        <<: *app
+        command: ['php', 'artisan', 'schedule:work']
+
+    queue-default:
+        <<: *app
+        command:
+            [
+                'php',
+                'artisan',
+                'queue:work',
+                'redis',
+                '--queue=default',
+                '--sleep=3',
+                '--tries=3',
+                '--timeout=120',
+                '--max-time=3600',
+            ]
+
+    queue-whatsapp:
+        <<: *app
+        command:
+            [
+                'php',
+                'artisan',
+                'queue:work',
+                'redis',
+                '--queue=whatsapp',
+                '--sleep=2',
+                '--tries=3',
+                '--timeout=120',
+                '--max-time=3600',
+            ]
+
+    queue-broadcast:
+        <<: *app
+        command:
+            [
+                'php',
+                'artisan',
+                'queue:work',
+                'redis',
+                '--queue=broadcast',
+                '--sleep=3',
+                '--tries=2',
+                '--timeout=120',
+                '--max-time=3600',
+            ]
+
+    queue-ai:
+        <<: *app
+        command:
+            [
+                'php',
+                'artisan',
+                'queue:work',
+                'redis',
+                '--queue=ai',
+                '--sleep=3',
+                '--tries=3',
+                '--timeout=600',
+                '--max-time=3600',
+            ]
+
+    queue-social:
+        <<: *app
+        command:
+            [
+                'php',
+                'artisan',
+                'queue:work',
+                'redis',
+                '--queue=social',
+                '--sleep=5',
+                '--tries=3',
+                '--timeout=120',
+                '--max-time=3600',
+            ]
+
+    queue-leads:
+        <<: *app
+        command:
+            [
+                'php',
+                'artisan',
+                'queue:work',
+                'redis',
+                '--queue=leads',
+                '--sleep=5',
+                '--tries=2',
+                '--timeout=120',
+                '--max-time=1800',
+            ]
+
+    queue-automation:
+        <<: *app
+        command:
+            [
+                'php',
+                'artisan',
+                'queue:work',
+                'redis',
+                '--queue=automation',
+                '--sleep=3',
+                '--tries=3',
+                '--timeout=120',
+                '--max-time=1800',
+            ]
+
+    queue-channel-health:
+        <<: *app
+        command:
+            [
+                'php',
+                'artisan',
+                'queue:work',
+                'redis',
+                '--queue=channel-health',
+                '--sleep=3',
+                '--tries=1',
+                '--timeout=120',
+                '--max-time=3600',
+            ]
+
+volumes:
+    database-data:
+    redis-data:
+    storage-data:
