@@ -16,7 +16,10 @@ Initial deployment and subsequent updates use:
 The script imports a root `wisperbot.sql` only when the database has no tables,
 backs up the database before migrations, runs the deployment finalizer, and
 checks `/up`. The `.env`, database volume, Redis volume, and storage volume are
-persistent. Never use `docker compose down -v` in production.
+persistent. It requires `.env` to exist but does not reject missing or
+non-production values before starting Docker; configuration failures surface
+from Docker, Laravel, or the final health check. Never use
+`docker compose down -v` in production.
 
 The manual deployment below remains valid for non-Docker servers.
 

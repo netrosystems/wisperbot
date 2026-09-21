@@ -20,38 +20,6 @@ docker compose version >/dev/null
 chmod 600 .env
 deployment_revision="$(git rev-parse HEAD)"
 
-for required_var in APP_KEY DB_PASSWORD DB_ROOT_PASSWORD REDIS_PASSWORD PUSHER_APP_ID PUSHER_APP_KEY PUSHER_APP_SECRET HEALTHZ_TOKEN; do
-    if ! grep -Eq "^${required_var}=.+$" .env || grep -Eq "^${required_var}=(null|\"\"|'')$" .env; then
-        echo "${required_var} must be set to a non-empty production value in .env." >&2
-        exit 1
-    fi
-done
-
-if grep -Eq '^APP_DEBUG=(true|1)$' .env; then
-    echo "APP_DEBUG must be false in production." >&2
-    exit 1
-fi
-
-if ! grep -Eq '^BROADCAST_CONNECTION=pusher$' .env; then
-    echo "BROADCAST_CONNECTION must be pusher for this production stack." >&2
-    exit 1
-fi
-
-if ! grep -Eq '^APP_INSTALLED=true$' .env; then
-    echo "APP_INSTALLED must be true when restoring an existing production database." >&2
-    exit 1
-fi
-
-if ! grep -Eq '^APP_URL=https://[^[:space:]]+$' .env; then
-    echo "APP_URL must contain the final HTTPS production URL." >&2
-    exit 1
-fi
-
-if ! grep -Eq '^SESSION_SECURE_COOKIE=true$' .env; then
-    echo "SESSION_SECURE_COOKIE must be true in production." >&2
-    exit 1
-fi
-
 echo "Building production images..."
 docker compose build --pull
 

@@ -100,6 +100,10 @@ The deployment script:
 7. starts the scheduler and every named queue worker;
 8. verifies `http://127.0.0.1:8080/up`.
 
+The script requires `.env` to exist but does not preflight its values. Docker,
+Laravel, and the service health check report configuration errors during the
+deployment, so review the production settings above before running it.
+
 It never imports over a populated database. Keep `wisperbot.sql` until the
 application, uploaded media, credentials, and a backup restore have been
 verified. The import files can then be removed from the VPS.
