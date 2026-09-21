@@ -28,6 +28,14 @@ const FOLDERS = [
     { key: 'resolved',   labelKey: 'inbox.folder_resolved',   icon: CheckCircle },
     { key: 'snoozed',    labelKey: 'inbox.folder_snoozed',    icon: Clock },
 ];
+
+const conversationListScrollKey = filters => `inbox-conversation-list:${[
+    filters.folder,
+    filters.channel,
+    filters.label,
+    filters.account_id,
+    filters.q,
+].map(value => value ?? '').join(':')}`;
 const ALL_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'telegram', 'ebay', 'amazon', 'webchat'];
 
 const STATUS_COLORS = {
@@ -973,7 +981,7 @@ function MessageBubble({ msg, conversationId }) {
     );
 }
 
-function ConversationCard({ conv, isActive, userTz, filters = {} }) {
+function ConversationCard({ conv, isActive, userTz, filters = {}, onNavigate }) {
     const { t } = useTranslation();
     const lastResponder = conv.last_message?.direction === 'out'
         ? (conv.last_message?.sender?.name ?? (conv.last_message?.sent_by === 'bot' ? 'AI assistant' : null))
@@ -993,6 +1001,10 @@ function ConversationCard({ conv, isActive, userTz, filters = {} }) {
     return (
         <Link
             href={route('client.inbox.show', { conversation: conv.uuid, ...filters })}
+            only={['conversation', 'messages', 'whatsappTemplates']}
+            preserveState
+            preserveScroll
+            onClick={onNavigate}
             className={`block px-3 py-3 border-b border-neutral-100 dark:border-neutral-800 transition-colors ${
                 isActive
                     ? 'bg-brand-50 dark:bg-brand-900/20 border-l-2 border-l-brand-600'
@@ -1619,7 +1631,7 @@ export default function InboxShow({
     const [conversationStatus, setConversationStatus] = useState(conversation.status);
     const [ownershipBusy, setOwnershipBusy]   = useState(false);
     const [conversations, setConversations] = useState(initialConversations);
-    const [listSearch, setListSearch]       = useState('');
+    const [listSearch, setListSearch]       = useState(filters.q ?? '');
     const [listLoading, setListLoading]     = useState(false);
     const [listLoadingMore, setListLoadingMore] = useState(false);
     const [showNewModal, setShowNewModal]   = useState(false);
@@ -1631,6 +1643,7 @@ export default function InboxShow({
     const lastUserScrollGestureAtRef = useRef(0);
     const listScrolledAwayRef = useRef(false);
     const gentleRefreshInFlightRef = useRef(false);
+    const listScrollRef = useRef(null);
     const messageConversationIdRef = useRef(conversation.id);
 
     // When Inertia navigates between conversations the page component is
@@ -1679,6 +1692,23 @@ export default function InboxShow({
         userScrolledListRef.current = false;
         lastUserScrollGestureAtRef.current = 0;
     }, [initialConversations]);
+
+    useEffect(() => {
+        setListSearch(filters.q ?? '');
+    }, [filters.q]);
+
+    useLayoutEffect(() => {
+        const savedPosition = Number(sessionStorage.getItem(conversationListScrollKey(filters)));
+        if (!listScrollRef.current || !Number.isFinite(savedPosition)) return;
+
+        listScrollRef.current.scrollTop = savedPosition;
+        listScrolledAwayRef.current = savedPosition > 40;
+    }, [conversation.id, filters.folder, filters.channel, filters.label, filters.account_id, filters.q]);
+
+    const rememberListPosition = () => {
+        if (!listScrollRef.current) return;
+        sessionStorage.setItem(conversationListScrollKey(filters), String(listScrollRef.current.scrollTop));
+    };
 
     // Toolbar state
     const [showEmoji, setShowEmoji]           = useState(false);
@@ -2226,11 +2256,25 @@ export default function InboxShow({
             return;
         }
         setListLoading(true);
-        router.get(route('client.inbox.show', conversation.uuid), { ...filters, ...params }, { preserveState: true, replace: true });
+        router.get(route('client.inbox.show', conversation.uuid), { ...filters, ...params }, { preserveState: true, preserveScroll: true, replace: true });
     };
 
+    useEffect(() => {
+        const requestedSearch = listSearch.trim();
+        if (requestedSearch === (filters.q ?? '').trim()) return undefined;
+
+        const timer = window.setTimeout(() => {
+            if (listScrollRef.current) {
+                listScrollRef.current.scrollTop = 0;
+            }
+            navigateList({ q: requestedSearch || undefined });
+        }, 300);
+
+        return () => window.clearTimeout(timer);
+    }, [listSearch, conversation.uuid, filters.folder, filters.channel, filters.label, filters.account_id, filters.q]);
+
     const loadMoreConversations = (scrollTop = null) => {
-        if (listLoadingMoreRef.current || listLoading || listSearch.trim() || !conversations?.next_page_url) return;
+        if (listLoadingMoreRef.current || listLoading || !conversations?.next_page_url) return;
         if (scrollTop !== null && scrollTop <= lastListLoadScrollTopRef.current + 24) return;
 
         listLoadingMoreRef.current = true;
@@ -2283,7 +2327,7 @@ export default function InboxShow({
             userScrolledListRef.current = false;
             return;
         }
-        if (emailOnly || listSearch.trim()) return;
+        if (emailOnly) return;
         const target = event.currentTarget;
         const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
         if (remaining < 180) {
@@ -2326,12 +2370,7 @@ export default function InboxShow({
     }, [emailOnly, listLoading, listSearch, conversations?.current_page, conversations?.next_page_url, conversations?.data?.length]);
 
     const otherViewers = viewers.filter(v => v.id !== authUser?.id);
-    const filteredList = listSearch.trim() && conversations?.data
-        ? conversations.data.filter(c => {
-            const n = `${c.contact?.first_name ?? ''} ${c.contact?.last_name ?? ''} ${c.contact?.phone_e164 ?? ''} ${c.contact?.email ?? ''} ${c.contact?.custom_fields?.webchat_last_ip ?? ''}`.toLowerCase();
-            return n.includes(listSearch.toLowerCase());
-        })
-        : (conversations?.data ?? []);
+    const filteredList = conversations?.data ?? [];
 
     const contactName = conversation.contact?.first_name || conversation.contact?.last_name
         ? `${conversation.contact.first_name ?? ''} ${conversation.contact.last_name ?? ''}`.trim()
@@ -2440,6 +2479,7 @@ export default function InboxShow({
                         </div>
                     </div>
                     <div
+                        ref={listScrollRef}
                         className="flex-1 overflow-y-auto"
                         onWheel={noteUserListScroll}
                         onTouchMove={noteUserListScroll}
@@ -2451,9 +2491,9 @@ export default function InboxShow({
                                 <EmptyState icon={<Inbox className="h-7 w-7" />} title={t('inbox.no_conversations')} description={t('inbox.no_conversations_match')} />
                             </div>
                         ) : filteredList.map(conv => (
-                            <ConversationCard key={conv.id} conv={conv} isActive={conv.uuid === conversation.uuid} userTz={userTz} filters={filters} />
+                            <ConversationCard key={conv.id} conv={conv} isActive={conv.uuid === conversation.uuid} userTz={userTz} filters={filters} onNavigate={rememberListPosition} />
                         ))}
-                        {!emailOnly && !listSearch.trim() && (
+                        {!emailOnly && (
                             <div className="py-3 text-center text-[11px] text-neutral-400">
                                 {listLoadingMore ? t('common.loading', 'Loading...') : (conversations?.next_page_url ? '' : t('inbox.all_conversations_loaded', 'All conversations loaded'))}
                             </div>

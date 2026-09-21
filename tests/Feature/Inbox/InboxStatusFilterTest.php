@@ -179,4 +179,81 @@ class InboxStatusFilterTest extends TestCase
                 ->has('channelAccounts', 1)
                 ->where('channelAccounts.0.channel', 'webchat'));
     }
+
+    public function test_search_queries_the_full_filtered_conversation_list(): void
+    {
+        ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id,
+            'channel' => 'webchat',
+            'display_name' => 'Website chat',
+            'status' => 'active',
+        ]);
+
+        for ($index = 0; $index < 31; $index++) {
+            $contact = Contact::create([
+                'workspace_id' => $workspace->id,
+                'source' => 'webchat',
+                'first_name' => 'Regular '.$index,
+            ]);
+            $conversation = Conversation::create([
+                'workspace_id' => $workspace->id,
+                'channel_account_id' => $account->id,
+                'contact_id' => $contact->id,
+                'status' => 'open',
+                'external_thread_id' => 'regular-'.$index,
+                'last_message_at' => now()->subMinutes($index),
+            ]);
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'direction' => 'in',
+                'channel' => 'webchat',
+                'type' => 'text',
+                'body' => 'Hello',
+                'status' => 'delivered',
+                'sent_at' => now()->subMinutes($index),
+            ]);
+        }
+
+        $targetContact = Contact::create([
+            'workspace_id' => $workspace->id,
+            'source' => 'webchat',
+            'first_name' => 'Needle',
+            'last_name' => 'Customer',
+        ]);
+        $targetConversation = Conversation::create([
+            'workspace_id' => $workspace->id,
+            'channel_account_id' => $account->id,
+            'contact_id' => $targetContact->id,
+            'status' => 'open',
+            'external_thread_id' => 'search-target',
+            'last_message_at' => now()->subHours(2),
+        ]);
+        Message::create([
+            'conversation_id' => $targetConversation->id,
+            'direction' => 'in',
+            'channel' => 'webchat',
+            'type' => 'text',
+            'body' => 'Hello',
+            'status' => 'delivered',
+            'sent_at' => now()->subHours(2),
+        ]);
+
+        $this->actingAs($user)->get(route('client.inbox.index', ['q' => 'Needle']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.q', 'Needle')
+                ->where('conversations.total', 1)
+                ->where('conversations.data.0.uuid', $targetConversation->uuid));
+
+        $this->actingAs($user)->get(route('client.inbox.show', [
+            'conversation' => $targetConversation,
+            'q' => 'Needle',
+        ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.q', 'Needle')
+                ->where('conversations.total', 1)
+                ->where('conversations.data.0.uuid', $targetConversation->uuid));
+    }
 }
