@@ -43,7 +43,10 @@ class OneSignalChannel
         $url = $data['url'] ?? null;
         $conversationId = $data['conversation_id'] ?? null;
         $workspaceId = $this->workspaces->forNotification($notification, $notifiable);
-        $pushData = array_filter(['workspace_id' => $workspaceId], static fn ($value) => $value !== null);
+        $pushData = array_filter([
+            'workspace_id' => $workspaceId,
+            'conversation_uuid' => $data['conversation_uuid'] ?? null,
+        ], static fn ($value) => $value !== null);
 
         $tokens = $this->pushTokens->activeTokensFor($notifiable);
         if ($tokens !== []) {

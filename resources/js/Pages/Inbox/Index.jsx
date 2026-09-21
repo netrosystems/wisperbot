@@ -436,9 +436,19 @@ export default function InboxIndex({ conversations: initialConversations, filter
             })
             .listen('.ConversationOwnershipChanged', (e) => {
                 setConversations(prev => ({ ...prev, data: prev.data.map(conv => conv.id === e.conversation_id ? { ...conv, joined_user: e.joined_user, joined_at: e.joined_at, assigned_to: e.assigned_to ?? conv.assigned_to, assigned_user_id: e.assigned_user_id, status: e.status } : conv) }));
+            })
+            .listen('.LiveVisitorUpdated', () => {
+                if (gentleRefreshInFlightRef.current) return;
+                gentleRefreshInFlightRef.current = true;
+                router.reload({
+                    only: isLiveFolder ? ['conversations', 'liveUsersCount'] : ['liveUsersCount'],
+                    preserveScroll: true,
+                    preserveState: true,
+                    onFinish: () => { gentleRefreshInFlightRef.current = false; },
+                });
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
-    }, [workspaceId]);
+    }, [workspaceId, isLiveFolder]);
 
     const navigate = (params) => {
         setLoading(true);

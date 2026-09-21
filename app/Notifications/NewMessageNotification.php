@@ -62,6 +62,7 @@ class NewMessageNotification extends Notification implements ShouldQueue, Worksp
             'type' => 'new_message',
             'message_id' => $this->message->id,
             'conversation_id' => $this->conversation->id,
+            'conversation_uuid' => $this->conversation->uuid,
             'contact_name' => $this->conversation->contact?->name ?? 'Unknown',
             'snippet' => mb_substr((string) $this->message->body, 0, 120),
             'url' => route('client.inbox.show', $this->conversation),
@@ -111,6 +112,7 @@ class NewMessageNotification extends Notification implements ShouldQueue, Worksp
             // Extra data so the service worker can collapse duplicate notifications
             // for the same conversation.
             'conversation_id' => $this->conversation->id,
+            'conversation_uuid' => $this->conversation->uuid,
         ];
     }
 

@@ -80,9 +80,11 @@ class OneSignalIntegrationTest extends TestCase
         NotificationPreference::create(['user_id' => $user->id, 'event' => 'new_message', 'channel' => 'web_push', 'enabled' => true]);
 
         $channels = (new NewMessageNotification($message, $conversation))->via($user);
+        $payload = (new NewMessageNotification($message, $conversation))->toOneSignal($user);
 
         $this->assertContains(OneSignalChannel::class, $channels);
         $this->assertNotContains(WebPushChannel::class, $channels);
+        $this->assertSame($conversation->uuid, $payload['conversation_uuid']);
     }
 
     public function test_pushes_use_the_current_onesignal_endpoint_header_and_namespaced_identity(): void
@@ -121,7 +123,12 @@ class OneSignalIntegrationTest extends TestCase
         {
             public function toOneSignal(object $notifiable): array
             {
-                return ['title' => 'New chat', 'body' => 'Hello', 'conversation_id' => 123];
+                return [
+                    'title' => 'New chat',
+                    'body' => 'Hello',
+                    'conversation_id' => 123,
+                    'conversation_uuid' => 'conversation-uuid',
+                ];
             }
         };
 
@@ -131,9 +138,11 @@ class OneSignalIntegrationTest extends TestCase
             && ($request['include_subscription_ids'] ?? null) === ['stored-subscription-id']
             && $request['contents']['en'] === 'Hello'
             && $request['data']['conversation_id'] === 123
+            && $request['data']['conversation_uuid'] === 'conversation-uuid'
             && $request['data']['workspace_id'] === $context['workspace']->id);
         Http::assertSent(fn (Request $request) => $request->url() === 'https://api.onesignal.com/notifications'
             && ($request['include_aliases']['external_id'] ?? null) === ['user:'.$user->id]
+            && $request['data']['conversation_uuid'] === 'conversation-uuid'
             && $request['data']['workspace_id'] === $context['workspace']->id);
     }
 
