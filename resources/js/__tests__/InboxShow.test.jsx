@@ -223,6 +223,28 @@ describe('Mobile chat reply layout', () => {
         ));
     });
 
+    it('keeps deleted search characters from returning after an older response', async () => {
+        const cancel = vi.fn();
+        router.get.mockImplementationOnce((_url, _data, options) => {
+            options.onCancelToken({ cancel });
+        });
+        const inboxProps = {
+            conversations: { data: [], total: 0 },
+            filters: {},
+        };
+        const view = render(<InboxIndex {...inboxProps} />);
+        const input = screen.getByPlaceholderText('inbox.search_conversations');
+
+        fireEvent.change(input, { target: { value: 'Customer' } });
+        await waitFor(() => expect(router.get).toHaveBeenCalledTimes(1));
+
+        fireEvent.change(input, { target: { value: 'Cust' } });
+        expect(cancel).toHaveBeenCalledTimes(1);
+
+        view.rerender(<InboxIndex {...inboxProps} filters={{ q: 'Customer' }} />);
+        expect(input).toHaveValue('Cust');
+    });
+
     it('restores the conversation list position when switching threads', () => {
         const list = {
             data: [
