@@ -15,8 +15,10 @@ vi.mock('@inertiajs/react', async () => {
     const { useState } = await import('react');
     return {
         Head: () => null,
-        Link: ({ href, children, ...props }) => <a href={href} {...props}>{children}</a>,
-        router: { reload: vi.fn(), visit: vi.fn() },
+        Link: ({ href, children, onClick, only: _only, preserveScroll: _preserveScroll, preserveState: _preserveState, ...props }) => (
+            <a href={href} onClick={event => { event.preventDefault(); onClick?.(event); }} {...props}>{children}</a>
+        ),
+        router: { get: vi.fn(), reload: vi.fn(), visit: vi.fn() },
         usePage: () => ({ props: { auth: { user: { id: 7, name: 'Agent', timezone: 'UTC', workspace_id: 1 } }, timezone: 'UTC', flash: {} } }),
         useForm: initial => {
             const [data, update] = useState(initial);
@@ -39,6 +41,7 @@ const props = { conversation, messages: [], conversations: { data: [], total: 0 
 
 beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     delete window.Echo;
     Element.prototype.scrollIntoView = vi.fn();
     axios.get.mockResolvedValue({ data: { messages: [] } });
@@ -189,6 +192,62 @@ describe('Mobile chat reply layout', () => {
             headers: expect.objectContaining({ 'X-Inertia': 'true' }),
         })));
         expect(await screen.findByText('Second')).toBeInTheDocument();
+    });
+
+    it('sends inbox search to the server instead of filtering only loaded rows', async () => {
+        render(<InboxIndex
+            conversations={{
+                data: [{
+                    id: 1,
+                    uuid: 'first-chat',
+                    status: 'open',
+                    unread_count: 0,
+                    contact: { first_name: 'First', custom_fields: {} },
+                    channel_account: { channel: 'webchat' },
+                    last_message: { body: 'Hello' },
+                }],
+                total: 32,
+                next_page_url: '/page-2',
+            }}
+            filters={{ folder: 'mine' }}
+        />);
+
+        fireEvent.change(screen.getByPlaceholderText('inbox.search_conversations'), {
+            target: { value: 'Needle' },
+        });
+
+        await waitFor(() => expect(router.get).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ folder: 'mine', q: 'Needle' }),
+            expect.objectContaining({ preserveState: true, preserveScroll: true, replace: true }),
+        ));
+    });
+
+    it('restores the conversation list position when switching threads', () => {
+        const list = {
+            data: [
+                conversation,
+                {
+                    ...conversation,
+                    id: 2,
+                    uuid: 'second-chat',
+                    contact: { first_name: 'Second', custom_fields: {} },
+                },
+            ],
+            total: 2,
+        };
+        const view = render(<InboxShow {...props} conversations={list} />);
+        const scrollRegion = screen.getByText('Second').closest('.overflow-y-auto');
+        scrollRegion.scrollTop = 420;
+
+        fireEvent.click(screen.getByText('Second').closest('a'));
+        view.rerender(<InboxShow
+            {...props}
+            conversation={list.data[1]}
+            conversations={list}
+        />);
+
+        expect(scrollRegion.scrollTop).toBe(420);
     });
 
     it('refreshes the resolved folder when an inbound message reopens a conversation', () => {
