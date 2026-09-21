@@ -50,6 +50,56 @@
       "key": "email_account_id",
       "value": "1",
       "type": "string"
+    },
+    {
+      "key": "message_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "media_expires",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "media_signature",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "member_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "notification-uuid",
+      "type": "string"
+    },
+    {
+      "key": "social_account_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "social_comment_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "social_operation_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "knowledge_base_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "knowledge_document_id",
+      "value": "1",
+      "type": "string"
     }
   ],
   "item": [
@@ -3176,6 +3226,438 @@
                   ]
                 },
                 "description": "Agent response times and conversation resolution rates."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07. Social Comments & Advanced Operations",
+      "description": "Mobile social comments, inbox AI and team availability, private media delivery, notification actions, and guarded Knowledge Base workflows.",
+      "item": [
+        {
+          "name": "Mobile Social Comments",
+          "item": [
+            {
+              "name": "List Social Comments",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments?tab=needs_attention&network=&account_id=&search=&cursor=",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments"],
+                  "query": [
+                    { "key": "tab", "value": "needs_attention", "description": "needs_attention, all, ai_handled, or resolved" },
+                    { "key": "network", "value": "", "description": "facebook or instagram" },
+                    { "key": "account_id", "value": "", "description": "Connected social account ID" },
+                    { "key": "search", "value": "", "description": "Search comment body or author" },
+                    { "key": "cursor", "value": "", "description": "Cursor returned by the previous page" }
+                  ]
+                },
+                "description": "Lists workspace-scoped Facebook and Instagram comments with counts, account settings, and cursor pagination."
+              }
+            },
+            {
+              "name": "Update Social Comment Account Settings",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Accept", "value": "application/json", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/accounts/{{social_account_id}}/settings",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "accounts", "{{social_account_id}}", "settings"]
+                },
+                "description": "Updates public comment AI mode. Enabling suggestions or automatic mode also requires chatbot_id and public_kb_confirmed.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mode\": \"off\",\n  \"chatbot_id\": null,\n  \"public_kb_confirmed\": false\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "Sync Social Comments",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/accounts/{{social_account_id}}/sync",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "accounts", "{{social_account_id}}", "sync"]
+                },
+                "description": "Queues a manual comment synchronization for a connected Facebook or Instagram account."
+              }
+            },
+            {
+              "name": "Retry Social Comment Operation",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/operations/{{social_operation_id}}/retry",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "operations", "{{social_operation_id}}", "retry"]
+                },
+                "description": "Retries a safely retryable failed social comment operation."
+              }
+            },
+            {
+              "name": "Get Social Comment",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/{{social_comment_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "{{social_comment_id}}"]
+                },
+                "description": "Returns a comment, its replies, recent operations, and account settings."
+              }
+            },
+            {
+              "name": "Mark Social Comment as Read",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/{{social_comment_id}}/read",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "{{social_comment_id}}", "read"]
+                },
+                "description": "Marks the selected social comment as read for the current user."
+              }
+            },
+            {
+              "name": "Reply to Social Comment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Accept", "value": "application/json", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/{{social_comment_id}}/reply",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "{{social_comment_id}}", "reply"]
+                },
+                "description": "Queues a provider reply using a caller-generated idempotency key.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"body\": \"Thanks for reaching out.\",\n  \"idempotency_key\": \"postman-reply-001\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "Generate Social Comment Suggestion",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/{{social_comment_id}}/suggest",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "{{social_comment_id}}", "suggest"]
+                },
+                "description": "Queues a published-Knowledge-Base-grounded reply suggestion."
+              }
+            },
+            {
+              "name": "Review Social Comment Suggestion",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/{{social_comment_id}}/suggestions/{{social_operation_id}}/review",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "{{social_comment_id}}", "suggestions", "{{social_operation_id}}", "review"]
+                },
+                "description": "Confirms review of a current AI suggestion before automatic replies can be enabled."
+              }
+            },
+            {
+              "name": "Moderate Social Comment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Accept", "value": "application/json", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/{{social_comment_id}}/moderate",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "{{social_comment_id}}", "moderate"]
+                },
+                "description": "Queues a supported hide, unhide, or delete operation.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"hide\",\n  \"idempotency_key\": \"postman-moderate-001\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "Update Social Comment State",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Accept", "value": "application/json", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/{{social_comment_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "{{social_comment_id}}"]
+                },
+                "description": "Updates status and/or pauses AI for a social comment.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"resolved\",\n  \"ai_paused\": false\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mobile Inbox AI & Team Availability",
+          "item": [
+            {
+              "name": "Get Inbox AI Answering Policies",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/inbox/ai-answering",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "inbox", "ai-answering"]
+                },
+                "description": "Returns Omni and Email AI-answering policies, available chatbots, and management permission."
+              }
+            },
+            {
+              "name": "Update Inbox AI Answering Policy",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Accept", "value": "application/json", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/inbox/ai-answering/omni",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "inbox", "ai-answering", "omni"]
+                },
+                "description": "Updates the omni or email segment policy. Non-off modes require a workspace chatbot_id.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mode\": \"off\",\n  \"chatbot_id\": null,\n  \"schedule\": null\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "List Team Availability",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/team/availability",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "team", "availability"]
+                },
+                "description": "Lists active workspace members and their notification availability. Client administrator access is required."
+              }
+            },
+            {
+              "name": "Update Team Member Availability",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Accept", "value": "application/json", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/team/{{member_id}}/availability",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "team", "{{member_id}}", "availability"]
+                },
+                "description": "Enables or disables a workspace member's scheduled notification availability. Client administrator access is required.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enabled\": false\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mobile Message Media",
+          "item": [
+            {
+              "name": "Download Message Media",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "*/*", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/conversations/{{conversation_uuid}}/messages/{{message_id}}/media",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "conversations", "{{conversation_uuid}}", "messages", "{{message_id}}", "media"]
+                },
+                "description": "Streams workspace-scoped message media using the inherited Sanctum bearer token."
+              }
+            },
+            {
+              "name": "Download Message Media With Signed URL",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "*/*", "type": "text" }],
+                "auth": { "type": "noauth" },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/conversations/{{conversation_uuid}}/messages/{{message_id}}/media/signed?expires={{media_expires}}&signature={{media_signature}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "conversations", "{{conversation_uuid}}", "messages", "{{message_id}}", "media", "signed"],
+                  "query": [
+                    { "key": "expires", "value": "{{media_expires}}", "description": "Expiry timestamp from a backend-generated signed media URL" },
+                    { "key": "signature", "value": "{{media_signature}}", "description": "Signature from a backend-generated signed media URL" }
+                  ]
+                },
+                "description": "Streams message media through a valid short-lived signed URL without bearer authentication."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notification Actions",
+          "item": [
+            {
+              "name": "Get Notification Unread Count",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/notifications/unread-count",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "notifications", "unread-count"]
+                },
+                "description": "Returns the current workspace's unread notification count."
+              }
+            },
+            {
+              "name": "Update Email Inbox Notification Preference",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Accept", "value": "application/json", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/notifications/preferences/email-inbox",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "notifications", "preferences", "email-inbox"]
+                },
+                "description": "Enables or disables Master Email Inbox notifications for the current user.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enabled\": true\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
+              }
+            },
+            {
+              "name": "Mark All Notifications as Read",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/notifications/read-all",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "notifications", "read-all"]
+                },
+                "description": "Marks all unread notifications in the current workspace as read."
+              }
+            },
+            {
+              "name": "Delete Notification",
+              "request": {
+                "method": "DELETE",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/notifications/{{notification_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "notifications", "{{notification_id}}"]
+                },
+                "description": "Deletes a workspace-scoped notification belonging to the current user."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Knowledge Base Workflow",
+          "item": [
+            {
+              "name": "Approve Knowledge Base Document",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/ai/knowledge-bases/{{knowledge_base_id}}/documents/{{knowledge_document_id}}/approve",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "ai", "knowledge-bases", "{{knowledge_base_id}}", "documents", "{{knowledge_document_id}}", "approve"]
+                },
+                "description": "Approves a workspace-scoped Knowledge Base document for the guarded publishing workflow."
+              }
+            },
+            {
+              "name": "Toggle Knowledge Base Document",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/ai/knowledge-bases/{{knowledge_base_id}}/documents/{{knowledge_document_id}}/toggle",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "ai", "knowledge-bases", "{{knowledge_base_id}}", "documents", "{{knowledge_document_id}}", "toggle"]
+                },
+                "description": "Toggles whether a workspace-scoped Knowledge Base document is enabled."
+              }
+            },
+            {
+              "name": "Publish Knowledge Base",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/ai/knowledge-bases/{{knowledge_base_id}}/publish",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "ai", "knowledge-bases", "{{knowledge_base_id}}", "publish"]
+                },
+                "description": "Publishes the current validated draft revision of a Knowledge Base."
+              }
+            },
+            {
+              "name": "Test Knowledge Base Query",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Accept", "value": "application/json", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/ai/knowledge-bases/{{knowledge_base_id}}/test",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "ai", "knowledge-bases", "{{knowledge_base_id}}", "test"]
+                },
+                "description": "Runs a grounded retrieval test against the workspace Knowledge Base.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"question\": \"What information is available about your services?\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                }
               }
             }
           ]
