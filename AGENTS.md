@@ -23,7 +23,7 @@ Read the authoritative document for your task domain before writing code, and up
 | **Knowledge Base indexing, retrieval, answer scope, research & grounding** | [`docs/KNOWLEDGE_BASE_SMART_BOT.md`](docs/KNOWLEDGE_BASE_SMART_BOT.md) | Business-aware routing, semantic retrieval, approved-source boundaries, atomic index generations, evidence requirements, credits, diagnostics, feature flags, and rollout gates. |
 | **External Integrations & OAuth Credentials** | [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) and provider guides | Correct Meta OAuth scopes, Instagram limitations, Google/Microsoft OAuth, Telegram, SMS Gateways, SP-API / eBay, and Qdrant vectors. |
 | **Operations, Workers, Deployment & Crons** | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) and/or [`DEPLOYMENT.md`](DEPLOYMENT.md) | Scheduler setup, worker commands, deployment checklist, Vite production bundle builds, and log diagnostics. |
-| **Security, Secrets & Threat Boundaries** | [`docs/SECURITY.md`](docs/SECURITY.md) | `Crypt::encryptString` secret storage, Sanctum bearer tokens, CSRF, webhook signatures, widget HMAC secrets, and local licensing guards. |
+| **Security, Secrets & Threat Boundaries** | [`docs/SECURITY.md`](docs/SECURITY.md) | `Crypt::encryptString` secret storage, Sanctum bearer tokens, CSRF, webhook signatures, and widget HMAC secrets. |
 | **Product Decisions & Terminology** | [`docs/PRODUCT_DECISIONS.md`](docs/PRODUCT_DECISIONS.md) | Enforces intentional product choices (Omni-Channel vs Master Email Inbox separation, social deletion capabilities). |
 | **Known Issues & Technical Debt** | [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) | Active queue name quirks, external platform review states, and historical workarounds. |
 | **Current Repository Status & Next Steps** | [`docs/HANDOFF.md`](docs/HANDOFF.md) | Baseline commit status, active development focus, and immediate checklist. |
@@ -55,7 +55,6 @@ If a code change has no documentation impact, say so in the commit/hand-off summ
 - Do not expose encrypted credentials back to the browser. Blank credential fields mean “keep the stored value.”
 - Browser authentication uses session cookies and CSRF; mobile and external APIs use Sanctum bearer tokens.
 - Do not conflate provider capabilities. In particular, Facebook and Instagram post-edit/delete support differ and must be capability-driven.
-- Keep production license enforcement enabled. Any local testing bypass must be explicitly local-only and fail closed outside local environments.
 - Preserve unrelated user changes in a dirty worktree.
 
 ---

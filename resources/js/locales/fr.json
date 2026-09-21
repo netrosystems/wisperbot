@@ -894,7 +894,6 @@
         "tax_rates": "Taux de taxe",
         "landing_page": "Contenu du site",
         "cms_pages": "Pages CMS",
-        "license": "License",
         "cron_setup": "Configuration du Cron",
         "support": {
             "index": "Index",
@@ -4241,9 +4240,6 @@
     },
     "install": {
         "run": "Exécuter"
-    },
-    "license": {
-        "activate": "Activer"
     },
     "branding": {
         "favicon_url": "Favicon Url"

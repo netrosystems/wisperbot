@@ -3,7 +3,6 @@
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\ImpersonationController;
 use App\Http\Controllers\Install\InstallController;
-use App\Http\Controllers\LicenseController;
 use App\Http\Middleware\BroadcastingAuthDebug;
 use App\Http\Middleware\CheckApiAbility;
 use App\Http\Middleware\EnforceLimit;
@@ -11,7 +10,6 @@ use App\Http\Middleware\EnsureAddonEntitled;
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureClientScope;
 use App\Http\Middleware\EnsureInstalled;
-use App\Http\Middleware\EnsureLicensed;
 use App\Http\Middleware\EnsureNotDemoMode;
 use App\Http\Middleware\EnsurePlanSelected;
 use App\Http\Middleware\EnsureSuperAdmin;
@@ -53,19 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->group(function () {
                     Route::get('/', [InstallController::class, 'show'])->name('show');
                     Route::post('test-database', [InstallController::class, 'testDatabase'])->name('test-database');
-                    Route::post('activate-license', [InstallController::class, 'activateLicense'])->name('activate-license');
                     Route::post('/', [InstallController::class, 'run'])->name('run');
-                });
-
-            // Standalone license re-activation page (guest). EnsureLicensed
-            // redirects an unlicensed admin panel here; whitelisted from the
-            // license check so it stays reachable.
-            Route::middleware(['web'])
-                ->prefix('license')
-                ->name('license.')
-                ->group(function () {
-                    Route::get('/', [LicenseController::class, 'show'])->name('show');
-                    Route::post('activate', [LicenseController::class, 'activate'])->name('activate');
                 });
 
             // Webhook intake routes (no CSRF, no auth – signature-verified inside controllers)
@@ -103,9 +89,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->name('admin.impersonation.stop');
 
             // Admin panel (authenticated admin only; RBAC applied per-route).
-            // `licensed` blocks the panel and redirects to /license when the
-            // copy's license is missing/invalid.
-            Route::middleware(['web', 'auth:admin', 'licensed', 'demo'])
+            Route::middleware(['web', 'auth:admin', 'demo'])
                 ->prefix('admin')
                 ->name('admin.')
                 ->group(base_path('routes/admin.php'));
@@ -134,7 +118,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'redirect.if.admin' => RedirectIfAdminAuthenticated::class,
             'client.scope' => EnsureClientScope::class,
             'plan.selected' => EnsurePlanSelected::class,
-            'licensed' => EnsureLicensed::class,
             'limit' => EnforceLimit::class,
             'api.ability' => CheckApiAbility::class,
             'addon' => EnsureAddonEntitled::class,

@@ -894,7 +894,6 @@
         "tax_rates": "税率",
         "landing_page": "落地页",
         "cms_pages": "CMS 页面",
-        "license": "License",
         "cron_setup": "Cron Setup",
         "support": {
             "index": "支持列表",
@@ -4241,9 +4240,6 @@
     },
     "install": {
         "run": "Run"
-    },
-    "license": {
-        "activate": "Activate"
     },
     "branding": {
         "favicon_url": "Favicon Url"

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\EnsureLicensed;
 use App\Models\Plan;
 use App\Models\SocialAccount;
 use App\Models\SystemSetting;
@@ -162,8 +161,7 @@ class FirebaseGoogleLoginTest extends TestCase
     {
         $admin = $this->createSuperAdmin();
 
-        $this->withoutMiddleware(EnsureLicensed::class)
-            ->actingAs($admin, 'admin')
+        $this->actingAs($admin, 'admin')
             ->from(route('admin.settings.index'))
             ->put(route('admin.settings.firebase.update'), [
                 'firebase_enabled' => 'true',

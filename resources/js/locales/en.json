@@ -943,7 +943,6 @@
         "tax_rates": "Tax Rates",
         "landing_page": "Site Content",
         "cms_pages": "CMS Pages",
-        "license": "License",
         "cron_setup": "Cron Setup",
         "support": {
             "index": "Index",
@@ -4443,9 +4442,6 @@
     },
     "install": {
         "run": "Run"
-    },
-    "license": {
-        "activate": "Activate"
     },
     "branding": {
         "favicon_url": "Favicon Url"

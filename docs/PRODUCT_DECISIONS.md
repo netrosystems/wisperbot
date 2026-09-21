@@ -132,6 +132,6 @@ Product decision: 2026-09-19. Clients can pre-answer their most common questions
 
 ## Licensing and versions
 
-- Production license enforcement remains enabled.
-- Local testing may bypass license validation only through an explicit local-environment guard; it must never weaken production.
+- The legacy Envato/Botble purchase-code licensing and license-coupled updater were retired on 2026-09-21. Installation and Super Admin access do not require distribution-license activation.
+- A future licensing model is intentionally undecided and must be designed as a new feature rather than restoring assumptions from the retired implementation.
 - Production deployment finalization increments the patch version once per Git revision. Frontend UI changes still require a current Vite build.

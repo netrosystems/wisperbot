@@ -892,11 +892,6 @@
         "tax_rates": "税率",
         "landing_page": "サイトコンテンツ",
         "cms_pages": "CMSページ",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
         "cron_setup": "Cron設定",
         "support": {
             "index": "一覧",
@@ -4245,9 +4240,6 @@
     },
     "install": {
         "run": "Run"
-    },
-    "license": {
-        "activate": "Activate"
     },
     "branding": {
         "favicon_url": "Favicon Url"

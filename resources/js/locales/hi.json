@@ -1086,11 +1086,6 @@
         "recent_payments": "Recent payments",
         "amount": "Amount",
         "last_n_days": "Last {{n}} days",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
         "add_currency": "Add Currency",
         "blog": {
             "upload": "Upload",
@@ -4238,9 +4233,6 @@
     },
     "install": {
         "run": "Run"
-    },
-    "license": {
-        "activate": "Activate"
     },
     "branding": {
         "favicon_url": "Favicon Url"

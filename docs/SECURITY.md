@@ -38,7 +38,7 @@ Provider assets should not be attached to multiple workspaces when inbound routi
 ## Authentication
 
 - Web client: Laravel session, CSRF, verified email, client role and scope.
-- Super Admin: separate admin guard, license middleware, RBAC/permissions.
+- Super Admin: separate admin guard and RBAC/permissions.
 - Mobile: Sanctum bearer token; rate-limited login with a structured `429` response.
 - Developer API: Sanctum tokens plus paid add-on and per-token abilities.
 - Private broadcast auth: session endpoint for web; Sanctum endpoint for mobile.
@@ -88,9 +88,9 @@ Webhook endpoints should acknowledge quickly and queue expensive processing. The
 - Visitor IP/presence must be covered by privacy disclosures, retention policy, and customer configuration as required by law.
 - Media access must enforce conversation/workspace/session authorization; storage URLs should not become a cross-tenant public file browser.
 
-## Licensing
+## Distribution licensing
 
-Production licensing is a server/admin-panel control and must remain enforced. Local bypass logic is acceptable only when `APP_ENV=local` (or an equally strict local-only guard) and must fail closed in staging/production. Licensing must not be scattered as a check on every business API request unless explicitly designed that way.
+The legacy Envato/Botble activation system was removed on 2026-09-21. The installer and Super Admin application do not require a purchase code, call an external license server, or store legacy license artifacts. Any future distribution licensing model requires a new security and product review before implementation.
 
 ## Data retention and deletion
 

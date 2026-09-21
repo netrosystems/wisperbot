@@ -16,7 +16,6 @@ use App\Http\Controllers\Admin\CurrencyController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmailSystemController;
 use App\Http\Controllers\Admin\LandingPageController;
-use App\Http\Controllers\Admin\LicenseController;
 use App\Http\Controllers\Admin\LocaleController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PaymentGatewayConfigController;
@@ -126,13 +125,6 @@ Route::delete('/settings/logo', [SystemSettingsController::class, 'deleteLogo'])
 Route::post('/settings/favicon', [SystemSettingsController::class, 'uploadFavicon'])->name('settings.favicon.upload')->middleware('permission:manage_settings');
 Route::delete('/settings/favicon', [SystemSettingsController::class, 'deleteFavicon'])->name('settings.favicon.delete')->middleware('permission:manage_settings');
 Route::put('/settings/firebase', [SystemSettingsController::class, 'updateFirebase'])->name('settings.firebase.update')->middleware('permission:manage_settings');
-
-// License & Updates
-Route::get('/license', [LicenseController::class, 'index'])->name('license.index')->middleware('permission:view_settings');
-Route::post('/license/check-update', [LicenseController::class, 'checkUpdate'])->name('license.check-update')->middleware('permission:view_settings');
-Route::post('/license/apply-update', [LicenseController::class, 'applyUpdate'])->name('license.apply-update')->middleware('permission:manage_settings');
-Route::post('/license/activate', [LicenseController::class, 'activate'])->name('license.activate')->middleware('permission:manage_settings');
-Route::post('/license/deactivate', [LicenseController::class, 'deactivate'])->name('license.deactivate')->middleware('permission:manage_settings');
 
 // Audit log
 Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit-log.index')->middleware('permission:view_settings');

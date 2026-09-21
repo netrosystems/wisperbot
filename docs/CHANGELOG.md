@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Removed the legacy Envato/Botble distribution licensing system pending a new business model. Fresh installs no longer request a purchase code, the Super Admin panel no longer redirects to license activation or exposes “License & Updates,” and WisperBot no longer calls the legacy license/update server. The license-coupled updater was removed with it. Existing subscription plans and customer billing are unchanged.
+
 - Added a production Docker deployment for a single Ubuntu VPS: immutable
   PHP/Vite images, private MariaDB and Redis, hosted Pusher configuration, all
   named queue workers, scheduler, guarded legacy SQL import, pre-migration and
