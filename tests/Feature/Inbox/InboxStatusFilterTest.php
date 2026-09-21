@@ -246,6 +246,22 @@ class InboxStatusFilterTest extends TestCase
                 ->where('conversations.total', 1)
                 ->where('conversations.data.0.uuid', $targetConversation->uuid));
 
+        $this->actingAs($user)->get(route('client.inbox.index', ['q' => '  needle   customer  ']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('conversations.total', 1)
+                ->where('conversations.data.0.uuid', $targetConversation->uuid));
+
+        $this->actingAs($user)->get(route('client.inbox.index', ['q' => 'Needle Missing']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('conversations.total', 0));
+
+        $this->actingAs($user)->get(route('client.inbox.index', ['q' => '%']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('conversations.total', 0));
+
         $this->actingAs($user)->get(route('client.inbox.show', [
             'conversation' => $targetConversation,
             'q' => 'Needle',

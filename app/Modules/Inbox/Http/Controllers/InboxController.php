@@ -347,20 +347,24 @@ class InboxController extends Controller
 
     private function applyConversationSearch(Builder $query, string $search): Builder
     {
-        $term = trim($search);
-        if ($term === '') {
+        $terms = preg_split('/\s+/u', trim($search), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($terms === []) {
             return $query;
         }
 
-        $like = '%'.addcslashes($term, '\\%_').'%';
-
         return $query->whereHas('contact', fn (Builder $contact) => $contact
-            ->where(function (Builder $fields) use ($like) {
-                $fields->where('first_name', 'like', $like)
-                    ->orWhere('last_name', 'like', $like)
-                    ->orWhere('phone_e164', 'like', $like)
-                    ->orWhere('email', 'like', $like)
-                    ->orWhere('custom_fields', 'like', $like);
+            ->where(function (Builder $matchingContact) use ($terms) {
+                foreach ($terms as $term) {
+                    $like = '%'.addcslashes($term, '\\%_').'%';
+
+                    $matchingContact->where(function (Builder $fields) use ($like) {
+                        $fields->where('first_name', 'like', $like)
+                            ->orWhere('last_name', 'like', $like)
+                            ->orWhere('phone_e164', 'like', $like)
+                            ->orWhere('email', 'like', $like)
+                            ->orWhere('custom_fields', 'like', $like);
+                    });
+                }
             }));
     }
 

@@ -376,6 +376,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
     const listScrolledAwayRef = useRef(false);
     const gentleRefreshInFlightRef = useRef(false);
     const listScrollRef = useRef(null);
+    const searchCancelTokenRef = useRef(null);
 
     const isLiveFolder = filters.folder === 'live';
 
@@ -390,10 +391,6 @@ export default function InboxIndex({ conversations: initialConversations, filter
     }, [initialConversations]);
 
     useEffect(() => {
-        setSearch(filters.q ?? '');
-    }, [filters.q]);
-
-    useEffect(() => {
         const requestedSearch = search.trim();
         if (requestedSearch === (filters.q ?? '').trim()) return undefined;
 
@@ -402,6 +399,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
                 listScrollRef.current.scrollTop = 0;
             }
             setLoading(true);
+            let requestCancelToken = null;
             router.get(route('client.inbox.index'), {
                 ...filters,
                 q: requestedSearch || undefined,
@@ -409,11 +407,23 @@ export default function InboxIndex({ conversations: initialConversations, filter
                 preserveState: true,
                 preserveScroll: true,
                 replace: true,
+                onCancelToken: cancelToken => {
+                    requestCancelToken = cancelToken;
+                    searchCancelTokenRef.current = cancelToken;
+                },
+                onFinish: () => {
+                    if (searchCancelTokenRef.current === requestCancelToken) {
+                        searchCancelTokenRef.current = null;
+                        setLoading(false);
+                    }
+                },
             });
         }, 300);
 
         return () => window.clearTimeout(timer);
     }, [search, filters.folder, filters.channel, filters.label, filters.account_id, filters.q]);
+
+    useEffect(() => () => searchCancelTokenRef.current?.cancel(), []);
 
     useLayoutEffect(() => {
         const savedPosition = Number(sessionStorage.getItem(conversationListScrollKey(filters)));
@@ -426,6 +436,13 @@ export default function InboxIndex({ conversations: initialConversations, filter
     const rememberListPosition = () => {
         if (!listScrollRef.current) return;
         sessionStorage.setItem(conversationListScrollKey(filters), String(listScrollRef.current.scrollTop));
+    };
+
+    const handleSearchChange = (value) => {
+        searchCancelTokenRef.current?.cancel();
+        searchCancelTokenRef.current = null;
+        setLoading(false);
+        setSearch(value);
     };
 
     // Select first live visitor automatically if none selected
@@ -717,7 +734,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
                             <input
                                 type="text"
                                 value={search}
-                                onChange={e => setSearch(e.target.value)}
+                                onChange={e => handleSearchChange(e.target.value)}
                                 placeholder={isLiveFolder ? t('inbox.filter_visitors', 'Filter by name, city...') : t('inbox.search_conversations')}
                                 className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-neutral-100 dark:bg-neutral-800 border-0 focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder-neutral-400"
                             />
