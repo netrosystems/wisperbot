@@ -1644,6 +1644,7 @@ export default function InboxShow({
     const listScrolledAwayRef = useRef(false);
     const gentleRefreshInFlightRef = useRef(false);
     const listScrollRef = useRef(null);
+    const searchCancelTokenRef = useRef(null);
     const messageConversationIdRef = useRef(conversation.id);
 
     // When Inertia navigates between conversations the page component is
@@ -1693,10 +1694,6 @@ export default function InboxShow({
         lastUserScrollGestureAtRef.current = 0;
     }, [initialConversations]);
 
-    useEffect(() => {
-        setListSearch(filters.q ?? '');
-    }, [filters.q]);
-
     useLayoutEffect(() => {
         const savedPosition = Number(sessionStorage.getItem(conversationListScrollKey(filters)));
         if (!listScrollRef.current || !Number.isFinite(savedPosition)) return;
@@ -1708,6 +1705,13 @@ export default function InboxShow({
     const rememberListPosition = () => {
         if (!listScrollRef.current) return;
         sessionStorage.setItem(conversationListScrollKey(filters), String(listScrollRef.current.scrollTop));
+    };
+
+    const handleListSearchChange = (value) => {
+        searchCancelTokenRef.current?.cancel();
+        searchCancelTokenRef.current = null;
+        setListLoading(false);
+        setListSearch(value);
     };
 
     // Toolbar state
@@ -2251,6 +2255,8 @@ export default function InboxShow({
     };
 
     const navigateList = (params) => {
+        searchCancelTokenRef.current?.cancel();
+        searchCancelTokenRef.current = null;
         if (params.folder === 'live') {
             router.visit(route('client.inbox.index', { folder: 'live' }));
             return;
@@ -2267,11 +2273,32 @@ export default function InboxShow({
             if (listScrollRef.current) {
                 listScrollRef.current.scrollTop = 0;
             }
-            navigateList({ q: requestedSearch || undefined });
+            setListLoading(true);
+            let requestCancelToken = null;
+            router.get(route('client.inbox.show', conversation.uuid), {
+                ...filters,
+                q: requestedSearch || undefined,
+            }, {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onCancelToken: cancelToken => {
+                    requestCancelToken = cancelToken;
+                    searchCancelTokenRef.current = cancelToken;
+                },
+                onFinish: () => {
+                    if (searchCancelTokenRef.current === requestCancelToken) {
+                        searchCancelTokenRef.current = null;
+                        setListLoading(false);
+                    }
+                },
+            });
         }, 300);
 
         return () => window.clearTimeout(timer);
     }, [listSearch, conversation.uuid, filters.folder, filters.channel, filters.label, filters.account_id, filters.q]);
+
+    useEffect(() => () => searchCancelTokenRef.current?.cancel(), []);
 
     const loadMoreConversations = (scrollTop = null) => {
         if (listLoadingMoreRef.current || listLoading || !conversations?.next_page_url) return;
@@ -2472,7 +2499,7 @@ export default function InboxShow({
                         </div>
                         <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
-                            <input value={listSearch} onChange={e => setListSearch(e.target.value)}
+                            <input value={listSearch} onChange={e => handleListSearchChange(e.target.value)}
                                 placeholder={t('inbox.search_conversations')}
                                 className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-neutral-100 dark:bg-neutral-800 border-0 focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder-neutral-400"
                             />
