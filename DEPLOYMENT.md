@@ -37,6 +37,8 @@ use `/home/bluestar/wisperbot.com` as the Git source, and preserve a shared
 `.env` and the existing root `storage` through a symlink. Override these paths
 with environment variables on other hosts. Keep `/deployment/` ignored by Git
 because it contains production files and secrets.
+The document-root path and each release directory must be traversable by the
+web server; the deploy script grants traverse-only access to new releases.
 
 Before deployment, build frontend assets from the exact `origin/main` revision
 and upload an archive containing `build/manifest.json` as
