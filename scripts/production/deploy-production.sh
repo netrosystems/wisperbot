@@ -67,6 +67,7 @@ unzip -Z1 "$BUILD_ZIP" | grep -qx 'build/manifest.json'
 RELEASE_NAME="$(date +%Y%m%d-%H%M%S)-$SHORT_SHA"
 RELEASE_PATH="$RELEASES_DIR/$RELEASE_NAME"
 mkdir "$RELEASE_PATH"
+chmod o+x "$RELEASE_PATH"
 git -C "$SOURCE_REPO" archive "$TARGET_SHA" | tar -x -C "$RELEASE_PATH"
 
 CONFIG_SOURCE="$SOURCE_REPO/public"
