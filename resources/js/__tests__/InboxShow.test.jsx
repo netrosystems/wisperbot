@@ -15,8 +15,10 @@ vi.mock('@inertiajs/react', async () => {
     const { useState } = await import('react');
     return {
         Head: () => null,
-        Link: ({ href, children, ...props }) => <a href={href} {...props}>{children}</a>,
-        router: { reload: vi.fn(), visit: vi.fn() },
+        Link: ({ href, children, onClick, only: _only, preserveScroll: _preserveScroll, preserveState: _preserveState, ...props }) => (
+            <a href={href} onClick={event => { event.preventDefault(); onClick?.(event); }} {...props}>{children}</a>
+        ),
+        router: { get: vi.fn(), reload: vi.fn(), visit: vi.fn() },
         usePage: () => ({ props: { auth: { user: { id: 7, name: 'Agent', timezone: 'UTC', workspace_id: 1 } }, timezone: 'UTC', flash: {} } }),
         useForm: initial => {
             const [data, update] = useState(initial);
@@ -39,6 +41,7 @@ const props = { conversation, messages: [], conversations: { data: [], total: 0 
 
 beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     delete window.Echo;
     Element.prototype.scrollIntoView = vi.fn();
     axios.get.mockResolvedValue({ data: { messages: [] } });
@@ -191,6 +194,84 @@ describe('Mobile chat reply layout', () => {
         expect(await screen.findByText('Second')).toBeInTheDocument();
     });
 
+    it('sends inbox search to the server instead of filtering only loaded rows', async () => {
+        render(<InboxIndex
+            conversations={{
+                data: [{
+                    id: 1,
+                    uuid: 'first-chat',
+                    status: 'open',
+                    unread_count: 0,
+                    contact: { first_name: 'First', custom_fields: {} },
+                    channel_account: { channel: 'webchat' },
+                    last_message: { body: 'Hello' },
+                }],
+                total: 32,
+                next_page_url: '/page-2',
+            }}
+            filters={{ folder: 'mine' }}
+        />);
+
+        fireEvent.change(screen.getByPlaceholderText('inbox.search_conversations'), {
+            target: { value: 'Needle' },
+        });
+
+        await waitFor(() => expect(router.get).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ folder: 'mine', q: 'Needle' }),
+            expect.objectContaining({ preserveState: true, preserveScroll: true, replace: true }),
+        ));
+    });
+
+    it('keeps deleted search characters from returning after an older response', async () => {
+        const cancel = vi.fn();
+        router.get.mockImplementationOnce((_url, _data, options) => {
+            options.onCancelToken({ cancel });
+        });
+        const inboxProps = {
+            conversations: { data: [], total: 0 },
+            filters: {},
+        };
+        const view = render(<InboxIndex {...inboxProps} />);
+        const input = screen.getByPlaceholderText('inbox.search_conversations');
+
+        fireEvent.change(input, { target: { value: 'Customer' } });
+        await waitFor(() => expect(router.get).toHaveBeenCalledTimes(1));
+
+        fireEvent.change(input, { target: { value: 'Cust' } });
+        expect(cancel).toHaveBeenCalledTimes(1);
+
+        view.rerender(<InboxIndex {...inboxProps} filters={{ q: 'Customer' }} />);
+        expect(input).toHaveValue('Cust');
+    });
+
+    it('restores the conversation list position when switching threads', () => {
+        const list = {
+            data: [
+                conversation,
+                {
+                    ...conversation,
+                    id: 2,
+                    uuid: 'second-chat',
+                    contact: { first_name: 'Second', custom_fields: {} },
+                },
+            ],
+            total: 2,
+        };
+        const view = render(<InboxShow {...props} conversations={list} />);
+        const scrollRegion = screen.getByText('Second').closest('.overflow-y-auto');
+        scrollRegion.scrollTop = 420;
+
+        fireEvent.click(screen.getByText('Second').closest('a'));
+        view.rerender(<InboxShow
+            {...props}
+            conversation={list.data[1]}
+            conversations={list}
+        />);
+
+        expect(scrollRegion.scrollTop).toBe(420);
+    });
+
     it('refreshes the resolved folder when an inbound message reopens a conversation', () => {
         const listeners = {};
         const channel = {
@@ -231,6 +312,36 @@ describe('Mobile chat reply layout', () => {
             only: ['conversations'],
             preserveScroll: true,
             preserveState: true,
+        });
+    });
+
+    it('reconciles live visitors when Pusher reports a presence change', () => {
+        const listeners = {};
+        const channel = {
+            listen: vi.fn((event, callback) => {
+                listeners[event] = callback;
+                return channel;
+            }),
+            notification: vi.fn(() => channel),
+        };
+        window.Echo = {
+            private: vi.fn(() => channel),
+            leave: vi.fn(),
+        };
+
+        render(<InboxIndex conversations={{ data: [], total: 0 }} filters={{ folder: 'live' }} />);
+
+        act(() => listeners['.LiveVisitorUpdated']({
+            conversation_id: 9,
+            conversation_uuid: 'live-9',
+            online: true,
+        }));
+
+        expect(router.reload).toHaveBeenCalledWith({
+            only: ['conversations', 'liveUsersCount'],
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: expect.any(Function),
         });
     });
 });

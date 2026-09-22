@@ -52,6 +52,22 @@ Frontend changes still require a current Vite build. Build locally and upload
 Node memory. Pulling PHP/source files alone cannot update the browser UI because
 `public/build` is intentionally excluded from Git.
 
+## Atomic shared-hosting releases
+
+The guarded scripts in `scripts/production` support release-directory deployment
+on shared hosting. They default to `/home/bluestar/wisperbot.com/deployment`,
+use `/home/bluestar/wisperbot.com` as the Git source, and preserve a shared
+`.env` and the existing root `storage` through a symlink. Override these paths
+with environment variables on other hosts. Keep `/deployment/` ignored by Git
+because it contains production files and secrets.
+
+Before deployment, build frontend assets from the exact `origin/main` revision
+and upload an archive containing `build/manifest.json` as
+`artifacts/build-<full-commit-sha>.zip`. Then run `deploy-production.sh`. Use
+`rollback-production.sh [release-name]` to atomically select an earlier release;
+database migrations and the application version are intentionally not rolled
+back by that script.
+
 WhatsApp connection health additionally requires its migration and a separate `channel-health` worker before enabling `CHANNEL_HEALTH_ENABLED`. Start with the workspace allowlist, verify real message delivery, then expand. See [connection monitoring operations](docs/OPERATIONS.md#whatsapp-connection-monitoring-2026-09-05) for worker timeout, operator WABA settings, and rollback instructions.
 
 For a feature release or major release, use:

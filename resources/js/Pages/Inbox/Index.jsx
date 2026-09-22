@@ -8,7 +8,7 @@ import {
     MessageSquare, Inbox, CheckCircle, Clock, User, RefreshCw,
     Search, Plus, Radio, Globe2,
 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChannelBrandIcon, CHANNEL_LABELS, ConversationChannelIcon } from '@/Components/BrandIcons';
 import { formatTimeTz } from '@/Utils/datetime';
@@ -24,6 +24,14 @@ const FOLDERS = [
 ];
 
 const ALL_CHANNELS = ['whatsapp', 'instagram', 'messenger', 'telegram', 'ebay', 'amazon', 'webchat'];
+
+const conversationListScrollKey = filters => `inbox-conversation-list:${[
+    filters.folder,
+    filters.channel,
+    filters.label,
+    filters.account_id,
+    filters.q,
+].map(value => value ?? '').join(':')}`;
 
 function StatusDot({ status }) {
     const colors = {
@@ -148,7 +156,7 @@ function LiveVisitorCard({ conv, isSelected, onSelect, onStartChat }) {
     );
 }
 
-function ConversationCard({ conv, isFlashing, isActive, userTz }) {
+function ConversationCard({ conv, isFlashing, isActive, userTz, filters = {}, onNavigate }) {
     const { t } = useTranslation();
     const lastMsg = conv.last_message ?? {};
     const lastResponder = lastMsg.direction === 'out'
@@ -168,7 +176,9 @@ function ConversationCard({ conv, isFlashing, isActive, userTz }) {
 
     return (
         <Link
-            href={route('client.inbox.show', conv.uuid)}
+            href={route('client.inbox.show', { conversation: conv.uuid, ...filters })}
+            preserveScroll
+            onClick={onNavigate}
             className={`block px-3 py-3 border-b border-neutral-100 dark:border-neutral-800 transition-colors ${
                 isActive
                     ? 'bg-brand-50 dark:bg-brand-900/20 border-l-2 border-l-brand-600'
@@ -356,7 +366,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
     const [flashingIds, setFlashingIds]     = useState(new Set());
     const [loading, setLoading]             = useState(false);
     const [loadingMore, setLoadingMore]     = useState(false);
-    const [search, setSearch]               = useState('');
+    const [search, setSearch]               = useState(filters.q ?? '');
     const [showNewModal, setShowNewModal]   = useState(false);
     const [selectedVisitorId, setSelectedVisitorId] = useState(null);
     const loadingMoreRef = useRef(false);
@@ -365,6 +375,8 @@ export default function InboxIndex({ conversations: initialConversations, filter
     const lastUserScrollGestureAtRef = useRef(0);
     const listScrolledAwayRef = useRef(false);
     const gentleRefreshInFlightRef = useRef(false);
+    const listScrollRef = useRef(null);
+    const searchCancelTokenRef = useRef(null);
 
     const isLiveFolder = filters.folder === 'live';
 
@@ -377,6 +389,61 @@ export default function InboxIndex({ conversations: initialConversations, filter
         userScrolledListRef.current = false;
         lastUserScrollGestureAtRef.current = 0;
     }, [initialConversations]);
+
+    useEffect(() => {
+        const requestedSearch = search.trim();
+        if (requestedSearch === (filters.q ?? '').trim()) return undefined;
+
+        const timer = window.setTimeout(() => {
+            if (listScrollRef.current) {
+                listScrollRef.current.scrollTop = 0;
+            }
+            setLoading(true);
+            let requestCancelToken = null;
+            router.get(route('client.inbox.index'), {
+                ...filters,
+                q: requestedSearch || undefined,
+            }, {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onCancelToken: cancelToken => {
+                    requestCancelToken = cancelToken;
+                    searchCancelTokenRef.current = cancelToken;
+                },
+                onFinish: () => {
+                    if (searchCancelTokenRef.current === requestCancelToken) {
+                        searchCancelTokenRef.current = null;
+                        setLoading(false);
+                    }
+                },
+            });
+        }, 300);
+
+        return () => window.clearTimeout(timer);
+    }, [search, filters.folder, filters.channel, filters.label, filters.account_id, filters.q]);
+
+    useEffect(() => () => searchCancelTokenRef.current?.cancel(), []);
+
+    useLayoutEffect(() => {
+        const savedPosition = Number(sessionStorage.getItem(conversationListScrollKey(filters)));
+        if (!listScrollRef.current || !Number.isFinite(savedPosition)) return;
+
+        listScrollRef.current.scrollTop = savedPosition;
+        listScrolledAwayRef.current = savedPosition > 40;
+    }, [filters.folder, filters.channel, filters.label, filters.account_id, filters.q]);
+
+    const rememberListPosition = () => {
+        if (!listScrollRef.current) return;
+        sessionStorage.setItem(conversationListScrollKey(filters), String(listScrollRef.current.scrollTop));
+    };
+
+    const handleSearchChange = (value) => {
+        searchCancelTokenRef.current?.cancel();
+        searchCancelTokenRef.current = null;
+        setLoading(false);
+        setSearch(value);
+    };
 
     // Select first live visitor automatically if none selected
     useEffect(() => {
@@ -436,13 +503,23 @@ export default function InboxIndex({ conversations: initialConversations, filter
             })
             .listen('.ConversationOwnershipChanged', (e) => {
                 setConversations(prev => ({ ...prev, data: prev.data.map(conv => conv.id === e.conversation_id ? { ...conv, joined_user: e.joined_user, joined_at: e.joined_at, assigned_to: e.assigned_to ?? conv.assigned_to, assigned_user_id: e.assigned_user_id, status: e.status } : conv) }));
+            })
+            .listen('.LiveVisitorUpdated', () => {
+                if (gentleRefreshInFlightRef.current) return;
+                gentleRefreshInFlightRef.current = true;
+                router.reload({
+                    only: isLiveFolder ? ['conversations', 'liveUsersCount'] : ['liveUsersCount'],
+                    preserveScroll: true,
+                    preserveState: true,
+                    onFinish: () => { gentleRefreshInFlightRef.current = false; },
+                });
             });
         return () => { window.Echo.leave(`workspace.${workspaceId}`); };
-    }, [workspaceId]);
+    }, [workspaceId, isLiveFolder]);
 
     const navigate = (params) => {
         setLoading(true);
-        router.get(route('client.inbox.index'), { ...filters, ...params }, { preserveState: true, replace: true });
+        router.get(route('client.inbox.index'), { ...filters, ...params }, { preserveState: true, preserveScroll: true, replace: true });
     };
 
     const handleFolder  = (key) => navigate({ folder: key, channel: undefined, label: undefined, account_id: undefined });
@@ -451,7 +528,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
     const handleLabel   = (id)  => navigate({ label: String(filters.label) === String(id) ? undefined : id });
 
     const loadMoreConversations = (scrollTop = null) => {
-        if (loadingMoreRef.current || loading || search.trim() || !conversations?.next_page_url) return;
+        if (loadingMoreRef.current || loading || !conversations?.next_page_url) return;
         if (scrollTop !== null && scrollTop <= lastLoadScrollTopRef.current + 24) return;
 
         loadingMoreRef.current = true;
@@ -504,7 +581,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
             userScrolledListRef.current = false;
             return;
         }
-        if (isLiveFolder || search.trim()) return;
+        if (isLiveFolder) return;
         const target = event.currentTarget;
         const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
         if (remaining < 180) {
@@ -566,13 +643,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
             });
     };
 
-    const filtered = search.trim()
-        ? conversations.data.filter(c => {
-            const cf = c.contact?.custom_fields || {};
-            const searchStr = `${c.contact?.first_name ?? ''} ${c.contact?.last_name ?? ''} ${c.contact?.phone_e164 ?? ''} ${c.contact?.email ?? ''} ${cf.webchat_last_ip ?? ''} ${cf.webchat_city ?? ''} ${cf.webchat_country ?? ''} ${cf.webchat_page_title ?? ''}`.toLowerCase();
-            return searchStr.includes(search.toLowerCase());
-        })
-        : conversations.data;
+    const filtered = conversations.data;
 
     const activeFolder = FOLDERS.find(f => (f.key ?? null) === (filters.folder ?? null));
     const filterNavigation = (
@@ -663,7 +734,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
                             <input
                                 type="text"
                                 value={search}
-                                onChange={e => setSearch(e.target.value)}
+                                onChange={e => handleSearchChange(e.target.value)}
                                 placeholder={isLiveFolder ? t('inbox.filter_visitors', 'Filter by name, city...') : t('inbox.search_conversations')}
                                 className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-neutral-100 dark:bg-neutral-800 border-0 focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder-neutral-400"
                             />
@@ -672,6 +743,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
 
                     {/* List body */}
                     <div
+                        ref={listScrollRef}
                         className="flex-1 overflow-y-auto"
                         onWheel={noteUserListScroll}
                         onTouchMove={noteUserListScroll}
@@ -706,10 +778,12 @@ export default function InboxIndex({ conversations: initialConversations, filter
                                     isFlashing={flashingIds.has(conv.id)}
                                     isActive={false}
                                     userTz={userTz}
+                                    filters={filters}
+                                    onNavigate={rememberListPosition}
                                 />
                             ))
                         )}
-                        {!isLiveFolder && !search.trim() && (
+                        {!isLiveFolder && (
                             <div className="py-3 text-center text-[11px] text-neutral-400">
                                 {loadingMore ? t('common.loading', 'Loading...') : (conversations?.next_page_url ? '' : t('inbox.all_conversations_loaded', 'All conversations loaded'))}
                             </div>

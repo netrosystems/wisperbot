@@ -31,6 +31,7 @@ use App\Services\Media\AttachmentService;
 use App\Services\StorageManager;
 use App\Services\WorkspaceNotificationRecipients;
 use App\Support\Demo;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -91,6 +92,7 @@ class InboxController extends Controller
             ->when($request->folder === 'resolved', fn ($q) => $q->where('status', 'resolved'))
             ->when($request->folder === 'snoozed', fn ($q) => $q->where('status', 'snoozed'))
             ->when($request->label, fn ($q) => $q->whereHas('labels', fn ($q) => $q->where('inbox_labels.id', $request->label)))
+            ->when($request->filled('q'), fn ($q) => $this->applyConversationSearch($q, $request->string('q')->toString()))
             ->when($isLiveFolder, fn ($q) => $q->orderByDesc('webchat_last_seen_at'), fn ($q) => $q->orderByDesc('last_message_at'))
             ->paginate(30)
             ->withQueryString();
@@ -135,7 +137,7 @@ class InboxController extends Controller
 
         return Inertia::render('Inbox/Index', [
             'conversations' => $conversations,
-            'filters' => $request->only('folder', 'channel', 'label', 'account_id'),
+            'filters' => $request->only('folder', 'channel', 'label', 'account_id', 'q'),
             'labels' => $labels,
             'channelAccounts' => $channelAccounts,
             'liveUsersCount' => $this->liveUsersQuery($workspaceId, $liveSince)->distinct('contact_id')->count('contact_id'),
@@ -258,13 +260,13 @@ class InboxController extends Controller
             : collect();
 
         // Pass conversation list so the left panel stays populated on the show page
-        $filters = $request->only('folder', 'channel', 'label', 'account_id');
+        $filters = $request->only('folder', 'channel', 'label', 'account_id', 'q');
         if ($conversation->channelAccount?->channel === 'email') {
             $filters['channel'] = 'email';
         }
         $emailOnly = $conversation->channelAccount?->channel === 'email';
 
-        $conversations = Conversation::where('workspace_id', $workspaceId)
+        $conversations = fn () => Conversation::where('workspace_id', $workspaceId)
             ->whereHas('channelAccount', fn ($account) => $emailOnly
                 ? $account->where('channel', 'email')
                 : $account->whereIn('channel', self::OMNI_CHANNELS))
@@ -284,6 +286,7 @@ class InboxController extends Controller
             ->when(($filters['folder'] ?? null) === 'resolved', fn ($q) => $q->where('status', 'resolved'))
             ->when(($filters['folder'] ?? null) === 'snoozed', fn ($q) => $q->where('status', 'snoozed'))
             ->when($filters['label'] ?? null, fn ($q, $lid) => $q->whereHas('labels', fn ($q) => $q->where('inbox_labels.id', $lid)))
+            ->when($filters['q'] ?? null, fn ($q, $search) => $this->applyConversationSearch($q, $search))
             ->orderByDesc('last_message_at')
             ->paginate(30)
             ->withQueryString();
@@ -340,6 +343,29 @@ class InboxController extends Controller
             ->where('workspace_id', $workspaceId)
             ->whereHas('channelAccount', fn ($account) => $account->where('channel', 'webchat'))
             ->where('webchat_last_seen_at', '>=', $liveSince);
+    }
+
+    private function applyConversationSearch(Builder $query, string $search): Builder
+    {
+        $terms = preg_split('/\s+/u', trim($search), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($terms === []) {
+            return $query;
+        }
+
+        return $query->whereHas('contact', fn (Builder $contact) => $contact
+            ->where(function (Builder $matchingContact) use ($terms) {
+                foreach ($terms as $term) {
+                    $like = '%'.addcslashes($term, '\\%_').'%';
+
+                    $matchingContact->where(function (Builder $fields) use ($like) {
+                        $fields->where('first_name', 'like', $like)
+                            ->orWhere('last_name', 'like', $like)
+                            ->orWhere('phone_e164', 'like', $like)
+                            ->orWhere('email', 'like', $like)
+                            ->orWhere('custom_fields', 'like', $like);
+                    });
+                }
+            }));
     }
 
     public function messages(
