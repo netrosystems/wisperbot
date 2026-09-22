@@ -97,6 +97,10 @@ docker compose up -d --force-recreate --no-deps --remove-orphans \
     queue-leads \
     queue-automation \
     queue-channel-health
+if docker compose config --services | grep -qx phpmyadmin; then
+    echo "Starting browser database administration..."
+    docker compose up -d phpmyadmin
+fi
 docker compose exec -T --user www-data app php artisan optimize
 docker compose exec -T --user www-data app php artisan up
 

@@ -4,6 +4,12 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added optional browser database administration to the single-VPS Docker stack:
+  phpMyAdmin remains loopback-only behind a host Nginx HTTPS path and a separate
+  HTTP password, with its own MariaDB login. The `db-admin` profile is off by
+  default and requires operator configuration; no application migration or Vite
+  build is needed.
+
 - Removed the legacy Envato/Botble distribution licensing system pending a new business model. Fresh installs no longer request a purchase code, the Super Admin panel no longer redirects to license activation or exposes “License & Updates,” and WisperBot no longer calls the legacy license/update server. The license-coupled updater was removed with it. Existing subscription plans and customer billing are unchanged.
 
 - Added a production Docker deployment for a single Ubuntu VPS: immutable

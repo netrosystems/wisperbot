@@ -51,6 +51,14 @@ Provider assets should not be attached to multiple workspaces when inbound routi
 - Logs and exception messages must redact Authorization headers, access/refresh tokens, API keys, app secrets, webhook secrets, widget identity secrets, license codes, and passwords.
 - Documentation and tests use fake values only.
 
+Production browser database administration, when enabled, runs in a separate
+`db-admin` Compose profile. Its phpMyAdmin port binds to `127.0.0.1` on the VPS;
+host Nginx must require HTTPS and independent HTTP authentication before proxying
+the private path. phpMyAdmin still requires a MariaDB login. The URL path is not
+a secret or an authorization boundary. Database privileges, not Laravel workspace
+scoping, govern what an operator can see through phpMyAdmin; use a read-only
+account for inspection and never configure automatic database login.
+
 ## Managed AI credits and abuse controls
 
 - Managed credits are finite; a missing/null allowance means zero, never unlimited. They are pooled by organization/standalone billing owner so creating or deleting a workspace cannot mint credits.

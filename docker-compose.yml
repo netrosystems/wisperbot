@@ -53,6 +53,20 @@ services:
             retries: 12
             start_period: 30s
 
+    phpmyadmin:
+        image: phpmyadmin:5.2.3-apache
+        profiles: ['db-admin']
+        restart: unless-stopped
+        environment:
+            PMA_HOST: db
+            PMA_PORT: 3306
+            PMA_ABSOLUTE_URI: '${APP_URL:?Set APP_URL in .env}/${DB_ADMIN_PATH:-db-admin}/'
+        ports:
+            - '127.0.0.1:${DB_ADMIN_HTTP_PORT:-8081}:80'
+        depends_on:
+            db:
+                condition: service_healthy
+
     redis:
         image: redis:7.4-alpine
         restart: unless-stopped

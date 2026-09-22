@@ -6,6 +6,9 @@ The supported single-VPS Docker stack builds the PHP dependencies and Vite
 assets into immutable images, runs MariaDB and Redis privately, and starts the
 scheduler plus every named queue worker. Host Nginx/Certbot proxy HTTPS to the
 loopback-only container port. See [`docker/README.md`](docker/README.md).
+Optional browser database administration uses the separate `db-admin` Compose
+profile and a host Nginx HTTPS path; see the
+[operator setup](docker/README.md#optional-browser-database-administration).
 
 Initial deployment and subsequent updates use:
 

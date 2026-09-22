@@ -143,6 +143,79 @@ No Pusher proxy is required. Ensure the Pusher app's cluster and credentials
 match `.env`, and do not enable conflicting database-stored Pusher credentials
 in the Super Admin settings.
 
+### Optional browser database administration
+
+The `db-admin` Compose profile runs phpMyAdmin against the private `db` service.
+Its HTTP port binds only to VPS loopback; only host Nginx should expose it. This
+is an operator tool outside Laravel's workspace authorization, so its database
+account can see every workspace permitted by that account.
+
+1. In the VPS `.env`, keep `APP_URL` as the public HTTPS origin without a
+   trailing slash. Add these values, generating a **new** path for this host:
+
+   ```dotenv
+   COMPOSE_PROFILES=db-admin
+   DB_ADMIN_PATH=REPLACE_WITH_A_NEW_RANDOM_PATH
+   DB_ADMIN_HTTP_PORT=8081
+   ```
+
+   `openssl rand -hex 12` can generate a path value. Use only letters, numbers,
+   and hyphens. Do not copy another site's path or put passwords in the URL.
+   The path is a bookmark, not an authentication credential.
+
+2. In the **HTTPS server block** for `YOUR-DOMAIN` on host Nginx, alongside the
+   existing `location /`, add the following locations. Replace both path
+   placeholders with exactly the value of `DB_ADMIN_PATH`, and change `8081` if
+   `DB_ADMIN_HTTP_PORT` differs:
+
+   ```nginx
+   location = /REPLACE_WITH_A_NEW_RANDOM_PATH {
+       return 301 /REPLACE_WITH_A_NEW_RANDOM_PATH/;
+   }
+
+   location /REPLACE_WITH_A_NEW_RANDOM_PATH/ {
+       auth_basic "Database administration";
+       auth_basic_user_file /etc/nginx/.wisperbot-db-admin.htpasswd;
+       proxy_pass http://127.0.0.1:8081/;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+   }
+   ```
+
+   The trailing slash on `proxy_pass` strips the private path before forwarding
+   to phpMyAdmin. The container's `PMA_ABSOLUTE_URI` uses `APP_URL` and
+   `DB_ADMIN_PATH` to generate browser links under that path.
+
+3. Create an independent HTTP password for the Nginx gate, then validate and
+   reload Nginx. Do not put the database password in this file:
+
+   ```bash
+   sudo apt-get install apache2-utils
+   sudo htpasswd -c /etc/nginx/.wisperbot-db-admin.htpasswd admin
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+   Use `htpasswd` without `-c` to add a later user without replacing the file.
+   The public site must already have a valid HTTPS certificate; never sign in
+   to this page over HTTP. Keep HTTP redirected to HTTPS.
+
+4. From the VPS checkout, run `./deploy.sh`. It starts phpMyAdmin when the
+   profile is enabled and preserves it on later deployments. Check
+   `docker compose ps phpmyadmin`, then open
+   `https://YOUR-DOMAIN/REPLACE_WITH_A_NEW_RANDOM_PATH/`. The first prompt is
+   Nginx authentication; the second is phpMyAdmin's MariaDB login. Prefer a
+   separate account with only `SELECT` privileges for routine inspection.
+   Do not configure `PMA_USER` or `PMA_PASSWORD` for automatic login.
+
+To disable browser access, remove the Nginx locations and reload Nginx, remove
+`db-admin` from `COMPOSE_PROFILES`, then run `docker compose --profile db-admin
+stop phpmyadmin`. MariaDB remains private throughout. Keep the phpMyAdmin image
+updated when security releases are available; changing the pinned image tag
+requires a normal deployment.
+
 ## 5. Updates
 
 For each later release:

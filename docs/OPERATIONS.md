@@ -30,6 +30,9 @@ scheduler container, and daily database/storage backups retained on the VPS.
 creates a pre-migration backup, runs migrations/finalization, and verifies the
 loopback HTTP health endpoint. Do not use
 `docker compose down -v` because it removes production data volumes.
+Optional browser database administration uses the `db-admin` Compose profile,
+loopback-bound phpMyAdmin, and a separately password-protected HTTPS Nginx path.
+See [the Docker operator setup](../docker/README.md#optional-browser-database-administration).
 
 Blog platform upgrade (2026-09-18): deploy matching backend and frontend assets, then run the normal deployment finalizer/cache rebuild. No migration, scheduler, or queue change is required. Public requests sanitize and structurally repair legacy article HTML without rewriting the stored row; the next editorial save persists the normalized HTML through the existing revision flow. After deployment, verify `/blog`, a legacy rich article, its contents anchors, a responsive table, and Article/Breadcrumb/FAQ JSON-LD where applicable. Do not run a bulk database rewrite for old articles.
 
