@@ -32,10 +32,11 @@ Node memory. Pulling PHP/source files alone cannot update the browser UI because
 ## Atomic shared-hosting releases
 
 The guarded scripts in `scripts/production` support release-directory deployment
-on shared hosting. They default to `/home/bluestar/wisperbot-deploy`, use the
-existing `/home/bluestar/wisperbot.com` checkout as a Git source, and preserve a
-shared `.env` and `storage`. Override these paths with environment variables on
-other hosts.
+on shared hosting. They default to `/home/bluestar/wisperbot.com/deployment`,
+use `/home/bluestar/wisperbot.com` as the Git source, and preserve a shared
+`.env` and the existing root `storage` through a symlink. Override these paths
+with environment variables on other hosts. Keep `/deployment/` ignored by Git
+because it contains production files and secrets.
 
 Before deployment, build frontend assets from the exact `origin/main` revision
 and upload an archive containing `build/manifest.json` as
