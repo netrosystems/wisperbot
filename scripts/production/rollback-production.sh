@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-APP_BASE="${APP_BASE:-/home/bluestar/wisperbot-deploy}"
+APP_BASE="${APP_BASE:-/home/bluestar/wisperbot.com/deployment}"
 PHP_BIN="${PHP_BIN:-/usr/local/bin/php}"
 HEALTH_URL="${HEALTH_URL:-https://wisperbot.com/up}"
 RELEASES_DIR="$APP_BASE/releases"

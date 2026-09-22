@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-APP_BASE="${APP_BASE:-/home/bluestar/wisperbot-deploy}"
+APP_BASE="${APP_BASE:-/home/bluestar/wisperbot.com/deployment}"
 SOURCE_REPO="${SOURCE_REPO:-/home/bluestar/wisperbot.com}"
 PHP_BIN="${PHP_BIN:-/usr/local/bin/php}"
 COMPOSER_BIN="${COMPOSER_BIN:-/home/bluestar/bin/composer}"
