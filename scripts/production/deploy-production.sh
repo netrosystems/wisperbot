@@ -13,7 +13,6 @@ ARTIFACTS_DIR="$APP_BASE/artifacts"
 CURRENT_LINK="$APP_BASE/current"
 PREVIOUS_RELEASE=""
 RELEASE_PATH=""
-ACTIVATED=0
 MAINTENANCE=0
 
 run_artisan() {
@@ -30,14 +29,20 @@ activate_release() {
 }
 
 recover_on_error() {
-    local exit_code=$?
+    local exit_code="${1:-$?}"
+    local restored=0
+    trap - ERR INT TERM
     set +e
 
     echo "Deployment failed. Attempting to restore the previous release." >&2
-    if [[ "$ACTIVATED" -eq 1 && -n "$PREVIOUS_RELEASE" && -f "$PREVIOUS_RELEASE/artisan" ]]; then
-        activate_release "$PREVIOUS_RELEASE"
+    if [[ -n "$PREVIOUS_RELEASE" && -f "$PREVIOUS_RELEASE/artisan" && -L "$CURRENT_LINK" && "$(readlink -f "$CURRENT_LINK")" != "$PREVIOUS_RELEASE" ]]; then
+        if activate_release "$PREVIOUS_RELEASE"; then
+            restored=1
+        else
+            echo "CRITICAL: Could not restore the previous release." >&2
+        fi
     fi
-    if [[ "$MAINTENANCE" -eq 1 && -L "$CURRENT_LINK" ]]; then
+    if [[ ( "$MAINTENANCE" -eq 1 || "$restored" -eq 1 ) && -L "$CURRENT_LINK" ]]; then
         run_artisan "$(readlink -f "$CURRENT_LINK")" up
     fi
 
@@ -46,6 +51,15 @@ recover_on_error() {
 }
 
 trap recover_on_error ERR
+trap 'recover_on_error 130' INT
+trap 'recover_on_error 143' TERM
+
+mkdir -p "$APP_BASE"
+exec 9>"$APP_BASE/.release.lock"
+if ! flock -n 9; then
+    echo "Another deployment or rollback is already running." >&2
+    exit 1
+fi
 
 mkdir -p "$RELEASES_DIR" "$ARTIFACTS_DIR"
 test -d "$SOURCE_REPO/.git"
@@ -98,18 +112,20 @@ run_artisan "$RELEASE_PATH" about >/dev/null
 test -f "$RELEASE_PATH/public/build/manifest.json"
 
 if [[ -n "$PREVIOUS_RELEASE" ]]; then
-    run_artisan "$PREVIOUS_RELEASE" down --retry=60
     MAINTENANCE=1
+    run_artisan "$PREVIOUS_RELEASE" down --retry=60
 fi
 
 run_artisan "$RELEASE_PATH" migrate --force
 activate_release "$RELEASE_PATH"
-ACTIVATED=1
 run_artisan "$RELEASE_PATH" app:deploy:finalize --revision="$TARGET_SHA"
 run_artisan "$RELEASE_PATH" up
 MAINTENANCE=0
 curl --connect-timeout 10 --max-time 30 --retry 2 -fsS "$HEALTH_URL" >/dev/null
+if [[ -n "$PREVIOUS_RELEASE" ]]; then
+    printf '%s\n' "$(basename "$PREVIOUS_RELEASE")" > "$RELEASE_PATH/PREVIOUS_RELEASE"
+fi
 
-trap - ERR
+trap - ERR INT TERM
 echo "Deployment complete: $RELEASE_NAME ($TARGET_SHA)"
 echo "Previous release: ${PREVIOUS_RELEASE:-none}"

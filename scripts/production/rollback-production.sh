@@ -7,7 +7,6 @@ PHP_BIN="${PHP_BIN:-/usr/local/bin/php}"
 HEALTH_URL="${HEALTH_URL:-https://wisperbot.com/up}"
 RELEASES_DIR="$APP_BASE/releases"
 CURRENT_LINK="$APP_BASE/current"
-SWITCHED=0
 MAINTENANCE=0
 
 run_artisan() {
@@ -24,14 +23,20 @@ activate_release() {
 }
 
 recover_on_error() {
-    local exit_code=$?
+    local exit_code="${1:-$?}"
+    local restored=0
+    trap - ERR INT TERM
     set +e
 
     echo "Rollback failed. Restoring the original release." >&2
-    if [[ "$SWITCHED" -eq 1 ]]; then
-        activate_release "$CURRENT_RELEASE"
+    if [[ -n "${CURRENT_RELEASE:-}" && -L "$CURRENT_LINK" && "$(readlink -f "$CURRENT_LINK")" != "$CURRENT_RELEASE" ]]; then
+        if activate_release "$CURRENT_RELEASE"; then
+            restored=1
+        else
+            echo "CRITICAL: Could not restore the original release." >&2
+        fi
     fi
-    if [[ "$MAINTENANCE" -eq 1 ]]; then
+    if [[ "$MAINTENANCE" -eq 1 || "$restored" -eq 1 ]]; then
         run_artisan "$CURRENT_RELEASE" up
     fi
 
@@ -39,18 +44,27 @@ recover_on_error() {
 }
 
 trap recover_on_error ERR
+trap 'recover_on_error 130' INT
+trap 'recover_on_error 143' TERM
+
+test -d "$APP_BASE"
+exec 9>"$APP_BASE/.release.lock"
+if ! flock -n 9; then
+    echo "Another deployment or rollback is already running." >&2
+    exit 1
+fi
 
 test -L "$CURRENT_LINK"
 CURRENT_RELEASE="$(readlink -f "$CURRENT_LINK")"
 TARGET_RELEASE="${1:-}"
 
 if [[ -z "$TARGET_RELEASE" ]]; then
-    while IFS= read -r candidate; do
-        if [[ "$(readlink -f "$candidate")" != "$CURRENT_RELEASE" ]]; then
-            TARGET_RELEASE="$candidate"
-            break
+    if [[ -f "$CURRENT_RELEASE/PREVIOUS_RELEASE" ]]; then
+        previous_name="$(tr -d '\r\n' < "$CURRENT_RELEASE/PREVIOUS_RELEASE")"
+        if [[ "$previous_name" != */* && -n "$previous_name" ]]; then
+            TARGET_RELEASE="$RELEASES_DIR/$previous_name"
         fi
-    done < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | cut -d' ' -f2-)
+    fi
 elif [[ "$TARGET_RELEASE" != /* ]]; then
     TARGET_RELEASE="$RELEASES_DIR/$TARGET_RELEASE"
 fi
@@ -61,6 +75,7 @@ test -n "$TARGET_RELEASE" || {
 }
 TARGET_RELEASE="$(readlink -f "$TARGET_RELEASE")"
 test -f "$TARGET_RELEASE/artisan"
+test -f "$TARGET_RELEASE/vendor/autoload.php"
 test -f "$TARGET_RELEASE/public/build/manifest.json"
 test -f "$TARGET_RELEASE/REVISION"
 
@@ -71,10 +86,9 @@ echo "Current:  $CURRENT_RELEASE"
 echo "Rollback: $TARGET_RELEASE"
 echo "Database migrations are not rolled back by this script."
 
-run_artisan "$CURRENT_RELEASE" down --retry=60
 MAINTENANCE=1
+run_artisan "$CURRENT_RELEASE" down --retry=60
 activate_release "$TARGET_RELEASE"
-SWITCHED=1
 
 run_artisan "$TARGET_RELEASE" optimize:clear
 run_artisan "$TARGET_RELEASE" config:cache
@@ -85,6 +99,6 @@ run_artisan "$TARGET_RELEASE" up
 curl --connect-timeout 10 --max-time 30 --retry 2 -fsS "$HEALTH_URL" >/dev/null
 
 MAINTENANCE=0
-trap - ERR
+trap - ERR INT TERM
 
 echo "Rollback complete: $(basename "$TARGET_RELEASE") ($TARGET_REVISION)"
