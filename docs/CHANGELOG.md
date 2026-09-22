@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Production deploys now retain the active release and its two preceding rollback releases after a successful health check. Older release directories and their matching, unneeded build ZIPs are pruned; failed deploys never trigger cleanup. Shared storage and environment files are unaffected.
+
 - Added realtime Live Visitors reconciliation for web and mobile through the existing private Pusher workspace channel. A safe `LiveVisitorUpdated` hint is sent when a website visitor becomes online or changes page context; clients refresh authoritative workspace-scoped API data, while the existing timestamp window and polling continue handling expiry and missed sockets. No migration, new dependency, or new Pusher application is required.
 
 - Added LinkedIn Company Page publishing. Clients can connect the Pages they administer and post as the Page, choosing targets on a new screen after authorization. LinkedIn's Community Management API must be the only product on its app, so Company Pages use a second LinkedIn app: admin fills optional Company Page Client ID/Secret on the LinkedIn integration, and the Connect dialog then offers “LinkedIn Company Page” beside the personal connection. Each connection stores its actor type and publishes as person or organization; rows from one authorization share and rotate one token, refreshed with that app's keys. Existing personal-profile connections are unaffected.

@@ -28,6 +28,59 @@ activate_release() {
     mv -Tf "$next_link" "$CURRENT_LINK"
 }
 
+prune_old_releases() {
+    local retained=("$RELEASE_PATH")
+    local cursor="$RELEASE_PATH"
+    local previous_name previous_path candidate release_name revision kept
+    local preserve_zip
+
+    if [[ ! -L "$CURRENT_LINK" || "$(readlink -f "$CURRENT_LINK")" != "$RELEASE_PATH" ]]; then
+        echo "Warning: Active release changed; skipping cleanup." >&2
+        return 0
+    fi
+
+    while (( ${#retained[@]} < 3 )) && [[ -f "$cursor/PREVIOUS_RELEASE" ]]; do
+        previous_name="$(< "$cursor/PREVIOUS_RELEASE")"
+        [[ "$previous_name" =~ ^[0-9]{8}-[0-9]{6}-[a-f0-9]{7,40}$ ]] || break
+        previous_path="$RELEASES_DIR/$previous_name"
+        [[ -d "$previous_path" && ! -L "$previous_path" ]] || break
+        retained+=("$previous_path")
+        cursor="$previous_path"
+    done
+
+    for candidate in "$RELEASES_DIR"/*; do
+        [[ -d "$candidate" && ! -L "$candidate" ]] || continue
+        release_name="${candidate##*/}"
+        [[ "$release_name" =~ ^[0-9]{8}-[0-9]{6}-[a-f0-9]{7,40}$ ]] || continue
+
+        for kept in "${retained[@]}"; do
+            [[ "$candidate" == "$kept" ]] && continue 2
+        done
+
+        revision=""
+        if [[ -f "$candidate/REVISION" && ! -L "$candidate/REVISION" ]]; then
+            revision="$(< "$candidate/REVISION")"
+        fi
+
+        if ! rm -rf -- "$candidate"; then
+            echo "Warning: Could not remove old release: $candidate" >&2
+            continue
+        fi
+        echo "Removed old release: $release_name"
+
+        preserve_zip=0
+        for kept in "${retained[@]}"; do
+            if [[ -f "$kept/REVISION" && "$(< "$kept/REVISION")" == "$revision" ]]; then
+                preserve_zip=1
+                break
+            fi
+        done
+        if (( preserve_zip == 0 )) && [[ "$revision" =~ ^[a-f0-9]{40}$ ]] && [[ -f "$ARTIFACTS_DIR/build-$revision.zip" && ! -L "$ARTIFACTS_DIR/build-$revision.zip" ]]; then
+            rm -f -- "$ARTIFACTS_DIR/build-$revision.zip" || echo "Warning: Could not remove old build ZIP for $release_name" >&2
+        fi
+    done
+}
+
 recover_on_error() {
     local exit_code="${1:-$?}"
     local restored=0
@@ -129,3 +182,4 @@ fi
 trap - ERR INT TERM
 echo "Deployment complete: $RELEASE_NAME ($TARGET_SHA)"
 echo "Previous release: ${PREVIOUS_RELEASE:-none}"
+prune_old_releases || echo "Warning: Release cleanup did not complete." >&2
