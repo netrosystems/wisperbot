@@ -53,6 +53,13 @@ brings it out of maintenance mode; it does not reverse database migrations or
 application version changes already completed by the failed attempt.
 The automatic health check only covers `/up`; verify critical user flows after
 the command reports success.
+After a successful health check, the deploy script retains the active release
+and its two preceding releases in the rollback chain. It removes other
+release directories, including incomplete attempts from earlier runs, and their
+matching build ZIPs when a valid revision is available and no retained release
+uses it. Failed deployments do not run cleanup. Shared `.env`, `storage`,
+unrelated artifacts, and database backups are never pruned. Cleanup warnings
+do not switch the active release back after a successful deployment.
 
 WhatsApp connection health additionally requires its migration and a separate `channel-health` worker before enabling `CHANNEL_HEALTH_ENABLED`. Start with the workspace allowlist, verify real message delivery, then expand. See [connection monitoring operations](docs/OPERATIONS.md#whatsapp-connection-monitoring-2026-09-05) for worker timeout, operator WABA settings, and rollback instructions.
 
