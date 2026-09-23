@@ -15,7 +15,7 @@ const TONES = [
     { value: 'educational',   labelKey: 'social.tone_educational' },
 ];
 
-const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000 };
+const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000, twitter: 280 };
 
 function utcToLocalInput(utcIso) {
     if (!utcIso) return '';

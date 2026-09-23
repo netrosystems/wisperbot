@@ -7,8 +7,11 @@ import { SocialBrandIcon } from '@/Components/BrandIcons';
 import { ArrowLeft, Clock, Trash2, Plus, Send, Calendar } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { browserTz, tzLocalToUtcIso, formatInTz } from '@/Utils/datetime';
+import { xWeightedLength } from '@/Utils/xText';
+import XVersionPanel, { networkContentPayload } from '@/Pages/Social/Posts/XVersionPanel';
+import { mediaWarnings } from '@/Utils/socialMedia';
 
-const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000 };
+const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000, twitter: 280 };
 
 /** Convert a UTC datetime string to a `datetime-local` value in the given timezone. */
 function toLocalDatetime(utcStr, tz) {
@@ -45,6 +48,7 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
         target_accounts: (post.target_accounts ?? []).map(String),
         scheduled_at: toLocalDatetime(post.scheduled_at, postTz),
         timezone: postTz,
+        x_custom: post.network_content?.twitter ?? null,
     });
 
     const toggleAccount = (id) => {
@@ -54,7 +58,12 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
     };
 
     const selectedNetworks = accounts.filter((a) => data.target_accounts.includes(a.id.toString())).map((a) => a.network);
-    const minCharLimit = selectedNetworks.length > 0 ? Math.min(...selectedNetworks.map((n) => CHAR_LIMITS[n] ?? 5000)) : 5000;
+    const hasX = selectedNetworks.includes('twitter');
+    // A customised X version has its own counter, so X no longer limits the shared text.
+    const xShared = hasX && !data.x_custom;
+    const limitNetworks = selectedNetworks.filter((n) => n !== 'twitter' || xShared);
+    const minCharLimit = limitNetworks.length > 0 ? Math.min(...limitNetworks.map((n) => CHAR_LIMITS[n] ?? 5000)) : 5000;
+    const bodyLength = xShared ? xWeightedLength(data.body) : data.body.length;
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -69,6 +78,8 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
                   : null,
             media_urls: (formData.media_urls ?? []).filter(Boolean),
             target_accounts: formData.target_accounts.map(Number),
+            network_content: isRemotePublished ? undefined : networkContentPayload(hasX, formData.media_urls, formData.x_custom),
+            x_custom: undefined,
         }));
 
         put(route('client.social.posts.update', post.id), {
@@ -183,8 +194,8 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
                         <div>
                             <div className="flex items-center justify-between mb-1">
                                 <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{t('social.post_content')}</label>
-                                <span className={`text-xs ${data.body.length > minCharLimit ? 'text-red-500 font-medium' : 'text-neutral-400'}`}>
-                                    {data.body.length} / {minCharLimit}
+                                <span className={`text-xs ${bodyLength > minCharLimit ? 'text-red-500 font-medium' : 'text-neutral-400'}`}>
+                                    {bodyLength} / {minCharLimit}
                                 </span>
                             </div>
                             <textarea
@@ -243,7 +254,21 @@ export default function EditPost({ post, accounts, remoteLifecycle = {} }) {
                             {(data.media_urls ?? []).filter(Boolean).length === 0 && (
                                 <p className="text-xs text-neutral-400">{t('social.no_media_attached')}</p>
                             )}
+                            {mediaWarnings(selectedNetworks, data.media_urls).map((key) => (
+                                <p key={key} className="text-xs font-medium text-red-600 dark:text-red-400">{t(key)}</p>
+                            ))}
+                            {errors.media_urls && <p className="text-xs text-red-500">{errors.media_urls}</p>}
                         </div>
+                    )}
+
+                    {hasX && !isRemotePublished && (
+                        <XVersionPanel
+                            body={data.body}
+                            mediaUrls={data.media_urls}
+                            value={data.x_custom}
+                            onChange={(value) => setData('x_custom', value)}
+                            errors={errors}
+                        />
                     )}
 
                     {/* A live Facebook post cannot be scheduled again. */}

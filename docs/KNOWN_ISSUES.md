@@ -44,6 +44,14 @@ CLI and web PHP may load different INI files/extensions. IMAP and upload-limit c
 
 Live Users is heartbeat/expiry based, not a replacement for analytics. Browser suspension, network loss, privacy tooling, and delayed cleanup can create short-lived discrepancies. UI copy should communicate “recently active” semantics where exactness matters.
 
+## Social media publishing limits (2026-09-24)
+
+- **LinkedIn** posts carry at most 1 image or 1 video. The documented `v2/ugcPosts` + `assets?action=registerUpload` flow is used. Multi-image needs the versioned Posts/Images API, which has not been verified for member (`w_member_social`) tokens.
+- **Instagram** accepts JPG images only, which is the provider's rule.
+- **Video caps:** LinkedIn and X videos are capped at 50 MB, because WisperBot downloads and re-uploads them within the 120-second worker timeout. Facebook, Instagram and TikTok fetch the file themselves.
+- **Unconfirmed posts:** a timeout, 5xx, or worker stop during the request that creates a post leaves the link "not confirmed". It is not retried automatically, and the client checks the network and uses Publish now.
+- **Not live-verified:** Facebook video, Instagram carousel/Reels, and LinkedIn image/video publishing are verified with faked HTTP only. They need one live post each.
+
 ## Provider-side published post mutations
 
 Remote edit/delete support depends on provider, media/post type, permissions, stored remote ID, and token state. Local deletion must not imply provider deletion succeeded. The UI is capability-driven; retain explicit error details for failed remote actions.

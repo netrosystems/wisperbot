@@ -19,6 +19,46 @@ Always run `git status --short` and inspect recent history before starting; this
 
 ## Current focus
 
+2026-09-24 social media and duplicate-post hardening (local, uncommitted):
+- Audit result: no duplicate posts, links or media in local data. The unique (`post_id`, `social_account_id`) index and atomic status claims already stop scheduler and delayed-job doubles.
+- The real risk was an automatic retry after a create request whose outcome was unknown. This is now closed for every network by `provider_attempted_at` + `PublishOutcomeUnknownException`.
+- Also:
+  - Publish now is atomic.
+  - `retry_after` defaults to 180 seconds.
+  - Facebook multi-photo retries no longer re-upload photos.
+- Media:
+  - Facebook video, and up to 10 images.
+  - Instagram Reels and carousels, with processing waits and container reuse.
+  - LinkedIn 1 image or video: register, upload, and asset reuse.
+  - YouTube and TikTok use the first video.
+  - `SocialMediaRules` (server) and `Utils/socialMedia.js` (client) hold the per-network rules.
+  - `SocialMediaFiles` is the shared SSRF-guarded file fetcher, used by X and LinkedIn.
+- Tests: `tests/Feature/Social/SocialMediaPublishingTest.php` (12) and `resources/js/__tests__/socialMedia.test.js`.
+- Provider flows are verified with faked HTTP only.
+2026-09-24 X publishing (local, uncommitted):
+- Client scope: X posts with text plus up to 3 images, or 1 video or GIF. No links, media metadata, remote edit or remote delete, to save X API credits.
+- Media, added the same day:
+  - `XMediaFetcher`: reads media-library files from disk, otherwise does a guarded HTTPS download, then MIME and size checks.
+  - `XMediaUploader`: checks every file before the first upload, saves ids in `provider_media` and reuses them, and polls video processing for up to 45 seconds per attempt.
+  - `XDriver::uploadMedia()` and `mediaStatus()`.
+  - `media.write` is added to the scopes.
+- Customize for X, added the same day:
+  - `network_content` JSON on posts, read by `SocialPost::contentFor()`.
+  - `XPostContent` validator, shared by the web and the API.
+  - `XVersionPanel.jsx` in both Composer and Edit.
+  - The publisher sends the X version.
+  - Also fixed the API crash (HTTP 500) when `scheduled_at` is omitted.
+- Backend:
+  - `XDriver` (create only) and `XContentRules` (link, media and weighted-280 rules).
+  - `XPublishException` (reconnect, credit, permission, rate-limit and unknown categories).
+  - `OAuthManager` twitter arms (PKCE S256, confidential client, rotating refresh).
+  - `SocialPublisher::publishToX()`: refresh under lock, and a `provider_attempted_at` marker that blocks automatic resends.
+  - `PublishedPostLifecycle::LOCAL_ONLY_NETWORKS`.
+  - `oauth_twitter` integration config with its admin setup guide.
+- Frontend: X counter, hint, warnings and preview in the composer; limits in Edit and the AI planner; an X column on Social Media Automation.
+- Tests: `tests/Feature/Social/XPublishingTest.php` (22), `resources/js/__tests__/xText.test.js` and `XVersionPanel.test.jsx`.
+- The X developer app callbacks for `https://wisperbot.com` and `http://127.0.0.1:8000` are registered.
+- Still pending: admin must paste the Client ID and Secret; credits must be bought (balance was $0.00) and a spending limit set; then one live connect-and-post check.
 2026-09-20 LinkedIn Company Pages (local, uncommitted): LinkedIn previously connected only the member's own profile (`w_member_social`, author `urn:li:person`). Checked the live developer console for app “Wisperbot” (client id 78ypy3kvocwvsg, company verified, callback `https://wisperbot.com/app/social/accounts/callback/linkedin`): its Request access button for Community Management API is disabled because “this API product requires that it be the only product on the application”, and that app already has Sign In + Share. So Company Pages need a SECOND LinkedIn app; the client is creating it. Implementation: optional `pages_client_id`/`pages_client_secret` on `oauth_linkedin`, `?target=pages` on the connect route, variant carried in the OAuth state, Pages read from `organizationAcls` (no member profile on that flow), target picker at `client.social.accounts.linkedin.select` (pending data in session `linkedin_pending_connection`), `meta.actor_type` drives the author URN, and `RefreshSocialTokensJob` re-checks each row, refreshes with the right app's keys and copies the rotated token to siblings. Tests: `tests/Feature/Social/LinkedInCompanyPageTest.php` (8). Never exercised against the live LinkedIn API: it needs the approved second app, so HTTP is faked.
 
 2026-09-20 in-app delete confirmation (local, uncommitted): a Knowledge Base source "would not delete" because Chrome suppressed `window.confirm()` after three quick deletes (server logs showed the earlier deletes and no request for the fourth). All 39 delete-type confirmations now use `await confirmDialog({ message, confirmLabel })` from `resources/js/Components/ConfirmDialog.jsx` (Headless UI dialog, Cancel focused first, Escape/backdrop cancel; host mounted in `app.jsx`). Tests: `resources/js/__tests__/confirmDialog.test.jsx` (includes a guard against native `confirm()` on delete buttons). 13 non-delete native confirmations remain. Not checked in a live browser (in-app browser not logged in; Claude in Chrome not connected).

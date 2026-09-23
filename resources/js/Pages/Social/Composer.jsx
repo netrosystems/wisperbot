@@ -8,12 +8,16 @@ import MediaUpload from '@/Components/MediaUpload';
 import TimezonePicker from '@/Components/TimezonePicker';
 import { DatePicker } from '@/Components/ui';
 import { browserTz, tzLocalToUtcIso, formatInTz } from '@/Utils/datetime';
+import { xMediaKind, xWeightedLength, X_MAX_WEIGHTED_LENGTH } from '@/Utils/xText';
+import XVersionPanel, { networkContentPayload, xContent } from '@/Pages/Social/Posts/XVersionPanel';
+import { mediaWarnings } from '@/Utils/socialMedia';
 
-const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000 };
+const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000, twitter: X_MAX_WEIGHTED_LENGTH };
 
 const NETWORK_LABELS = {
     facebook: 'Facebook', instagram: 'Instagram',
     linkedin: 'LinkedIn',   tiktok: 'TikTok',     youtube: 'YouTube',
+    twitter: 'X',
 };
 
 /* ── per-network preview cards ─────────────────────────────── */
@@ -167,7 +171,36 @@ function YouTubePreview({ body, mediaUrls, accountName }) {
     );
 }
 
+function XPreview({ body, mediaUrls, accountName }) {
+    const media = (mediaUrls ?? []).filter(Boolean).slice(0, 4);
+    const { t } = useTranslation();
+    return (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-3 text-sm font-[system-ui] dark:border-neutral-700 dark:bg-neutral-900">
+            <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white dark:bg-neutral-100 dark:text-neutral-900">
+                    {(accountName ?? 'X').charAt(0).toUpperCase()}
+                </div>
+                <p className="font-semibold text-neutral-900 dark:text-neutral-100">{accountName ?? t('social.preview_your_account', { defaultValue: 'Your account' })}</p>
+            </div>
+            <p className="mt-2 whitespace-pre-wrap break-words text-neutral-900 dark:text-neutral-100">
+                {body || <span className="italic text-neutral-400">{t('social.preview_empty', { defaultValue: 'Your post will appear here' })}</span>}
+            </p>
+            {media.length > 0 && (
+                <div className={`mt-2 grid gap-0.5 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700 ${media.length > 1 ? 'grid-cols-2' : ''}`}>
+                    {media.map((url, index) => (xMediaKind(url) === 'video'
+                        ? <video key={index} src={url} muted className="block max-h-72 w-full bg-neutral-900 object-contain" />
+                        : <img key={index} src={url} alt="" className={`block w-full object-cover ${media.length > 1 ? 'aspect-square' : 'max-h-72'}`} />))}
+                </div>
+            )}
+            <div className="mt-3 flex justify-between px-1 text-neutral-400">
+                <MessageCircle className="h-4 w-4" /><Repeat2 className="h-4 w-4" /><Heart className="h-4 w-4" /><Bookmark className="h-4 w-4" />
+            </div>
+        </div>
+    );
+}
+
 const PREVIEW_COMPONENTS = {
+    twitter:   XPreview,
     facebook:  FacebookPreview,
     instagram: InstagramPreview,
     linkedin:  LinkedInPreview,
@@ -191,6 +224,7 @@ export default function SocialComposer({ accounts }) {
         scheduled_at:    '',
         timezone:        userTz,
         delivery_mode:   'schedule',
+        x_custom:        null,
     });
 
     const [aiLoading, setAiLoading] = useState(false);
@@ -200,7 +234,13 @@ export default function SocialComposer({ accounts }) {
 
     const selectedAccounts = accounts.filter(a => data.target_accounts.includes(a.id.toString()));
     const selectedNetworks  = selectedAccounts.map(a => a.network);
-    const minCharLimit = selectedNetworks.length > 0 ? Math.min(...selectedNetworks.map(n => CHAR_LIMITS[n] ?? 5000)) : 5000;
+    const hasX = selectedNetworks.includes('twitter');
+    // A customised X version has its own counter, so X no longer limits the
+    // shared text. Otherwise X's weighted count applies to it.
+    const xShared = hasX && !data.x_custom;
+    const limitNetworks = selectedNetworks.filter(n => n !== 'twitter' || xShared);
+    const minCharLimit = limitNetworks.length > 0 ? Math.min(...limitNetworks.map(n => CHAR_LIMITS[n] ?? 5000)) : 5000;
+    const bodyLength = xShared ? xWeightedLength(data.body) : data.body.length;
 
     const toggleAccount = (id) => {
         const sid = id.toString();
@@ -243,6 +283,8 @@ export default function SocialComposer({ accounts }) {
             ...d,
             scheduled_at: d.delivery_mode === 'schedule' && d.scheduled_at ? tzLocalToUtcIso(d.scheduled_at, d.timezone || 'UTC') : null,
             media_urls: (d.media_urls ?? []).filter(Boolean),
+            network_content: networkContentPayload(hasX, d.media_urls, d.x_custom),
+            x_custom: undefined,
         }));
         post(route('client.social.posts.store'), {
             preserveScroll: true,
@@ -339,8 +381,8 @@ export default function SocialComposer({ accounts }) {
                         <div>
                             <div className="flex items-center justify-between mb-1">
                                 <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{t('social.post_content')}</label>
-                                <span className={`text-xs ${data.body.length > minCharLimit ? 'text-red-500' : 'text-neutral-400'}`}>
-                                    {data.body.length} / {minCharLimit}
+                                <span className={`text-xs ${bodyLength > minCharLimit ? 'text-red-500' : 'text-neutral-400'}`}>
+                                    {bodyLength} / {minCharLimit}
                                 </span>
                             </div>
                             <textarea
@@ -391,8 +433,21 @@ export default function SocialComposer({ accounts }) {
                             {(data.media_urls ?? []).length === 0 && (
                                 <p className="text-xs text-neutral-400">{t('social.no_media_hint')}</p>
                             )}
+                            {mediaWarnings(selectedNetworks, data.media_urls).map(key => (
+                                <p key={key} className="text-xs font-medium text-red-600 dark:text-red-400">{t(key)}</p>
+                            ))}
                             {errors.media_urls && <p className="text-xs text-red-500">{errors.media_urls}</p>}
                         </div>
+
+                        {hasX && (
+                            <XVersionPanel
+                                body={data.body}
+                                mediaUrls={data.media_urls}
+                                value={data.x_custom}
+                                onChange={value => setData('x_custom', value)}
+                                errors={errors}
+                            />
+                        )}
 
                         <div className="space-y-3">
                             <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400 flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {t('social.delivery', { defaultValue: 'When should this publish?' })}</label>
@@ -458,6 +513,9 @@ export default function SocialComposer({ accounts }) {
                             selectedAccounts.map(account => {
                                 const Preview = PREVIEW_COMPONENTS[account.network];
                                 if (!Preview) return null;
+                                const content = account.network === 'twitter'
+                                    ? xContent(data.body, mediaUrls, data.x_custom)
+                                    : { body: data.body, mediaUrls };
                                 return (
                                     <div key={account.id}>
                                         <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
@@ -466,7 +524,7 @@ export default function SocialComposer({ accounts }) {
                                                 {NETWORK_LABELS[account.network] ?? account.network} · {account.name}
                                             </span>
                                         </div>
-                                        <Preview body={data.body} mediaUrls={mediaUrls} accountName={account.name} pictureUrl={account.picture_url} />
+                                        <Preview body={content.body} mediaUrls={content.mediaUrls} accountName={account.name} pictureUrl={account.picture_url} />
                                     </div>
                                 );
                             })
