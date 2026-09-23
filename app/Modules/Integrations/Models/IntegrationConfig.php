@@ -12,6 +12,7 @@ class IntegrationConfig extends Model
         'oauth_linkedin',
         'oauth_youtube',
         'oauth_tiktok',
+        'oauth_twitter',
         'oauth_shopify',
         'oauth_bigcommerce',
         'oauth_ebay',
@@ -59,6 +60,7 @@ class IntegrationConfig extends Model
         'oauth_linkedin' => 'LinkedIn OAuth',
         'oauth_youtube' => 'YouTube / Google OAuth',
         'oauth_tiktok' => 'TikTok OAuth',
+        'oauth_twitter' => 'X OAuth',
         'oauth_shopify' => 'Shopify App (OAuth)',
         'oauth_bigcommerce' => 'BigCommerce App (OAuth)',
         'oauth_ebay' => 'eBay Seller Messaging (OAuth)',
@@ -86,6 +88,7 @@ class IntegrationConfig extends Model
         'oauth_linkedin' => 'Social OAuth',
         'oauth_youtube' => 'Social OAuth',
         'oauth_tiktok' => 'Social OAuth',
+        'oauth_twitter' => 'Social OAuth',
         'oauth_shopify' => 'E-Commerce OAuth',
         'oauth_bigcommerce' => 'E-Commerce OAuth',
         'oauth_ebay' => 'E-Commerce OAuth',
@@ -130,6 +133,10 @@ class IntegrationConfig extends Model
         'oauth_tiktok' => [
             ['key' => 'client_key',    'label' => 'Client Key',    'type' => 'text',     'required' => true],
             ['key' => 'client_secret', 'label' => 'Client Secret', 'type' => 'password', 'required' => true],
+        ],
+        'oauth_twitter' => [
+            ['key' => 'client_id',     'label' => 'OAuth 2.0 Client ID',     'type' => 'text',     'required' => true, 'hint' => 'From X Developer Console → your app → Keys & Tokens → OAuth 2.0 Client ID and Client Secret (a confidential Web App).'],
+            ['key' => 'client_secret', 'label' => 'OAuth 2.0 Client Secret', 'type' => 'password', 'required' => true],
         ],
         'oauth_shopify' => [
             ['key' => 'client_id',     'label' => 'API Key (Client ID)',        'type' => 'text',     'required' => true,  'hint' => 'From your Shopify Partner app → Client credentials'],

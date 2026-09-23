@@ -253,6 +253,19 @@ const SETUP_GUIDES = {
         link: 'https://developers.tiktok.com',
         linkLabel: 'Open TikTok Developers',
     },
+    oauth_twitter: {
+        title: 'X (Twitter) OAuth Setup',
+        steps: [
+            'Go to console.x.com → your app → Keys & Tokens → User authentication settings → Set up.',
+            'App permissions: Read and write. Type of App: Web App, Automated App or Bot (confidential client).',
+            'Add the exact Callback URL shown above this guide, plus your website, terms and privacy URLs.',
+            'Save, then copy the OAuth 2.0 Client ID and Client Secret into the fields here (X shows the secret only once).',
+            'WisperBot requests tweet.read, tweet.write, users.read, media.write and offline.access. To keep X API costs low, posts carry text plus at most 3 images or 1 video, with no links, alt text or deletions.',
+            'X charges from prepaid credits billed to this app: about $0.015 per post plus $0.015 per image or video. Buy credits and set a spending limit in the X Developer Console; all clients share this balance.',
+        ],
+        link: 'https://console.x.com',
+        linkLabel: 'Open X Developer Console',
+    },
     llm_openai_default: {
         title: 'OpenAI API Setup',
         steps: [
@@ -465,6 +478,7 @@ const BRAND = {
     oauth_linkedin:  { bg: null, color: '#0A66C2', logo: 'linkedin' },
     oauth_youtube:   { bg: null, color: '#FF0000', logo: 'youtube' },
     oauth_tiktok:    { bg: null, color: '#000000', logo: 'tiktok' },
+    oauth_twitter:   { bg: null, color: '#000000', logo: 'twitter' },
     llm_openai_default:     { bg: null, color: '#10a37f', logo: 'openai' },
     llm_anthropic_default:  { bg: null, color: '#d4793b', logo: 'anthropic' },
     llm_gemini_default:     { bg: null, color: '#4285F4', logo: 'googlegemini' },

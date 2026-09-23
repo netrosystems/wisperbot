@@ -11,6 +11,7 @@ use App\Modules\Social\Services\Drivers\FacebookDriver;
 use App\Modules\Social\Services\Drivers\InstagramSocialDriver;
 use App\Modules\Social\Services\Drivers\LinkedInDriver;
 use App\Modules\Social\Services\Drivers\TikTokDriver;
+use App\Modules\Social\Services\Drivers\XDriver;
 use App\Modules\Social\Services\Drivers\YoutubeDriver;
 use App\Modules\Social\Services\OAuth\OAuthManager;
 use Illuminate\Http\RedirectResponse;
@@ -34,6 +35,7 @@ class SocialAccountController extends Controller
             'linkedin' => new LinkedInDriver,
             'youtube' => new YoutubeDriver,
             'tiktok' => new TikTokDriver,
+            'twitter' => new XDriver,
         ];
     }
 
@@ -55,7 +57,7 @@ class SocialAccountController extends Controller
 
     public function connect(Request $request, string $network): RedirectResponse
     {
-        $validNetworks = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok'];
+        $validNetworks = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'twitter'];
         abort_unless(in_array($network, $validNetworks, true), 404);
 
         Session::put('social_oauth_workspace', $this->workspaceId($request));
@@ -123,7 +125,7 @@ class SocialAccountController extends Controller
             ]);
 
             return redirect()->route('client.social.automation.index')
-                ->with('error', ucfirst($network).' authorization failed: '.mb_substr($e->getMessage(), 0, 240));
+                ->with('error', ($network === 'twitter' ? 'X' : ucfirst($network)).' authorization failed: '.mb_substr($e->getMessage(), 0, 240));
         }
 
         // For Facebook / Instagram: fetch pages the user manages and upsert each one.

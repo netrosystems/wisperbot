@@ -4,6 +4,28 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Social publishing no longer risks posting twice, and supports media on every network:
+  - **Duplicate protection.** On every network, a post whose create request timed out, got a 5xx, or was cut off by a worker stop is never re-sent automatically. The client is told to check the network, then use Publish now.
+  - **No re-uploads.** Retries reuse media already uploaded: Facebook photos, Instagram containers, LinkedIn assets.
+  - **Atomic Publish now.** A double click can no longer queue two jobs.
+  - **Queue setting.** The `retry_after` default is now 180 seconds, above the 120-second worker timeout.
+  - **Facebook:** video posts, and up to 10 images.
+  - **Instagram:** Reels for a single video, and carousels of up to 10 images or videos. Previously only the first image was posted.
+  - **LinkedIn:** 1 image or 1 video. Previously media was dropped.
+  - **YouTube / TikTok:** use the post's first video.
+  - **Checks.** The composer, Edit and the API reject media a selected network cannot publish, with a message naming the network. The API now requires HTTPS media URLs.
+  - No migration beyond the X changes above. Requires a dashboard build and a worker restart.
+
+- Added X publishing: text with up to 3 images, or 1 video or GIF, and no links, to keep X API credit use low. Admin enters the X OAuth 2.0 Client ID/Secret under Integrations → X OAuth. Clients connect an X account and can select it in the composer, AI planner and developer API.
+  - Posts with links or e-mail addresses, more than 3 images, more than one video or GIF, mixed media, or more than 280 weighted characters are rejected with a clear message. The composer shows an X counter, a hint, media warnings and an X preview.
+  - **Customize for X:** when X is selected with other networks, an X version panel gives X its own text and a choice of the post's media. The other networks keep the full post, including links and more media. Requires migration `2026_09_24_000300_add_network_content_to_social_media_posts.php`. The developer API accepts the same optional `network_content.twitter`.
+  - Fixed `POST /api/v1/social/posts` returning HTTP 500 when `scheduled_at` was omitted, which is the case for immediate publishing.
+  - Media is checked before any paid upload. Uploaded media ids are reused on retry (migration `2026_09_24_000200_add_provider_media_to_social_media_post_accounts.php`). No alt text is sent.
+  - WisperBot never edits or deletes on X. Removing an X post deletes it from WisperBot only.
+  - A post whose X outcome is unknown (timeout or 5xx) is never re-sent automatically.
+  - Tokens are refreshed right before publishing.
+  - Requires migration `2026_09_24_000100_add_provider_attempted_at_to_social_media_post_accounts.php`, a dashboard build and a worker restart. The X developer account needs credits and a spending limit.
+
 - Production deploys now retain the active release and its two preceding rollback releases after a successful health check. Older release directories and their matching, unneeded build ZIPs are pruned; failed deploys never trigger cleanup. Shared storage and environment files are unaffected.
 
 - Added realtime Live Visitors reconciliation for web and mobile through the existing private Pusher workspace channel. A safe `LiveVisitorUpdated` hint is sent when a website visitor becomes online or changes page context; clients refresh authoritative workspace-scoped API data, while the existing timestamp window and polling continue handling expiry and missed sockets. No migration, new dependency, or new Pusher application is required.

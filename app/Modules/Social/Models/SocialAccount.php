@@ -32,6 +32,19 @@ class SocialAccount extends Model
 
     public function isTokenExpired(): bool
     {
+        if ($this->refreshesOnUse()) {
+            return false;
+        }
+
         return $this->token_expires_at && $this->token_expires_at->isPast();
+    }
+
+    /**
+     * X access tokens last about two hours; the publisher refreshes them just
+     * before use, so a stale access token alone does not mean "reconnect".
+     */
+    public function refreshesOnUse(): bool
+    {
+        return $this->network === 'twitter' && filled($this->refresh_token);
     }
 }
