@@ -49,6 +49,29 @@ beforeEach(() => {
 });
 
 describe('Mobile chat reply layout', () => {
+    it('marks the current assignee in the dropdown and follows assignment changes', async () => {
+        const teamMembers = [
+            { id: 7, name: 'Agent', email: 'agent@example.test' },
+            { id: 8, name: 'Other', email: 'other@example.test' },
+        ];
+        const assignedConversation = { ...conversation, assigned_user_id: 8 };
+        render(<InboxShow {...props} conversation={assignedConversation} teamMembers={teamMembers} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'inbox.assign' }));
+        expect(screen.getByRole('button', { name: /Other/ })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: /Agent inbox.you_paren/ })).toHaveAttribute('aria-pressed', 'false');
+
+        fireEvent.click(screen.getByRole('button', { name: /Agent inbox.you_paren/ }));
+        await waitFor(() => expect(axios.post).toHaveBeenCalledWith('/client.inbox.assign/"test-chat"', { user_id: 7 }));
+        fireEvent.click(screen.getByRole('button', { name: 'inbox.assign' }));
+        expect(screen.getByRole('button', { name: /Agent inbox.you_paren/ })).toHaveAttribute('aria-pressed', 'true');
+
+        fireEvent.click(screen.getByRole('button', { name: 'inbox.unassign' }));
+        await waitFor(() => expect(axios.post).toHaveBeenCalledWith('/client.inbox.assign/"test-chat"', { user_id: null }));
+        fireEvent.click(screen.getByRole('button', { name: 'inbox.assign' }));
+        expect(screen.getByRole('button', { name: 'inbox.unassign' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
     it('merges refreshed messages for the same conversation', async () => {
         const first = {
             id: 10,
