@@ -4,6 +4,8 @@
 
 Join and resolve activity uses a compact centered system label. In the website widget it is muted text without a filled container, border, or shadow, with the actor name slightly darker but at the same weight for scanning; staff web and Flutter use an equivalent neutral treatment appropriate to their light and dark surfaces. It never uses message-bubble tails, avatars, delivery status, or timestamps.
 
+The Inbox assignment dropdown marks the actual current assignee with its selected state and check icon. The “you” label identifies the signed-in teammate but is not a selection indicator; assigning or unassigning updates the marker immediately, including realtime changes.
+
 ## Suggested reply buttons
 
 Place up to three wrapping text choices immediately below an AI answer. Web choices use a compact 34px minimum height, 8px corners, soft neutral borders, a subtle fill, and 13px medium-weight labels; keep 6px between choices and 8px above the group. On devices with a coarse pointer, retain a 44px minimum touch target. Preserve visible focus, dark-mode contrast where supported, and a labelled group. Do not replace the text composer. Disable historic, already-answered, in-flight and human-handoff choices without making their labels illegible. Agent inbox choices are read-only labels, not agent CTAs. Avoid repeated numbered text when the structured buttons are rendered.

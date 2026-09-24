@@ -1524,7 +1524,7 @@ function ProductPicker({ conversationId, onSent, onClose }) {
 }
 
 /* ─── agent assign dropdown ──────────────────────────── */
-function AgentDropdown({ teamMembers, currentUserId, conversationId, onAssigned, onClose }) {
+function AgentDropdown({ teamMembers, currentUserId, selectedUserId, conversationId, onAssigned, onClose }) {
     const { t } = useTranslation();
     const ref = useRef(null);
     const [query, setQuery] = useState('');
@@ -1560,23 +1560,25 @@ function AgentDropdown({ teamMembers, currentUserId, conversationId, onAssigned,
                 />
             </div>
             <div className="max-h-52 overflow-y-auto">
-                <button type="button" onClick={() => assign(null)}
-                    className="w-full text-left px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition border-b border-neutral-100 dark:border-neutral-800">
+                <button type="button" onClick={() => assign(null)} disabled={loading} aria-pressed={selectedUserId == null}
+                    className={`flex w-full items-center justify-between border-b border-neutral-100 px-3 py-2 text-left text-xs transition dark:border-neutral-800 ${selectedUserId == null ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-300' : 'text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800'}`}>
                     {t('inbox.unassign')}
+                    {selectedUserId == null && <CheckCircle className="h-3.5 w-3.5" />}
                 </button>
                 {filtered.map(m => (
-                    <button key={m.id} type="button" onClick={() => assign(m.id)}
-                        className={`w-full text-left px-3 py-2 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <button key={m.id} type="button" onClick={() => assign(m.id)} disabled={loading} aria-pressed={Number(m.id) === Number(selectedUserId)}
+                        className={`w-full px-3 py-2 text-left transition ${Number(m.id) === Number(selectedUserId) ? 'bg-brand-50 dark:bg-brand-900/20' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800'} ${loading ? 'opacity-50' : ''}`}>
                         <div className="flex items-center gap-2">
                             <div className="h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center text-xs font-semibold text-brand-700 dark:text-brand-300 shrink-0">
                                 {m.name[0]?.toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                                <p className={`text-xs font-medium truncate ${m.id === currentUserId ? 'text-brand-600 dark:text-brand-400' : 'text-neutral-800 dark:text-neutral-200'}`}>
+                                <p className={`truncate text-xs font-medium ${Number(m.id) === Number(selectedUserId) ? 'text-brand-700 dark:text-brand-300' : 'text-neutral-800 dark:text-neutral-200'}`}>
                                     {m.name} {m.id === currentUserId && t('inbox.you_paren')}
                                 </p>
                                 <p className="text-[10px] text-neutral-400 truncate">{m.email}</p>
                             </div>
+                            {Number(m.id) === Number(selectedUserId) && <CheckCircle className="ml-auto h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-300" />}
                         </div>
                     </button>
                 ))}
@@ -1835,7 +1837,8 @@ export default function InboxShow({
                     m.id === e.id ? { ...m, status: e.status } : m
                 ));
             })
-            .listen('.ConversationAssigned', () => {
+            .listen('.ConversationAssigned', (e) => {
+                setAssignedUserId(e.assigned_to?.id ?? null);
                 router.reload({ only: ['conversation'] });
             })
             .listen('.ConversationOwnershipChanged', (e) => {
@@ -2411,7 +2414,7 @@ export default function InboxShow({
         ? t('inbox.started_from_customer_sdk', { defaultValue: 'App SDK' })
         : (CHANNEL_LABELS[channel] ?? channel);
 
-    const assignedAgent = teamMembers.find(m => m.id === assignedUserId);
+    const assignedAgent = teamMembers.find(m => Number(m.id) === Number(assignedUserId));
     const isJoinedByMe = Number(joinedUser?.id) === Number(authUser?.id);
     const joinedMember = joinedUser ? teamMembers.find(m => Number(m.id) === Number(joinedUser.id)) : null;
     const currentMember = teamMembers.find(m => Number(m.id) === Number(authUser?.id));
@@ -2589,6 +2592,7 @@ export default function InboxShow({
                                 <AgentDropdown
                                     teamMembers={teamMembers}
                                     currentUserId={authUser?.id}
+                                    selectedUserId={assignedUserId}
                                     conversationId={conversation.uuid}
                                     onAssigned={(uid) => setAssignedUserId(uid)}
                                     onClose={() => setShowAgentDrop(false)}
