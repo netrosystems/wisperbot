@@ -23,6 +23,7 @@ class ConnectionTester
                 $config->provider === 'oauth_microsoft_365' => $this->testMicrosoftOAuth($config),
                 $config->provider === 'oauth_google_mail' => $this->testGoogleMailOAuth($config),
                 $config->provider === 'telegram_business' => $this->testTelegramBusiness($config),
+                $config->provider === 'oauth_twitter' => $this->testX($config),
                 str_starts_with($config->provider, 'oauth_') => $this->testOAuth($config),
                 str_starts_with($config->provider, 'llm_') => $this->testLlm($config),
                 str_starts_with($config->provider, 'sms_') => $this->testSms($config),
@@ -98,6 +99,42 @@ class ConnectionTester
             'ok' => false,
             'message' => 'Credential presence confirmed, but this provider cannot validate an OAuth client secret without a real user authorization. Complete one sandbox connect flow before enabling it for customers.',
         ];
+    }
+
+    /**
+     * X checks the client's Basic credentials before it looks at the code, so
+     * a token request with a dummy code tells a wrong Client ID or Secret
+     * (`invalid_client`) apart from a valid pair (any other 400 error). No
+     * user is involved and nothing is billed.
+     */
+    private function testX(IntegrationConfig $config): array
+    {
+        $credentials = $config->credentials ?? [];
+        $id = trim((string) ($credentials['client_id'] ?? ''));
+        $secret = trim((string) ($credentials['client_secret'] ?? ''));
+        if ($id === '' || $secret === '') {
+            return ['ok' => false, 'message' => 'OAuth 2.0 Client ID and Client Secret are required.'];
+        }
+
+        $response = HttpFacade::asForm()->timeout(10)->withBasicAuth($id, $secret)
+            ->post('https://api.x.com/2/oauth2/token', [
+                'grant_type' => 'authorization_code',
+                'code' => 'wisperbot-connection-test',
+                'redirect_uri' => rtrim((string) config('app.url'), '/').'/app/social/accounts/callback/twitter',
+                'code_verifier' => str_repeat('a', 43),
+                'client_id' => $id,
+            ]);
+        $error = (string) $response->json('error', '');
+
+        if ($response->status() === 401 || in_array($error, ['invalid_client', 'unauthorized_client'], true)) {
+            return ['ok' => false, 'message' => 'X rejected the OAuth 2.0 Client ID or Client Secret. Copy both again from X Developer Console → your app → Keys and tokens → OAuth 2.0 Client ID and Client Secret (not the API Key and Secret).'];
+        }
+
+        if ($response->status() === 400 && $error !== '') {
+            return ['ok' => true, 'message' => 'X accepted the OAuth 2.0 Client ID and Client Secret. Connect one X account to confirm the callback URL and permissions.'];
+        }
+
+        return ['ok' => false, 'message' => 'X could not be reached to check the credentials (HTTP '.$response->status().'). Try again later.'];
     }
 
     private function testMicrosoftOAuth(IntegrationConfig $config): array

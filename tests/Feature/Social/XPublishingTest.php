@@ -3,6 +3,7 @@
 namespace Tests\Feature\Social;
 
 use App\Modules\Integrations\Models\IntegrationConfig;
+use App\Modules\Integrations\Services\ConnectionTester;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Models\SocialPostAccount;
@@ -98,6 +99,29 @@ class XPublishingTest extends TestCase
             ->assertSessionHas('error', fn (string $message): bool => str_starts_with($message, 'X authorization failed'));
 
         $this->assertSame(0, SocialAccount::count());
+    }
+
+    public function test_admin_connection_test_checks_the_x_client_credentials(): void
+    {
+        $this->xCredentials();
+        $config = IntegrationConfig::where('provider', 'oauth_twitter')->firstOrFail();
+        Http::preventStrayRequests();
+        Http::fake(['api.x.com/2/oauth2/token' => Http::sequence()
+            ->push(['error' => 'invalid_client', 'error_description' => 'Value passed for the client id was invalid.'], 400)
+            ->push(['error' => 'invalid_request', 'error_description' => 'Value passed for the authorization code was invalid.'], 400)
+            ->push('', 503)]);
+        $tester = app(ConnectionTester::class);
+
+        $this->assertFalse($tester->test($config)['ok']);
+        $this->assertStringStartsWith('X rejected the OAuth 2.0 Client ID or Client Secret.', $config->fresh()->last_test_message);
+
+        $this->assertTrue($tester->test($config->fresh())['ok']);
+        $this->assertSame('ok', $config->fresh()->last_test_status);
+
+        $this->assertFalse($tester->test($config->fresh())['ok']);
+
+        Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Basic '.base64_encode('x-client-id:x-client-secret'))
+            && $request['code'] === 'wisperbot-connection-test');
     }
 
     // ── Content rules ──────────────────────────────────────────────────────
