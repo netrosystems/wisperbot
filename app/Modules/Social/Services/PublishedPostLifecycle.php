@@ -17,6 +17,13 @@ use Illuminate\Support\Facades\Log;
 
 class PublishedPostLifecycle
 {
+    /**
+     * Networks whose published copies WisperBot never deletes or edits
+     * remotely (product decision 2026-09-24: X API calls cost credits, so X
+     * posts can only be removed from WisperBot; they stay on X).
+     */
+    public const LOCAL_ONLY_NETWORKS = ['twitter'];
+
     /** @var array<string, ManagesPublishedPosts> */
     private array $drivers;
 
@@ -61,7 +68,16 @@ class PublishedPostLifecycle
             return $this->capability(false, true, true, null);
         }
 
-        $deleteReason = $this->unsupportedReason($post, $links, 'delete');
+        $remoteLinks = $links->reject(fn (SocialPostAccount $link) => $this->isLocalOnly($link));
+
+        if ($remoteLinks->isEmpty()) {
+            // Only X copies: nothing to delete remotely, so offer local removal.
+            $reason = 'X posts stay on X. Removing this post only deletes it from WisperBot.';
+
+            return $this->capability(true, false, false, $reason, 'X posts cannot be edited from WisperBot. Remove it and publish a new post instead.', $reason, true, $reason);
+        }
+
+        $deleteReason = $this->unsupportedReason($post, $remoteLinks, 'delete');
         $updateReason = $this->unsupportedReason($post, $links, 'update');
         $missingAccount = $this->hasMissingAccount($post, $links);
 
@@ -83,21 +99,27 @@ class PublishedPostLifecycle
      * Remove an orphaned published-post record when its provider account is no
      * longer available. This intentionally performs no provider API request.
      */
-    public function removeLocal(SocialPost $post): void
+    /** @return bool True when every copy is an X post, which stays on X. */
+    public function removeLocal(SocialPost $post): bool
     {
-        $this->withPostLock($post, function () use ($post): void {
+        $onlyLocalCopies = false;
+        $this->withPostLock($post, function () use ($post, &$onlyLocalCopies): void {
             $post->refresh();
             $this->recoverPublishedLinks($post);
             $links = $this->activePublishedLinks($post);
 
-            if (! $this->hasMissingAccount($post, $links)) {
+            $onlyLocalCopies = $links->isNotEmpty() && $links->every(fn (SocialPostAccount $link) => $this->isLocalOnly($link));
+
+            if (! $onlyLocalCopies && ! $this->hasMissingAccount($post, $links)) {
                 throw new PublishedPostLifecycleException(
-                    'Local-only removal is available only when the connected social account no longer exists.'
+                    'Local-only removal is available only for X posts or when the connected social account no longer exists.'
                 );
             }
 
             $this->deleteLocalPost($post);
         });
+
+        return $onlyLocalCopies;
     }
 
     /**
@@ -192,6 +214,15 @@ class PublishedPostLifecycle
                     );
                 }
 
+                $this->deleteLocalPost($post);
+
+                return;
+            }
+
+            // X copies are never deleted remotely; they stay on X and only the
+            // WisperBot record goes with the other copies.
+            $links = $links->reject(fn (SocialPostAccount $link) => $this->isLocalOnly($link));
+            if ($links->isEmpty()) {
                 $this->deleteLocalPost($post);
 
                 return;
@@ -317,6 +348,10 @@ class PublishedPostLifecycle
                 return 'A connected account is no longer available. Reconnect it before managing the remote post.';
             }
 
+            if ($operation === 'update' && $this->isLocalOnly($link)) {
+                return 'X posts cannot be edited from WisperBot. Remove it and publish a new post instead.';
+            }
+
             if (! isset($this->drivers[$link->account->network])) {
                 return 'This post also exists on a platform that WisperBot cannot safely update or delete yet.';
             }
@@ -327,6 +362,11 @@ class PublishedPostLifecycle
         }
 
         return null;
+    }
+
+    private function isLocalOnly(SocialPostAccount $link): bool
+    {
+        return $link->account !== null && in_array($link->account->network, self::LOCAL_ONLY_NETWORKS, true);
     }
 
     private function hasMissingAccount(SocialPost $post, Collection $links): bool

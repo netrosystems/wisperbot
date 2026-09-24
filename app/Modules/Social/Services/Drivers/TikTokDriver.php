@@ -3,12 +3,15 @@
 namespace App\Modules\Social\Services\Drivers;
 
 use App\Modules\Social\Models\SocialAccount;
+use App\Modules\Social\Services\SocialMediaRules;
 use App\Modules\Social\Models\SocialPost;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class TikTokDriver implements SocialNetworkInterface
 {
+    use GuardsPublishOutcome;
+
     public function network(): string
     {
         return 'tiktok';
@@ -39,7 +42,8 @@ class TikTokDriver implements SocialNetworkInterface
 
     public function publish(SocialAccount $account, array $postData): string
     {
-        $videoUrl = $postData['media_urls'][0] ?? null;
+        // The post's first video; images attached for other networks are ignored.
+        $videoUrl = (new SocialMediaRules)->firstVideo((array) ($postData['media_urls'] ?? []));
         if (! is_string($videoUrl) || ! filter_var($videoUrl, FILTER_VALIDATE_URL)) {
             throw new \RuntimeException('TikTok publishing requires one publicly reachable HTTPS video URL.');
         }
@@ -47,7 +51,7 @@ class TikTokDriver implements SocialNetworkInterface
             throw new \RuntimeException('TikTok video URL must use HTTPS.');
         }
 
-        $res = Http::withToken($account->access_token)
+        $res = $this->createRequest(fn () => Http::withToken($account->access_token)->timeout(60)
             ->post('https://open.tiktokapis.com/v2/post/publish/video/init/', [
                 'post_info' => [
                     'title' => $postData['title'] ?? ($postData['body'] ?? ''),
@@ -60,7 +64,7 @@ class TikTokDriver implements SocialNetworkInterface
                     'source' => 'PULL_FROM_URL',
                     'video_url' => $videoUrl,
                 ],
-            ])->json();
+            ]))->json();
 
         $publishId = $res['data']['publish_id'] ?? null;
         if (! $publishId) {

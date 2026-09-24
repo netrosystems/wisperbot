@@ -13,7 +13,6 @@ ARTIFACTS_DIR="$APP_BASE/artifacts"
 CURRENT_LINK="$APP_BASE/current"
 PREVIOUS_RELEASE=""
 RELEASE_PATH=""
-ACTIVATED=0
 MAINTENANCE=0
 
 run_artisan() {
@@ -29,15 +28,74 @@ activate_release() {
     mv -Tf "$next_link" "$CURRENT_LINK"
 }
 
+prune_old_releases() {
+    local retained=("$RELEASE_PATH")
+    local cursor="$RELEASE_PATH"
+    local previous_name previous_path candidate release_name revision kept
+    local preserve_zip
+
+    if [[ ! -L "$CURRENT_LINK" || "$(readlink -f "$CURRENT_LINK")" != "$RELEASE_PATH" ]]; then
+        echo "Warning: Active release changed; skipping cleanup." >&2
+        return 0
+    fi
+
+    while (( ${#retained[@]} < 3 )) && [[ -f "$cursor/PREVIOUS_RELEASE" ]]; do
+        previous_name="$(< "$cursor/PREVIOUS_RELEASE")"
+        [[ "$previous_name" =~ ^[0-9]{8}-[0-9]{6}-[a-f0-9]{7,40}$ ]] || break
+        previous_path="$RELEASES_DIR/$previous_name"
+        [[ -d "$previous_path" && ! -L "$previous_path" ]] || break
+        retained+=("$previous_path")
+        cursor="$previous_path"
+    done
+
+    for candidate in "$RELEASES_DIR"/*; do
+        [[ -d "$candidate" && ! -L "$candidate" ]] || continue
+        release_name="${candidate##*/}"
+        [[ "$release_name" =~ ^[0-9]{8}-[0-9]{6}-[a-f0-9]{7,40}$ ]] || continue
+
+        for kept in "${retained[@]}"; do
+            [[ "$candidate" == "$kept" ]] && continue 2
+        done
+
+        revision=""
+        if [[ -f "$candidate/REVISION" && ! -L "$candidate/REVISION" ]]; then
+            revision="$(< "$candidate/REVISION")"
+        fi
+
+        if ! rm -rf -- "$candidate"; then
+            echo "Warning: Could not remove old release: $candidate" >&2
+            continue
+        fi
+        echo "Removed old release: $release_name"
+
+        preserve_zip=0
+        for kept in "${retained[@]}"; do
+            if [[ -f "$kept/REVISION" && "$(< "$kept/REVISION")" == "$revision" ]]; then
+                preserve_zip=1
+                break
+            fi
+        done
+        if (( preserve_zip == 0 )) && [[ "$revision" =~ ^[a-f0-9]{40}$ ]] && [[ -f "$ARTIFACTS_DIR/build-$revision.zip" && ! -L "$ARTIFACTS_DIR/build-$revision.zip" ]]; then
+            rm -f -- "$ARTIFACTS_DIR/build-$revision.zip" || echo "Warning: Could not remove old build ZIP for $release_name" >&2
+        fi
+    done
+}
+
 recover_on_error() {
-    local exit_code=$?
+    local exit_code="${1:-$?}"
+    local restored=0
+    trap - ERR INT TERM
     set +e
 
     echo "Deployment failed. Attempting to restore the previous release." >&2
-    if [[ "$ACTIVATED" -eq 1 && -n "$PREVIOUS_RELEASE" && -f "$PREVIOUS_RELEASE/artisan" ]]; then
-        activate_release "$PREVIOUS_RELEASE"
+    if [[ -n "$PREVIOUS_RELEASE" && -f "$PREVIOUS_RELEASE/artisan" && -L "$CURRENT_LINK" && "$(readlink -f "$CURRENT_LINK")" != "$PREVIOUS_RELEASE" ]]; then
+        if activate_release "$PREVIOUS_RELEASE"; then
+            restored=1
+        else
+            echo "CRITICAL: Could not restore the previous release." >&2
+        fi
     fi
-    if [[ "$MAINTENANCE" -eq 1 && -L "$CURRENT_LINK" ]]; then
+    if [[ ( "$MAINTENANCE" -eq 1 || "$restored" -eq 1 ) && -L "$CURRENT_LINK" ]]; then
         run_artisan "$(readlink -f "$CURRENT_LINK")" up
     fi
 
@@ -46,6 +104,15 @@ recover_on_error() {
 }
 
 trap recover_on_error ERR
+trap 'recover_on_error 130' INT
+trap 'recover_on_error 143' TERM
+
+mkdir -p "$APP_BASE"
+exec 9>"$APP_BASE/.release.lock"
+if ! flock -n 9; then
+    echo "Another deployment or rollback is already running." >&2
+    exit 1
+fi
 
 mkdir -p "$RELEASES_DIR" "$ARTIFACTS_DIR"
 test -d "$SOURCE_REPO/.git"
@@ -67,6 +134,7 @@ unzip -Z1 "$BUILD_ZIP" | grep -qx 'build/manifest.json'
 RELEASE_NAME="$(date +%Y%m%d-%H%M%S)-$SHORT_SHA"
 RELEASE_PATH="$RELEASES_DIR/$RELEASE_NAME"
 mkdir "$RELEASE_PATH"
+chmod o+x "$RELEASE_PATH"
 git -C "$SOURCE_REPO" archive "$TARGET_SHA" | tar -x -C "$RELEASE_PATH"
 
 CONFIG_SOURCE="$SOURCE_REPO/public"
@@ -97,18 +165,21 @@ run_artisan "$RELEASE_PATH" about >/dev/null
 test -f "$RELEASE_PATH/public/build/manifest.json"
 
 if [[ -n "$PREVIOUS_RELEASE" ]]; then
-    run_artisan "$PREVIOUS_RELEASE" down --retry=60
     MAINTENANCE=1
+    run_artisan "$PREVIOUS_RELEASE" down --retry=60
 fi
 
 run_artisan "$RELEASE_PATH" migrate --force
 activate_release "$RELEASE_PATH"
-ACTIVATED=1
 run_artisan "$RELEASE_PATH" app:deploy:finalize --revision="$TARGET_SHA"
 run_artisan "$RELEASE_PATH" up
 MAINTENANCE=0
 curl --connect-timeout 10 --max-time 30 --retry 2 -fsS "$HEALTH_URL" >/dev/null
+if [[ -n "$PREVIOUS_RELEASE" ]]; then
+    printf '%s\n' "$(basename "$PREVIOUS_RELEASE")" > "$RELEASE_PATH/PREVIOUS_RELEASE"
+fi
 
-trap - ERR
+trap - ERR INT TERM
 echo "Deployment complete: $RELEASE_NAME ($TARGET_SHA)"
 echo "Previous release: ${PREVIOUS_RELEASE:-none}"
+prune_old_releases || echo "Warning: Release cleanup did not complete." >&2

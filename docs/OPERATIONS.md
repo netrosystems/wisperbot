@@ -87,6 +87,8 @@ A single shared-hosting worker can use:
 php artisan queue:work --queue=default,whatsapp,broadcast,ai,social,leads,automation --sleep=3 --tries=3 --timeout=120
 ```
 
+The queue `retry_after` defaults to 180 seconds (`DB_QUEUE_RETRY_AFTER` / `REDIS_QUEUE_RETRY_AFTER`), changed from 90 on 2026-09-24. It must stay above the 120-second worker timeout: otherwise a social publish still running is handed to a second worker. `WithoutOverlapping` and the per-link attempt marker also prevent a second post. If production `.env` sets a lower value, raise it.
+
 Dedicated supervised workers are preferred; `docker-compose.queues.yml` documents the intended split. Restart workers after deployment:
 
 ```bash

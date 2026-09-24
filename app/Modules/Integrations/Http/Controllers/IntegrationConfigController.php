@@ -74,6 +74,7 @@ class IntegrationConfigController extends Controller
                 'oauth_youtube' => route('client.social.oauth.callback', 'youtube'),
                 'oauth_google_mail' => route('client.inbox.email.google.callback'),
                 'oauth_tiktok' => route('client.social.oauth.callback', 'tiktok'),
+                'oauth_twitter' => route('client.social.oauth.callback', 'twitter'),
                 'oauth_shopify' => route('client.ecommerce.oauth.shopify.callback'),
                 'oauth_bigcommerce' => route('client.ecommerce.oauth.bigcommerce.callback'),
                 'oauth_ebay' => route('client.inbox.setup.ebay.callback'),

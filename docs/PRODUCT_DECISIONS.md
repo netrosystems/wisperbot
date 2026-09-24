@@ -123,7 +123,15 @@ Product decision: 2026-09-19. Clients can pre-answer their most common questions
 - Facebook Page posts may expose remote edit/delete only when the stored provider result confirms support and a usable remote ID/token exists.
 - Instagram published content is not editable through the integrated API flow. Delete availability is capability/provider-result driven.
 - Drafts and scheduled-but-unpublished records remain editable/cancellable locally.
+- Media per network (2026-09-24). Posts that break a rule are rejected when saved, never trimmed silently:
+  - Facebook: up to 10 images, or 1 video.
+  - Instagram: 1–10 JPG images or videos. One video publishes as a Reel; several items publish as a carousel.
+  - LinkedIn: 1 image or 1 video.
+  - YouTube and TikTok: the first video in the post.
+  - X: see below.
+- A post is never published twice by automatic retries. When a network does not confirm a create request, the client must check the network and choose Publish now. Media already uploaded for a post is reused when it is retried.
 - If a published post's connected social account is no longer available, workspace admins may remove the stale record from WisperBot. The action must be labelled as local cleanup and must explicitly warn that it does not delete the remote Facebook/Instagram post.
+- X (decision 2026-09-24, to save X API credits): create a post only. It has text of at most 280 weighted characters, and at most 3 images, or 1 video or GIF. There are no links and no media metadata (alt text), and uploads are never repeated. When X is combined with other networks, the client can customise an X version with its own text and a choice of the post's media. X's rules then apply only to that version, never to what the other networks publish. Violating content is rejected, never rewritten. WisperBot never edits or deletes X posts: a client can remove the post from WisperBot only, and it stays on X. A post whose X outcome is unknown is never re-sent automatically. Admin supplies the platform X app credentials; clients only connect their X account.
 
 ## Seller messaging
 
