@@ -47,6 +47,7 @@ Operation statuses: queued, sending, suggested, sent, needs_attention, failed, c
 | YouTube | Not integrated | Separate Data API adapter, `youtube.force-ssl`, quota handling and per-thread `canReply`. Existing OAuth requests upload/readonly only. |
 | LinkedIn | Not integrated | Community Management approval, member/organization-specific grants and actor roles; publishing authorization is insufficient. |
 | TikTok | Not integrated | Separate eligible business comment integration. Content Posting is not comment access; Research API is not customer-service reply access. |
+| X | Not integrated | Publishing only (text, up to 3 images or 1 video, no links) by product decision; no comment or reply access is requested. |
 
 References: [YouTube replies](https://developers.google.com/youtube/v3/docs/comments/insert), [LinkedIn Comments API](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/comments-api), [TikTok official business Comments SDK](https://github.com/tiktok/tiktok-business-api-sdk/blob/main/js_sdk/docs/CommentsApi.md). No extra scopes are requested for unimplemented adapters. Non-Meta accounts fail closed before Meta HTTP, even with stale capability records. Hide/delete are checked independently at enqueue and delivery.
 

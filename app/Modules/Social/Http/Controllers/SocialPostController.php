@@ -2,6 +2,9 @@
 
 namespace App\Modules\Social\Http\Controllers;
 
+use App\Modules\Social\Services\XContentRules;
+use App\Modules\Social\Services\SocialMediaRules;
+use App\Modules\Social\Services\XPostContent;
 use App\Http\Controllers\Controller;
 use App\Modules\AI\Exceptions\AiCreditsException;
 use App\Modules\AI\Services\LlmGateway;
@@ -74,7 +77,9 @@ class SocialPostController extends Controller
         $wid = $this->workspaceId($request);
         $accounts = SocialAccount::where('workspace_id', $wid)
             ->where('active', true)
-            ->where(fn ($query) => $query->whereNull('token_expires_at')->orWhere('token_expires_at', '>', now()))
+            ->where(fn ($query) => $query->whereNull('token_expires_at')->orWhere('token_expires_at', '>', now())
+                // X tokens are refreshed right before publishing.
+                ->orWhere(fn ($x) => $x->where('network', 'twitter')->whereNotNull('refresh_token')))
             ->get(['id', 'network', 'name', 'picture_url']);
 
         return Inertia::render('Social/Composer', ['accounts' => $accounts]);
@@ -156,6 +161,7 @@ class SocialPostController extends Controller
             'scheduled_at' => ['nullable', 'date'],
             'timezone' => ['nullable', 'string', 'max:64'],
             'delivery_mode' => ['nullable', 'in:schedule,publish_now'],
+            ...XPostContent::RULES,
         ]);
 
         if (($validated['delivery_mode'] ?? null) === 'schedule' && empty($validated['scheduled_at'])) {
@@ -184,16 +190,12 @@ class SocialPostController extends Controller
             ->pluck('network')
             ->unique();
         $mediaUrls = $validated['media_urls'] ?? [];
-        if ($selectedNetworks->contains('instagram') && count($mediaUrls) === 0) {
-            throw ValidationException::withMessages([
-                'media_urls' => ['Instagram publishing requires at least one publicly reachable image URL.'],
-            ]);
+        // Each network's own media limits (X is checked separately below).
+        if (($mediaErrors = app(SocialMediaRules::class)->errors($selectedNetworks, $mediaUrls)) !== []) {
+            throw ValidationException::withMessages(['media_urls' => $mediaErrors]);
         }
-        if ($selectedNetworks->intersect(['youtube', 'tiktok'])->isNotEmpty() && count($mediaUrls) === 0) {
-            throw ValidationException::withMessages([
-                'media_urls' => ['YouTube and TikTok publishing require a publicly reachable video URL.'],
-            ]);
-        }
+        $validated['network_content'] = app(XPostContent::class)
+            ->validate($selectedNetworks, $validated['body'] ?? '', array_filter($mediaUrls), $validated['network_content'] ?? null);
 
         // scheduled_at arrives as UTC ISO from the frontend (already converted).
         // Allow a 30-second buffer to account for form submission latency.
@@ -269,6 +271,7 @@ class SocialPostController extends Controller
             'target_accounts.*' => ['integer'],
             'scheduled_at' => ['nullable', 'date'],
             'timezone' => ['nullable', 'string', 'max:64'],
+            ...XPostContent::RULES,
         ]);
 
         $requestedIds = collect($validated['target_accounts'])->map(fn ($id) => (int) $id);
@@ -286,22 +289,19 @@ class SocialPostController extends Controller
             ->pluck('network')
             ->unique();
         $mediaUrls = $validated['media_urls'] ?? [];
-        if ($selectedNetworks->contains('instagram') && count($mediaUrls) === 0) {
-            throw ValidationException::withMessages([
-                'media_urls' => ['Instagram publishing requires at least one publicly reachable image URL.'],
-            ]);
+        // Each network's own media limits (X is checked separately below).
+        if (($mediaErrors = app(SocialMediaRules::class)->errors($selectedNetworks, $mediaUrls)) !== []) {
+            throw ValidationException::withMessages(['media_urls' => $mediaErrors]);
         }
-        if ($selectedNetworks->intersect(['youtube', 'tiktok'])->isNotEmpty() && count($mediaUrls) === 0) {
-            throw ValidationException::withMessages([
-                'media_urls' => ['YouTube and TikTok publishing require a publicly reachable video URL.'],
-            ]);
-        }
+        $validated['network_content'] = app(XPostContent::class)
+            ->validate($selectedNetworks, $validated['body'] ?? '', array_filter($mediaUrls), $validated['network_content'] ?? null);
 
         // scheduled_at is historical metadata once a remote post is live. An
         // older client may still submit it even though scheduling is hidden,
         // so ignore it instead of rejecting an otherwise valid text update.
         if ($capabilities['has_remote_posts']) {
             $validated['scheduled_at'] = null;
+            unset($validated['network_content']);
         } elseif (! empty($validated['scheduled_at']) && now()->subSeconds(30)->gt($validated['scheduled_at'])) {
             throw ValidationException::withMessages([
                 'scheduled_at' => ['The scheduled time must be in the future.'],
@@ -351,24 +351,29 @@ class SocialPostController extends Controller
     private function normalizeSameOriginMediaUrls(Request $request): void
     {
         $requestHost = strtolower($request->getHost());
-        $mediaUrls = collect($request->input('media_urls', []))
-            ->map(function ($url) use ($requestHost) {
-                if (! is_string($url) || trim($url) === '') {
-                    return $url;
-                }
-
-                $host = strtolower((string) parse_url($url, PHP_URL_HOST));
-                $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-
-                if ($scheme === 'http' && $host !== '' && hash_equals($requestHost, $host)) {
-                    return preg_replace('/^http:\/\//i', 'https://', $url, 1);
-                }
-
+        $upgrade = function ($url) use ($requestHost) {
+            if (! is_string($url) || trim($url) === '') {
                 return $url;
-            })
-            ->all();
+            }
 
-        $request->merge(['media_urls' => $mediaUrls]);
+            $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+            $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+            if ($scheme === 'http' && $host !== '' && hash_equals($requestHost, $host)) {
+                return preg_replace('/^http:\/\//i', 'https://', $url, 1);
+            }
+
+            return $url;
+        };
+
+        $request->merge(['media_urls' => collect($request->input('media_urls', []))->map($upgrade)->all()]);
+
+        $xMedia = $request->input('network_content.twitter.media_urls');
+        if (is_array($xMedia)) {
+            $request->merge(['network_content' => array_replace_recursive((array) $request->input('network_content'), [
+                'twitter' => ['media_urls' => array_map(fn ($url) => $upgrade($url), $xMedia)],
+            ])]);
+        }
     }
 
     public function publishNow(Request $request, SocialPost $post): RedirectResponse
@@ -377,7 +382,19 @@ class SocialPostController extends Controller
         abort_if($post->status === 'publishing', 422, 'Post is already being published.');
         abort_if($post->status === 'published', 422, 'Post is already published.');
 
-        $post->update(['scheduled_at' => null, 'status' => 'publishing']);
+        // Claim the post atomically: a double click or a second tab must not
+        // queue a second publish job for the same post.
+        $claimed = SocialPost::whereKey($post->id)
+            ->whereNotIn('status', ['publishing', 'published'])
+            ->update(['scheduled_at' => null, 'status' => 'publishing']);
+        abort_unless($claimed === 1, 422, 'Post is already being published.');
+
+        // Publishing again is the client's decision after an unconfirmed
+        // attempt (the error told them to check the network first), so clear
+        // that mark on the failed links.
+        $post->accountLinks()->where('status', 'failed')->whereNotNull('provider_attempted_at')
+            ->update(['provider_attempted_at' => null]);
+
         PublishSocialPostJob::dispatch($post->id)->onQueue('social');
 
         return back()->with('success', 'Post queued for immediate publishing.');
@@ -419,15 +436,18 @@ class SocialPostController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
+        $keptOnX = $remoteNetworks->intersect(PublishedPostLifecycle::LOCAL_ONLY_NETWORKS)->isNotEmpty();
+        $remoteNetworks = $remoteNetworks->diff(PublishedPostLifecycle::LOCAL_ONLY_NETWORKS)->values();
+
         return back()->with(
             'success',
-            $capabilities['has_remote_posts']
+            ($keptOnX ? 'The X copy stays on X. ' : '').($capabilities['has_remote_posts']
                 ? ($remoteNetworks->all() === ['facebook']
                     ? 'Post deleted from Facebook and WisperBot.'
                     : ($remoteNetworks->all() === ['instagram']
                         ? 'Post deleted from Instagram and WisperBot.'
                         : 'Post deleted from the connected social accounts and WisperBot.'))
-                : 'Post deleted.'
+                : 'Post deleted.')
         );
     }
 
@@ -436,14 +456,16 @@ class SocialPostController extends Controller
         abort_unless((int) $post->workspace_id === $this->workspaceId($request), 403);
 
         try {
-            $this->publishedPosts->removeLocal($post);
+            $keptOnX = $this->publishedPosts->removeLocal($post);
         } catch (PublishedPostLifecycleException $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return back()->with(
             'success',
-            'Post record removed from WisperBot. The remote post was not deleted because its connected account is unavailable.'
+            $keptOnX
+                ? 'Post removed from WisperBot. It stays on X.'
+                : 'Post record removed from WisperBot. The remote post was not deleted because its connected account is unavailable.'
         );
     }
 
@@ -513,8 +535,12 @@ class SocialPostController extends Controller
         string $timezone
     ): array {
         $networksStr = implode(', ', $networks);
-        $limits = ['tiktok' => 2200, 'linkedin' => 3000, 'facebook' => 63206, 'instagram' => 2200, 'youtube' => 5000];
+        $limits = ['tiktok' => 2200, 'linkedin' => 3000, 'facebook' => 63206, 'instagram' => 2200, 'youtube' => 5000, 'twitter' => 280];
         $limitLines = collect($networks)->map(fn ($n) => "- {$n}: ".($limits[$n] ?? 5000).' characters')->implode("\n");
+        // X posts are rejected if they contain any link, so the plan must not include one.
+        $xRule = in_array('twitter', $networks, true)
+            ? "\n9. X (twitter) posts must not contain links: never include a URL, web address, domain name or e-mail address anywhere in \"body\"."
+            : '';
 
         $system = <<<SYSTEM
 You are an expert social media strategist. Generate a content calendar as JSON.
@@ -533,7 +559,7 @@ RULES:
 {$limitLines}
 6. Primary "body" must fit the SHORTEST character limit among: {$networksStr}
 7. Tone: {$tone}. Campaign goal: {$goal}.
-8. If you cannot produce valid JSON, return exactly: {"error": "generation_failed"}
+8. If you cannot produce valid JSON, return exactly: {"error": "generation_failed"}{$xRule}
 SYSTEM;
 
         return [
@@ -597,9 +623,15 @@ SYSTEM;
         }
 
         $now = now();
+        $xAccountIds = SocialAccount::where('workspace_id', $wid)->whereIn('id', $allIds)->where('network', 'twitter')->pluck('id')->all();
         foreach ($validated['posts'] as $i => $postData) {
             if (! empty($postData['scheduled_at']) && $now->copy()->addMinute()->gt($postData['scheduled_at'])) {
                 return response()->json(['errors' => ["posts.{$i}.scheduled_at" => ['Must be at least 1 minute in the future.']]], 422);
+            }
+            // Planner posts reach the publisher without the composer, so X rules apply here too.
+            if (array_intersect(array_map('intval', $postData['target_accounts']), $xAccountIds) !== []
+                && ($xErrors = app(XContentRules::class)->errors($postData['body'])) !== []) {
+                return response()->json(['errors' => ["posts.{$i}.body" => $xErrors]], 422);
             }
         }
 

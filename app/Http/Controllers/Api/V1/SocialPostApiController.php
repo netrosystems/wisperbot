@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Modules\Social\Services\SocialMediaRules;
+use App\Modules\Social\Services\XPostContent;
+use Illuminate\Validation\ValidationException;
 use App\Modules\Social\Jobs\PublishSocialPostJob;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Models\SocialPost;
@@ -38,10 +41,12 @@ class SocialPostApiController extends WorkspaceScopedController
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:5000'],
             'title' => ['nullable', 'string', 'max:256'],
-            'media_urls' => ['nullable', 'array'],
+            'media_urls' => ['nullable', 'array', 'max:10'],
+            'media_urls.*' => ['url', 'regex:/^https:\/\//i', 'max:2048'],
             'account_ids' => ['required', 'array', 'min:1'],
             'account_ids.*' => ['integer'],
             'scheduled_at' => ['nullable', 'date', 'after:now'],
+            ...XPostContent::RULES,
         ]);
 
         $wsId = $this->workspaceId($request);
@@ -55,17 +60,27 @@ class SocialPostApiController extends WorkspaceScopedController
             return response()->json(['error' => 'One or more account_ids are invalid.'], 422);
         }
 
+        // X: no links, 280 weighted characters, up to 3 images or 1 video.
+        // An optional `network_content.twitter` version lets only X follow them.
+        $networks = SocialAccount::where('workspace_id', $wsId)->whereIn('id', $validated['account_ids'])->pluck('network')->unique();
+        if (($mediaErrors = app(SocialMediaRules::class)->errors($networks, (array) ($validated['media_urls'] ?? []))) !== []) {
+            throw ValidationException::withMessages(['media_urls' => $mediaErrors]);
+        }
+        $networkContent = app(XPostContent::class)
+            ->validate($networks, $validated['body'], array_filter((array) ($validated['media_urls'] ?? [])), $validated['network_content'] ?? null);
+
         $post = SocialPost::create([
             'workspace_id' => $wsId,
             'body' => $validated['body'],
             'title' => $validated['title'] ?? null,
             'media_urls' => $validated['media_urls'] ?? [],
+            'network_content' => $networkContent,
             'target_accounts' => $validated['account_ids'],
             'scheduled_at' => $validated['scheduled_at'] ?? null,
-            'status' => $validated['scheduled_at'] ? 'scheduled' : 'publishing',
+            'status' => ! empty($validated['scheduled_at']) ? 'scheduled' : 'publishing',
         ]);
 
-        if (! $validated['scheduled_at']) {
+        if (empty($validated['scheduled_at'])) {
             PublishSocialPostJob::dispatch($post->id)->onQueue('social');
         }
 
