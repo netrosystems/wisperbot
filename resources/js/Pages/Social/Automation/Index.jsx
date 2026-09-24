@@ -21,6 +21,7 @@ const NETWORKS = [
     { id: 'linkedin', label: 'LinkedIn' },
     { id: 'youtube', label: 'YouTube' },
     { id: 'tiktok', label: 'TikTok' },
+    { id: 'twitter', label: 'X' },
 ];
 
 const TABS = ['upcoming', 'drafts', 'published', 'failed', 'all'];
@@ -73,6 +74,8 @@ function AccountAvatar({ account, showName = true }) {
 }
 
 function isExpired(account) {
+    // The server knows when a stale X access token is simply refreshed on use.
+    if (typeof account.token_expired === 'boolean') return account.token_expired;
     return Boolean(account.token_expires_at && new Date(account.token_expires_at) < new Date());
 }
 
@@ -192,7 +195,7 @@ function ConnectedAccounts({ accounts, onConnect }) {
                     </div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-5 dark:divide-neutral-800">
+                <div className="grid grid-cols-1 divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3 xl:grid-cols-6 dark:divide-neutral-800">
                     {NETWORKS.map((network, index) => {
                         const providerAccounts = grouped[network.id];
                         const shown = expanded === network.id ? providerAccounts : providerAccounts.slice(0, 2);
@@ -244,6 +247,10 @@ function postLifecycle(post, accountMap) {
     const results = Object.entries(post.publish_results ?? {}).filter(([, result]) => result?.status === 'published' && result?.post_id);
     const networks = results.map(([id]) => accountMap[id]?.network).filter(Boolean);
     const remote = post.status === 'published' && results.length > 0;
+    if (remote && networks.length > 0 && networks.every(network => network === 'twitter')) {
+        // X copies are never deleted or edited remotely; only the record is removed.
+        return { has_remote_posts: true, can_update: false, can_delete: false, can_remove_local: true };
+    }
     if (remote) {
         return {
             has_remote_posts: true,

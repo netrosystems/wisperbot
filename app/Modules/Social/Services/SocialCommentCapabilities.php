@@ -20,6 +20,7 @@ class SocialCommentCapabilities
             'linkedin' => ['label' => 'LinkedIn', 'implemented' => false, 'enabled' => false, 'summary' => 'Comments not integrated', 'detail' => 'This connection publishes to your Company Pages and personal profile. Comments are not integrated: they need LinkedIn Community Management comment permissions in addition to the posting access.'],
             'youtube' => ['label' => 'YouTube', 'implemented' => false, 'enabled' => false, 'summary' => 'Comments not integrated', 'detail' => 'This connection is for publishing. YouTube supports comments through a separate integration with additional authorization, quota controls and thread-specific reply permissions.'],
             'tiktok' => ['label' => 'TikTok', 'implemented' => false, 'enabled' => false, 'summary' => 'Comments not integrated', 'detail' => 'The current posting connection does not provide comment management. TikTok business comment APIs require separate approved business access; research comment access does not allow customer-service replies.'],
+            'twitter' => ['label' => 'X', 'implemented' => false, 'enabled' => false, 'summary' => 'Posts only · no links', 'detail' => 'This connection publishes posts with text and up to 3 images or 1 video. Links are not allowed, and posts stay on X when removed from WisperBot. Comments and replies are not integrated.'],
         ];
     }
 }

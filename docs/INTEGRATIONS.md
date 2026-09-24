@@ -139,6 +139,42 @@ Both apps register the same callback (`{APP_URL}/app/social/accounts/callback/li
 - **Tokens.** LinkedIn issues no per-Page token and rotates refresh tokens, so every row from one authorization shares and rotates together (`RefreshSocialTokensJob::shareWithSiblings()`), refreshed with the keys of the app that issued them.
 - **Comments** remain not integrated; they need Community Management comment permissions on top of posting access.
 
+## X (2026-09-24)
+
+X publishing allows **text with up to 3 images, or 1 video or GIF**, and **no links**, to keep X API credit use low. X's pay-per-use pricing, verified 2026-09-24:
+- A post costs about $0.015.
+- A post containing a URL costs about $0.20.
+- Each uploaded image or video is billed like one more post, per an X staff answer on the developer forum on 2026-08-31. So one image or a video is about $0.03 in total, and 3 images about $0.06.
+- Chunk appends and status checks are not billed.
+
+WisperBot never sends media metadata (alt text, $0.005 per request).
+
+- **Admin setup.** Admin → Integrations → X OAuth (`oauth_twitter`) holds the OAuth 2.0 Client ID and Client Secret from console.x.com, not the API key/secret pair. The app must be a confidential "Web App" with **Read and write** permission. It must register the callback `{APP_URL}/app/social/accounts/callback/twitter`. The X account that owns the app must hold credits and should have a spending limit. When credits run out, clients see "X API credits are unavailable. Contact your administrator."
+- **Connecting.** OAuth 2.0 Authorization Code with PKCE (S256): authorize at `https://x.com/i/oauth2/authorize`, and exchange at `https://api.x.com/2/oauth2/token` with Basic auth. Scopes are `tweet.read tweet.write users.read media.write offline.access`. An account connected before `media.write` was added can still post text. A post with media fails with "Reconnect your X account to allow images and video" before any X call. The exchange is rejected unless every scope and a refresh token are granted. The profile comes from `GET /2/users/me`.
+- **Content rules** (`XContentRules`, mirrored client-side by `resources/js/Utils/xText.js`):
+  - No links of any kind: any scheme, `www.`, bare or internationalised domains, shorteners, or e-mail addresses.
+  - Media: at most 3 images (JPG, PNG or WEBP, 5 MB each), or 1 video (MP4 or MOV, 50 MB, capped by the 120-second `social` worker timeout), or 1 GIF (15 MB). No mixing.
+  - At most 280 weighted characters. X's weighting counts emoji, CJK and most non-Latin characters as 2.
+  - The composer, AI planner (`posts.{i}.body`) and `POST /api/v1/social/posts` all reject violating content with 422 or a validation error. Content is never silently altered. `XDriver::publish()` checks again, so no path can spend credits on a disallowed post.
+- **Customize for X** (`social_media_posts.network_content`, `XPostContent`):
+  - When an X account is selected, the composer and Edit show an **X version** panel.
+  - **Off:** X publishes the shared text and media, and X's rules apply to them.
+  - **On:** X gets its own text, and media picked from the post's own media. It starts from the shared text and the first video, or the first 3 images. Only this version must follow X's rules, so the shared post can keep links, long text and more media for the other networks.
+  - Stored as `network_content.twitter = {body, media_urls}`, and read by `SocialPost::contentFor('twitter')` at publish time.
+  - X media outside the post's media is rejected with 422 (`network_content.twitter.media_urls`). Errors are keyed `network_content.twitter.body` / `.media_urls`.
+  - `POST /api/v1/social/posts` accepts the same optional `network_content.twitter` object. The AI planner creates shared posts only.
+  - An X version is not stored when no X account is selected, and is not changed by a published-post text update.
+- **Media upload** (`XMediaUploader`, `XMediaFetcher`, `XDriver::uploadMedia()`):
+  - Every file is fetched and checked first, using real MIME sniffing and size. Nothing is uploaded, or billed, if any file fails the rules.
+  - Media-library files (`{APP_URL}/storage/...`) are read from the public disk. Other URLs must be public HTTPS. They are downloaded with `KnowledgeUrlGuard`, without automatic redirects, with a connected-IP check and a size cap.
+  - Upload is chunked: `POST /2/media/upload/initialize`, `/{id}/append` in 4 MB segments, then `/{id}/finalize`. Video processing is polled with `GET /2/media/upload?command=STATUS` for up to 45 seconds per attempt.
+  - Each uploaded media id is saved at once in `social_media_post_accounts.provider_media` and reused until one hour before X's expiry (about 24 hours). A retry, a still-processing video or **Publish now** never uploads the same file twice. The ids are cleared once the post is published.
+- **Tokens.** Access tokens last about 2 hours and X rotates the refresh token on every use. `SocialPublisher` refreshes right before publishing when the token expires within 5 minutes, under `Cache::lock('social-access-token:{id}')`, and stores the rotated pair. `RefreshSocialTokensJob` also refreshes X. An X account with a refresh token is not shown as expired and stays selectable in the composer.
+- **No double charges.** X has no idempotency key. Media upload failures never create a post, so they are always safe to retry. `social_media_post_accounts.provider_attempted_at` is set just before the paid request. It is cleared only when X gives a definite answer: success, or a 4xx such as 401 reconnect, 402/403 credits, 403 permission, or 429 rate limit. After a timeout, a 5xx, or a success without a post ID, the outcome is unknown. The link fails with "X did not confirm this post. Check X before publishing it again." Queue retries never resend it. A client pressing **Publish now** clears the marker deliberately.
+- **No remote edit or delete.** `XDriver` implements no `ManagesPublishedPosts`. `PublishedPostLifecycle::LOCAL_ONLY_NETWORKS` makes X-only posts removable from WisperBot only (`DELETE /app/social/posts/{post}/local`). Deleting a mixed post deletes the other networks' copies and leaves the X copy on X. The success message says so.
+- **Comments** are not integrated.
+- Live X API behaviour is covered only by faked HTTP in `tests/Feature/Social/XPublishingTest.php`. It still needs one real connect-and-post check after credits are bought.
+
 ## Realtime and mobile
 
 - Browser Pusher auth: `/broadcasting/auth`, Laravel session and CSRF.
