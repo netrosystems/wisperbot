@@ -3,6 +3,7 @@
 namespace App\Modules\Social\Services\OAuth;
 
 use App\Modules\Integrations\Services\CredentialResolver;
+use App\Modules\Integrations\Services\Credentials\OAuthClientCredentials;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Session;
@@ -46,6 +47,7 @@ class OAuthManager
             'linkedin' => $this->linkedinAuthUrl($creds, $callbackUrl, ($options['variant'] ?? null) === 'pages'),
             'youtube' => $this->googleAuthUrl($creds, $callbackUrl),
             'tiktok' => $this->tiktokAuthUrl($creds, $callbackUrl),
+            'twitter' => $this->xAuthUrl($creds, $callbackUrl),
             default => throw new \InvalidArgumentException("Unsupported network: {$network}"),
         };
     }
@@ -67,6 +69,7 @@ class OAuthManager
             'linkedin' => $this->linkedinExchange($creds, $code, $callbackUrl, ($storedState['variant'] ?? null) === 'pages'),
             'youtube' => $this->googleExchange($creds, $code, $callbackUrl),
             'tiktok' => $this->tiktokExchange($creds, $code, $callbackUrl),
+            'twitter' => $this->xExchange($creds, $code, $callbackUrl, $storedState),
             default => throw new \InvalidArgumentException("Unsupported network: {$network}"),
         };
     }
@@ -150,6 +153,7 @@ class OAuthManager
         return match ($network) {
             'youtube' => $this->googleRefresh($creds, $refreshToken),
             'tiktok' => $this->tiktokRefresh($creds, $refreshToken),
+            'twitter' => $this->xTokenRequest($creds, ['grant_type' => 'refresh_token', 'refresh_token' => $refreshToken]),
             'linkedin' => $this->linkedinRefresh($creds, $refreshToken, ($options['variant'] ?? null) === 'pages'),
             'facebook',
             'instagram' => throw new \RuntimeException('Facebook/Instagram tokens are long-lived; use token extension instead.'),
@@ -269,6 +273,88 @@ class OAuthManager
             'refresh_token' => $res['refresh_token'] ?? null,
             'expires_in' => $res['expires_in'] ?? null,
             'scope' => $res['scope'] ?? null,
+        ];
+    }
+
+    // ── X (Twitter) ─────────────────────────────────────────────────────────
+
+    /**
+     * Posting text with up to 3 images or 1 video needs exactly these;
+     * `offline.access` issues the refresh token that keeps the 2-hour access
+     * token alive.
+     */
+    public const X_SCOPES = ['tweet.read', 'tweet.write', 'users.read', 'media.write', 'offline.access'];
+
+    /** OAuth 2.0 with PKCE (S256); the verifier stays in the server session. */
+    private function xAuthUrl(OAuthClientCredentials $creds, string $redirect): string
+    {
+        $verifier = rtrim(strtr(base64_encode(random_bytes(48)), '+/', '-_'), '=');
+        $state = $this->storeState([
+            'network' => 'twitter',
+            'code_verifier' => $verifier,
+            'client_id' => $creds->clientId(),
+        ]);
+
+        return 'https://x.com/i/oauth2/authorize?'.http_build_query([
+            'response_type' => 'code',
+            'client_id' => $creds->clientId() ?? '',
+            'redirect_uri' => $redirect,
+            'scope' => implode(' ', self::X_SCOPES),
+            'state' => $state,
+            'code_challenge' => rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '='),
+            'code_challenge_method' => 'S256',
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $storedState
+     * @return array{access_token: string, refresh_token: ?string, expires_in: ?int, scope: ?string}
+     */
+    private function xExchange(OAuthClientCredentials $creds, string $code, string $redirect, array $storedState): array
+    {
+        if (empty($storedState['code_verifier']) || ($storedState['client_id'] ?? null) !== $creds->clientId()) {
+            throw new \RuntimeException('X application changed during sign-in. Please connect again.');
+        }
+
+        $tokens = $this->xTokenRequest($creds, [
+            'grant_type' => 'authorization_code',
+            'code' => $code,
+            'redirect_uri' => $redirect,
+            'code_verifier' => $storedState['code_verifier'],
+        ]);
+
+        $granted = preg_split('/[ ,]+/', (string) ($tokens['scope'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (array_diff(self::X_SCOPES, $granted) !== [] || empty($tokens['refresh_token'])) {
+            throw new \RuntimeException('X authorization is missing required permissions. Reconnect and approve all permissions.');
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * Confidential client: Basic auth with the client secret, plus client_id in the body.
+     *
+     * @param  array<string, string>  $data
+     * @return array{access_token: string, refresh_token: ?string, expires_in: ?int, scope: ?string}
+     */
+    private function xTokenRequest(OAuthClientCredentials $creds, array $data): array
+    {
+        $response = Http::asForm()
+            ->withBasicAuth($creds->clientId() ?? '', $creds->clientSecret() ?? '')
+            ->timeout(15)
+            ->post('https://api.x.com/2/oauth2/token', $data + ['client_id' => $creds->clientId()]);
+
+        if (! $response->successful() || ! $response->json('access_token')) {
+            throw new \RuntimeException(in_array($response->status(), [400, 401], true)
+                ? 'X authorization must be reconnected.'
+                : 'X authorization is temporarily unavailable.');
+        }
+
+        return [
+            'access_token' => $response->json('access_token'),
+            'refresh_token' => $response->json('refresh_token'),
+            'expires_in' => $response->json('expires_in'),
+            'scope' => $response->json('scope'),
         ];
     }
 

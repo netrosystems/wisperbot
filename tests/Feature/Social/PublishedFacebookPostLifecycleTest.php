@@ -514,7 +514,7 @@ class PublishedFacebookPostLifecycleTest extends TestCase
 
         $this->actingAs($context['user'])
             ->delete(route('client.social.posts.remove-local', $post))
-            ->assertSessionHas('error', 'Local-only removal is available only when the connected social account no longer exists.');
+            ->assertSessionHas('error', 'Local-only removal is available only for X posts or when the connected social account no longer exists.');
 
         $this->assertDatabaseHas('social_media_posts', ['id' => $post->id]);
         Http::assertNothingSent();

@@ -25,7 +25,7 @@ class SocialAutomationController extends Controller
             'tab' => ['nullable', Rule::in(['upcoming', 'drafts', 'published', 'failed', 'all'])],
             'view' => ['nullable', Rule::in(['list', 'calendar'])],
             'search' => ['nullable', 'string', 'max:200'],
-            'network' => ['nullable', Rule::in(['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok'])],
+            'network' => ['nullable', Rule::in(['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'twitter'])],
             'account_id' => ['nullable', 'integer'],
             'month' => ['nullable', 'date_format:Y-m'],
         ]);
@@ -42,7 +42,9 @@ class SocialAutomationController extends Controller
             ->where('workspace_id', $workspaceId)
             ->orderBy('network')
             ->orderBy('name')
-            ->get(['id', 'network', 'name', 'picture_url', 'active', 'token_expires_at', 'meta']);
+            ->get(['id', 'network', 'name', 'picture_url', 'active', 'token_expires_at', 'refresh_token', 'meta'])
+            // refresh_token stays hidden; it only lets X accounts report their real state.
+            ->each(fn (SocialAccount $account) => $account->setAttribute('token_expired', $account->isTokenExpired()));
 
         $activeAccounts = $accounts
             ->filter(fn (SocialAccount $account): bool => $account->active && ! $account->isTokenExpired())
