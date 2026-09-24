@@ -150,6 +150,11 @@ X publishing allows **text with up to 3 images, or 1 video or GIF**, and **no li
 WisperBot never sends media metadata (alt text, $0.005 per request).
 
 - **Admin setup.** Admin → Integrations → X OAuth (`oauth_twitter`) holds the OAuth 2.0 Client ID and Client Secret from console.x.com, not the API key/secret pair. The app must be a confidential "Web App" with **Read and write** permission. It must register the callback `{APP_URL}/app/social/accounts/callback/twitter`. The X account that owns the app must hold credits and should have a spending limit. When credits run out, clients see "X API credits are unavailable. Contact your administrator."
+- **Test Connection** (2026-09-25, `ConnectionTester::testX()`) sends a token request with a dummy code, using the stored Basic credentials. X checks client credentials first:
+  - `invalid_client` means the Client ID or Secret is wrong, for example the API Key pasted instead of the OAuth 2.0 Client ID.
+  - Any other 400 means the pair is valid.
+  - No user is involved and nothing is billed.
+  - Other social OAuth providers still report only that the credentials are present.
 - **Connecting.** OAuth 2.0 Authorization Code with PKCE (S256): authorize at `https://x.com/i/oauth2/authorize`, and exchange at `https://api.x.com/2/oauth2/token` with Basic auth. Scopes are `tweet.read tweet.write users.read media.write offline.access`. An account connected before `media.write` was added can still post text. A post with media fails with "Reconnect your X account to allow images and video" before any X call. The exchange is rejected unless every scope and a refresh token are granted. The profile comes from `GET /2/users/me`.
 - **Content rules** (`XContentRules`, mirrored client-side by `resources/js/Utils/xText.js`):
   - No links of any kind: any scheme, `www.`, bare or internationalised domains, shorteners, or e-mail addresses.
