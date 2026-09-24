@@ -6,6 +6,7 @@ use App\Modules\Shared\Contracts\ChannelDriverInterface;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
+use App\Modules\Shared\Models\Message;
 use App\Modules\Shared\Services\ChannelManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -16,6 +17,60 @@ use Tests\TestCase;
 class MobileEmailAttachmentTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_mobile_email_thread_exposes_sanitized_html_and_attachment_contract(): void
+    {
+        $context = $this->createWorkspaceContext();
+        $token = $context['user']->createToken('mobile', ['*'])->plainTextToken;
+        $account = ChannelAccount::create([
+            'workspace_id' => $context['workspace']->id,
+            'channel' => 'email',
+            'provider' => 'gmail',
+            'display_name' => 'Support Mailbox',
+            'status' => 'active',
+        ]);
+        $contact = Contact::create([
+            'workspace_id' => $context['workspace']->id,
+            'first_name' => 'Customer',
+            'email' => 'customer@example.com',
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $context['workspace']->id,
+            'channel_account_id' => $account->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+            'assigned_to' => 'human',
+        ]);
+        Message::create([
+            'conversation_id' => $conversation->id,
+            'channel' => 'email',
+            'direction' => 'in',
+            'type' => 'text',
+            'body' => 'Hello support',
+            'payload' => [
+                'subject' => 'Need help',
+                'html_body' => '<p><strong>Hello</strong> support</p>',
+                'has_attachments' => true,
+                'attachments' => [[
+                    'name' => 'guide.pdf',
+                    'url' => 'https://example.test/guide.pdf',
+                    'mime_type' => 'application/pdf',
+                    'size' => 100,
+                ]],
+            ],
+            'status' => 'delivered',
+            'sent_at' => now(),
+        ]);
+
+        $this->withToken($token)
+            ->getJson("/api/v1/mobile/email/threads/{$conversation->uuid}")
+            ->assertOk()
+            ->assertJsonPath('messages.0.body', 'Hello support')
+            ->assertJsonPath('messages.0.html_body', '<p><strong>Hello</strong> support</p>')
+            ->assertJsonPath('messages.0.has_attachments', true)
+            ->assertJsonPath('messages.0.attachments.0.name', 'guide.pdf')
+            ->assertJsonPath('messages.0.payload.html_body', '<p><strong>Hello</strong> support</p>');
+    }
 
     public function test_mobile_email_compose_accepts_and_processes_file_attachment(): void
     {

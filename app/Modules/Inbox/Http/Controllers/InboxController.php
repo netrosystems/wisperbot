@@ -968,6 +968,20 @@ class InboxController extends Controller
         if (! empty($payload['preview_url'])) {
             $payload['preview_url'] = $this->browserSafePublicUrl((string) $payload['preview_url'], $request);
         }
+        if (! empty($payload['attachments']) && is_array($payload['attachments'])) {
+            $payload['attachments'] = array_map(function ($attachment) use ($request) {
+                if (! is_array($attachment)) {
+                    return $attachment;
+                }
+                foreach (['url', 'preview_url'] as $key) {
+                    if (! empty($attachment[$key])) {
+                        $attachment[$key] = $this->browserSafePublicUrl((string) $attachment[$key], $request);
+                    }
+                }
+
+                return $attachment;
+            }, $payload['attachments']);
+        }
         if (array_key_exists('resources', $payload)) {
             $payload['resources'] = $this->videos->sanitisePublicList($payload['resources']);
         }
@@ -1066,10 +1080,10 @@ class InboxController extends Controller
                     ->orWhere('email', 'like', "%{$q}%");
             }))
             ->latest()
-            ->limit(30)
-            ->get(['id', 'uuid', 'first_name', 'last_name', 'phone_e164', 'email', 'country', 'avatar', 'custom_fields', 'source']);
+            ->orderByDesc('id')
+            ->paginate(30, ['id', 'uuid', 'first_name', 'last_name', 'phone_e164', 'email', 'country', 'avatar', 'custom_fields', 'source']);
 
-        return response()->json($contacts->map(function ($c) {
+        $data = $contacts->getCollection()->map(function ($c) {
             $canWhatsapp = ! empty($c->phone_e164);
             $canSms = ! empty($c->phone_e164);
             $canEmail = ! empty($c->email);
@@ -1143,7 +1157,13 @@ class InboxController extends Controller
                     ],
                 ],
             ]);
-        }));
+        })->values();
+
+        return response()->json($data)
+            ->header('X-Pagination-Current-Page', (string) $contacts->currentPage())
+            ->header('X-Pagination-Last-Page', (string) $contacts->lastPage())
+            ->header('X-Pagination-Per-Page', (string) $contacts->perPage())
+            ->header('X-Pagination-Total', (string) $contacts->total());
     }
 
     /** Return active channel accounts for the workspace (JSON) */

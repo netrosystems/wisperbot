@@ -4,6 +4,10 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added workspace Quick Replies under Contacts. Administrators/owners can create, edit, and delete reusable text; staff can search and insert it while starting or replying to conversations. Existing approved WhatsApp templates and their 24-hour-window behavior are unchanged.
+
+- Fixed rich email and attachment ingestion across Gmail, Microsoft 365, and IMAP. Web Master Email and Omnichannel views now render sanitized formatting and multiple stored attachments, while mobile email responses expose the same additive `html_body` and `attachments[]` payload contract with a plain-text fallback.
+
 - Social publishing no longer risks posting twice, and supports media on every network:
   - **Duplicate protection.** On every network, a post whose create request timed out, got a 5xx, or was cut off by a worker stop is never re-sent automatically. The client is told to check the network, then use Publish now.
   - **No re-uploads.** Retries reuse media already uploaded: Facebook photos, Instagram containers, LinkedIn assets.

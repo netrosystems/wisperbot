@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Jobs;
 
 use App\Events\MessageReceived;
 use App\Modules\Inbox\Services\ConversationOwnershipService;
+use App\Modules\Inbox\Services\EmailContentSanitizer;
 use App\Modules\Inbox\Services\GenericMailboxClient;
 use App\Modules\Inbox\Services\GmailApiClient;
 use App\Modules\Inbox\Services\MicrosoftGraphMailClient;
@@ -12,6 +13,8 @@ use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
+use App\Services\Media\AttachmentService;
+use App\Services\StorageManager;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -19,6 +22,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class SyncEmailAccountJob implements ShouldBeUnique, ShouldQueue
@@ -105,7 +109,11 @@ class SyncEmailAccountJob implements ShouldBeUnique, ShouldQueue
             ],
             ['status' => 'open', 'assigned_to' => app(SegmentAiPolicyService::class)->initialHandler($account)],
         );
-        $body = trim(strip_tags((string) data_get($item, 'body.content', $item['bodyPreview'] ?? '')));
+        $rawBody = (string) data_get($item, 'body.content', $item['bodyPreview'] ?? '');
+        $contentType = strtolower((string) data_get($item, 'body.contentType', 'text'));
+        $sanitizer = app(EmailContentSanitizer::class);
+        $htmlBody = $contentType === 'html' ? $sanitizer->sanitize($rawBody) : '';
+        $body = $contentType === 'html' ? $sanitizer->plainText($htmlBody) : trim($rawBody);
         $headers = collect($item['internetMessageHeaders'] ?? [])
             ->mapWithKeys(fn (array $header) => [strtolower((string) ($header['name'] ?? '')) => (string) ($header['value'] ?? '')]);
         $message = Message::create([
@@ -114,28 +122,76 @@ class SyncEmailAccountJob implements ShouldBeUnique, ShouldQueue
             'channel' => 'email',
             'type' => 'text',
             'body' => $body,
-            'payload' => [
+            'payload' => array_filter([
                 'subject' => (string) ($item['subject'] ?? '(no subject)'),
+                'html_body' => $htmlBody ?: null,
                 'internet_message_id' => (string) ($item['internetMessageId'] ?? ''),
                 'thread_id' => (string) ($item['conversationId'] ?? ''),
-                'has_attachments' => (bool) ($item['hasAttachments'] ?? false),
+                'has_attachments' => (bool) ($item['hasAttachments'] ?? false) || ! empty($item['attachments']),
                 'from_address' => $address,
                 'auto_submitted' => (string) ($item['autoSubmitted'] ?? $headers->get('auto-submitted', '')),
                 'precedence' => (string) ($item['precedence'] ?? $headers->get('precedence', '')),
                 'list_id' => (string) ($item['listId'] ?? $headers->get('list-id', '')),
                 'is_spam' => (bool) ($item['isSpam'] ?? false),
                 'is_trash' => (bool) ($item['isTrash'] ?? false),
-            ],
+            ], fn ($value) => $value !== null),
             'status' => 'delivered',
             'provider_message_id' => $providerId,
             'sent_by' => 'human',
             'sent_at' => $item['receivedDateTime'] ?? now(),
         ]);
+        $attachments = $this->storeAttachments($item['attachments'] ?? []);
+        if ($attachments !== []) {
+            $payload = $message->payload ?? [];
+            $payload['attachments'] = $attachments;
+            $payload['has_attachments'] = true;
+            $message->update(['payload' => $payload]);
+        }
         $reopened = app(ConversationOwnershipService::class)->prepareInbound(
             $conversation,
             $message->sent_at,
             1,
         );
         MessageReceived::dispatch($message, $reopened);
+    }
+
+    private function storeAttachments(array $sourceAttachments): array
+    {
+        $storage = app(StorageManager::class);
+        $attachmentService = app(AttachmentService::class);
+        $allowedExtensions = explode(',', AttachmentService::ALLOWED_MIMES);
+        $stored = [];
+
+        foreach ($sourceAttachments as $attachment) {
+            $bytes = $attachment['raw_bytes'] ?? null;
+            $filename = trim((string) ($attachment['filename'] ?? ''));
+            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if (! is_string($bytes) || $bytes === '' || strlen($bytes) > AttachmentService::MAX_FILE_KILOBYTES * 1024
+                || $filename === '' || ! in_array($extension, $allowedExtensions, true)) {
+                continue;
+            }
+
+            $mimeType = strtolower(trim(explode(';', (string) ($attachment['mime_type'] ?? 'application/octet-stream'))[0]));
+            $path = $storage->prefixedPath('message-media/email/'.Str::random(40).'.'.$extension);
+            if (! $storage->disk()->put($path, $bytes)) {
+                continue;
+            }
+
+            $url = $storage->disk()->url($path);
+            $stored[] = [
+                'name' => $filename,
+                'filename' => $filename,
+                'url' => $url,
+                'preview_url' => $url,
+                'path' => $path,
+                'size' => strlen($bytes),
+                'size_bytes' => strlen($bytes),
+                'mime_type' => $mimeType,
+                'content_type' => $mimeType,
+                'type' => $attachmentService->inferMessageType($mimeType, $extension),
+            ];
+        }
+
+        return $stored;
     }
 }

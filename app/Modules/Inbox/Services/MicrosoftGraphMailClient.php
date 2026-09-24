@@ -79,7 +79,27 @@ class MicrosoftGraphMailClient
             if (! $response->successful()) {
                 throw new RuntimeException($response->json('error.message') ?: 'Microsoft mailbox sync failed.');
             }
-            $messages = array_merge($messages, $response->json('value', []));
+            foreach ($response->json('value', []) as $message) {
+                if (! empty($message['hasAttachments']) && ! empty($message['id'])) {
+                    $attachmentResponse = $this->request($account)->get(
+                        'https://graph.microsoft.com/v1.0/me/messages/'.rawurlencode((string) $message['id']).'/attachments',
+                        ['$select' => 'id,name,contentType,size,isInline,contentBytes'],
+                    );
+                    $message['attachments'] = $attachmentResponse->successful()
+                        ? collect($attachmentResponse->json('value', []))->map(function (array $attachment): array {
+                            $bytes = base64_decode((string) ($attachment['contentBytes'] ?? ''), true);
+
+                            return [
+                                'filename' => (string) ($attachment['name'] ?? 'attachment'),
+                                'mime_type' => (string) ($attachment['contentType'] ?? 'application/octet-stream'),
+                                'size' => (int) ($attachment['size'] ?? ($bytes === false ? 0 : strlen($bytes))),
+                                'raw_bytes' => $bytes === false ? '' : $bytes,
+                            ];
+                        })->filter(fn (array $attachment) => $attachment['raw_bytes'] !== '' && $attachment['size'] <= 10 * 1024 * 1024)->values()->all()
+                        : [];
+                }
+                $messages[] = $message;
+            }
             $url = $response->json('@odata.nextLink');
             $delta = $response->json('@odata.deltaLink');
             $pages++;

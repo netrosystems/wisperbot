@@ -44,10 +44,14 @@ class GenericMailboxClient
                     'name' => $from?->personal ? imap_utf8($from->personal) : '',
                 ]],
                 'receivedDateTime' => isset($overview->date) ? date(DATE_ATOM, strtotime($overview->date)) : now()->toIso8601String(),
-                'bodyPreview' => mb_substr(trim(strip_tags($content['body'])), 0, 500),
-                'body' => ['content' => $content['body']],
+                'bodyPreview' => mb_substr(trim(strip_tags($content['plain'] ?: $content['html'])), 0, 500),
+                'body' => [
+                    'content' => $content['html'] ?: $content['plain'],
+                    'contentType' => $content['html'] !== '' ? 'html' : 'text',
+                ],
                 'isRead' => ! empty($overview->seen),
                 'hasAttachments' => $content['has_attachments'],
+                'attachments' => $content['attachments'],
                 'autoSubmitted' => $this->headerValue($rawHeaders, 'Auto-Submitted'),
                 'precedence' => $this->headerValue($rawHeaders, 'Precedence'),
                 'listId' => $this->headerValue($rawHeaders, 'List-Id'),
@@ -150,30 +154,52 @@ class GenericMailboxClient
             : '';
     }
 
-    /** @return array{body:string,has_attachments:bool} */
+    /** @return array{plain:string,html:string,has_attachments:bool,attachments:array<int, array<string, mixed>>} */
     private function messageContent(mixed $imap, int $uid): array
     {
         $structure = imap_fetchstructure($imap, (string) $uid, FT_UID);
         if (! $structure) {
-            return ['body' => '', 'has_attachments' => false];
+            return ['plain' => '', 'html' => '', 'has_attachments' => false, 'attachments' => []];
         }
 
         $plain = '';
         $html = '';
         $hasAttachments = false;
-        $this->collectContent($imap, $uid, $structure, '', $plain, $html, $hasAttachments);
+        $attachments = [];
+        $this->collectContent($imap, $uid, $structure, '', $plain, $html, $hasAttachments, $attachments);
 
-        return ['body' => $plain !== '' ? $plain : $html, 'has_attachments' => $hasAttachments];
+        return [
+            'plain' => $plain,
+            'html' => $html,
+            'has_attachments' => $hasAttachments,
+            'attachments' => $attachments,
+        ];
     }
 
-    private function collectContent(mixed $imap, int $uid, object $part, string $partNumber, string &$plain, string &$html, bool &$hasAttachments): void
+    private function collectContent(mixed $imap, int $uid, object $part, string $partNumber, string &$plain, string &$html, bool &$hasAttachments, array &$attachments): void
     {
         $parameters = array_merge($part->parameters ?? [], $part->dparameters ?? []);
-        $named = collect($parameters)->contains(fn ($parameter) => in_array(strtolower((string) ($parameter->attribute ?? '')), ['filename', 'name'], true));
+        $filename = collect($parameters)
+            ->first(fn ($parameter) => in_array(strtolower((string) ($parameter->attribute ?? '')), ['filename', 'name'], true));
+        $name = $filename ? imap_utf8((string) ($filename->value ?? '')) : '';
+        $named = $name !== '';
         $disposition = strtolower((string) ($part->disposition ?? ''));
         if ($named || in_array($disposition, ['attachment', 'inline'], true) && (int) ($part->bytes ?? 0) > 0) {
             $hasAttachments = true;
             if ($named || $disposition === 'attachment') {
+                $raw = $partNumber === ''
+                    ? (string) imap_body($imap, $uid, FT_UID | FT_PEEK)
+                    : (string) imap_fetchbody($imap, $uid, $partNumber, FT_UID | FT_PEEK);
+                $decoded = $this->decodePart($raw, (int) ($part->encoding ?? 0));
+                if ($name !== '' && strlen($decoded) <= 10 * 1024 * 1024) {
+                    $attachments[] = [
+                        'filename' => $name,
+                        'mime_type' => $this->partMimeType($part),
+                        'size' => strlen($decoded),
+                        'raw_bytes' => $decoded,
+                    ];
+                }
+
                 return;
             }
         }
@@ -181,7 +207,7 @@ class GenericMailboxClient
         if (! empty($part->parts)) {
             foreach ($part->parts as $index => $child) {
                 $number = $partNumber === '' ? (string) ($index + 1) : $partNumber.'.'.($index + 1);
-                $this->collectContent($imap, $uid, $child, $number, $plain, $html, $hasAttachments);
+                $this->collectContent($imap, $uid, $child, $number, $plain, $html, $hasAttachments, $attachments);
             }
 
             return;
@@ -193,16 +219,28 @@ class GenericMailboxClient
         $raw = $partNumber === ''
             ? (string) imap_body($imap, $uid, FT_UID | FT_PEEK)
             : (string) imap_fetchbody($imap, $uid, $partNumber, FT_UID | FT_PEEK);
-        $decoded = match ((int) ($part->encoding ?? 0)) {
-            3 => (string) base64_decode($raw, true),
-            4 => quoted_printable_decode($raw),
-            default => $raw,
-        };
+        $decoded = $this->decodePart($raw, (int) ($part->encoding ?? 0));
         $subtype = strtolower((string) ($part->subtype ?? 'plain'));
         if ($subtype === 'plain' && $plain === '') {
             $plain = $decoded;
         } elseif ($subtype === 'html' && $html === '') {
             $html = $decoded;
         }
+    }
+
+    private function decodePart(string $raw, int $encoding): string
+    {
+        return match ($encoding) {
+            3 => (string) base64_decode($raw, true),
+            4 => quoted_printable_decode($raw),
+            default => $raw,
+        };
+    }
+
+    private function partMimeType(object $part): string
+    {
+        $primary = ['text', 'multipart', 'message', 'application', 'audio', 'image', 'video', 'other'][(int) ($part->type ?? 7)] ?? 'application';
+
+        return $primary.'/'.strtolower((string) ($part->subtype ?? 'octet-stream'));
     }
 }

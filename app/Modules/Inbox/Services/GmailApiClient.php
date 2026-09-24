@@ -79,7 +79,11 @@ class GmailApiClient
                 ['format' => 'full'],
             );
             if ($response->successful()) {
-                $messages[] = $this->normalise($response->json());
+                $message = $response->json();
+                $normalised = $this->normalise($message);
+                $normalised['attachments'] = $this->attachments($account, $message);
+                $normalised['hasAttachments'] = $normalised['hasAttachments'] || $normalised['attachments'] !== [];
+                $messages[] = $normalised;
             }
         }
         $account->update(['meta_json' => array_merge($meta, [
@@ -187,7 +191,7 @@ class GmailApiClient
                 ? Carbon::createFromTimestampMs((int) $message['internalDate'])->toIso8601String()
                 : now()->toIso8601String(),
             'bodyPreview' => (string) ($message['snippet'] ?? ''),
-            'body' => ['content' => $this->body((array) ($message['payload'] ?? []))],
+            'body' => $this->body((array) ($message['payload'] ?? [])),
             'isRead' => ! in_array('UNREAD', $message['labelIds'] ?? [], true),
             'hasAttachments' => $this->hasAttachment((array) ($message['payload'] ?? [])),
             'autoSubmitted' => (string) $headers->get('auto-submitted', ''),
@@ -198,25 +202,68 @@ class GmailApiClient
         ];
     }
 
-    private function body(array $part): string
+    /** @return array{content:string,contentType:string} */
+    private function body(array $part): array
     {
         $mime = strtolower((string) ($part['mimeType'] ?? ''));
         $data = data_get($part, 'body.data');
         if (is_string($data) && ($mime === 'text/html' || $mime === 'text/plain')) {
-            return $this->decode($data);
+            return ['content' => $this->decode($data), 'contentType' => $mime === 'text/html' ? 'html' : 'text'];
         }
-        $plain = '';
+        $plain = ['content' => '', 'contentType' => 'text'];
         foreach ($part['parts'] ?? [] as $child) {
             $content = $this->body($child);
-            if ($content !== '') {
-                if (strtolower((string) ($child['mimeType'] ?? '')) === 'text/html') {
+            if ($content['content'] !== '') {
+                if ($content['contentType'] === 'html') {
                     return $content;
                 }
-                $plain = $plain ?: $content;
+                if ($plain['content'] === '') {
+                    $plain = $content;
+                }
             }
         }
 
         return $plain;
+    }
+
+    private function attachments(ChannelAccount $account, array $message): array
+    {
+        $attachments = [];
+        $this->collectAttachments($account, (string) ($message['id'] ?? ''), (array) ($message['payload'] ?? []), $attachments);
+
+        return $attachments;
+    }
+
+    private function collectAttachments(ChannelAccount $account, string $messageId, array $part, array &$attachments): void
+    {
+        $filename = $this->decodeHeader((string) ($part['filename'] ?? ''));
+        $size = (int) data_get($part, 'body.size', 0);
+        $attachmentId = (string) data_get($part, 'body.attachmentId', '');
+        $encoded = data_get($part, 'body.data');
+
+        if ($filename !== '' && $size <= 10 * 1024 * 1024) {
+            if ($attachmentId !== '') {
+                $response = $this->request($account)->get(
+                    'https://gmail.googleapis.com/gmail/v1/users/me/messages/'.rawurlencode($messageId).'/attachments/'.rawurlencode($attachmentId),
+                );
+                $encoded = $response->successful() ? $response->json('data') : null;
+            }
+            if (is_string($encoded) && $encoded !== '') {
+                $bytes = $this->decode($encoded);
+                if (strlen($bytes) <= 10 * 1024 * 1024) {
+                    $attachments[] = [
+                        'filename' => $filename,
+                        'mime_type' => (string) ($part['mimeType'] ?? 'application/octet-stream'),
+                        'size' => strlen($bytes),
+                        'raw_bytes' => $bytes,
+                    ];
+                }
+            }
+        }
+
+        foreach ($part['parts'] ?? [] as $child) {
+            $this->collectAttachments($account, $messageId, (array) $child, $attachments);
+        }
     }
 
     private function hasAttachment(array $part): bool
