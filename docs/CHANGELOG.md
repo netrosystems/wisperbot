@@ -4,6 +4,10 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Refined homepage team photography to a vibrant, sunlit orange/cobalt campaign style following user references; retained actual product UI and recorded the updated photography guide.
+
+- Replaced homepage demonstration visuals with product-led compositions of actual WisperBot UI, official Agent App screenshots, and one professional fictional team photo. The initially generated sculptural collection was rejected and archived outside public assets. Existing navigation and conversion flows remain unchanged. Source inventory and privacy rules: `MARKETING_VISUAL_AUDIT.md`. Local on `oris`, pending approval.
+
 - Workspaces can be **renamed** and **deleted** by their owner (Workspaces page).
   - Delete requires typing the workspace name. It hides the workspace and stops all its activity at once, keeps it restorable for 30 days under "Recently deleted", then erases its data with the daily `workspaces:purge-deleted` job.
   - Members are moved to another workspace. Someone left with none is sent to restore or create one.

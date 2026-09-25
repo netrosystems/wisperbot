@@ -37,6 +37,10 @@ The full content architecture is maintained in [docs/DESIGN.md](docs/DESIGN.md).
 
 ### Visual language
 
+- Photography revision (2026-09-25): use vibrant premium lifestyle-campaign photography—bright natural sunlight, energetic candid expressions, saturated orange wardrobes with teal/cobalt/sky-blue supporting colors, and realistic skin/fabric texture. Avoid muted gray corporate stock, dim offices, stiff suits, and dull grading. American/European workplace settings are directional styling, not claims about real employees. Keep original fictional subjects; never copy stock watermarks or generate product UI inside photos.
+
+- Marketing artwork is product-led: actual WisperBot UI crops and official Agent App screenshots, arranged in clean bento compositions on white, pale sage, peach, and restrained evergreen. Keep Orange `#FF762E`; do not copy reference lime branding. Avoid clay/ceramic scenes, toy-like 3D objects, generic phone interfaces, invented dashboards, and random stock imagery. Use professional American/European workplace photography sparingly; generated people are fictional, not staff or endorsements. Preserve readable UI, original brand marks, translated HTML captions, descriptive alt text, explicit dimensions, and lazy loading below the hero. See [the visual audit](docs/MARKETING_VISUAL_AUDIT.md) for provenance and privacy rules.
+
 - Mostly white and warm pale-sage surfaces: `#FFFFFF`, `#FAFBF7`, and softly tinted product stages.
 - WisperBot Orange `#FF762E` is the primary brand/action color, not a full-page fill. Use dark button text where needed for contrast.
 - Primary ink `#20241F`, muted copy `#686C66`; restrained deep evergreen `#183C31` for contrast bands.

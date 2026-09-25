@@ -35,3 +35,8 @@ database/.DS_Store
 /.claude
 /.puku
 /puku.md
+
+# Local marketing source masters and rejected image explorations.
+# Delivery images live in public/images/marketing; prompts/fixtures remain tracked.
+/output/marketing-visuals/**/*.png
+/output/marketing-visuals/**/rejected-webp/

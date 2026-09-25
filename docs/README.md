@@ -20,6 +20,7 @@ This directory and the root specification files form the durable project memory 
 7. [Changelog](CHANGELOG.md) — Documentation-level release history.
 8. [Knowledge Base and Smart Bot Answering](KNOWLEDGE_BASE_SMART_BOT.md) — Authoritative routing, retrieval, research, grounding, credits, chatbot identity, rollout, and SDK contract.
 9. [Public Website Design](DESIGN.md) — Full public-site content architecture, 14 product/solution/channel/developer routes, mega navigation, motion, content ownership, proof standards, and rollout.
+10. [Marketing Visual Audit](MARKETING_VISUAL_AUDIT.md) — Homepage placeholder inventory, actual UI capture provenance, official app imagery, and photography direction.
 
 ## Smart Bot conversational choices
 

@@ -10,6 +10,12 @@ This document owns the public-site content architecture and rollout. [DESIGNSYST
 
 ## Reference direction
 
+### Product-led artwork direction — 2026-09-25
+
+Photography refinement: the team photograph now uses a bright, vibrant lifestyle-campaign treatment with orange and cobalt wardrobes, sky-blue surroundings, sunny light, and warm candid interaction. This supersedes the muted corporate photograph without changing the authentic product screenshots or page palette. Exact prompt: `output/marketing-visuals/2026-09-25/VIBRANT_PHOTOGRAPHY_PROMPT.md`.
+
+The user rejected the initial generated sculptural collection. The revised direction follows the supplied TRU and Mullet brand-board references: clean bento layouts, actual interface crops, layered cards, restrained photography, and confident whitespace. WisperBot retains its orange/evergreen palette. Homepage hero, tour, lifecycle, and supporting product panels use actual product captures; mobile uses official App Store screenshots. One fictional American-European workplace photo adds human context. No AI-generated product screens are used. Assets live in `public/images/marketing/product-ui/`; capture fixture, photo master, exact prompt, and rejected exploration archive live in `output/marketing-visuals/2026-09-25/`. See the [visual audit](MARKETING_VISUAL_AUDIT.md). Local on `oris`, pending approval; other product pages are outside this imagery update.
+
 Voiskey informs spacious composition, editorial headlines, subtle sage surfaces, product-led animation, and alternating visual rhythms. Widgo informs the progression from a problem to a working product. Crisp and BotSailor inform deep product navigation and multiple ways to explain a broad platform. These are directional references, not copied layouts, assets, or claims.
 
 Keep WisperBot Orange `#FF762E`, Space Grotesk, and short Fraunces accents. Use a mostly white/light canvas, pale sage product stages, warm peach details, and selective evergreen contrast sections. Do not turn the whole site orange or dark.
