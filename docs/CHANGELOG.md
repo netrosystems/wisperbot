@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Fixed `scripts/production/deploy-production.sh` rejecting a valid build archive with exit code 141 unless `build/manifest.json` was its last entry. A `grep -q` pipeline stopped reading early, and under `pipefail` the still-running `unzip` failed with SIGPIPE. The check is now `assert_build_artifact()`, covered by `tests/Scripts/production-build-artifact.sh`. The script tests also run on macOS's bash 3.2 now.
+
 - Refined homepage team photography to a vibrant, sunlit orange/cobalt campaign style following user references; retained actual product UI and recorded the updated photography guide.
 
 - Replaced homepage demonstration visuals with product-led compositions of actual WisperBot UI, official Agent App screenshots, and one professional fictional team photo. The initially generated sculptural collection was rejected and archived outside public assets. Existing navigation and conversion flows remain unchanged. Source inventory and privacy rules: `MARKETING_VISUAL_AUDIT.md`. Local on `oris`, pending approval.

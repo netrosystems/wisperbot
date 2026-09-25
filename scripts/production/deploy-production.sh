@@ -28,6 +28,16 @@ activate_release() {
     mv -Tf "$next_link" "$CURRENT_LINK"
 }
 
+# The archive must be intact and contain build/manifest.json. grep reads the
+# whole listing on purpose: `grep -q` stops at the first match, and under
+# pipefail the still-writing unzip then fails with SIGPIPE (exit 141)
+# whenever the manifest is not the last entry.
+assert_build_artifact() {
+    local zip="$1"
+    unzip -tqq "$zip"
+    unzip -Z1 "$zip" | grep -x 'build/manifest.json' >/dev/null
+}
+
 prune_old_releases() {
     local retained=("$RELEASE_PATH")
     local cursor="$RELEASE_PATH"
@@ -128,8 +138,7 @@ test -f "$BUILD_ZIP" || {
     echo "Missing frontend artifact: $BUILD_ZIP" >&2
     exit 1
 }
-unzip -tqq "$BUILD_ZIP"
-unzip -Z1 "$BUILD_ZIP" | grep -qx 'build/manifest.json'
+assert_build_artifact "$BUILD_ZIP"
 
 RELEASE_NAME="$(date +%Y%m%d-%H%M%S)-$SHORT_SHA"
 RELEASE_PATH="$RELEASES_DIR/$RELEASE_NAME"
