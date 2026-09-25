@@ -1,5 +1,5 @@
 import ClientLayout from '@/Layouts/ClientLayout';
-import { Button, Card, Input, Badge } from '@/Components/ui';
+import { Button, Card, Input, Badge, Modal } from '@/Components/ui';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,12 +18,129 @@ function WorkspaceAvatar({ name }) {
     );
 }
 
-export default function WorkspacesIndex({ workspaces = [] }) {
+function formatDate(iso) {
+    try {
+        return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+        return iso;
+    }
+}
+
+/** The owner types the workspace name before Delete is enabled. */
+function DeleteWorkspaceModal({ workspace, onClose }) {
+    const { t } = useTranslation();
+    const [typed, setTyped] = useState('');
+    const [error, setError] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+    const matches = workspace && typed.trim() === workspace.name;
+
+    const close = () => {
+        if (deleting) return;
+        setTyped('');
+        setError(null);
+        onClose();
+    };
+
+    const submit = (e) => {
+        e.preventDefault();
+        if (!matches) return;
+        setDeleting(true);
+        router.delete(route('client.workspaces.destroy', workspace.id), {
+            data: { confirm_name: typed.trim() },
+            preserveScroll: true,
+            onSuccess: () => {
+                setTyped('');
+                onClose();
+            },
+            onError: (errors) => setError(errors.confirm_name ?? t('workspaces.delete_failed')),
+            onFinish: () => setDeleting(false),
+        });
+    };
+
+    return (
+        <Modal show={Boolean(workspace)} onClose={close} maxWidth="md">
+            {workspace && (
+                <form onSubmit={submit}>
+                    <Modal.Header title={t('workspaces.delete_title', { name: workspace.name })} onClose={close} />
+                    <Modal.Body className="space-y-3 text-sm text-neutral-600 dark:text-neutral-300">
+                        <p>{t('workspaces.delete_intro')}</p>
+                        <ul className="list-disc space-y-1 pl-5">
+                            <li>{t('workspaces.delete_effect_hidden')}</li>
+                            <li>{t('workspaces.delete_effect_stops')}</li>
+                            <li>{t('workspaces.delete_effect_restore', { days: 30 })}</li>
+                        </ul>
+                        <Input
+                            label={t('workspaces.delete_confirm_label', { name: workspace.name })}
+                            value={typed}
+                            onChange={(e) => { setTyped(e.target.value); setError(null); }}
+                            placeholder={workspace.name}
+                            autoComplete="off"
+                            autoFocus
+                            error={error}
+                        />
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button type="button" variant="outline" size="sm" onClick={close} disabled={deleting}>
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="submit" variant="danger" size="sm" disabled={!matches || deleting}>
+                            {deleting ? t('workspaces.deleting') : t('workspaces.delete_workspace')}
+                        </Button>
+                    </Modal.Footer>
+                </form>
+            )}
+        </Modal>
+    );
+}
+
+export default function WorkspacesIndex({ workspaces = [], deletedWorkspaces = [] }) {
     const { t } = useTranslation();
     const [name, setName] = useState('');
     const [creating, setCreating] = useState(false);
     const [switching, setSwitching] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [editName, setEditName] = useState('');
+    const [renameError, setRenameError] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(null);
+    const [restoring, setRestoring] = useState(null);
     const currentWorkspace = usePage().props.currentWorkspace;
+
+    const handleRestore = (workspace) => {
+        setRestoring(workspace.id);
+        router.post(route('client.workspaces.restore', workspace.id), {}, {
+            preserveScroll: true,
+            onFinish: () => setRestoring(null),
+        });
+    };
+
+    const startRename = (workspace) => {
+        setEditingId(workspace.id);
+        setEditName(workspace.name);
+        setRenameError(null);
+    };
+
+    const cancelRename = () => {
+        setEditingId(null);
+        setRenameError(null);
+    };
+
+    const handleRename = (e, workspace) => {
+        e.preventDefault();
+        const next = editName.trim();
+        if (!next) return;
+        if (next === workspace.name) {
+            cancelRename();
+            return;
+        }
+        setSaving(true);
+        router.put(route('client.workspaces.update', workspace.id), { name: next }, {
+            preserveScroll: true,
+            onSuccess: () => setEditingId(null),
+            onError: (errors) => setRenameError(errors.name ?? t('workspaces.rename_failed')),
+            onFinish: () => setSaving(false),
+        });
+    };
 
     const handleSwitch = (workspaceId) => {
         setSwitching(workspaceId);
@@ -82,6 +199,34 @@ export default function WorkspacesIndex({ workspaces = [] }) {
                             {workspaces.map((w) => {
                                 const isCurrent = currentWorkspace?.id === w.id;
                                 const isSwitching = switching === w.id;
+                                if (editingId === w.id) {
+                                    return (
+                                        <li key={w.id}>
+                                            <form
+                                                onSubmit={(e) => handleRename(e, w)}
+                                                className="flex items-end gap-3 rounded-xl border border-brand-300 bg-white px-4 py-3 dark:border-brand-700 dark:bg-neutral-900"
+                                            >
+                                                <WorkspaceAvatar name={editName.trim() || w.name} />
+                                                <Input
+                                                    label={t('workspaces.name_label')}
+                                                    value={editName}
+                                                    onChange={(e) => setEditName(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Escape' && cancelRename()}
+                                                    maxLength={255}
+                                                    autoFocus
+                                                    error={renameError}
+                                                    className="flex-1"
+                                                />
+                                                <Button type="submit" variant="primary" size="sm" disabled={saving || !editName.trim()} className="shrink-0">
+                                                    {saving ? t('workspaces.saving') : t('workspaces.save')}
+                                                </Button>
+                                                <Button type="button" variant="outline" size="sm" onClick={cancelRename} disabled={saving} className="shrink-0">
+                                                    {t('common.cancel')}
+                                                </Button>
+                                            </form>
+                                        </li>
+                                    );
+                                }
                                 return (
                                     <li key={w.id}>
                                         <div className={[
@@ -104,6 +249,27 @@ export default function WorkspacesIndex({ workspaces = [] }) {
                                                 {isCurrent && (
                                                     <Badge variant="brand" size="sm">{t('common.active')}</Badge>
                                                 )}
+                                                {w.is_owner && (
+                                                    <>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => startRename(w)}
+                                                            aria-label={t('workspaces.rename_named', { name: w.name })}
+                                                        >
+                                                            {t('workspaces.rename')}
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => setDeleting(w)}
+                                                            aria-label={t('workspaces.delete_named', { name: w.name })}
+                                                            className="text-coral-600 hover:text-coral-700 dark:text-coral-400"
+                                                        >
+                                                            {t('workspaces.delete')}
+                                                        </Button>
+                                                    </>
+                                                )}
                                                 <Button
                                                     variant={isCurrent ? 'outline' : 'primary'}
                                                     size="sm"
@@ -120,6 +286,39 @@ export default function WorkspacesIndex({ workspaces = [] }) {
                         </ul>
                     )}
                 </div>
+
+                {deletedWorkspaces.length > 0 && (
+                    <div className="space-y-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                            {t('workspaces.recently_deleted', { count: deletedWorkspaces.length })}
+                        </h3>
+                        <ul className="space-y-2">
+                            {deletedWorkspaces.map((w) => (
+                                <li key={w.id} className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900/60">
+                                    <div className="flex min-w-0 items-center gap-3 opacity-70">
+                                        <WorkspaceAvatar name={w.name} />
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">{w.name}</p>
+                                            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                                                {t('workspaces.erased_on', { date: formatDate(w.purge_after) })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRestore(w)}
+                                        disabled={restoring === w.id}
+                                        aria-label={t('workspaces.restore_named', { name: w.name })}
+                                        className="shrink-0"
+                                    >
+                                        {restoring === w.id ? t('workspaces.restoring') : t('workspaces.restore')}
+                                    </Button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
                 {/* Create workspace */}
                 {(
@@ -173,6 +372,8 @@ export default function WorkspacesIndex({ workspaces = [] }) {
                 </Card>
                 )}
             </div>
+
+            <DeleteWorkspaceModal workspace={deleting} onClose={() => setDeleting(null)} />
         </ClientLayout>
     );
 }

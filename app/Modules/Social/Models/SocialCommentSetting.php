@@ -2,6 +2,7 @@
 
 namespace App\Modules\Social\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -14,6 +15,8 @@ use Illuminate\Support\Carbon;
  */
 class SocialCommentSetting extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $guarded = ['id'];
 
     protected $hidden = ['sync_cursor'];

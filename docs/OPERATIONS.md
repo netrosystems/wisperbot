@@ -58,6 +58,8 @@ The scheduler also runs `reconcile-ai-credit-reservations` every five minutes. I
 
 Live product pricing is disabled by default. Deploy `2026_09_19_000100_create_live_kb_products.php`, matching backend/frontend code, and set `KB_LIVE_PRODUCT_FACTS_ENABLED=true` only for staged rollout. `refresh-live-kb-products` runs every five minutes and queues at most `KB_LIVE_PRODUCT_REFRESH_BATCH` due published URL sources on `ai`; records are considered current for `KB_LIVE_PRODUCT_FRESHNESS_MINUTES` (default 15), with `KB_LIVE_PRODUCT_REQUESTS_PER_MINUTE` limiting each host. Clear configuration caches and restart `ai` and message workers after changing these settings. Monitor source detection status, queue failures, verification latency, host rate limits, and `product_diagnostics`; do not weaken robots, HTTPS, redirect, DNS, or SSRF controls to make an unsupported site pass.
 
+`workspaces-purge-deleted` runs `php artisan workspaces:purge-deleted` daily at 03:30. It permanently erases workspaces deleted more than 30 days ago. Use `--dry-run` to list what is due. A Knowledge Base vector cleanup failure leaves that workspace in place and exits non-zero, so check the logs and the next run. Deploy migration `2026_09_25_000100_add_soft_deletes_to_workspaces.php` before this code.
+
 The Super Admin Cron Setup heartbeat confirms scheduler activity; it does not prove every queue is being consumed.
 
 ## Queue workers

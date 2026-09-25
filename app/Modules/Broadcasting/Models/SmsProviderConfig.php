@@ -2,10 +2,13 @@
 
 namespace App\Modules\Broadcasting\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 
 class SmsProviderConfig extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'sms_provider_configs';
 
     protected $fillable = [

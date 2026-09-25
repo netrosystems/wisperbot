@@ -2,11 +2,14 @@
 
 namespace App\Modules\Broadcasting\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Crypt;
 
 class WorkspaceSmtpConfig extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'workspace_smtp_configs';
 
     protected $fillable = [

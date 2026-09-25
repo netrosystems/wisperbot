@@ -2,11 +2,14 @@
 
 namespace App\Modules\Shared\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ChannelAccount extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected static function booted(): void
     {
         static::creating(function (self $account): void {

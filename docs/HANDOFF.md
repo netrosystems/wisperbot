@@ -19,6 +19,14 @@ Always run `git status --short` and inspect recent history before starting; this
 
 ## Current focus
 
+2026-09-25 workspace rename and delete (local, uncommitted):
+- `WorkspaceController::update`, `destroy` and `restore`, backed by `WorkspacePolicy`.
+- Soft deletes plus the `ExcludesDeletedWorkspaces` scope on 16 activity-source models.
+- `EnsureClientScope` sends people who lost their workspace to another one, or to Workspaces.
+- `WorkspacePurger` with the daily `workspaces:purge-deleted` command.
+- Workspaces page: Rename, a Delete dialog with typed confirmation, and a Recently deleted list with Restore.
+- Tests: `tests/Feature/WorkspaceRenameTest.php` (4) and `WorkspaceDeletionTest.php` (8, including cross-workspace isolation of the erase). Browser-checked locally.
+- Local data note: the local DB was missing `clients` rows 1, 4, 5 and 6, which demo workspaces reference, so Team returns 404 for those demo users. Client 2 (SpaGreen Wellness) was restored.
 2026-09-24 social media and duplicate-post hardening (local, uncommitted):
 - Audit result: no duplicate posts, links or media in local data. The unique (`post_id`, `social_account_id`) index and atomic status claims already stop scheduler and delayed-job doubles.
 - The real risk was an automatic retry after a create request whose outcome was unknown. This is now closed for every network by `provider_attempted_at` + `PublishOutcomeUnknownException`.

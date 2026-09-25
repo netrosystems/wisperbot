@@ -4,6 +4,11 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Workspaces can be **renamed** and **deleted** by their owner (Workspaces page).
+  - Delete requires typing the workspace name. It hides the workspace and stops all its activity at once, keeps it restorable for 30 days under "Recently deleted", then erases its data with the daily `workspaces:purge-deleted` job.
+  - Members are moved to another workspace. Someone left with none is sent to restore or create one.
+  - Requires migration `2026_09_25_000100_add_soft_deletes_to_workspaces.php`, a dashboard build and the scheduler.
+
 - Social publishing no longer risks posting twice, and supports media on every network:
   - **Duplicate protection.** On every network, a post whose create request timed out, got a 5xx, or was cut off by a worker stop is never re-sent automatically. The client is told to check the network, then use Publish now.
   - **No re-uploads.** Retries reuse media already uploaded: Facebook photos, Instagram containers, LinkedIn assets.

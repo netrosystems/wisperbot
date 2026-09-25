@@ -2,10 +2,13 @@
 
 namespace App\Modules\Social\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 
 class SocialPost extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'social_media_posts';
 
     protected $fillable = ['workspace_id', 'title', 'body', 'media_urls', 'network_content', 'target_accounts', 'status', 'scheduled_at', 'timezone', 'published_at', 'provider_post_id', 'post_url', 'publish_results', 'ai_generated', 'ai_prompt'];

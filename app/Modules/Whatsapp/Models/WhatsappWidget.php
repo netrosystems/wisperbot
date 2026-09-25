@@ -2,11 +2,14 @@
 
 namespace App\Modules\Whatsapp\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class WhatsappWidget extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'whatsapp_widgets';
 
     protected $fillable = [

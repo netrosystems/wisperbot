@@ -145,6 +145,13 @@ Schedule::call(function () {
     app(WebhookIdempotencyService::class)->prune(30);
 })->weekly()->name('prune-inbound-webhook-events');
 
+// Permanently erase workspaces deleted more than 30 days ago (restore window over)
+Schedule::command('workspaces:purge-deleted')
+    ->dailyAt('03:30')
+    ->name('workspaces-purge-deleted')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // Sync subscription statuses with payment gateways (hourly)
 Schedule::command('billing:sync')
     ->hourly()

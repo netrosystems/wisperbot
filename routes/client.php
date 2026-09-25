@@ -71,6 +71,9 @@ Route::middleware(['verified'])->group(function () {
     Route::get('/workspaces', [WorkspaceController::class, 'index'])->name('workspaces.index');
     Route::post('/workspaces/switch', [WorkspaceController::class, 'switch'])->name('workspaces.switch');
     Route::post('/workspaces', [WorkspaceController::class, 'store'])->name('workspaces.store');
+    Route::put('/workspaces/{workspace}', [WorkspaceController::class, 'update'])->whereNumber('workspace')->name('workspaces.update');
+    Route::delete('/workspaces/{workspace}', [WorkspaceController::class, 'destroy'])->whereNumber('workspace')->name('workspaces.destroy');
+    Route::post('/workspaces/{workspace}/restore', [WorkspaceController::class, 'restore'])->whereNumber('workspace')->name('workspaces.restore');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

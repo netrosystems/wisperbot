@@ -6,6 +6,15 @@ Last reviewed: 2026-09-03. This file records intentional behavior so future work
 
 WisperBot is a white-label-friendly, multi-workspace customer communication platform. Its main promise is to centralize conversations and operational context, with AI assistance and human handoff rather than forcing customers into AI-only support.
 
+## Workspaces (2026-09-25)
+
+- **Rename:** the workspace owner can rename a workspace.
+- **Delete:** only the owner can delete, after typing the workspace name.
+  - The workspace disappears for everyone and everything in it stops at once: channels, widgets, Smart Bot replies, automations, campaigns and scheduled posts.
+  - The owner can restore it, with everything as it was, for 30 days. After that, all its data is permanently erased.
+  - Members whose main workspace it was move to another workspace they can open. An owner may delete their last workspace, and is then asked to restore it or create a new one.
+- **Kept after erasure:** user accounts, audit logs and billing usage history. Provider-side connections (Meta webhooks, store webhooks) are not unregistered; their traffic is simply ignored.
+
 ## Client navigation and terminology
 
 - The primary agent inbox is **Omni Channel Inbox**.

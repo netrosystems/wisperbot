@@ -2,6 +2,7 @@
 
 namespace App\Modules\Inbox\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Modules\AI\Models\AiChatbot;
@@ -25,6 +26,8 @@ use Illuminate\Support\Str;
  */
 class ChatWidget extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'chat_widgets';
 
     protected $fillable = [

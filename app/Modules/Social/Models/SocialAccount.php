@@ -2,11 +2,14 @@
 
 namespace App\Modules\Social\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 
 /** @property array<string, mixed>|null $meta */
 class SocialAccount extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'social_media_accounts';
 
     protected $fillable = ['workspace_id', 'network', 'account_id', 'name', 'picture_url', 'access_token', 'refresh_token', 'token_expires_at', 'scopes', 'meta', 'active'];
