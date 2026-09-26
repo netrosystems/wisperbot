@@ -11,7 +11,7 @@ ARTIFACTS_DIR="$APP_BASE/artifacts"
 CURRENT_LINK="$APP_BASE/current"
 mkdir -p "$RELEASES_DIR" "$ARTIFACTS_DIR" "$APP_BASE/shared/storage"
 
-source <(sed -n '/^prune_old_releases() {/,/^}/p' "$ROOT/scripts/production/deploy-production.sh")
+eval "$(sed -n '/^prune_old_releases() {/,/^}/p' "$ROOT/scripts/production/deploy-production.sh")"
 
 make_release() {
     local name="$1" revision="$2" previous="${3:-}"

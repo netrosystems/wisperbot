@@ -81,10 +81,11 @@ Schedule::job(new DispatchScheduledPostsJob, 'social')
     ->name('dispatch-social-posts')
     ->withoutOverlapping();
 
-// Refresh expiring social OAuth tokens daily
+// Hourly: YouTube access tokens last one hour, TikTok one day.
 Schedule::job(new RefreshSocialTokensJob, 'social')
-    ->dailyAt('02:00')
-    ->name('refresh-social-tokens');
+    ->hourly()
+    ->name('refresh-social-tokens')
+    ->withoutOverlapping();
 
 // Poll eBay seller conversations until production notification subscriptions
 // are enabled. Each seller account is isolated in its own queued sync job.

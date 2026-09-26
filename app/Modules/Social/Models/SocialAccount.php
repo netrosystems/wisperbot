@@ -3,6 +3,7 @@
 namespace App\Modules\Social\Models;
 
 use App\Models\Concerns\ExcludesDeletedWorkspaces;
+use App\Modules\Social\Services\SocialTokenRefresher;
 use Illuminate\Database\Eloquent\Model;
 
 /** @property array<string, mixed>|null $meta */
@@ -43,11 +44,22 @@ class SocialAccount extends Model
     }
 
     /**
-     * X access tokens last about two hours; the publisher refreshes them just
-     * before use, so a stale access token alone does not mean "reconnect".
+     * YouTube, TikTok, X and (when LinkedIn grants one) LinkedIn access tokens
+     * are renewed with the refresh token before use, so a stale access token
+     * alone does not mean "reconnect".
      */
     public function refreshesOnUse(): bool
     {
-        return $this->network === 'twitter' && filled($this->refresh_token);
+        return SocialTokenRefresher::renews($this);
+    }
+
+    /** Days left before a connection that cannot be renewed must be reconnected. */
+    public function daysUntilReconnect(): ?int
+    {
+        if ($this->refreshesOnUse() || ! $this->token_expires_at || $this->token_expires_at->isPast()) {
+            return null;
+        }
+
+        return (int) max(0, ceil(now()->diffInSeconds($this->token_expires_at) / 86400));
     }
 }
