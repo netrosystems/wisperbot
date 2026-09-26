@@ -29,6 +29,7 @@ class ConnectionTester
                 str_starts_with($config->provider, 'sms_') => $this->testSms($config),
                 $config->provider === 'google_workspace' => $this->testGoogleWorkspace($config),
                 $config->provider === 'onesignal' => $this->testOneSignal($config),
+                $config->provider === 'meta_pixel' => $this->testMetaPixel($config),
                 $config->provider === 'qdrant' => $this->testQdrant($config),
                 str_starts_with($config->provider, 'storage_') => $this->testStorage($config),
                 default => ['ok' => false, 'message' => 'No test available for this provider.'],
@@ -471,6 +472,39 @@ class ConnectionTester
         return $resp->successful() && $resp->json('access_token')
             ? ['ok' => true,  'message' => 'Google Workspace connection successful.']
             : ['ok' => false, 'message' => $resp->json('error_description') ?? $resp->json('error') ?? 'Google token exchange failed.'];
+    }
+
+    /**
+     * Confirms the dataset ID and, when present, that the Conversions API
+     * token can read that dataset. Sends no event, so reporting stays clean.
+     *
+     * @return array{ok: bool, message: string}
+     */
+    private function testMetaPixel(IntegrationConfig $config): array
+    {
+        $credentials = $config->credentials ?? [];
+        $pixelId = trim((string) ($credentials['pixel_id'] ?? ''));
+        $token = trim((string) ($credentials['access_token'] ?? ''));
+
+        if (preg_match('/^\d{5,20}$/', $pixelId) !== 1) {
+            return ['ok' => false, 'message' => 'Enter the numeric Dataset (Pixel) ID from Events Manager.'];
+        }
+
+        if ($token === '') {
+            return ['ok' => true, 'message' => 'Dataset ID is valid. Browser Pixel only: add a Conversions API token to send server events.'];
+        }
+
+        $response = HttpFacade::timeout(10)
+            ->withToken($token)
+            ->get('https://graph.facebook.com/v25.0/'.$pixelId, ['fields' => 'id,name']);
+
+        if (! $response->successful() || (string) $response->json('id') !== $pixelId) {
+            return ['ok' => false, 'message' => $response->json('error.message') ?? 'The access token cannot read this dataset.'];
+        }
+
+        $name = (string) $response->json('name');
+
+        return ['ok' => true, 'message' => 'Connected to dataset'.($name !== '' ? ' "'.$name.'"' : '').'. Conversions API token is valid.'];
     }
 
     private function testOneSignal(IntegrationConfig $config): array

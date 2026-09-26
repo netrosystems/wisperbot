@@ -6,6 +6,19 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 
 const SETUP_GUIDES = {
+    meta_pixel: {
+        title: 'Meta Pixel & Conversions API Setup',
+        steps: [
+            'In Meta Events Manager, open the website dataset for your public site (Datasets → dataset) and copy its ID into Dataset (Pixel) ID.',
+            'The Pixel loads only on public pages (site, blog, sign-in, sign-up) and only after the visitor accepts marketing cookies. It never runs inside client workspaces or Admin.',
+            'For server events, open the dataset → Settings → Conversions API → Generate access token, then paste it here. It is encrypted and never shown again.',
+            'Optional: copy a code from Test events into Test Event Code, save, then sign up or submit the contact form. Remove the code once the events appear.',
+            'Optional: verify your domain in Business settings → Brand safety → Domains with the meta-tag method; paste only the content value.',
+            'Enable this integration. Test connection checks the ID and token and sends no event.',
+        ],
+        link: 'https://business.facebook.com/events_manager2',
+        linkLabel: 'Open Events Manager',
+    },
     onesignal: {
         title: 'OneSignal Push Setup',
         steps: [
@@ -475,6 +488,7 @@ const BRAND = {
     storage_do:      { bg: null, color: '#0080FF', logo: 'digitalocean' },
     storage_wasabi:  { bg: null, color: '#3CBA54', logo: 'wasabi' },
     meta_app:        { bg: null, color: '#0866FF', logo: 'meta' },
+    meta_pixel:        { bg: null, color: '#0866FF', logo: 'meta' },
     oauth_linkedin:  { bg: null, color: '#0A66C2', logo: 'linkedin' },
     oauth_youtube:   { bg: null, color: '#FF0000', logo: 'youtube' },
     oauth_tiktok:    { bg: null, color: '#000000', logo: 'tiktok' },

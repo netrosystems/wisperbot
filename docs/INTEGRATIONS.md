@@ -25,6 +25,7 @@ Super Admin configures platform-level applications/gateways. A client then autho
 | Billing | Stripe, PayPal, Paddle credentials/webhooks | Select plan/add-on and checkout | Subscription and payment lifecycle. |
 | Realtime | Pusher/Reverb server configuration | None beyond authenticated session/mobile token | Workspace/conversation broadcasts and presence. |
 | Push | OneSignal and/or web-push configuration | User/device registration and permission | Agent mobile/browser notifications. |
+| Meta Pixel (WisperBot marketing) | Dataset ID, Conversions API token, optional test code and domain verification | None (never runs for tenants) | Consent-gated browser Pixel on public pages; server events for sign-up, checkout, first subscription and contact leads. |
 
 ## Meta
 
@@ -122,6 +123,40 @@ For every requested permission, record the complete flow: login/authorization, e
 ## Billing
 
 Only Stripe, PayPal, and Paddle are supported. Webhooks are CSRF-exempt but must be signature-verified in their controllers. Provider price IDs and recurring subscription reconciliation are operational configuration, not client-supplied values.
+
+## Meta Pixel & Conversions API (2026-09-26)
+
+WisperBot's **own** advertising measurement for its public website. It is not a customer feature: it never loads inside client workspaces or Admin and sends nothing about tenants' customers.
+
+**Configuration.** Super Admin → Integrations → *Meta Pixel & Conversions API* (`IntegrationConfig` provider `meta_pixel`), resolved by `App\Services\Marketing\MetaPixelSettings`. The saved row overrides `.env` (`META_PIXEL_ID`, `META_CAPI_ACCESS_TOKEN`, `META_CAPI_TEST_EVENT_CODE`, `META_DOMAIN_VERIFICATION`); a disabled row turns it off without env fallback.
+
+| Field | Where it comes from | Exposure |
+|---|---|---|
+| Dataset (Pixel) ID | Events Manager → Datasets → website dataset | Public; rendered on eligible pages only. Must be numeric. |
+| Conversions API Access Token | Dataset → Settings → Conversions API → Generate access token | Encrypted; server only. Blank = browser-only measurement. |
+| Test Event Code | Events Manager → Test events | Routes server events to Test events. Clear after verifying. |
+| Domain Verification Code | Business settings → Brand safety → Domains (meta-tag method) | Rendered as `<meta name="facebook-domain-verification">`. |
+
+The admin connection test reads `GET /{dataset-id}?fields=id,name` with the token and **sends no event**.
+
+**Browser Pixel** (`resources/js/Utils/metaPixel.js`, banner `Components/CookieConsent.jsx`).
+- Eligibility comes from the `metaPixel` shared prop (`HandleInertiaRequests::metaPixelPublicConfig`): off for `app/*`, `admin/*`, `api/*`, `mobile/*`, `install*` and blog previews.
+- Consent: European time zones (EEA, UK, Switzerland and neighbours) load nothing until **Accept**. Elsewhere the Pixel runs by default, the banner is a notice, and **Turn off** is one click. The footer "Cookie settings" reopens the choice. The decision is the first-party cookie `wb_marketing_consent` (`granted`/`denied`), which the server reads too; it, `_fbp` and `_fbc` are excluded from cookie encryption.
+- `autoConfig` is disabled, so only explicit events are sent: `PageView` on every Inertia navigation, `ViewContent` on Pricing, and `Lead` on a successful contact form.
+- CSP adds `connect.facebook.net` (script, connect) and `www.facebook.com` (connect) whenever a Pixel ID is configured, independent of the Meta messaging app.
+
+**Server events** (`App\Services\Marketing\MetaConversions` → queued `App\Jobs\SendMetaConversionEvent` on `default`, Graph `v25.0`, bearer token, 3 tries, retry on 429/5xx only).
+
+| Event | Trigger | `event_id` |
+|---|---|---|
+| `CompleteRegistration` | New customer account: password, Socialite (Google/GitHub/Microsoft) or Firebase. Invited teammates excluded. | `registration_{user}` |
+| `InitiateCheckout` | `POST /app/checkout` redirected to a hosted checkout. Value = plan list price for the cycle. | `checkout_{uuid}` |
+| `Subscribe` / `StartTrial` | `SubscriptionStarted` for Stripe/PayPal/Paddle. `free`/`manual` gateways, free plans and renewals excluded. Trials send value 0 plus `predicted_ltv`. | `subscription_{id}` |
+| `Lead` | Public contact form. The browser sends the same ID in `meta_event_id`, so Meta keeps one. | shared browser ID |
+
+- Events are sent **only when `wb_marketing_consent=granted`**. Payment webhooks have no browser, so registration and checkout store a consent/attribution snapshot in `users.marketing_attribution` (consent, `_fbp`, `_fbc`, IP, user agent, page URL without query string); webhook events use that snapshot.
+- Email, first and last name and `external_id` (`wisperbot_user_{id}`) are SHA-256 hashed before queuing; raw personal data never enters the queue or Meta payloads.
+- Known limits: `value` is the plan list price, not the charged amount after coupons or tax. Event auto-discovery also registers listeners declared in `AppServiceProvider`, so `MetaConversions` ignores a repeated `event_id` within one request or job.
 
 ## LinkedIn (2026-09-20)
 

@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\ClientSetting;
 use App\Models\Plan;
 use App\Models\User;
+use App\Services\Marketing\MetaConversions;
 use App\Services\PlanSelectionService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -120,6 +121,7 @@ class RegisteredUserController extends Controller
 
         event(new Registered($user));
         Auth::login($user);
+        app(MetaConversions::class)->registered($user, $request, 'password');
 
         // Preserve paid intent from public Pricing, but always leave the account
         // with usable Free access if checkout is abandoned.

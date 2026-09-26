@@ -4,6 +4,7 @@ import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
 import { ArrowUpRight, ChevronDown, Download, Menu, X, Sparkles, Globe2 } from 'lucide-react'
 import { MButton, MLink, ProductIcon, DownloadLinks, useMarketing } from '@/Components/marketing/MarketingUI'
 import { useLocale } from '@/hooks/useLocale'
+import { reopenCookieSettings } from '@/Utils/metaPixel'
 import '../../css/marketing.css'
 
 export default function LandingLayout({ children, darkHeader = false }) {
@@ -341,6 +342,11 @@ export default function LandingLayout({ children, darkHeader = false }) {
                             <MLink href="/p/privacy">{t('footer.privacy', 'Privacy')}</MLink>
                             <MLink href="/p/terms">{t('footer.terms', 'Terms')}</MLink>
                             <MLink href="/about#trust">{t('footer.trust', 'Trust & access')}</MLink>
+                            {props.metaPixel?.enabled && (
+                                <button type="button" className="m-motion-toggle" onClick={reopenCookieSettings}>
+                                    {t('footer.cookie_settings', 'Cookie settings')}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 className="m-motion-toggle"

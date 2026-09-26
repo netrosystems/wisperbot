@@ -51,6 +51,14 @@ Provider assets should not be attached to multiple workspaces when inbound routi
 - Logs and exception messages must redact Authorization headers, access/refresh tokens, API keys, app secrets, webhook secrets, widget identity secrets, license codes, and passwords.
 - Documentation and tests use fake values only.
 
+## Marketing measurement data (2026-09-26)
+
+- The Conversions API token is an encrypted `meta_pixel` integration credential. It is never shared to Inertia props, rendered in HTML or logged; jobs send it as a bearer header, not a URL parameter.
+- Email, names and user IDs are SHA-256 hashed in `MetaConversions` before a job is queued. Query strings are stripped from event URLs.
+- `users.marketing_attribution` holds only the latest consent value, `_fbp`/`_fbc`, IP, user agent and page URL. It is hidden from model serialization and deleted with the user.
+- `wb_marketing_consent`, `_fbp` and `_fbc` are unencrypted by design (set by browser JavaScript). They carry no authority; a forged `granted` only affects the sender's own measurement.
+- The Pixel ID must be numeric before it is rendered, which blocks script injection through the setting.
+
 ## Managed AI credits and abuse controls
 
 - Managed credits are finite; a missing/null allowance means zero, never unlimited. They are pooled by organization/standalone billing owner so creating or deleting a workspace cannot mint credits.

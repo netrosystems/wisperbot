@@ -26,6 +26,7 @@ use App\Listeners\LogSuccessfulLogin;
 use App\Listeners\SendAutomationFailedNotification;
 use App\Listeners\SendCampaignCompletedNotification;
 use App\Listeners\SendConversationAssignedNotification;
+use App\Listeners\SendMetaSubscriptionConversion;
 use App\Listeners\SendNewMessageNotification;
 use App\Listeners\SendPlanChangedNotification;
 use App\Listeners\SendSubscriptionCancelledNotification;
@@ -39,6 +40,8 @@ use App\Modules\Shared\Services\ChannelManager;
 use App\Notifications\Channels\WorkspaceBroadcastChannel;
 use App\Notifications\Channels\WorkspaceDatabaseChannel;
 use App\Services\Billing\BillingGatewayRegistry;
+use App\Services\Marketing\MetaConversions;
+use App\Services\Marketing\MetaPixelSettings;
 use App\Services\StorageManager;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
@@ -73,6 +76,11 @@ class AppServiceProvider extends ServiceProvider
                 'queue.default' => 'sync',
             ]);
         }
+
+        // Resolved once per request (CSP, shared props, events) and reset
+        // between queued jobs.
+        $this->app->scoped(MetaPixelSettings::class);
+        $this->app->scoped(MetaConversions::class);
 
         $this->app->singleton(BillingGatewayRegistry::class, fn () => new BillingGatewayRegistry);
         $this->app->singleton(StorageManager::class);
@@ -115,6 +123,7 @@ class AppServiceProvider extends ServiceProvider
 
         // ── Subscription & billing notifications ────────────────────────────
         Event::listen(SubscriptionStarted::class, SendSubscriptionStartedNotification::class);
+        Event::listen(SubscriptionStarted::class, SendMetaSubscriptionConversion::class);
         Event::listen(SubscriptionCancelled::class, SendSubscriptionCancelledNotification::class);
         Event::listen(SubscriptionRenewed::class, SendSubscriptionRenewedNotification::class);
         Event::listen(SubscriptionExpired::class, SendSubscriptionExpiredNotification::class);

@@ -76,6 +76,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $hidden = [
         'password',
         'remember_token',
+        'marketing_attribution',
     ];
 
     /**
@@ -104,6 +105,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'two_factor_secret' => 'encrypted',
             'two_factor_recovery_codes' => 'encrypted:array',
+            'marketing_attribution' => 'array',
         ];
     }
 

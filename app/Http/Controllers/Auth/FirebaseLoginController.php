@@ -8,6 +8,7 @@ use App\Models\ClientSetting;
 use App\Models\SocialAccount;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\Marketing\MetaConversions;
 use App\Services\PlanSelectionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -69,6 +70,7 @@ class FirebaseLoginController extends Controller
         }
 
         $user = User::where('email', $email)->first();
+        $createdAccount = false;
 
         if (! $user) {
             if (! config('auth.allow_registration', true)) {
@@ -103,6 +105,7 @@ class FirebaseLoginController extends Controller
 
                     return $newUser;
                 });
+                $createdAccount = true;
             } catch (\DomainException) {
                 return response()->json([
                     'message' => 'Account creation is temporarily unavailable. Please contact support.',
@@ -120,6 +123,10 @@ class FirebaseLoginController extends Controller
             'email' => $email,
             'avatar_url' => $avatar,
         ]);
+
+        if ($createdAccount) {
+            app(MetaConversions::class)->registered($user, $request, 'google');
+        }
 
         return $this->completeLogin($request, $user->loadMissing('client'));
     }

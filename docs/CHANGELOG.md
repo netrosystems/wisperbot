@@ -4,6 +4,13 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Meta Pixel and Conversions API for WisperBot's own ads.**
+  - Super Admin → Integrations → *Meta Pixel & Conversions API*: Dataset ID, encrypted Conversions API token, optional test event code and domain-verification code, with a connection test that sends no event.
+  - The browser Pixel runs on public pages only, after consent: opt-in for European time zones, notice with one-click opt-out elsewhere. The cookie banner is back, restyled in brand colours, with a "Cookie settings" footer link.
+  - Server events with deduplication: CompleteRegistration (password, Google/GitHub/Microsoft, Firebase), InitiateCheckout, Subscribe/StartTrial on a first paid subscription, and Lead from the contact form.
+  - The Facebook JS SDK no longer auto-logs app events (`autoLogAppEvents: false`); it is still loaded for Meta login dialogs.
+  - Migration `2026_09_26_000100_add_marketing_attribution_to_users`.
+
 - **Widget Setup (renamed from Appearance) now has tabs, and starter questions moved there.**
   - The sidebar entry and page are now **Widget Setup**, with three tabs: **Appearance** (Branding; Launcher & welcome), **AI & visitors**, and **Starter questions**. One Save covers all tabs; a failed save opens the tab with the problem.
   - Starter questions belong to the widget, not the Smart Bot. When switched on they show and are answered even with AI off or outside its schedule. The live preview shows them.

@@ -1,4 +1,5 @@
 import { useForm, usePage } from '@inertiajs/react'
+import { newMetaEventId, trackMetaEvent } from '@/Utils/metaPixel'
 import { Mail, Send } from 'lucide-react'
 import LandingLayout from '@/Layouts/LandingLayout'
 import SeoHead from '@/Components/SeoHead'
@@ -6,7 +7,7 @@ import { PageHero, MLink, useMarketing } from '@/Components/marketing/MarketingU
 export default function Contact() {
     const { text: t, setting } = useMarketing()
     const { flash } = usePage().props
-    const { data, setData, post, processing, errors, recentlySuccessful, reset } = useForm({
+    const { data, setData, post, transform, processing, errors, recentlySuccessful, reset } = useForm({
         name: '',
         email: '',
         subject: 'Sales & product questions',
@@ -14,7 +15,16 @@ export default function Contact() {
     })
     const submit = (e) => {
         e.preventDefault()
-        post('/contact', { preserveScroll: true, onSuccess: () => reset('name', 'email', 'message') })
+        // One ID for the browser Pixel and the server event, so Meta counts one lead.
+        const eventId = newMetaEventId('lead')
+        transform((values) => ({ ...values, meta_event_id: eventId }))
+        post('/contact', {
+            preserveScroll: true,
+            onSuccess: () => {
+                trackMetaEvent('Lead', { content_name: 'Contact form' }, eventId)
+                reset('name', 'email', 'message')
+            },
+        })
     }
     return (
         <LandingLayout>

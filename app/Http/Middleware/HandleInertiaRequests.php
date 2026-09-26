@@ -15,6 +15,7 @@ use App\Modules\Integrations\Services\CredentialResolver;
 use App\Services\AddonEntitlementService;
 use App\Services\AppVersionManager;
 use App\Services\I18n\I18nFileService;
+use App\Services\Marketing\MetaPixelSettings;
 use App\Services\OnboardingService;
 use App\Services\OneSignalService;
 use App\Services\PusherPublicConfig;
@@ -403,12 +404,36 @@ class HandleInertiaRequests extends Middleware
             'onesignal' => $this->oneSignalPublicConfig(),
             'firebase' => $this->firebasePublicConfig(),
             'metaAppId' => $this->metaAppId(),
+            'metaPixel' => $this->metaPixelPublicConfig($request),
             'entitlements' => [
                 'developer_tools' => app(AddonEntitlementService::class)->enabledFor(
                     $user instanceof User ? $user : null,
                     AddonEntitlementService::DEVELOPER_TOOLS
                 ),
             ],
+        ];
+    }
+
+    /**
+     * WisperBot's own marketing Pixel. It runs only on public pages (site,
+     * blog, legal pages, sign-in and sign-up), never inside customer or admin
+     * workspaces, and only after the visitor's consent.
+     *
+     * @return array{pixel_id: string, enabled: bool}
+     */
+    private function metaPixelPublicConfig(Request $request): array
+    {
+        try {
+            $pixelId = app(MetaPixelSettings::class)->browserPixelId();
+        } catch (\Throwable) {
+            $pixelId = '';
+        }
+
+        $private = $request->is('app', 'app/*', 'admin', 'admin/*', 'api/*', 'mobile/*', 'install', 'install/*', 'blog/preview/*');
+
+        return [
+            'pixel_id' => $private ? '' : $pixelId,
+            'enabled' => ! $private && $pixelId !== '',
         ];
     }
 

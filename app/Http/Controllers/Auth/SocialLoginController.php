@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\ClientSetting;
 use App\Models\SocialAccount;
 use App\Models\User;
+use App\Services\Marketing\MetaConversions;
 use App\Services\PlanSelectionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -64,6 +65,7 @@ class SocialLoginController extends Controller
         }
 
         $user = User::where('email', $email)->first();
+        $createdAccount = false;
 
         if (! $user) {
             if (! config('auth.allow_registration', true)) {
@@ -99,6 +101,7 @@ class SocialLoginController extends Controller
 
                     return $newUser;
                 });
+                $createdAccount = true;
             } catch (\DomainException) {
                 return redirect()->route('login')->withErrors([
                     'email' => 'Account creation is temporarily unavailable. Please contact support.',
@@ -116,6 +119,10 @@ class SocialLoginController extends Controller
         ]);
 
         Auth::login($user, true);
+
+        if ($createdAccount) {
+            app(MetaConversions::class)->registered($user, request(), $provider);
+        }
 
         return redirect()->intended(route('client.dashboard'));
     }
