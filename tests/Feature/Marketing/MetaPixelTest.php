@@ -298,16 +298,54 @@ class MetaPixelTest extends TestCase
             && ! str_contains($request->url(), 'access_token'));
     }
 
-    public function test_connection_test_reads_the_dataset_without_sending_an_event(): void
+    public function test_connection_test_sends_a_test_event_only(): void
     {
         $this->configurePixel();
         Http::preventStrayRequests();
-        Http::fake(['graph.facebook.com/v25.0/'.self::PIXEL_ID.'*' => Http::response(['id' => self::PIXEL_ID, 'name' => 'WisperBot Website'])]);
+        Http::fake(['graph.facebook.com/v25.0/'.self::PIXEL_ID.'/events' => Http::response(['events_received' => 1])]);
 
         $result = app(ConnectionTester::class)->test(IntegrationConfig::forProvider('meta_pixel'));
 
         $this->assertTrue($result['ok']);
-        $this->assertStringContainsString('WisperBot Website', $result['message']);
-        Http::assertNotSent(fn (HttpRequest $request) => str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/events'));
+        // Always marked as a test event, so live reporting never sees it.
+        Http::assertSent(fn (HttpRequest $request) => $request['test_event_code'] === 'TEST00000'
+            && $request['data'][0]['event_name'] === 'WisperBotConnectionTest'
+            && $request->hasHeader('Authorization', 'Bearer capi-test-token'));
+    }
+
+    public function test_connection_test_explains_a_token_without_permission(): void
+    {
+        $this->configurePixel();
+        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => 'Missing Permission', 'code' => 100]], 400)]);
+
+        $result = app(ConnectionTester::class)->test(IntegrationConfig::forProvider('meta_pixel'));
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('cannot send events to dataset '.self::PIXEL_ID, $result['message']);
+    }
+
+    public function test_admin_can_clear_the_test_event_code_while_blank_token_keeps_the_secret(): void
+    {
+        $this->configurePixel(['test_event_code' => 'TEST23108', 'domain_verification' => 'keepme']);
+        $admin = $this->createSuperAdmin();
+
+        $this->actingAs($admin, 'admin')
+            ->putJson(route('admin.integrations.update', 'meta_pixel'), [
+                'enabled' => true,
+                'mode' => 'live',
+                'credentials' => [
+                    'pixel_id' => '••••••••••••',
+                    'access_token' => '',
+                    'test_event_code' => '',
+                    'domain_verification' => '••••••••••••',
+                ],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $credentials = IntegrationConfig::forProvider('meta_pixel')->credentials;
+        $this->assertArrayNotHasKey('test_event_code', $credentials);
+        $this->assertSame('capi-test-token', $credentials['access_token']);
+        $this->assertSame(self::PIXEL_ID, $credentials['pixel_id']);
+        $this->assertSame('keepme', $credentials['domain_verification']);
     }
 }
