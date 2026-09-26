@@ -136,7 +136,7 @@ Both apps register the same callback (`{APP_URL}/app/social/accounts/callback/li
 
 - **Connecting.** `GET .../accounts/connect/linkedin` authorizes the member; `?target=pages` authorizes the Company Page app instead, and the variant travels in the OAuth state. The Page authorization has no sign-in scopes, so no member profile is read; Pages come from `GET /v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED`. The client then picks targets on `client.social.accounts.linkedin.select`, and only ids from that authorization can be stored.
 - **Publishing.** Each connected target is its own `social_media_accounts` row. `meta.actor_type` (`member` or `organization`) selects the author URN: `urn:li:person:{id}` or `urn:li:organization:{id}` (`LinkedInDriver::publish()`).
-- **Tokens.** LinkedIn issues no per-Page token and rotates refresh tokens, so every row from one authorization shares and rotates together (`RefreshSocialTokensJob::shareWithSiblings()`), refreshed with the keys of the app that issued them.
+- **Tokens.** LinkedIn issues no per-Page token and rotates refresh tokens, so every row from one authorization shares and rotates together (`SocialTokenRefresher::shareWithSiblings()`), refreshed with the keys of the app that issued them. Most apps get **no refresh token**, so a connection lasts 60 days; the client is reminded 7 days ahead (see *Social token renewal*).
 - **Comments** remain not integrated; they need Community Management comment permissions on top of posting access.
 
 ## X (2026-09-24)
@@ -174,11 +174,27 @@ WisperBot never sends media metadata (alt text, $0.005 per request).
   - Media-library files (`{APP_URL}/storage/...`) are read from the public disk. Other URLs must be public HTTPS. They are downloaded with `KnowledgeUrlGuard`, without automatic redirects, with a connected-IP check and a size cap.
   - Upload is chunked: `POST /2/media/upload/initialize`, `/{id}/append` in 4 MB segments, then `/{id}/finalize`. Video processing is polled with `GET /2/media/upload?command=STATUS` for up to 45 seconds per attempt.
   - Each uploaded media id is saved at once in `social_media_post_accounts.provider_media` and reused until one hour before X's expiry (about 24 hours). A retry, a still-processing video or **Publish now** never uploads the same file twice. The ids are cleared once the post is published.
-- **Tokens.** Access tokens last about 2 hours and X rotates the refresh token on every use. `SocialPublisher` refreshes right before publishing when the token expires within 5 minutes, under `Cache::lock('social-access-token:{id}')`, and stores the rotated pair. `RefreshSocialTokensJob` also refreshes X. An X account with a refresh token is not shown as expired and stays selectable in the composer.
+- **Tokens.** Access tokens last about 2 hours and X rotates the refresh token on every use. Renewal works like the other networks (see *Social token renewal*).
 - **No double charges.** X has no idempotency key. Media upload failures never create a post, so they are always safe to retry. `social_media_post_accounts.provider_attempted_at` is set just before the paid request. It is cleared only when X gives a definite answer: success, or a 4xx such as 401 reconnect, 402/403 credits, 403 permission, or 429 rate limit. After a timeout, a 5xx, or a success without a post ID, the outcome is unknown. The link fails with "X did not confirm this post. Check X before publishing it again." Queue retries never resend it. A client pressing **Publish now** clears the marker deliberately.
 - **No remote edit or delete.** `XDriver` implements no `ManagesPublishedPosts`. `PublishedPostLifecycle::LOCAL_ONLY_NETWORKS` makes X-only posts removable from WisperBot only (`DELETE /app/social/posts/{post}/local`). Deleting a mixed post deletes the other networks' copies and leaves the X copy on X. The success message says so.
 - **Comments** are not integrated.
 - Live X API behaviour is covered only by faked HTTP in `tests/Feature/Social/XPublishingTest.php`. It still needs one real connect-and-post check after credits are bought.
+
+## Social token renewal (2026-09-26)
+
+| Network | Access token | Refresh token | Result |
+|---|---|---|---|
+| Facebook / Instagram | Page token does not expire | not used | Lasts until a password change, a role change or revoked access |
+| YouTube (Google) | 1 hour | does not expire | Lasts indefinitely with renewal, if the Google OAuth app is **In production** (in Testing, Google revokes it after 7 days) and it is used within 6 months |
+| X | 2 hours | rotates on every use | Lasts indefinitely with renewal |
+| TikTok | 24 hours | about 365 days, reissued on refresh | Lasts indefinitely with renewal (to confirm on a live account) |
+| LinkedIn | 60 days | only for approved partner apps (365 days) | Reconnect every 60 days without one |
+
+- **`SocialTokenRefresher`** renews YouTube, TikTok, LinkedIn and X tokens with their refresh token, under `Cache::lock('social-access-token:{id}')`. It stores the new pair and shares a rotated LinkedIn pair with rows from the same authorization. `SocialPublisher` renews within 5 minutes of expiry, right before each post.
+- **`RefreshSocialTokensJob`** runs **hourly** (it was daily) and renews anything expiring within 2 hours.
+- **An account is disconnected only on `TokenRefreshRejectedException`.** That means a 400/401 about the token, such as `invalid_grant`, or TikTok's error body. The account then gets `active=false` and `meta.reconnect_required`, owners and admins get a `SocialConnectionAttentionNotification`, and the card shows "Reconnect needed · Reconnect".
+- **Temporary failures are retried next hour.** A 5xx, a timeout, or `invalid_client` / `unauthorized_client` (a wrong platform client secret, which is the admin's to fix) never disconnect client accounts.
+- **Status shown:** an account with a refresh token is never shown as "Token expired" and stays in the composer. Connections that cannot be renewed show "Expires in N days · Reconnect" from 7 days ahead, and owners and admins get one reminder per expiry date (`meta.expiry_reminder_for`).
 
 ## Realtime and mobile
 

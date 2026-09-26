@@ -52,6 +52,8 @@ Run Laravel's scheduler every minute:
 
 Long-running `schedule:work` is also valid where process supervision exists. Important tasks include social dispatch (ten-second cadence within the scheduler process), campaign launch, email sync, eBay sync, token refresh, billing reconciliation, trial expiry, digests, unanswered reminders, and cleanup.
 
+`refresh-social-tokens` runs hourly on the `social` queue (since 2026-09-26; it was daily). YouTube access tokens last one hour, so a stopped scheduler or `social` worker makes clients see disconnected YouTube accounts. Keep the Google OAuth consent screen **In production**: in Testing, Google revokes refresh tokens after 7 days and every YouTube client must reconnect weekly.
+
 Workspace-segment Omni/email Smart Bot replies run on `ai`; inbound Meta/WhatsApp work still requires `whatsapp`, and mailbox sync requires `default` plus the scheduler. `OMNICHANNEL_AI_ANSWERING_ENABLED` and `EMAIL_AI_ANSWERING_ENABLED` pause delivery without deleting the two saved segment policies. `INBOX_AI_REPLY_DEBOUNCE_SECONDS` defaults to 2. Deploy both the original channel-policy migration and the corrective segment-policy migration before restarting matching workers.
 
 The scheduler also runs `reconcile-ai-credit-reservations` every five minutes. It refunds reservations older than `config/ai_credits.php`'s configured ten-minute window; a stopped scheduler can therefore leave managed credits temporarily reserved.

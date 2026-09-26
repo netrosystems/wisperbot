@@ -4296,7 +4296,10 @@
         "media_rule_instagram_count": "Instagram posts can have up to 10 images or videos. Remove the extra media, or deselect Instagram.",
         "media_rule_instagram_jpg": "Instagram only accepts JPG images. Use a JPG version of each image, or deselect Instagram.",
         "media_rule_linkedin": "LinkedIn posts can have 1 image or 1 video. Remove the extra media, or deselect LinkedIn.",
-        "media_rule_video": "YouTube and TikTok need a video (MP4 or MOV)."
+        "media_rule_video": "YouTube and TikTok need a video (MP4 or MOV).",
+        "reconnect_needed": "Reconnect needed",
+        "expires_in_days_one": "Expires in {{count}} day",
+        "expires_in_days_other": "Expires in {{count}} days"
     },
     "leads": {
         "title": "Lead Scraper",

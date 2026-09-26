@@ -74,9 +74,47 @@ function AccountAvatar({ account, showName = true }) {
 }
 
 function isExpired(account) {
-    // The server knows when a stale X access token is simply refreshed on use.
+    // The server knows when a stale access token is simply renewed on use.
     if (typeof account.token_expired === 'boolean') return account.token_expired;
     return Boolean(account.token_expires_at && new Date(account.token_expires_at) < new Date());
+}
+
+function reconnectUrl(account) {
+    return route('client.social.accounts.connect', account.meta?.actor_type === 'organization'
+        ? { network: account.network, target: 'pages' }
+        : account.network);
+}
+
+/** The one line under an account: what state it is in and, if needed, what to do. */
+function AccountStatus({ account }) {
+    const { t } = useTranslation();
+    const needsAction = account.reconnect_required || isExpired(account) || account.reconnect_in_days != null;
+    const label = account.reconnect_required
+        ? t('social.reconnect_needed')
+        : isExpired(account)
+            ? t('social.token_expired')
+            : account.reconnect_in_days != null
+                ? t('social.expires_in_days', { count: account.reconnect_in_days })
+                : account.active ? t('common.active') : t('social.inactive', { defaultValue: 'Inactive' });
+
+    return (
+        <p className={`ml-9 text-[10px] ${needsAction ? 'text-amber-600' : account.active ? 'text-emerald-600' : 'text-neutral-400'}`}>
+            {account.network === 'linkedin' && (
+                <span className="mr-1 text-neutral-400">
+                    {account.meta?.actor_type === 'organization' ? t('social.linkedin_page') : t('social.linkedin_profile')} ·
+                </span>
+            )}
+            {label}
+            {needsAction && (
+                <>
+                    {' · '}
+                    <a href={reconnectUrl(account)} className="font-medium underline hover:text-amber-700">
+                        {t('social.reconnect', { defaultValue: 'Reconnect' })}
+                    </a>
+                </>
+            )}
+        </p>
+    );
 }
 
 function AccountMenu({ account, onDisconnect }) {
@@ -91,9 +129,7 @@ function AccountMenu({ account, onDisconnect }) {
             </MenuButton>
             <MenuItems anchor="bottom end" className="z-50 mt-1 w-48 rounded-lg border border-neutral-200 bg-white p-1 shadow-soft-md focus:outline-none dark:border-neutral-700 dark:bg-neutral-900">
                 <MenuItem>
-                    <a href={route('client.social.accounts.connect', account.meta?.actor_type === 'organization'
-                        ? { network: account.network, target: 'pages' }
-                        : account.network)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-neutral-700 data-[focus]:bg-neutral-100 dark:text-neutral-300 dark:data-[focus]:bg-neutral-800">
+                    <a href={reconnectUrl(account)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-neutral-700 data-[focus]:bg-neutral-100 dark:text-neutral-300 dark:data-[focus]:bg-neutral-800">
                         <RefreshCw className="h-4 w-4" /> {t('social.reconnect', { defaultValue: 'Reconnect' })}
                     </a>
                 </MenuItem>
@@ -214,14 +250,7 @@ function ConnectedAccounts({ accounts, onConnect }) {
                                             <div key={account.id} className="flex min-w-0 items-center gap-1 rounded-md px-1 py-1 hover:bg-neutral-50 dark:hover:bg-neutral-800/60">
                                                 <div className="min-w-0 flex-1">
                                                     <AccountAvatar account={account} />
-                                                    <p className={`ml-9 text-[10px] ${isExpired(account) ? 'text-amber-600' : account.active ? 'text-emerald-600' : 'text-neutral-400'}`}>
-                                                        {account.network === 'linkedin' && (
-                                                            <span className="mr-1 text-neutral-400">
-                                                                {account.meta?.actor_type === 'organization' ? t('social.linkedin_page') : t('social.linkedin_profile')} ·
-                                                            </span>
-                                                        )}
-                                                        {isExpired(account) ? t('social.token_expired') : account.active ? t('common.active') : t('social.inactive', { defaultValue: 'Inactive' })}
-                                                    </p>
+                                                    <AccountStatus account={account} />
                                                 </div>
                                                 <AccountMenu account={account} onDisconnect={disconnect} />
                                             </div>

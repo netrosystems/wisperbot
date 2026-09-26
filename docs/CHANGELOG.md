@@ -4,6 +4,12 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Fixed social accounts showing "Token expired" and needing reconnects.**
+  - YouTube (1-hour tokens), TikTok, X and LinkedIn tokens with a refresh token are now renewed right before each post and by an hourly job (it was daily, which left YouTube "expired" about 23 hours a day and hidden from the composer).
+  - An account is disconnected only when the network rejects its refresh token. Timeouts, server errors and platform credential problems are retried instead.
+  - Owners and admins get a notification when a connection needs reconnecting, and a reminder 7 days before a LinkedIn connection's 60-day expiry. The account card shows "Reconnect needed" or "Expires in N days", with a direct Reconnect link.
+  - No migration.
+
 - Fixed `scripts/production/deploy-production.sh` rejecting a valid build archive with exit code 141 unless `build/manifest.json` was its last entry. A `grep -q` pipeline stopped reading early, and under `pipefail` the still-running `unzip` failed with SIGPIPE. The check is now `assert_build_artifact()`, covered by `tests/Scripts/production-build-artifact.sh`. The script tests also run on macOS's bash 3.2 now.
 
 - Refined homepage team photography to a vibrant, sunlit orange/cobalt campaign style following user references; retained actual product UI and recorded the updated photography guide.

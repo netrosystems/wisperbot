@@ -16,7 +16,8 @@ class SocialAutomationDashboardTest extends TestCase
     {
         $context = $this->createWorkspaceContext();
         $account = $this->account($context['workspace']->id, 'facebook', 'Review Page');
-        $this->account($context['workspace']->id, 'linkedin', 'Expired profile', ['token_expires_at' => now()->subDay()]);
+        // LinkedIn issued no refresh token, so this connection cannot renew itself.
+        $this->account($context['workspace']->id, 'linkedin', 'Expired profile', ['token_expires_at' => now()->subDay(), 'refresh_token' => null]);
 
         $this->createPost($context['workspace']->id, $account->id, 'scheduled', 'Upcoming launch');
         $this->createPost($context['workspace']->id, $account->id, 'draft', 'Draft launch');

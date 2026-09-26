@@ -43,8 +43,14 @@ class SocialAutomationController extends Controller
             ->orderBy('network')
             ->orderBy('name')
             ->get(['id', 'network', 'name', 'picture_url', 'active', 'token_expires_at', 'refresh_token', 'meta'])
-            // refresh_token stays hidden; it only lets X accounts report their real state.
-            ->each(fn (SocialAccount $account) => $account->setAttribute('token_expired', $account->isTokenExpired()));
+            // refresh_token stays hidden; it only lets renewable accounts report their real state.
+            ->each(function (SocialAccount $account): void {
+                $account->setAttribute('token_expired', $account->isTokenExpired());
+                // Connections that cannot be renewed (LinkedIn) warn a week ahead.
+                $days = $account->daysUntilReconnect();
+                $account->setAttribute('reconnect_in_days', $days !== null && $days <= 7 ? $days : null);
+                $account->setAttribute('reconnect_required', ! $account->active && (bool) ($account->meta['reconnect_required'] ?? false));
+            });
 
         $activeAccounts = $accounts
             ->filter(fn (SocialAccount $account): bool => $account->active && ! $account->isTokenExpired())

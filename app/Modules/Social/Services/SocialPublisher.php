@@ -7,6 +7,7 @@ use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Exceptions\ClientSafePublishException;
 use App\Modules\Social\Exceptions\PublishOutcomeUnknownException;
+use App\Modules\Social\Exceptions\TokenRefreshRejectedException;
 use App\Modules\Social\Exceptions\XPublishException;
 use App\Modules\Social\Models\SocialPostAccount;
 use App\Modules\Social\Services\Drivers\FacebookDriver;
@@ -16,8 +17,6 @@ use App\Modules\Social\Services\Drivers\SocialNetworkInterface;
 use App\Modules\Social\Services\Drivers\TikTokDriver;
 use App\Modules\Social\Services\Drivers\XDriver;
 use App\Modules\Social\Services\Drivers\YoutubeDriver;
-use App\Modules\Social\Services\OAuth\OAuthManager;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class SocialPublisher
@@ -127,6 +126,11 @@ class SocialPublisher
             return ['status' => 'failed'];
         }
 
+        $account = $this->renewBeforePublish($post, $account, $link, $label);
+        if ($account === null) {
+            return ['status' => 'failed'];
+        }
+
         $link->update(['provider_attempted_at' => now()]);
 
         try {
@@ -176,13 +180,8 @@ class SocialPublisher
             return ['status' => 'failed'];
         }
 
-        try {
-            $account = $this->freshXAccount($account);
-        } catch (\Throwable $e) {
-            Log::warning('X token refresh failed before publishing', ['post_id' => $post->id, 'account_id' => $account->id, 'error' => $e->getMessage()]);
-            $account->update(['active' => false]);
-            $link->update(['status' => 'failed', 'error' => 'Reconnect your X account, then publish again.']);
-
+        $account = $this->renewBeforePublish($post, $account, $link, 'X');
+        if ($account === null) {
             return ['status' => 'failed'];
         }
 
@@ -238,34 +237,23 @@ class SocialPublisher
     }
 
     /**
-     * X access tokens last about two hours, so refresh right before use. X
-     * rotates the refresh token on every use; the lock stops two workers from
-     * spending the same refresh token and locking the account out.
+     * Renew a short-lived access token right before the provider call. Only a
+     * refresh token the network rejected disconnects the account; any other
+     * failure fails this attempt, which the queue retries.
      */
-    private function freshXAccount(SocialAccount $account): SocialAccount
+    private function renewBeforePublish(SocialPost $post, SocialAccount $account, SocialPostAccount $link, string $label): ?SocialAccount
     {
-        if ($account->token_expires_at && $account->token_expires_at->isAfter(now()->addMinutes(5))) {
-            return $account;
+        try {
+            return app(SocialTokenRefresher::class)->ensureFresh($account);
+        } catch (TokenRefreshRejectedException $e) {
+            Log::warning('Social connection revoked before publishing', ['post_id' => $post->id, 'account_id' => $account->id, 'error' => $e->getMessage()]);
+            $account->update(['active' => false, 'meta' => array_merge((array) $account->meta, ['reconnect_required' => true])]);
+            $link->update(['status' => 'failed', 'error' => "Reconnect your {$label} account, then publish again."]);
+        } catch (\Throwable $e) {
+            Log::warning('Social token refresh failed before publishing', ['post_id' => $post->id, 'account_id' => $account->id, 'error' => $e->getMessage()]);
+            $link->update(['status' => 'failed', 'error' => "{$label} could not be reached to renew the connection. Publishing will be retried."]);
         }
 
-        return Cache::lock('social-access-token:'.$account->id, 30)->block(10, function () use ($account): SocialAccount {
-            $current = $account->fresh();
-            if ($current->token_expires_at && $current->token_expires_at->isAfter(now()->addMinutes(5))) {
-                return $current;
-            }
-            if (! $current->refresh_token) {
-                throw new \RuntimeException('X account has no refresh token.');
-            }
-
-            $tokens = app(OAuthManager::class)->refresh('twitter', $current->refresh_token);
-            $current->update([
-                'access_token' => $tokens['access_token'],
-                'refresh_token' => $tokens['refresh_token'] ?? $current->refresh_token,
-                'token_expires_at' => now()->addSeconds(max(60, (int) ($tokens['expires_in'] ?? 7200))),
-                'active' => true,
-            ]);
-
-            return $current;
-        });
+        return null;
     }
 }
