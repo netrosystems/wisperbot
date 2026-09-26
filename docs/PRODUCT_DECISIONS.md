@@ -15,6 +15,13 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
   - Members whose main workspace it was move to another workspace they can open. An owner may delete their last workspace, and is then asked to restore it or create a new one.
 - **Kept after erasure:** user accounts, audit logs and billing usage history. Provider-side connections (Meta webhooks, store webhooks) are not unregistered; their traffic is simply ignored.
 
+## Marketing measurement and consent (2026-09-26)
+
+- WisperBot measures its **own** Meta advertising with a Pixel and the Conversions API. It runs only on the public website and sign-in/sign-up, never inside client workspaces or Admin, and never includes tenants' customer data.
+- Consent comes first. European time zones must opt in before anything loads; elsewhere advertising cookies default on with a notice and a one-click **Turn off**. Server events follow the same recorded choice; without `granted`, nothing is sent.
+- Only explicit funnel events are measured (page views, pricing view, contact lead, registration, checkout start, first subscription or trial). Automatic page scraping (`autoConfig`) stays off.
+- The cookie banner appears only when a tracking tool is configured, so visitors are not asked about cookies that are not used.
+
 ## Client navigation and terminology
 
 - The primary agent inbox is **Omni Channel Inbox**.

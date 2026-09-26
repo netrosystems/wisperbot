@@ -10,6 +10,8 @@ import LocaleSync from '@/Components/LocaleSync';
 import BrandingFavicon from '@/Components/BrandingFavicon';
 import { ConfirmDialogHost } from '@/Components/ConfirmDialog';
 import ErrorBoundary from '@/Components/ErrorBoundary';
+import CookieConsent from '@/Components/CookieConsent';
+import { syncMetaPixel } from '@/Utils/metaPixel';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { toast } from 'sonner';
 
@@ -30,6 +32,10 @@ function syncCsrfToken(page) {
 }
 
 router.on('success', (event) => syncCsrfToken(event.detail.page));
+
+// WisperBot's marketing Pixel (public pages only, consent first). Inertia
+// navigations do not reload the document, so each visit is reported here.
+router.on('navigate', (event) => syncMetaPixel(event.detail.page));
 
 // Demo mode: every write is rejected server-side by EnsureNotDemoMode with a
 // 403 { code: 'demo_mode' }. Because that is not a valid Inertia response,
@@ -91,6 +97,7 @@ createInertiaApp({
         }),
     setup({ el, App, props }) {
         syncCsrfToken(props.initialPage);
+        syncMetaPixel(props.initialPage);
         const i18nProps = props.initialPage?.props?.i18n;
         if (i18nProps?.locale && i18nProps?.translations && typeof i18n.addResourceBundle === 'function') {
             i18n.addResourceBundle(i18nProps.locale, 'translation', i18nProps.translations, true);
@@ -103,6 +110,7 @@ createInertiaApp({
             <ErrorBoundary>
                 <App {...props} />
                 <ConfirmDialogHost />
+                <CookieConsent />
             </ErrorBoundary>
         );
     },

@@ -27,6 +27,7 @@ class IntegrationConfig extends Model
         'oauth_google_mail',
         'oauth_microsoft_365',
         'onesignal',
+        'meta_pixel',
         'qdrant',
         'storage_local',
         'storage_s3',
@@ -75,6 +76,7 @@ class IntegrationConfig extends Model
         'oauth_google_mail' => 'Google Mail OAuth (Gmail / Workspace)',
         'oauth_microsoft_365' => 'Microsoft 365 Mail OAuth',
         'onesignal' => 'OneSignal Push Notifications',
+        'meta_pixel' => 'Meta Pixel & Conversions API (WisperBot marketing)',
         'qdrant' => 'Qdrant Vector Store',
         'storage_local' => 'Local Storage (server disk)',
         'storage_s3' => 'Amazon S3',
@@ -103,6 +105,7 @@ class IntegrationConfig extends Model
         'oauth_google_mail' => 'Email OAuth',
         'oauth_microsoft_365' => 'Email OAuth',
         'onesignal' => 'Notifications',
+        'meta_pixel' => 'Marketing',
         'qdrant' => 'Vector Store',
         'storage_local' => 'Storage',
         'storage_s3' => 'Storage',
@@ -209,6 +212,12 @@ class IntegrationConfig extends Model
         'onesignal' => [
             ['key' => 'app_id', 'label' => 'OneSignal App ID', 'type' => 'text', 'required' => true, 'hint' => 'OneSignal Dashboard → Settings → Keys & IDs → OneSignal App ID. This public identifier is sent to browsers.'],
             ['key' => 'rest_api_key', 'label' => 'REST API Key', 'type' => 'password', 'required' => true, 'hint' => 'OneSignal Dashboard → Settings → Keys & IDs → REST API Key. It is encrypted and never sent to browsers.'],
+        ],
+        'meta_pixel' => [
+            ['key' => 'pixel_id', 'label' => 'Dataset (Pixel) ID', 'type' => 'text', 'required' => true, 'hint' => 'Events Manager → Datasets → your website dataset → ID. This public number is sent to browsers on wisperbot.com public pages only.'],
+            ['key' => 'access_token', 'label' => 'Conversions API Access Token', 'type' => 'password', 'required' => false, 'hint' => 'Events Manager → dataset → Settings → Conversions API → Generate access token. Encrypted and never sent to browsers. Leave blank for browser-only measurement.'],
+            ['key' => 'test_event_code', 'label' => 'Test Event Code (optional)', 'type' => 'text', 'required' => false, 'hint' => 'Events Manager → Test events. While set, server events appear there instead of in live reporting. Clear it after verifying.'],
+            ['key' => 'domain_verification', 'label' => 'Domain Verification Code (optional)', 'type' => 'text', 'required' => false, 'hint' => 'Business settings → Brand safety → Domains → Meta-tag method. Paste only the content value; WisperBot renders the facebook-domain-verification tag.'],
         ],
         'qdrant' => [
             ['key' => 'url',     'label' => 'Qdrant URL',   'type' => 'text',     'required' => true],
