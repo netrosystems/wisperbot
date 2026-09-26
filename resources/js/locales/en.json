@@ -16,7 +16,16 @@
         "opens": "Opens",
         "closes": "Closes",
         "closed_day_ai_hint": "On unchecked days your office is closed, so AI answers all day.",
-        "closed_day_rest_hint": "On unchecked days your office is closed, so AI rests all day."
+        "closed_day_rest_hint": "On unchecked days your office is closed, so AI rests all day.",
+        "page_title": "Widget Setup",
+        "sections": "Widget Setup sections",
+        "tab_appearance": "Appearance",
+        "tab_ai_visitors": "AI & visitors",
+        "tab_starter_questions": "Starter questions",
+        "tab_has_errors": "Has errors",
+        "branding": "Branding",
+        "launcher_welcome": "Launcher & welcome",
+        "show_starter_questions": "Show starter questions"
     },
     "0": {
         "01": "01",
@@ -197,7 +206,8 @@
         "tutorials": "Tutorials",
         "master_email_inbox": "Master Email Inbox",
         "email_setup": "Email Setup",
-        "widgets": "Widgets"
+        "widgets": "Widgets",
+        "widget_setup": "Widget Setup"
     },
     "welcome": {
         "title": "Build websites with AI.",
@@ -3651,7 +3661,7 @@
         },
         "tone_${tone}": "Tone ${Tone}",
         "starter_questions": "Starter questions",
-        "starter_questions_hint": "Shown at the top of website chats. Tapping one sends your saved answer instantly — no AI credits used.",
+        "starter_questions_hint": "Shown at the top of website and app chats. Tapping one sends your saved answer instantly, whether or not AI is on. No AI credits used.",
         "starter_questions_empty": "Add up to 5 questions your customers ask most.",
         "starter_questions_count": "{{count}}\/{{max}} questions",
         "starter_question_number": "Question {{number}}",
@@ -3660,7 +3670,9 @@
         "starter_question_placeholder": "e.g. What are your opening hours?",
         "starter_answer_placeholder": "The exact answer customers receive",
         "starter_question_add": "Add question",
-        "starter_question_remove": "Remove question {{number}}"
+        "starter_question_remove": "Remove question {{number}}",
+        "starter_questions_moved": "Starter questions now live in Widget Setup, so they work even when AI is off.",
+        "starter_questions_open_widget_setup": "Open Widget Setup"
     },
     "whatsapp": {
         "setup_title": "WhatsApp Setup",

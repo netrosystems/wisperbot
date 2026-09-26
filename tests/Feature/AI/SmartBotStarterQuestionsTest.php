@@ -10,13 +10,13 @@ use App\Modules\AI\Services\StarterQuestions;
 use App\Modules\Inbox\Jobs\ProcessWebchatAiReplyJob;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Shared\Models\ChannelAccount;
-use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
 use App\Modules\Shared\Models\Message;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class SmartBotStarterQuestionsTest extends TestCase
@@ -34,28 +34,26 @@ class SmartBotStarterQuestionsTest extends TestCase
         Cache::flush();
     }
 
-    public function test_client_saves_starter_questions_and_existing_ids_stay_stable(): void
+    public function test_client_saves_starter_questions_on_the_widget_and_existing_ids_stay_stable(): void
     {
         [$user, $workspace] = $this->clientWorkspace();
-        $bot = AiChatbot::create(['workspace_id' => $workspace->id, 'name' => 'Assistant']);
+        [$widget] = $this->widget($workspace->id, ['starter_questions_enabled' => false, 'starter_questions' => null]);
 
-        $this->actingAs($user)->put(route('client.ai.chatbots.update', $bot), [
-            'name' => 'Assistant',
+        $this->saveWidget($user, $widget, [
             'starter_questions_enabled' => true,
             'starter_questions' => [
                 ['question' => '  How do I install my eSIM? ', 'answer' => "Step one.\r\nStep two."],
             ],
         ])->assertRedirect()->assertSessionHasNoErrors();
 
-        $saved = $bot->fresh();
+        $saved = $widget->fresh();
         $this->assertTrue($saved->starter_questions_enabled);
         $this->assertSame('How do I install my eSIM?', $saved->starter_questions[0]['question']);
         $this->assertSame("Step one.\nStep two.", $saved->starter_questions[0]['answer']);
         $id = $saved->starter_questions[0]['id'];
         $this->assertMatchesRegularExpression('/^sq_[a-z0-9]{8}$/', $id);
 
-        $this->actingAs($user)->put(route('client.ai.chatbots.update', $bot), [
-            'name' => 'Assistant',
+        $this->saveWidget($user, $widget, [
             'starter_questions_enabled' => true,
             'starter_questions' => [
                 ['id' => 'sq_forged00', 'question' => 'Do you ship abroad?', 'answer' => 'Yes.'],
@@ -63,17 +61,21 @@ class SmartBotStarterQuestionsTest extends TestCase
             ],
         ])->assertSessionHasNoErrors();
 
-        $items = $bot->fresh()->starter_questions;
+        $items = $widget->fresh()->starter_questions;
         $this->assertSame($id, $items[1]['id']);
         $this->assertNotSame('sq_forged00', $items[0]['id']);
+
+        // Multipart form data omits an empty list, which means the client removed every question.
+        $this->saveWidget($user, $widget, ['starter_questions_enabled' => false])->assertSessionHasNoErrors();
+        $this->assertFalse($widget->fresh()->starter_questions_enabled);
+        $this->assertSame([], $widget->fresh()->starter_questions);
     }
 
     public function test_invalid_starter_questions_are_rejected(): void
     {
         [$user, $workspace] = $this->clientWorkspace();
-        $bot = AiChatbot::create(['workspace_id' => $workspace->id, 'name' => 'Assistant']);
-        $save = fn (array $items) => $this->actingAs($user)->put(route('client.ai.chatbots.update', $bot), [
-            'name' => 'Assistant',
+        [$widget] = $this->widget($workspace->id, ['starter_questions_enabled' => false, 'starter_questions' => null]);
+        $save = fn (array $items) => $this->saveWidget($user, $widget, [
             'starter_questions_enabled' => true,
             'starter_questions' => $items,
         ]);
@@ -95,50 +97,32 @@ class SmartBotStarterQuestionsTest extends TestCase
             ['question' => 'refund   POLICY', 'answer' => 'B'],
         ])->assertSessionHasErrors('starter_questions.1.question');
 
-        $this->assertNull($bot->fresh()->starter_questions);
-    }
-
-    public function test_tapped_or_typed_question_returns_the_saved_answer_without_ai(): void
-    {
-        Http::fake();
-        [, $workspace] = $this->clientWorkspace();
-        $bot = $this->bot($workspace->id);
-        $runner = app(ChatbotRunner::class);
-
-        $result = $runner->run($bot, $this->inbound($bot, 'How do I install my eSIM?'));
-        $this->assertSame(self::ITEMS[0]['answer'], $result['reply']);
-        $this->assertSame('starter_question', $result['answer_origin']);
-        $this->assertSame(0, $result['tokens_used']);
-        $this->assertSame([], $result['quick_replies']);
-
-        $typed = $runner->runForApi($bot, 'how do i install my esim', $workspace->id);
-        $this->assertSame(self::ITEMS[0]['answer'], $typed['reply']);
-
-        Http::assertNothingSent();
+        $this->assertNull($widget->fresh()->starter_questions);
+        $this->assertFalse($widget->fresh()->starter_questions_enabled);
     }
 
     public function test_matching_ignores_case_and_punctuation_but_keeps_vowel_signs(): void
     {
         $starter = app(StarterQuestions::class);
-        $bot = new AiChatbot([
+        $widget = new ChatWidget([
             'starter_questions_enabled' => true,
             'starter_questions' => [['id' => 'sq_bn000001', 'question' => 'কাল কি খোলা?', 'answer' => 'হ্যাঁ']],
         ]);
 
-        $this->assertNotNull($starter->match($bot, '  কাল কি খোলা '));
-        $this->assertNull($starter->match($bot, 'কল কি খোলা?'));
-        $this->assertNull($starter->match($bot, '?!'));
-        $this->assertNull($starter->match($bot, ''));
+        $this->assertNotNull($starter->match($widget, '  কাল কি খোলা '));
+        $this->assertNull($starter->match($widget, 'কল কি খোলা?'));
+        $this->assertNull($starter->match($widget, '?!'));
+        $this->assertNull($starter->match($widget, ''));
 
-        $bot->starter_questions_enabled = false;
-        $this->assertNull($starter->match($bot, 'কাল কি খোলা?'));
-        $this->assertSame([], $starter->publicLabels($bot));
+        $widget->starter_questions_enabled = false;
+        $this->assertNull($starter->match($widget, 'কাল কি খোলা?'));
+        $this->assertSame([], $starter->publicLabels($widget));
     }
 
-    public function test_widget_config_exposes_labels_only_while_the_bot_answers(): void
+    public function test_widget_config_exposes_labels_whenever_turned_on_even_with_ai_off(): void
     {
         [, $workspace] = $this->clientWorkspace();
-        [$widget, , $bot] = $this->widget($workspace->id);
+        [$widget] = $this->widget($workspace->id, ['ai_enabled' => false, 'ai_chatbot_id' => null]);
 
         $config = $widget->fresh()->publicConfig();
         $this->assertSame([
@@ -147,36 +131,31 @@ class SmartBotStarterQuestionsTest extends TestCase
         ], $config['starter_questions']);
         $this->assertStringNotContainsString('refunded within 14 days', json_encode($config));
 
-        $bot->update(['starter_questions_enabled' => false]);
-        $this->assertSame([], $widget->fresh()->publicConfig()['starter_questions']);
-
-        $bot->update(['starter_questions_enabled' => true]);
-        $widget->update(['ai_enabled' => false]);
+        $widget->update(['starter_questions_enabled' => false]);
         $this->assertSame([], $widget->fresh()->publicConfig()['starter_questions']);
     }
 
-    public function test_widget_customer_gets_the_saved_answer_instantly(): void
+    public function test_customer_gets_the_saved_answer_instantly_with_ai_off(): void
+    {
+        [, $workspace] = $this->clientWorkspace();
+        [$widget] = $this->widget($workspace->id, ['ai_enabled' => false, 'ai_chatbot_id' => null]);
+        Http::fake();
+
+        $reply = $this->sendAndReadReply($widget, 'What is your refund policy?');
+
+        $this->assertSame(self::ITEMS[1]['answer'], $reply['body']);
+        $this->assertSame('starter_question', $reply['answer_origin']);
+        Http::assertNothingSent();
+    }
+
+    public function test_customer_gets_the_saved_answer_instantly_while_the_bot_answers(): void
     {
         [, $workspace] = $this->clientWorkspace();
         [$widget] = $this->widget($workspace->id);
 
-        $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key, 'active' => true])
-            ->assertOk()
-            ->assertJsonPath('config.starter_questions.1.label', 'What is your refund policy?');
+        // Typed rather than tapped: case and punctuation do not matter.
+        $reply = $this->sendAndReadReply($widget, 'what is your REFUND policy');
 
-        // A real (non-sync) queue: an AI job would wait for a worker, so the
-        // reply existing right after the request proves it was sent inline.
-        config(['queue.default' => 'database']);
-        $this->withHeader('X-Widget-Token', $session->json('token'))
-            ->postJson(route('widget.send'), ['key' => $widget->widget_key, 'message' => 'What is your refund policy?'])
-            ->assertOk();
-
-        $this->assertDatabaseMissing('jobs', ['queue' => 'ai']);
-        $messages = $this->withHeader('X-Widget-Token', $session->json('token'))
-            ->getJson(route('widget.poll', ['key' => $widget->widget_key, 'after' => 0]))
-            ->assertOk()
-            ->json('messages');
-        $reply = collect($messages)->firstWhere('role', 'agent');
         $this->assertSame(self::ITEMS[1]['answer'], $reply['body']);
         $this->assertSame('starter_question', $reply['answer_origin']);
     }
@@ -195,10 +174,21 @@ class SmartBotStarterQuestionsTest extends TestCase
         Queue::assertPushedOn('ai', ProcessWebchatAiReplyJob::class);
     }
 
+    public function test_the_smart_bot_no_longer_answers_starter_questions_itself(): void
+    {
+        Http::fake();
+        [, $workspace] = $this->clientWorkspace();
+        [, , $bot] = $this->widget($workspace->id);
+
+        $result = app(ChatbotRunner::class)->runForApi($bot, 'How do I install my eSIM?', $workspace->id);
+
+        $this->assertNotSame('starter_question', $result['answer_origin'] ?? null);
+    }
+
     public function test_handed_over_chat_does_not_get_a_starter_answer(): void
     {
         [, $workspace] = $this->clientWorkspace();
-        [$widget] = $this->widget($workspace->id);
+        [$widget] = $this->widget($workspace->id, ['ai_enabled' => false, 'ai_chatbot_id' => null]);
         $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key, 'active' => true])->assertOk();
         Conversation::where('workspace_id', $workspace->id)->update(['handover_at' => now()]);
 
@@ -209,21 +199,41 @@ class SmartBotStarterQuestionsTest extends TestCase
         $this->assertFalse(Message::where('direction', 'out')->where('body', self::ITEMS[1]['answer'])->exists());
     }
 
-    private function bot(int $workspaceId): AiChatbot
+    /** @return array<string,mixed> */
+    private function sendAndReadReply(ChatWidget $widget, string $text): array
     {
-        return AiChatbot::create([
-            'workspace_id' => $workspaceId,
-            'name' => 'Assistant',
-            'enabled' => true,
-            'starter_questions_enabled' => true,
-            'starter_questions' => self::ITEMS,
-        ]);
+        $session = $this->postJson(route('widget.session'), ['key' => $widget->widget_key, 'active' => true])
+            ->assertOk()
+            ->assertJsonPath('config.starter_questions.1.label', 'What is your refund policy?');
+
+        // A real (non-sync) queue: an AI job would wait for a worker, so the
+        // reply existing right after the request proves it was sent inline.
+        config(['queue.default' => 'database']);
+        $this->withHeader('X-Widget-Token', $session->json('token'))
+            ->postJson(route('widget.send'), ['key' => $widget->widget_key, 'message' => $text])
+            ->assertOk();
+
+        $this->assertDatabaseMissing('jobs', ['queue' => 'ai']);
+        $messages = $this->withHeader('X-Widget-Token', $session->json('token'))
+            ->getJson(route('widget.poll', ['key' => $widget->widget_key, 'after' => 0]))
+            ->assertOk()
+            ->json('messages');
+
+        return collect($messages)->firstWhere('role', 'agent');
+    }
+
+    private function saveWidget(User $user, ChatWidget $widget, array $data): TestResponse
+    {
+        return $this->actingAs($user)->put(route('client.inbox.chat-widgets.update', $widget), array_merge([
+            'title' => 'Chat with us',
+            'position' => 'bottom_right',
+        ], $data));
     }
 
     /** @return array{ChatWidget,ChannelAccount,AiChatbot} */
-    private function widget(int $workspaceId): array
+    private function widget(int $workspaceId, array $overrides = []): array
     {
-        $bot = $this->bot($workspaceId);
+        $bot = AiChatbot::create(['workspace_id' => $workspaceId, 'name' => 'Assistant', 'enabled' => true]);
         $account = ChannelAccount::create([
             'workspace_id' => $workspaceId,
             'channel' => 'webchat',
@@ -231,44 +241,18 @@ class SmartBotStarterQuestionsTest extends TestCase
             'status' => 'active',
             'meta_json' => ['ai_chatbot_id' => $bot->id],
         ]);
-        $widget = ChatWidget::create([
+        $widget = ChatWidget::create(array_merge([
             'workspace_id' => $workspaceId,
             'channel_account_id' => $account->id,
             'name' => 'Website chat',
             'position' => 'bottom_right',
             'ai_enabled' => true,
             'ai_chatbot_id' => $bot->id,
-        ]);
+            'starter_questions_enabled' => true,
+            'starter_questions' => self::ITEMS,
+        ], $overrides));
 
         return [$widget, $account, $bot];
-    }
-
-    private function inbound(AiChatbot $bot, string $body): Message
-    {
-        $account = ChannelAccount::create([
-            'workspace_id' => $bot->workspace_id,
-            'channel' => 'webchat',
-            'display_name' => 'Website chat',
-            'status' => 'active',
-        ]);
-        $conversation = Conversation::create([
-            'workspace_id' => $bot->workspace_id,
-            'channel_account_id' => $account->id,
-            'contact_id' => Contact::factory()->create(['workspace_id' => $bot->workspace_id])->id,
-            'status' => 'open',
-            'assigned_to' => 'bot',
-        ]);
-
-        return Message::create([
-            'conversation_id' => $conversation->id,
-            'direction' => 'in',
-            'channel' => 'webchat',
-            'type' => 'text',
-            'body' => $body,
-            'status' => 'delivered',
-            'sent_by' => 'human',
-            'sent_at' => now(),
-        ])->load('conversation');
     }
 
     /** @return array{User,Workspace} */

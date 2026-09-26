@@ -335,7 +335,7 @@ const userHash = crypto
                 </span>
                 {verification
                     ? ' Unsigned identities are treated as anonymous and your agent sees a “not verified” badge.'
-                    : ' Turn it on in Appearance → "Identity verification" once you start passing user_hash; WisperBot will reject unsigned identities at that point.'}
+                    : ' Turn it on in Widget Setup → AI & visitors → "Identity verification" once you start passing user_hash; WisperBot will reject unsigned identities at that point.'}
             </div>
 
             <SubSnippet label="Sign on your server (PHP)" code={php} />

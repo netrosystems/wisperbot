@@ -1,8 +1,34 @@
 import { useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, CalendarClock, Lock, MessageCircle, Send, Sparkles } from 'lucide-react';
+import { Bot, CalendarClock, ListChecks, Lock, MessageCircle, Palette, Send, Sparkles } from 'lucide-react';
 import WeeklyScheduleEditor, { defaultWeeklySchedule, normalizeAiSchedule } from '@/Components/WeeklyScheduleEditor';
+import StarterQuestionsEditor from '@/Components/StarterQuestionsEditor';
+
+const TABS = [
+    { id: 'appearance', labelKey: 'widget_appearance.tab_appearance', label: 'Appearance' },
+    { id: 'behaviour', labelKey: 'widget_appearance.tab_ai_visitors', label: 'AI & visitors' },
+    { id: 'starter', labelKey: 'widget_appearance.tab_starter_questions', label: 'Starter questions' },
+];
+
+const APPEARANCE_FIELDS = ['name', 'title', 'subtitle', 'welcome_message', 'agent_name', 'avatar_url', 'primary_color', 'position', 'launcher_text', 'footer_company_name', 'launcher_logo', 'remove_launcher_logo'];
+
+/** The tab that holds a validation error, so a failed save shows its field. */
+export function tabForErrorKey(key) {
+    if (key.startsWith('starter_questions')) return 'starter';
+    return APPEARANCE_FIELDS.includes(key.split('.')[0]) ? 'appearance' : 'behaviour';
+}
+
+const TAB_STORAGE_KEY = 'wisperbot.widgetSetupTab';
+
+function initialTab() {
+    try {
+        const saved = window.sessionStorage.getItem(TAB_STORAGE_KEY);
+        return TABS.some(tab => tab.id === saved) ? saved : 'appearance';
+    } catch {
+        return 'appearance';
+    }
+}
 
 /** Small labelled field wrapper. */
 function Field({ label, hint, children }) {
@@ -81,6 +107,8 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
         offline_message: widget?.offline_message ?? '',
         allowed_domains: widget?.allowed_domains ?? [],
         identity_verification: widget?.identity_verification ?? false,
+        starter_questions_enabled: widget?.starter_questions_enabled ?? false,
+        starter_questions: Array.isArray(widget?.starter_questions) ? widget.starter_questions : [],
     });
 
     // The parent pages submit with router.post, so validation errors arrive as
@@ -90,6 +118,20 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
     const [domainsText, setDomainsText] = useState((widget?.allowed_domains ?? []).join('\n'));
     const [launcherLogoPreview, setLauncherLogoPreview] = useState(widget?.launcher_logo_url ?? null);
     const aiScheduleError = Object.entries(errors).find(([key]) => key.startsWith('ai_schedule_json'))?.[1];
+    const [tab, setTab] = useState(initialTab);
+    const selectTab = (id) => {
+        setTab(id);
+        try { window.sessionStorage.setItem(TAB_STORAGE_KEY, id); } catch { /* storage unavailable */ }
+    };
+    const errorKeys = Object.keys(errors);
+    const firstErrorKey = errorKeys[0];
+    const tabsWithErrors = new Set(errorKeys.map(tabForErrorKey));
+    // When a save fails, open the tab holding the error unless the open tab has one.
+    const [shownErrorKey, setShownErrorKey] = useState(null);
+    if (firstErrorKey !== shownErrorKey) {
+        setShownErrorKey(firstErrorKey);
+        if (firstErrorKey && !tabsWithErrors.has(tab)) setTab(tabForErrorKey(firstErrorKey));
+    }
     const selectedBotUnavailable = Boolean(widget?.ai_chatbot_id) && !chatbots.some(bot => String(bot.id) === String(widget.ai_chatbot_id));
 
     const togglePrechatField = (field) => {
@@ -103,15 +145,53 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
             ...data,
             ai_chatbot_id: data.ai_enabled && data.ai_chatbot_id ? data.ai_chatbot_id : null,
             allowed_domains: domainsText.split(/[\n,]/).map((d) => d.trim()).filter(Boolean),
+            // A blank row is dropped rather than failing the save.
+            starter_questions: data.starter_questions
+                .filter((item) => item.question.trim() !== '' || item.answer.trim() !== '')
+                .map(({ id, question, answer }) => (id ? { id, question, answer } : { question, answer })),
         };
-        onSubmit(payload, { onStart: () => setProcessing(true), onFinish: () => setProcessing(false) });
+        onSubmit(payload, {
+            onStart: () => setProcessing(true),
+            onFinish: () => setProcessing(false),
+            // The page keeps its state after a save, so pick up the ids the
+            // server gave new questions; saving again then keeps them stable.
+            onSuccess: (page) => {
+                const saved = page?.props?.widget?.starter_questions;
+                if (Array.isArray(saved)) setData('starter_questions', saved);
+            },
+        });
     };
 
     return (
         <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_360px]">
             {/* ── Left: settings ── */}
             <div className="space-y-6">
-                <Card title="Appearance" icon={<MessageCircle className="h-4 w-4 text-brand-500" />}>
+                <div role="tablist" aria-label={t('widget_appearance.sections', 'Widget Setup sections')} className="flex flex-wrap items-center gap-2">
+                    {TABS.map(({ id, labelKey, label }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            role="tab"
+                            id={`wtab-${id}`}
+                            aria-selected={tab === id}
+                            aria-controls={`wpanel-${id}`}
+                            onClick={() => selectTab(id)}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-brand-500/30 ${
+                                tab === id
+                                    ? 'border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+                                    : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                            }`}
+                        >
+                            {t(labelKey, label)}
+                            {tabsWithErrors.has(id) && <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-label={t('widget_appearance.tab_has_errors', 'Has errors')} />}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Every panel stays mounted and inactive ones are hidden, so
+                    unsaved edits survive switching tabs and one Save covers all. */}
+                <div role="tabpanel" id="wpanel-appearance" aria-labelledby="wtab-appearance" hidden={tab !== 'appearance'} className="space-y-6">
+                <Card title={t('widget_appearance.branding', 'Branding')} icon={<Palette className="h-4 w-4 text-brand-500" />}>
                     <div className="grid gap-4 sm:grid-cols-2">
                         <Field label="Widget name" hint="Internal label — customers don't see this.">
                             <input className={inputCls} value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="Main site chat" />
@@ -134,7 +214,13 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                         <Field label="Avatar URL" hint="Optional — leave blank to show initials.">
                             <input className={inputCls} value={data.avatar_url} onChange={(e) => setData('avatar_url', e.target.value)} placeholder="https://…/avatar.png" />
                         </Field>
+                        <Field label="Footer company name" hint="Shown to visitors as “Powered by {Company name}”. Leave as WisperBot to use the default.">
+                            <input className={inputCls} value={data.footer_company_name} onChange={(e) => setData('footer_company_name', e.target.value)} placeholder="Your company name" />
+                        </Field>
                     </div>
+                </Card>
+
+                <Card title={t('widget_appearance.launcher_welcome', 'Launcher & welcome')} icon={<MessageCircle className="h-4 w-4 text-brand-500" />}>
                     <Field label="Welcome message" hint="The first thing visitors see when they open the chat.">
                         <textarea className={inputCls} rows={2} value={data.welcome_message} onChange={(e) => setData('welcome_message', e.target.value)} />
                     </Field>
@@ -147,9 +233,6 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                         </Field>
                         <Field label="Launcher label" hint="Optional text next to the bubble.">
                             <input className={inputCls} value={data.launcher_text} onChange={(e) => setData('launcher_text', e.target.value)} placeholder="Chat with us" />
-                        </Field>
-                        <Field label="Footer company name" hint="Shown to visitors as “Powered by {Company name}”. Leave as WisperBot to use the default.">
-                            <input className={inputCls} value={data.footer_company_name} onChange={(e) => setData('footer_company_name', e.target.value)} placeholder="Your company name" />
                         </Field>
                         <Field
                             label="Custom launcher icon — Pro feature"
@@ -201,7 +284,9 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                         </Field>
                     </div>
                 </Card>
+                </div>
 
+                <div role="tabpanel" id="wpanel-behaviour" aria-labelledby="wtab-behaviour" hidden={tab !== 'behaviour'} className="space-y-6">
                 <Card title="AI answering" icon={<Bot className="h-4 w-4 text-brand-500" />}>
                     <Toggle
                         checked={data.ai_enabled}
@@ -280,6 +365,25 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
                     <Toggle checked={data.enabled} onChange={(v) => setData('enabled', v)} label="Widget enabled" description="Turn the widget off without deleting it." />
                     <Toggle checked={data.sdk_enabled} onChange={(v) => setData('sdk_enabled', v)} label="SDK enabled" description="Turn the customer mobile SDK chat off without affecting the website widget." />
                 </Card>
+                </div>
+
+                <div role="tabpanel" id="wpanel-starter" aria-labelledby="wtab-starter" hidden={tab !== 'starter'} className="space-y-6">
+                <Card title={t('ai.starter_questions', 'Starter questions')} icon={<ListChecks className="h-4 w-4 text-brand-500" />}>
+                    <Toggle
+                        checked={data.starter_questions_enabled}
+                        onChange={(v) => setData('starter_questions_enabled', v)}
+                        label={t('widget_appearance.show_starter_questions', 'Show starter questions')}
+                        description={t('ai.starter_questions_hint')}
+                    />
+                    {data.starter_questions_enabled && (
+                        <StarterQuestionsEditor
+                            items={data.starter_questions}
+                            errors={errors}
+                            onChange={(items) => setData('starter_questions', items)}
+                        />
+                    )}
+                </Card>
+                </div>
             </div>
 
             {/* ── Right: live preview ── */}
@@ -309,6 +413,9 @@ export default function ChatWidgetForm({ widget = null, chatbots = [], canUseCus
 function WidgetPreview({ data }) {
     const color = data.primary_color || '#ff762e';
     const initial = (data.agent_name || 'S').trim().charAt(0).toUpperCase();
+    const starters = data.starter_questions_enabled
+        ? data.starter_questions.filter((item) => item.question.trim() !== '' && item.answer.trim() !== '')
+        : [];
     return (
         <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white shadow-lg">
             <div className="flex items-center gap-2.5 p-3.5 text-white" style={{ background: color }}>
@@ -329,6 +436,15 @@ function WidgetPreview({ data }) {
                         {data.welcome_message || 'Hi there 👋 How can we help?'}
                     </div>
                 </div>
+                {starters.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pl-7">
+                        {starters.map((item, index) => (
+                            <span key={item.id ?? index} className="rounded-full border bg-white px-2.5 py-1 text-[12px] font-medium" style={{ borderColor: color, color }}>
+                                {item.question}
+                            </span>
+                        ))}
+                    </div>
+                )}
                 <div className="flex justify-end">
                     <div className="max-w-[80%] rounded-2xl rounded-br-sm px-3 py-2 text-[13px] text-white" style={{ background: color }}>
                         Hi! I have a quick question.

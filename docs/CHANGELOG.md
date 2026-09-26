@@ -4,6 +4,13 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Widget Setup (renamed from Appearance) now has tabs, and starter questions moved there.**
+  - The sidebar entry and page are now **Widget Setup**, with three tabs: **Appearance** (Branding; Launcher & welcome), **AI & visitors**, and **Starter questions**. One Save covers all tabs; a failed save opens the tab with the problem.
+  - Starter questions belong to the widget, not the Smart Bot. When switched on they show and are answered even with AI off or outside its schedule. The live preview shows them.
+  - The Smart Bot settings no longer edit starter questions and point to Widget Setup. The bot no longer answers them on other channels or in the API/playground.
+  - The customer contract (`config.starter_questions`, `answer_origin: "starter_question"`) is unchanged, so SDKs need no update.
+  - Migration `2026_09_26_000100_move_starter_questions_to_chat_widgets` copies each widget's linked bot's questions to the widget.
+
 - **Fixed social accounts showing "Token expired" and needing reconnects.**
   - YouTube (1-hour tokens), TikTok, X and LinkedIn tokens with a refresh token are now renewed right before each post and by an hourly job (it was daily, which left YouTube "expired" about 23 hours a day and hidden from the composer).
   - An account is disconnected only when the network rejects its refresh token. Timeouts, server errors and platform credential problems are retried instead.
