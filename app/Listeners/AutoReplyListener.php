@@ -78,7 +78,12 @@ class AutoReplyListener
             return;
         }
 
-        // ── 1. Keyword / trigger auto-reply rules (always run, no chatbot required) ──
+        // ── 1. Widget starter questions (work with or without AI) ─────────────
+        if ($message->channel === 'webchat' && $this->answerStarterQuestion($message, $conversation, $channelAccount->id)) {
+            return;
+        }
+
+        // ── 2. Keyword / trigger auto-reply rules (always run, no chatbot required) ──
         $autoReply = $this->findMatchingAutoReply(
             $conversation->workspace_id,
             $channelAccount->id,
@@ -93,7 +98,7 @@ class AutoReplyListener
             return;
         }
 
-        // ── 2. Handover phrase detection ─────────────────────────────────────
+        // ── 3. Handover phrase detection ─────────────────────────────────────
         $body = strtolower($message->body ?? '');
         foreach (self::HANDOVER_PHRASES as $phrase) {
             if (str_contains($body, $phrase)) {
@@ -103,7 +108,7 @@ class AutoReplyListener
             }
         }
 
-        // ── 3. AI chatbot (only if one is linked to this channel account) ─────
+        // ── 4. AI chatbot (only if one is linked to this channel account) ─────
         if ($message->channel !== 'webchat') {
             $reason = $this->aiPolicy->decision($channelAccount, $message->sent_at);
             if ($reason === 'eligible') {
@@ -154,14 +159,6 @@ class AutoReplyListener
             return;
         }
 
-        // Saved starter answers need no model call, so they are sent within the
-        // customer's request and appear instantly; AI replies stay queued.
-        if (app(StarterQuestions::class)->match($chatbot, (string) $message->body) !== null) {
-            ProcessWebchatAiReplyJob::dispatchSync($message->id, $chatbot->id);
-
-            return;
-        }
-
         ProcessWebchatAiReplyJob::dispatch($message->id, $chatbot->id);
     }
 
@@ -203,6 +200,56 @@ class AutoReplyListener
         }
 
         return null;
+    }
+
+    /**
+     * A starter question the client wrote in Widget Setup gets its saved answer
+     * word for word. It needs no model call and no credits, so it is sent within
+     * the customer's request and appears instantly, whether or not AI is on.
+     */
+    private function answerStarterQuestion(Message $inbound, Conversation $conversation, int $channelAccountId): bool
+    {
+        $widget = ChatWidget::where('workspace_id', $conversation->workspace_id)
+            ->where('channel_account_id', $channelAccountId)
+            ->first();
+        $item = $widget ? app(StarterQuestions::class)->match($widget, (string) $inbound->body) : null;
+        if ($item === null) {
+            return false;
+        }
+
+        $botMessage = Message::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'out',
+            'channel' => $inbound->channel,
+            'type' => 'text',
+            'body' => $item['answer'],
+            'payload' => [
+                'resources' => [],
+                'quick_replies' => [],
+                'display_body' => $item['answer'],
+                'answer_origin' => 'starter_question',
+                'response_mode' => 'answer',
+                'citations' => [],
+                'product_facts' => [],
+            ],
+            'status' => 'queued',
+            'sent_by' => 'bot',
+            'sent_at' => now(),
+        ]);
+
+        try {
+            $providerId = $this->channelManager->driver($inbound->channel)->send($botMessage);
+            $botMessage->update(['status' => 'sent', 'provider_message_id' => $providerId]);
+        } catch (\Throwable $e) {
+            $botMessage->update(['status' => 'failed', 'error_json' => ['message' => $e->getMessage()]]);
+            Log::warning('Starter question answer send failed', ['message_id' => $inbound->id, 'error' => $e->getMessage()]);
+        }
+
+        $conversation->update(['last_message_at' => now()]);
+        $botMessage->load('conversation');
+        MessageSent::dispatch($botMessage);
+
+        return true;
     }
 
     private function dispatchAutoReply(WhatsappAutoReply $rule, Message $inbound, Conversation $conversation): void

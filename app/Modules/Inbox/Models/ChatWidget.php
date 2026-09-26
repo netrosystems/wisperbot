@@ -38,6 +38,7 @@ class ChatWidget extends Model
         'ai_enabled', 'ai_chatbot_id', 'ai_schedule_json', 'require_prechat', 'prechat_fields',
         'offline_message', 'allowed_domains', 'working_hours_json', 'enabled', 'sdk_enabled',
         'identity_verification', 'identity_secret',
+        'starter_questions_enabled', 'starter_questions',
     ];
 
     protected $hidden = ['identity_secret'];
@@ -56,6 +57,8 @@ class ChatWidget extends Model
             'prechat_fields' => 'array',
             'allowed_domains' => 'array',
             'working_hours_json' => 'array',
+            'starter_questions_enabled' => 'boolean',
+            'starter_questions' => 'array',
         ];
     }
 
@@ -216,9 +219,9 @@ class ChatWidget extends Model
             'team_member_count' => count($teamMembers),
             // Only expose whether AI is active; never expose the internal bot id.
             'ai_enabled' => $aiNow,
-            // Question labels only; the saved answers stay on the server. Shown
-            // only while the Smart Bot answers, since it sends those answers.
-            'starter_questions' => $aiNow ? app(StarterQuestions::class)->publicLabels($this->aiChatbot) : [],
+            // Question labels only; the saved answers stay on the server. They
+            // belong to the widget, so they show whether or not AI is answering.
+            'starter_questions' => app(StarterQuestions::class)->publicLabels($this),
             'require_prechat' => (bool) $this->require_prechat,
             'prechat_fields' => $this->prechat_fields ?: ['name', 'email'],
             'offline_message' => $this->offline_message,

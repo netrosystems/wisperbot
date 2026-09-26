@@ -47,13 +47,14 @@ Semantic retrieval also adds optional `response_mode` (`answer`, `clarification`
 
 ## Starter questions (2026-09-19)
 
-A Smart Bot may carry up to five client-written starter questions with fixed answers (Smart Bots → settings → Starter questions, on/off switch). They are separate from AI-generated `quick_replies`.
+A website widget may carry up to five client-written starter questions with fixed answers (Widget Setup → Starter questions, on/off switch). They are separate from AI-generated `quick_replies`. Since 2026-09-26 they belong to the widget, not the Smart Bot, and work whether or not AI is on.
 
-- **Where they come from.** `config.starter_questions` in `POST /widget/v1/session` (and the embed loader config) is a list of `{id, label}` with at most five items. It is `[]` when the switch is off, no questions are saved, the widget has no Smart Bot, or AI is not answering now (AI off, or resting under the widget's AI schedule). Answers are never sent to the client.
+- **Where they come from.** `config.starter_questions` in `POST /widget/v1/session` (and the embed loader config) is a list of `{id, label}` with at most five items. It is `[]` only when the switch is off or no questions are saved; AI being off, resting under its schedule, or having no Smart Bot does not hide them. Answers are never sent to the client. The contract shape is unchanged, so released SDKs need no update.
 - **How to show them.** On a new chat and permanently at the top of the conversation, directly under the welcome message, so a customer can scroll up and tap one at any time. Unlike `quick_replies`, they do not go stale when later messages arrive. Disable them while a message is sending, while the pre-chat form is required, and while `handoff.status` is `waiting` or `connected`. Refresh the list from each session response; `id` is stable across client edits and suitable as a UI key.
 - **How to send.** Send the **label** as a normal message through `POST /widget/v1/messages` (`{key, message: label}`). There is no separate endpoint and no hidden value; typing the same question (ignoring case, punctuation and spacing) behaves identically.
 - **The reply.** The bot's message carries the saved answer as `body`/`display_body`, `answer_origin: "starter_question"`, `response_mode: "answer"`, no `quick_replies`, no resources. It is created within the send request. Clients still read it from poll/realtime as with any bot reply; the website widget polls once right after every successful send so the answer appears immediately even without realtime, and the SDK should do the same.
 - **Cost.** Zero credits; no model is called.
+- **Legacy API fields.** `GET /api/v1/ai/chatbots` still returns `starter_questions_enabled`/`starter_questions` per Smart Bot for compatibility. They are the pre-2026-09-26 bot-level values, are no longer used, and should not be relied on.
 
 ## AI and cost
 

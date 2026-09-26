@@ -23,6 +23,13 @@ Always run `git status --short` and inspect recent history before starting; this
 
 2026-09-25 homepage artwork (local on `oris`): the first generated collection was rejected and superseded by product-led bento compositions using actual WisperBot UI crops, official Agent App images, and one professional fictional American-European team photo. No customer records or secrets appear in assets. Production forms used for captures were not saved or published; sample widget messages are isolated locally. See `docs/MARKETING_VISUAL_AUDIT.md`; delivery assets are in `public/images/marketing/product-ui/`, sources/prompts/archive in `output/marketing-visuals/2026-09-25/`. Frontend/public-asset deployment only; no migration, worker restart, or SDK change. Included in the marketing artwork commit on `oris`; not deployed.
 
+2026-09-26 Widget Setup tabs and widget-owned starter questions (local, uncommitted):
+- Sidebar/page "Appearance" is now **Widget Setup** (`nav.widget_setup`, `widget_appearance.page_title`). `Chat/Widgets/Partials/ChatWidgetForm.jsx` has Cerqle-style pill tabs (Appearance, AI & visitors, Starter questions); panels stay mounted, one Save, failed save opens the error's tab (`tabForErrorKey`).
+- Starter questions moved from `ai_chatbots` to `chat_widgets` (`2026_09_26_000100_move_starter_questions_to_chat_widgets`, copies linked bot data; run locally). `StarterQuestions` now takes a `ChatWidget`; `ChatWidgetController::validated()` validates/stores them; `publicConfig()` no longer hides them when AI is off.
+- `AutoReplyListener::answerStarterQuestion()` answers webchat matches synchronously before keyword rules, with or without AI. The starter step was removed from `ChatbotRunner` and the Smart Bot settings; the editor is now `Components/StarterQuestionsEditor.jsx`.
+- Tests: `SmartBotStarterQuestionsTest` (9, including AI-off); AI/Inbox/API suites 267 passed; 124 frontend tests; build OK. Browser-checked locally: tabs, preview chips, save keeps ids, duplicate question opens the Starter tab.
+- Production needs the migration. No worker or SDK change.
+
 2026-09-26 social token renewal (local, uncommitted):
 - Added `SocialTokenRefresher` (renew under a lock; rotated tokens shared with siblings) and `TokenRefreshRejectedException`, which `OAuthManager::assertRefreshAccepted()` raises only for 400/401 about the token.
 - `RefreshSocialTokensJob` is hourly, covers tokens expiring within 2h, sends reminders and notifies on revocation.
