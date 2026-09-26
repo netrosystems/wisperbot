@@ -137,7 +137,7 @@ WisperBot's **own** advertising measurement for its public website. It is not a 
 | Test Event Code | Events Manager → Test events | Routes server events to Test events. Clear after verifying. |
 | Domain Verification Code | Business settings → Brand safety → Domains (meta-tag method) | Rendered as `<meta name="facebook-domain-verification">`. |
 
-The admin connection test reads `GET /{dataset-id}?fields=id,name` with the token and **sends no event**.
+The admin connection test posts one `WisperBotConnectionTest` event with a test event code (the saved one, else `TEST00000`), so it never reaches live reporting. Tokens generated in Events Manager can send events but cannot read dataset details, so a read (`GET /{dataset-id}`) returns `(#100) Missing Permission` even for a working token (verified 2026-09-26). Test Event Code and Domain Verification Code are `clearable`: emptying them in the form deletes the stored value, while a blank token still keeps the saved secret.
 
 **Browser Pixel** (`resources/js/Utils/metaPixel.js`, banner `Components/CookieConsent.jsx`).
 - Eligibility comes from the `metaPixel` shared prop (`HandleInertiaRequests::metaPixelPublicConfig`): off for `app/*`, `admin/*`, `api/*`, `mobile/*`, `install*` and blog previews.

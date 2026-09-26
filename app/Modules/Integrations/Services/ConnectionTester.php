@@ -475,8 +475,10 @@ class ConnectionTester
     }
 
     /**
-     * Confirms the dataset ID and, when present, that the Conversions API
-     * token can read that dataset. Sends no event, so reporting stays clean.
+     * Confirms the Conversions API token can send to this dataset by posting
+     * one event marked with a test event code. Test events never reach live
+     * reporting or ad optimization. Tokens generated in Events Manager may
+     * send events but not read dataset details, so reading is not a valid check.
      *
      * @return array{ok: bool, message: string}
      */
@@ -494,17 +496,35 @@ class ConnectionTester
             return ['ok' => true, 'message' => 'Dataset ID is valid. Browser Pixel only: add a Conversions API token to send server events.'];
         }
 
-        $response = HttpFacade::timeout(10)
-            ->withToken($token)
-            ->get('https://graph.facebook.com/v25.0/'.$pixelId, ['fields' => 'id,name']);
+        $testCode = preg_replace('/[^A-Za-z0-9_-]/', '', trim((string) ($credentials['test_event_code'] ?? ''))) ?: 'TEST00000';
 
-        if (! $response->successful() || (string) $response->json('id') !== $pixelId) {
-            return ['ok' => false, 'message' => $response->json('error.message') ?? 'The access token cannot read this dataset.'];
+        $response = HttpFacade::timeout(10)
+            ->acceptJson()
+            ->asJson()
+            ->withToken($token)
+            ->post('https://graph.facebook.com/v25.0/'.$pixelId.'/events', [
+                'data' => [[
+                    'event_name' => 'WisperBotConnectionTest',
+                    'event_time' => now()->getTimestamp(),
+                    'event_id' => 'connection_test_'.bin2hex(random_bytes(6)),
+                    'action_source' => 'system_generated',
+                    'user_data' => ['external_id' => [hash('sha256', 'wisperbot_connection_test')]],
+                ]],
+                'test_event_code' => $testCode,
+            ]);
+
+        if ($response->successful() && (int) $response->json('events_received') === 1) {
+            return ['ok' => true, 'message' => 'Conversions API token can send events to dataset '.$pixelId.'. The check was sent as a test event, so live reporting is unaffected.'];
         }
 
-        $name = (string) $response->json('name');
+        $code = (int) $response->json('error.code');
+        $message = match (true) {
+            $code === 190 => 'The access token is invalid or expired. Generate a new one in Events Manager → dataset → Settings → Conversions API.',
+            in_array($code, [10, 100, 200, 294], true) => 'This token cannot send events to dataset '.$pixelId.'. Generate the token from this dataset\'s Settings → Conversions API. (Meta: '.($response->json('error.message') ?? 'permission error').')',
+            default => $response->json('error.message') ?? 'Meta did not accept the test event.',
+        };
 
-        return ['ok' => true, 'message' => 'Connected to dataset'.($name !== '' ? ' "'.$name.'"' : '').'. Conversions API token is valid.'];
+        return ['ok' => false, 'message' => $message];
     }
 
     private function testOneSignal(IntegrationConfig $config): array

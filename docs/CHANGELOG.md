@@ -4,6 +4,10 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Meta Pixel settings fixes.**
+  - Test Event Code and Domain Verification Code can be cleared in Super Admin → Integrations. Blank fields were always kept, so a cleared test code silently kept every server event in Meta's test view. Fields flagged `clearable` in `IntegrationConfig::FIELDS` now delete on empty; secrets still keep their value when left blank.
+  - Test connection now sends one test-coded event instead of reading the dataset, which Events Manager tokens are not allowed to do. It no longer reports "(#100) Missing Permission" for a working token.
+
 - **Meta Pixel and Conversions API for WisperBot's own ads.**
   - Super Admin → Integrations → *Meta Pixel & Conversions API*: Dataset ID, encrypted Conversions API token, optional test event code and domain-verification code, with a connection test that sends no event.
   - The browser Pixel runs on public pages only, after consent: opt-in for European time zones, notice with one-click opt-out elsewhere. The cookie banner is back, restyled in brand colours, with a "Cookie settings" footer link.
