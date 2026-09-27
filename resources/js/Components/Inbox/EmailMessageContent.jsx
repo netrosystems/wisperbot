@@ -101,20 +101,21 @@ function formatBytes(value) {
 }
 
 export function EmailAttachments({ payload = {}, messageType = 'text' }) {
-    let attachments = Array.isArray(payload.attachments) ? payload.attachments.filter(Boolean) : [];
-    const legacyUrl = payload.preview_url || payload.url || payload.file_url;
+    const normalizedPayload = payload && typeof payload === 'object' ? payload : {};
+    let attachments = Array.isArray(normalizedPayload.attachments) ? normalizedPayload.attachments.filter(Boolean) : [];
+    const legacyUrl = normalizedPayload.preview_url || normalizedPayload.url || normalizedPayload.file_url;
     if (attachments.length === 0 && legacyUrl) {
         attachments = [{
-            name: payload.filename || 'attachment',
+            name: normalizedPayload.filename || 'attachment',
             url: legacyUrl,
-            mime_type: payload.mime_type,
-            size: payload.file_size,
+            mime_type: normalizedPayload.mime_type,
+            size: normalizedPayload.file_size,
             type: messageType,
         }];
     }
 
     if (attachments.length === 0) {
-        return payload.has_attachments ? (
+        return normalizedPayload.has_attachments ? (
             <div className="mt-3 flex items-center gap-2 rounded-lg bg-neutral-50 p-2.5 text-xs text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
                 <Paperclip className="h-4 w-4 shrink-0" />
                 <span>Source attachment is available in the connected mailbox</span>
