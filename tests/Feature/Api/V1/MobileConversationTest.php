@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1;
 use App\Events\MessageStatusUpdated;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Modules\Inbox\Models\CannedReply;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -17,6 +18,43 @@ use Tests\TestCase;
 class MobileConversationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_mobile_canned_replies_match_the_dedicated_search_contract(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $otherWorkspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+
+        CannedReply::create([
+            'workspace_id' => $workspace->id,
+            'shortcut' => 'welcome',
+            'body' => 'Welcome to our support team.',
+        ]);
+        CannedReply::create([
+            'workspace_id' => $workspace->id,
+            'shortcut' => 'billing',
+            'body' => 'Our billing team will help you.',
+        ]);
+        CannedReply::create([
+            'workspace_id' => $otherWorkspace->id,
+            'shortcut' => 'private',
+            'body' => 'Another workspace reply.',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/mobile/inbox/canned-replies?search=welcome')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.shortcut', 'welcome')
+            ->assertJsonPath('data.0.body', 'Welcome to our support team.')
+            ->assertJsonMissing(['shortcut' => 'private']);
+
+        $this->getJson('/api/v1/mobile/inbox/canned-replies?search=billing')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.shortcut', 'billing');
+    }
 
     public function test_mobile_join_and_leave_contract_exposes_joined_agent(): void
     {
