@@ -194,6 +194,8 @@ classDiagram
 5. **Notification Scope**: Every client database, realtime, OneSignal, and web-push notification carries its originating `workspace_id`. Web and mobile list/count/read/delete operations are restricted to the authenticated user's active accessible workspace; producers resolve owners and pivot members, not only the legacy primary-workspace column.
 6. **Availability and ownership**: `workspace_member_availabilities` controls only new-message and handoff notification recipients. Missing/disabled schedules mean always available. `conversations.assigned_user_id` remains routing intent while `joined_user_id`/`joined_at` is the atomic live reply owner. Resolution clears both states without deleting history. A later genuine inbound reopens that same conversation as Open/Unassigned under the conversation lock before `MessageReceived` listeners run; provider echoes, status callbacks, and historical imports never reopen it. External providers never receive synthetic join messages.
 
+Sanctum-authenticated mobile clients read workspace-wide, message-bearing omni-channel totals from `GET /api/v1/mobile/stats`. The endpoint aggregates without pagination and returns total, open, unread-message, unread-conversation, assigned, resolved, and per-channel counts. Empty visitor sessions, email, and SMS remain outside this stats surface, matching the mobile omni inbox boundary.
+
 ---
 
 ## 4. Asynchronous Queues & Background Processing
