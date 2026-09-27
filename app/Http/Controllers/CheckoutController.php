@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Plan;
 use App\Services\Billing\BillingGatewayRegistry;
+use App\Services\Marketing\MetaConversions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -13,7 +14,8 @@ use Inertia\Inertia;
 class CheckoutController extends Controller
 {
     public function __construct(
-        private BillingGatewayRegistry $gateways
+        private BillingGatewayRegistry $gateways,
+        private MetaConversions $conversions,
     ) {}
 
     /**
@@ -42,6 +44,8 @@ class CheckoutController extends Controller
 
         // Most gateways return a hosted redirect URL.
         if (isset($result['url'])) {
+            $this->conversions->checkoutStarted($request->user(), $request, $plan, $validated['billing_cycle'], $validated['gateway']);
+
             return Inertia::location($result['url']);
         }
 

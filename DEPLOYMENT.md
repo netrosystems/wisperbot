@@ -42,7 +42,9 @@ web server; the deploy script grants traverse-only access to new releases.
 
 Before deployment, build frontend assets from the exact `origin/main` revision
 and upload an archive containing `build/manifest.json` as
-`artifacts/build-<full-commit-sha>.zip`. Then run `deploy-production.sh`; it
+`artifacts/build-<full-commit-sha>.zip`. The entry order inside the archive does
+not matter (fixed 2026-09-25: the check used to fail with exit 141 unless the
+manifest was the last entry). Then run `deploy-production.sh`; it
 fetches `origin/main`, so no separate server-side pull is needed. Use
 `rollback-production.sh [release-name]` to atomically select an earlier release;
 database migrations and the application version are intentionally not rolled
@@ -53,6 +55,14 @@ brings it out of maintenance mode; it does not reverse database migrations or
 application version changes already completed by the failed attempt.
 The automatic health check only covers `/up`; verify critical user flows after
 the command reports success.
+
+The shell tests in `tests/Scripts` cover these scripts and run on any bash,
+including macOS's bash 3.2:
+
+```bash
+bash tests/Scripts/production-build-artifact.sh
+bash tests/Scripts/production-release-retention.sh
+```
 After a successful health check, the deploy script retains the active release
 and its two preceding releases in the rollback chain. It removes other
 release directories, including incomplete attempts from earlier runs, and their

@@ -43,7 +43,6 @@ class ChatbotRunner
         private KnowledgeRetrievalService $knowledgeRetrieval,
         private SmartBotRetrievalPolicy $retrievalPolicy,
         private LiveProductAnswerService $liveProducts,
-        private StarterQuestions $starterQuestions,
     ) {}
 
     /** @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>,answer_origin?:string,response_mode?:string,citations?:array<int,array{title:string,url:string}>,product_facts?:array<int,array<string,mixed>>,intent?:string} */
@@ -61,9 +60,6 @@ class ChatbotRunner
         $policy = $this->retrievalPolicy->privateAnswering();
         $history = $this->conversationHistory($conversation, $inboundMessage);
 
-        if ($starterReply = $this->starterQuestionReply($bot, $workspaceId, $revisionId, $body)) {
-            return $starterReply;
-        }
         if ($offerReply = $this->offerReply($bot, $kb, $workspaceId, $revisionId, $body, $history)) {
             return $offerReply;
         }
@@ -510,9 +506,6 @@ class ChatbotRunner
             : null;
         $revisionId = $guarded ? $kb?->published_revision_id : null;
         $policy = $this->retrievalPolicy->privateAnswering();
-        if ($starterReply = $this->starterQuestionReply($bot, $workspaceId, $revisionId, $message)) {
-            return $starterReply;
-        }
         if ($offerReply = $this->offerReply($bot, $kb, $workspaceId, $revisionId, $message, $history)) {
             return $offerReply;
         }
@@ -1017,33 +1010,6 @@ PROMPT;
      * @param  array<int,array<string,mixed>>  $history
      * @return array<string,mixed>|null
      */
-    /**
-     * A client-written starter question gets its saved answer word for word:
-     * no model call, no retrieval and no credits.
-     *
-     * @return array<string,mixed>|null
-     */
-    private function starterQuestionReply(AiChatbot $bot, int $workspaceId, ?int $revisionId, string $message): ?array
-    {
-        $item = $this->starterQuestions->match($bot, $message);
-        if ($item === null) {
-            return null;
-        }
-
-        $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'starter_question', [], 0, [
-            'intent' => 'starter_question',
-            'answer_origin' => 'starter_question',
-            'credit_result' => 'zero_cost',
-        ]);
-
-        return $this->withAnswerMetadata([
-            'reply' => $item['answer'],
-            'tokens_used' => 0,
-            'resources' => [],
-            'intent' => 'starter_question',
-        ], 'starter_question');
-    }
-
     private function offerReply(AiChatbot $bot, ?AiKnowledgeBase $kb, int $workspaceId, ?int $revisionId, string $message, array $history): ?array
     {
         $previous = collect($history)->last(fn (array $turn): bool => ($turn['role'] ?? null) === 'assistant');

@@ -4,6 +4,7 @@ namespace App\Modules\Social\Http\Controllers;
 
 use App\Modules\Social\Services\XContentRules;
 use App\Modules\Social\Services\SocialMediaRules;
+use App\Modules\Social\Services\SocialTokenRefresher;
 use App\Modules\Social\Services\XPostContent;
 use App\Http\Controllers\Controller;
 use App\Modules\AI\Exceptions\AiCreditsException;
@@ -78,8 +79,8 @@ class SocialPostController extends Controller
         $accounts = SocialAccount::where('workspace_id', $wid)
             ->where('active', true)
             ->where(fn ($query) => $query->whereNull('token_expires_at')->orWhere('token_expires_at', '>', now())
-                // X tokens are refreshed right before publishing.
-                ->orWhere(fn ($x) => $x->where('network', 'twitter')->whereNotNull('refresh_token')))
+                // These are renewed with their refresh token right before publishing.
+                ->orWhere(fn ($renewable) => $renewable->whereIn('network', SocialTokenRefresher::NETWORKS)->whereNotNull('refresh_token')))
             ->get(['id', 'network', 'name', 'picture_url']);
 
         return Inertia::render('Social/Composer', ['accounts' => $accounts]);

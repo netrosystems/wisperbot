@@ -64,6 +64,15 @@ return [
         'rest_api_key' => env('ONESIGNAL_REST_API_KEY', ''),
     ],
 
+    // WisperBot's own ad measurement (Meta dataset). Super Admin → Integrations
+    // overrides these; they are a fallback for deployments that have not saved it.
+    'meta_pixel' => [
+        'pixel_id' => env('META_PIXEL_ID', ''),
+        'access_token' => env('META_CAPI_ACCESS_TOKEN', ''),
+        'test_event_code' => env('META_CAPI_TEST_EVENT_CODE', ''),
+        'domain_verification' => env('META_DOMAIN_VERIFICATION', ''),
+    ],
+
     'qdrant' => [
         'url' => env('QDRANT_URL', ''),
         'api_key' => env('QDRANT_API_KEY', ''),

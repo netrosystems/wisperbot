@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\AI\Services\StarterQuestions;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\WeeklySchedule;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -124,7 +125,7 @@ class ChatWidgetController extends Controller
     public function update(Request $request, ChatWidget $chatWidget): RedirectResponse
     {
         $this->assertOwner($request, $chatWidget);
-        $data = $this->validated($request);
+        $data = $this->validated($request, $chatWidget);
         $data = $this->applyLauncherLogo($request, $data, $chatWidget);
 
         $chatWidget->update($data);
@@ -152,9 +153,9 @@ class ChatWidgetController extends Controller
     // ── helpers ──────────────────────────────────────────────────────────────
 
     /** @return array<string, mixed> */
-    private function validated(Request $request): array
+    private function validated(Request $request, ?ChatWidget $existing = null): array
     {
-        $data = $request->validate([
+        $data = $request->validate(StarterQuestions::rules() + [
             'name' => ['nullable', 'string', 'max:128'],
             'title' => ['nullable', 'string', 'max:128'],
             'subtitle' => ['nullable', 'string', 'max:160'],
@@ -194,6 +195,13 @@ class ChatWidgetController extends Controller
         $data['sdk_enabled'] = $request->has('sdk_enabled') ? $request->boolean('sdk_enabled') : true;
 
         $data['ai_schedule_json'] = $this->normalizeAiSchedule($data['ai_schedule_json'] ?? null);
+
+        // Starter questions belong to the widget and work with or without AI.
+        $starter = app(StarterQuestions::class);
+        $items = array_values($data['starter_questions'] ?? []);
+        $starter->assertUsable($items);
+        $data['starter_questions'] = $starter->prepareForStorage($items, $existing?->starter_questions);
+        $data['starter_questions_enabled'] = $request->boolean('starter_questions_enabled');
 
         unset($data['launcher_logo'], $data['remove_launcher_logo']);
 

@@ -6,12 +6,28 @@ Last reviewed: 2026-09-03. This file records intentional behavior so future work
 
 WisperBot is a white-label-friendly, multi-workspace customer communication platform. Its main promise is to centralize conversations and operational context, with AI assistance and human handoff rather than forcing customers into AI-only support.
 
+## Workspaces (2026-09-25)
+
+- **Rename:** the workspace owner can rename a workspace.
+- **Delete:** only the owner can delete, after typing the workspace name.
+  - The workspace disappears for everyone and everything in it stops at once: channels, widgets, Smart Bot replies, automations, campaigns and scheduled posts.
+  - The owner can restore it, with everything as it was, for 30 days. After that, all its data is permanently erased.
+  - Members whose main workspace it was move to another workspace they can open. An owner may delete their last workspace, and is then asked to restore it or create a new one.
+- **Kept after erasure:** user accounts, audit logs and billing usage history. Provider-side connections (Meta webhooks, store webhooks) are not unregistered; their traffic is simply ignored.
+
+## Marketing measurement and consent (2026-09-26)
+
+- WisperBot measures its **own** Meta advertising with a Pixel and the Conversions API. It runs only on the public website and sign-in/sign-up, never inside client workspaces or Admin, and never includes tenants' customer data.
+- Consent comes first. European time zones must opt in before anything loads; elsewhere advertising cookies default on with a notice and a one-click **Turn off**. Server events follow the same recorded choice; without `granted`, nothing is sent.
+- Only explicit funnel events are measured (page views, pricing view, contact lead, registration, checkout start, first subscription or trial). Automatic page scraping (`autoConfig`) stays off.
+- The cookie banner appears only when a tracking tool is configured, so visitors are not asked about cookies that are not used.
+
 ## Client navigation and terminology
 
 - The primary agent inbox is **Omni Channel Inbox**.
 - Email is separate as **Email MasterBox**; email and SMS must not appear as channels inside the Omni Channel Inbox.
 - Channel connection is **Inbox Channel Setup**.
-- Website chat management is grouped as **Chatbot Widget**, with Widgets, Appearance, and Integrations.
+- Website chat management is grouped as **Chatbot Widget**, with Widgets, **Widget Setup** (renamed from Appearance on 2026-09-26) and Integrations. Widget Setup has three tabs: **Appearance** (branding, launcher and welcome), **AI & visitors** (Smart Bot answering, pre-chat, domains, identity verification, widget/SDK switches) and **Starter questions**. One Save covers all tabs.
 - Social publishing uses one client destination named **Social Media Automation**. Account connection is the compact first section, post management defaults to Upcoming, and List/Calendar are views of the same workspace. The focused composer opens from **Schedule Post** and requires an explicit Schedule for later or Publish now choice.
 - AI is presented as **AI Automations** and chatbots as **Smart Bots**.
 - Widget Appearance uses **Smart Bot** consistently in its AI-answering toggle, selector and empty-state guidance; internal chatbot identifiers and API fields remain unchanged.
@@ -82,15 +98,15 @@ Product requirement clarified: 2026-09-08. This is an existing horizontal SaaS c
 - Reply buttons do not execute purchases, cancellations, bookings or permission changes. Those require separate authorized action workflows. Human handoff, stale-choice protection, privacy, tenancy and fixed-action credit rules still apply.
 - Implementation presence, successful automated tests, production deployment and native SDK release are different states. Verify all relevant stages before claiming the complete customer journey works. A language-specific recovery heuristic is not a universal implementation of this requirement.
 
-## Smart Bot starter questions
+## Widget starter questions
 
-Product decision: 2026-09-19. Clients can pre-answer their most common questions.
+Product decision: 2026-09-19; moved from the Smart Bot to the widget on 2026-09-26. Clients can pre-answer their most common questions.
 
-- Each Smart Bot has an on/off **Starter questions** switch and up to **five** questions with fixed answers, written by the client. The feature is generic: any business writes its own questions; nothing is industry-specific.
+- Each website widget has an on/off **Starter questions** switch in Widget Setup and up to **five** questions with fixed answers, written by the client. The feature is generic: any business writes its own questions; nothing is industry-specific.
 - When on, website-chat and customer-SDK customers see the questions on a new chat and permanently at the top of the chat, under the welcome message.
 - Tapping a question sends it as the customer's message, and the bot replies instantly with the exact saved answer. There is no AI rewording and it costs no credits. Typing the same question, ignoring case, punctuation and spacing, gets the same answer.
-- The questions are shown only while the Smart Bot is answering (AI on and within its schedule). Once a person handles the chat, the questions are disabled and do not trigger the bot.
-- Other channels do not show the list, but an exact typed match there also receives the saved answer.
+- The questions are shown and answered whenever the switch is on, whether or not AI is on or within its schedule. They are fixed answers, not AI. Once a person handles the chat, the questions are disabled and get no automatic answer.
+- They apply only to the website widget and customer SDK. Other channels neither show nor answer them.
 
 ## Developer features
 

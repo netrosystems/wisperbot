@@ -26,6 +26,7 @@ use App\Http\Middleware\SecureHeaders;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\WidgetRequestLogger;
 use App\Modules\AI\Exceptions\AiCreditsException;
+use App\Services\Marketing\MarketingConsent;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -159,6 +160,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_PORT
                 | Request::HEADER_X_FORWARDED_PROTO,
         );
+
+        // Marketing consent and the Meta Pixel's first-party cookies are written
+        // by browser JavaScript, so Laravel must read them unencrypted.
+        $middleware->encryptCookies(except: [
+            MarketingConsent::COOKIE,
+            '_fbp',
+            '_fbc',
+        ]);
 
         $middleware->validateCsrfTokens(except: [
             'webhooks/stripe',

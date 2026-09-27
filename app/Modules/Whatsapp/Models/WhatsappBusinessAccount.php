@@ -2,6 +2,7 @@
 
 namespace App\Modules\Whatsapp\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use App\Modules\Integrations\Services\CredentialResolver;
 use App\Modules\Shared\Models\ChannelAccount;
 use Database\Factories\WhatsappBusinessAccountFactory;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class WhatsappBusinessAccount extends Model
 {
+    use ExcludesDeletedWorkspaces;
     use HasFactory;
 
     protected static function newFactory()

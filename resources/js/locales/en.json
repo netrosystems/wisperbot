@@ -16,7 +16,16 @@
         "opens": "Opens",
         "closes": "Closes",
         "closed_day_ai_hint": "On unchecked days your office is closed, so AI answers all day.",
-        "closed_day_rest_hint": "On unchecked days your office is closed, so AI rests all day."
+        "closed_day_rest_hint": "On unchecked days your office is closed, so AI rests all day.",
+        "page_title": "Widget Setup",
+        "sections": "Widget Setup sections",
+        "tab_appearance": "Appearance",
+        "tab_ai_visitors": "AI & visitors",
+        "tab_starter_questions": "Starter questions",
+        "tab_has_errors": "Has errors",
+        "branding": "Branding",
+        "launcher_welcome": "Launcher & welcome",
+        "show_starter_questions": "Show starter questions"
     },
     "0": {
         "01": "01",
@@ -198,7 +207,8 @@
         "tutorials": "Tutorials",
         "master_email_inbox": "Master Email Inbox",
         "email_setup": "Email Setup",
-        "widgets": "Widgets"
+        "widgets": "Widgets",
+        "widget_setup": "Widget Setup"
     },
     "welcome": {
         "title": "Build websites with AI.",
@@ -3652,7 +3662,7 @@
         },
         "tone_${tone}": "Tone ${Tone}",
         "starter_questions": "Starter questions",
-        "starter_questions_hint": "Shown at the top of website chats. Tapping one sends your saved answer instantly — no AI credits used.",
+        "starter_questions_hint": "Shown at the top of website and app chats. Tapping one sends your saved answer instantly, whether or not AI is on. No AI credits used.",
         "starter_questions_empty": "Add up to 5 questions your customers ask most.",
         "starter_questions_count": "{{count}}\/{{max}} questions",
         "starter_question_number": "Question {{number}}",
@@ -3661,7 +3671,9 @@
         "starter_question_placeholder": "e.g. What are your opening hours?",
         "starter_answer_placeholder": "The exact answer customers receive",
         "starter_question_add": "Add question",
-        "starter_question_remove": "Remove question {{number}}"
+        "starter_question_remove": "Remove question {{number}}",
+        "starter_questions_moved": "Starter questions now live in Widget Setup, so they work even when AI is off.",
+        "starter_questions_open_widget_setup": "Open Widget Setup"
     },
     "whatsapp": {
         "setup_title": "WhatsApp Setup",
@@ -4297,7 +4309,10 @@
         "media_rule_instagram_count": "Instagram posts can have up to 10 images or videos. Remove the extra media, or deselect Instagram.",
         "media_rule_instagram_jpg": "Instagram only accepts JPG images. Use a JPG version of each image, or deselect Instagram.",
         "media_rule_linkedin": "LinkedIn posts can have 1 image or 1 video. Remove the extra media, or deselect LinkedIn.",
-        "media_rule_video": "YouTube and TikTok need a video (MP4 or MOV)."
+        "media_rule_video": "YouTube and TikTok need a video (MP4 or MOV).",
+        "reconnect_needed": "Reconnect needed",
+        "expires_in_days_one": "Expires in {{count}} day",
+        "expires_in_days_other": "Expires in {{count}} days"
     },
     "leads": {
         "title": "Lead Scraper",
@@ -4344,7 +4359,28 @@
         "name_label": "Workspace name",
         "name_placeholder": "e.g. Acme Corp",
         "creating": "Creating…",
-        "create_workspace": "Create workspace"
+        "create_workspace": "Create workspace",
+        "rename": "Rename",
+        "rename_named": "Rename {{name}}",
+        "save": "Save",
+        "saving": "Saving…",
+        "rename_failed": "The workspace could not be renamed. Try again.",
+        "delete": "Delete",
+        "delete_named": "Delete {{name}}",
+        "delete_title": "Delete {{name}}?",
+        "delete_intro": "Deleting this workspace:",
+        "delete_effect_hidden": "Removes it from Workspaces and the switcher for everyone. Members who use it are moved to another workspace.",
+        "delete_effect_stops": "Stops everything in it right away: channels, website and WhatsApp widgets, Smart Bot replies, automations, campaigns and scheduled posts.",
+        "delete_effect_restore": "Lets you restore it, with everything as it was, for {{days}} days. After that, all its data is permanently erased.",
+        "delete_confirm_label": "Type {{name}} to confirm",
+        "delete_workspace": "Delete workspace",
+        "deleting": "Deleting…",
+        "delete_failed": "The workspace could not be deleted. Try again.",
+        "recently_deleted": "Recently deleted ({{count}})",
+        "erased_on": "Permanently erased on {{date}}",
+        "restore": "Restore",
+        "restore_named": "Restore {{name}}",
+        "restoring": "Restoring…"
     },
     "contact_page": {
         "title": "Contact Us",

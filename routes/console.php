@@ -81,10 +81,11 @@ Schedule::job(new DispatchScheduledPostsJob, 'social')
     ->name('dispatch-social-posts')
     ->withoutOverlapping();
 
-// Refresh expiring social OAuth tokens daily
+// Hourly: YouTube access tokens last one hour, TikTok one day.
 Schedule::job(new RefreshSocialTokensJob, 'social')
-    ->dailyAt('02:00')
-    ->name('refresh-social-tokens');
+    ->hourly()
+    ->name('refresh-social-tokens')
+    ->withoutOverlapping();
 
 // Poll eBay seller conversations until production notification subscriptions
 // are enabled. Each seller account is isolated in its own queued sync job.
@@ -144,6 +145,13 @@ Schedule::call(function (): void {
 Schedule::call(function () {
     app(WebhookIdempotencyService::class)->prune(30);
 })->weekly()->name('prune-inbound-webhook-events');
+
+// Permanently erase workspaces deleted more than 30 days ago (restore window over)
+Schedule::command('workspaces:purge-deleted')
+    ->dailyAt('03:30')
+    ->name('workspaces-purge-deleted')
+    ->withoutOverlapping()
+    ->onOneServer();
 
 // Sync subscription statuses with payment gateways (hourly)
 Schedule::command('billing:sync')

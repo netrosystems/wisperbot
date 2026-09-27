@@ -3,6 +3,7 @@
 namespace App\Modules\Social\Services\OAuth;
 
 use App\Modules\Integrations\Services\CredentialResolver;
+use App\Modules\Social\Exceptions\TokenRefreshRejectedException;
 use App\Modules\Integrations\Services\Credentials\OAuthClientCredentials;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -345,6 +346,9 @@ class OAuthManager
             ->post('https://api.x.com/2/oauth2/token', $data + ['client_id' => $creds->clientId()]);
 
         if (! $response->successful() || ! $response->json('access_token')) {
+            if (($data['grant_type'] ?? null) === 'refresh_token') {
+                $this->assertRefreshAccepted($response, 'X token refresh');
+            }
             throw new \RuntimeException(in_array($response->status(), [400, 401], true)
                 ? 'X authorization must be reconnected.'
                 : 'X authorization is temporarily unavailable.');
@@ -436,7 +440,7 @@ class OAuthManager
             'grant_type' => 'refresh_token',
             'refresh_token' => $refreshToken,
         ]);
-        $this->assertSuccessful($response, 'Google token refresh');
+        $this->assertRefreshAccepted($response, 'Google token refresh');
         $res = $response->json();
 
         if (empty($res['access_token'])) {
@@ -454,11 +458,15 @@ class OAuthManager
             'grant_type' => 'refresh_token',
             'refresh_token' => $refreshToken,
         ]);
-        $this->assertSuccessful($response, 'TikTok token refresh');
+        $this->assertRefreshAccepted($response, 'TikTok token refresh');
         $res = $response->json();
 
         $token = $res['access_token'] ?? null;
         if (! $token) {
+            // TikTok can answer 200 with an error body.
+            if (in_array($res['error'] ?? null, ['invalid_grant', 'access_token_invalid', 'refresh_token_invalid'], true)) {
+                throw new TokenRefreshRejectedException('TikTok rejected the refresh token: '.($res['error_description'] ?? $res['error']));
+            }
             throw new \RuntimeException('TikTok token refresh failed: '.json_encode($res));
         }
 
@@ -473,7 +481,7 @@ class OAuthManager
             'client_id' => ($pages ? $creds->pagesClientId() : $creds->clientId()) ?? '',
             'client_secret' => ($pages ? $creds->pagesClientSecret() : $creds->clientSecret()) ?? '',
         ]);
-        $this->assertSuccessful($response, 'LinkedIn token refresh');
+        $this->assertRefreshAccepted($response, 'LinkedIn token refresh');
         $res = $response->json();
 
         if (empty($res['access_token'])) {
@@ -489,6 +497,29 @@ class OAuthManager
         Session::put('social_oauth_state', array_merge($data, ['state' => $state]));
 
         return $state;
+    }
+
+    /**
+     * A 400/401 about the token means the refresh token is no longer valid and
+     * the account must be reconnected. A client error (`invalid_client`,
+     * `unauthorized_client`) is a platform configuration problem, and a 5xx or
+     * timeout is temporary: neither may disconnect client accounts.
+     */
+    private function assertRefreshAccepted(Response $response, string $operation): void
+    {
+        if ($response->successful()) {
+            return;
+        }
+
+        $error = (string) ($response->json('error') ?? '');
+        $message = $response->json('error_description') ?? $response->json('error.message') ?? $response->json('message') ?? $error;
+        $detail = $operation.' failed (HTTP '.$response->status().'): '.mb_substr((string) $message, 0, 300);
+
+        if (in_array($response->status(), [400, 401], true) && ! in_array($error, ['invalid_client', 'unauthorized_client'], true)) {
+            throw new TokenRefreshRejectedException($detail);
+        }
+
+        throw new \RuntimeException($detail);
     }
 
     private function assertSuccessful(Response $response, string $operation): void

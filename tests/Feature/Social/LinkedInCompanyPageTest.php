@@ -9,6 +9,7 @@ use App\Modules\Social\Jobs\RefreshSocialTokensJob;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Services\Drivers\LinkedInDriver;
 use App\Modules\Social\Services\OAuth\OAuthManager;
+use App\Modules\Social\Services\SocialTokenRefresher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -182,7 +183,8 @@ class LinkedInCompanyPageTest extends TestCase
                 'name' => $accountId,
                 'access_token' => 'old-access',
                 'refresh_token' => 'shared-refresh',
-                'token_expires_at' => now()->addHours(2),
+                // Inside the job's two-hour renewal window.
+                'token_expires_at' => now()->addHour(),
                 'meta' => ['actor_type' => $actor],
                 'active' => true,
             ]);
@@ -192,7 +194,7 @@ class LinkedInCompanyPageTest extends TestCase
             'access_token' => 'new-access', 'refresh_token' => 'new-refresh', 'expires_in' => 5184000,
         ])]);
 
-        app(RefreshSocialTokensJob::class)->handle(app(OAuthManager::class));
+        app(RefreshSocialTokensJob::class)->handle(app(SocialTokenRefresher::class));
 
         $accounts = SocialAccount::where('workspace_id', $workspace->id)->get();
         $this->assertCount(2, $accounts);

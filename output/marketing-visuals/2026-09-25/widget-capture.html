@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WisperBot actual widget — isolated marketing capture</title>
+  <style>body{margin:0;background:#f4f5f2;font-family:Arial,sans-serif}p{padding:24px;color:#47534a;max-width:360px;font-size:14px}</style>
+</head>
+<body>
+<p>Actual production widget renderer with fictional demonstration messages. Isolated fixture: no live session, AI call, customer data, or message sending.</p>
+<script>
+  window.__WB_CHAT__ = { key: 'isolated-marketing-capture-v2', config: {
+    primary_color: '#FF762E', title: 'WisperBot Assistant', agent_name: 'WisperBot',
+    avatar_url: 'http://127.0.0.1:8000/wisperbot-icon-512.png', launcher_logo_url: 'http://127.0.0.1:8000/wisperbot-icon-512.png',
+    footer_company_name: 'WisperBot', ai_enabled: true, require_prechat: false,
+    welcome_message: 'Hi! What can we help you with today?', team_members: [],
+  }};
+  const messages = [
+    { id: 1, role: 'visitor', body: 'How can I get started?', status: 'read' },
+    { id: 2, role: 'agent', body: 'Start by connecting your first channel. Would you like help with website chat or your social channels?', display_body: 'Start by connecting your first channel. Would you like help with website chat or your social channels?', quick_replies: [{label:'Website chat',value:'Website chat'},{label:'Social channels',value:'Social channels'}] },
+  ];
+  window.fetch = async (url) => ({ ok: true, status: 200, json: async () => String(url).includes('/session') ? {
+    token: 'local-fixture-not-a-real-token', visitor_id: 'fictional-visitor', conversation_id: 'fictional-conversation',
+    online: true, messages, handoff: { enabled: true, eligible: true, status: 'bot' }, config: { realtime: {} },
+  } : { messages: [], online: true } });
+</script>
+<script src="http://127.0.0.1:8000/widget/wisperbot-chat-widget.js"></script>
+<script>window.WisperBot('open');</script>
+</body>
+</html>

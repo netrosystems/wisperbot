@@ -2,6 +2,7 @@
 
 namespace App\Modules\Ecommerce\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -20,6 +21,8 @@ use Illuminate\Support\Str;
  */
 class EcommerceStore extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'ecommerce_stores';
 
     public const PLATFORMS = ['shopify', 'woocommerce', 'bigcommerce'];

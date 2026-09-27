@@ -20,6 +20,7 @@ import SeoHead from '@/Components/SeoHead'
 import { Reveal } from '@/Components/Reveal'
 import HeroBackdrop from '@/Components/marketing/HeroBackdrop'
 import HeroHeadline, { HeroLaunch } from '@/Components/marketing/HeroHeadline'
+import MarketingArtwork from '@/Components/marketing/MarketingArtwork'
 import {
     MButton,
     MLink,
@@ -36,15 +37,6 @@ import {
 import {
     MotionStage,
     BrandMark,
-    ProductDemo,
-    InboxDemo,
-    ChatDemo,
-    AIDemo,
-    AutomationDemo,
-    MobileDemo,
-    EmailDemo,
-    SocialDemo,
-    CommerceDemo,
     DeveloperDemo,
 } from '@/Components/marketing/MarketingDemos'
 
@@ -214,7 +206,7 @@ function PlatformTabs() {
                     </MLink>
                 </div>
                 <div key={demo}>
-                    <ProductDemo type={demo} compact />
+                    <MarketingArtwork type={demo} compact />
                 </div>
             </div>
         </>
@@ -297,7 +289,7 @@ function Lifecycle() {
                     </div>
                 </div>
                 <div className="m-lifecycle-stage">
-                    <ProductDemo type={steps[active][3]} compact />
+                    <MarketingArtwork type={steps[active][3]} compact />
                     <p className="m-stage-note">
                         {t('home.lifecycle.note', 'Illustrative workflow · your channels, your knowledge, your team')}
                     </p>
@@ -532,7 +524,7 @@ export default function Welcome({ latestPosts = [] }) {
                         </div>
                     </div>
                     <MotionStage className="m-hero-stage">
-                        <InboxDemo />
+                        <MarketingArtwork type="overview" />
                         <p className="m-hero-caption">
                             {t(
                                 'home.hero_caption',
@@ -599,7 +591,7 @@ export default function Welcome({ latestPosts = [] }) {
                             <ArrowUpRight size={16} />
                         </MLink>
                     </div>
-                    <AIDemo />
+                    <MarketingArtwork type="knowledge" />
                 </div>
             </section>
             <section className="m-section m-container">
@@ -625,7 +617,7 @@ export default function Welcome({ latestPosts = [] }) {
                             {t('home.inboxes.omni_link', 'Explore Omni Inbox')}
                             <ArrowUpRight size={16} />
                         </MLink>
-                        <InboxDemo compact />
+                        <MarketingArtwork type="team" />
                     </Reveal>
                     <Reveal className="m-bento-card email" delay={90}>
                         <h3>{t('home.inboxes.email', 'Email, with room to breathe.')}</h3>
@@ -639,7 +631,7 @@ export default function Welcome({ latestPosts = [] }) {
                             {t('home.inboxes.email_link', 'Explore Email MasterBox')}
                             <ArrowUpRight size={16} />
                         </MLink>
-                        <EmailDemo />
+                        <MarketingArtwork type="email" />
                     </Reveal>
                 </div>
             </section>
@@ -653,7 +645,7 @@ export default function Welcome({ latestPosts = [] }) {
                     )}
                 />
                 <div className="m-surface-grid">
-                    <ChatDemo />
+                    <MarketingArtwork type="chat" />
                     <div className="m-surface-list">
                         {[
                             [
@@ -715,7 +707,7 @@ export default function Welcome({ latestPosts = [] }) {
                             <ArrowUpRight size={16} />
                         </MLink>
                     </div>
-                    <MobileDemo />
+                    <MarketingArtwork type="mobile" />
                 </div>
             </section>
             <section className="m-section m-container">
@@ -734,7 +726,7 @@ export default function Welcome({ latestPosts = [] }) {
                             <ArrowUpRight size={16} />
                         </MLink>
                     </div>
-                    <AutomationDemo />
+                    <MarketingArtwork type="automation" />
                 </div>
                 <div className="m-mini-features">
                     {[
@@ -774,7 +766,7 @@ export default function Welcome({ latestPosts = [] }) {
                             <ArrowUpRight size={16} />
                         </MLink>
                     </div>
-                    <SocialDemo />
+                    <MarketingArtwork type="social" />
                 </div>
             </section>
             <section className="m-section m-soft">
@@ -793,7 +785,7 @@ export default function Welcome({ latestPosts = [] }) {
                             <ArrowUpRight size={16} />
                         </MLink>
                     </div>
-                    <CommerceDemo />
+                    <MarketingArtwork type="commerce" />
                 </div>
             </section>
             <section className="m-section m-container">

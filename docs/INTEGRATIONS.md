@@ -25,6 +25,7 @@ Super Admin configures platform-level applications/gateways. A client then autho
 | Billing | Stripe, PayPal, Paddle credentials/webhooks | Select plan/add-on and checkout | Subscription and payment lifecycle. |
 | Realtime | Pusher/Reverb server configuration | None beyond authenticated session/mobile token | Workspace/conversation broadcasts and presence. |
 | Push | OneSignal and/or web-push configuration | User/device registration and permission | Agent mobile/browser notifications. |
+| Meta Pixel (WisperBot marketing) | Dataset ID, Conversions API token, optional test code and domain verification | None (never runs for tenants) | Consent-gated browser Pixel on public pages; server events for sign-up, checkout, first subscription and contact leads. |
 
 ## Meta
 
@@ -123,6 +124,40 @@ For every requested permission, record the complete flow: login/authorization, e
 
 Only Stripe, PayPal, and Paddle are supported. Webhooks are CSRF-exempt but must be signature-verified in their controllers. Provider price IDs and recurring subscription reconciliation are operational configuration, not client-supplied values.
 
+## Meta Pixel & Conversions API (2026-09-26)
+
+WisperBot's **own** advertising measurement for its public website. It is not a customer feature: it never loads inside client workspaces or Admin and sends nothing about tenants' customers.
+
+**Configuration.** Super Admin → Integrations → *Meta Pixel & Conversions API* (`IntegrationConfig` provider `meta_pixel`), resolved by `App\Services\Marketing\MetaPixelSettings`. The saved row overrides `.env` (`META_PIXEL_ID`, `META_CAPI_ACCESS_TOKEN`, `META_CAPI_TEST_EVENT_CODE`, `META_DOMAIN_VERIFICATION`); a disabled row turns it off without env fallback.
+
+| Field | Where it comes from | Exposure |
+|---|---|---|
+| Dataset (Pixel) ID | Events Manager → Datasets → website dataset | Public; rendered on eligible pages only. Must be numeric. |
+| Conversions API Access Token | Dataset → Settings → Conversions API → Generate access token | Encrypted; server only. Blank = browser-only measurement. |
+| Test Event Code | Events Manager → Test events | Routes server events to Test events. Clear after verifying. |
+| Domain Verification Code | Business settings → Brand safety → Domains (meta-tag method) | Rendered as `<meta name="facebook-domain-verification">`. |
+
+The admin connection test posts one `WisperBotConnectionTest` event with a test event code (the saved one, else `TEST00000`), so it never reaches live reporting. Tokens generated in Events Manager can send events but cannot read dataset details, so a read (`GET /{dataset-id}`) returns `(#100) Missing Permission` even for a working token (verified 2026-09-26). Test Event Code and Domain Verification Code are `clearable`: emptying them in the form deletes the stored value, while a blank token still keeps the saved secret.
+
+**Browser Pixel** (`resources/js/Utils/metaPixel.js`, banner `Components/CookieConsent.jsx`).
+- Eligibility comes from the `metaPixel` shared prop (`HandleInertiaRequests::metaPixelPublicConfig`): off for `app/*`, `admin/*`, `api/*`, `mobile/*`, `install*` and blog previews.
+- Consent: European time zones (EEA, UK, Switzerland and neighbours) load nothing until **Accept**. Elsewhere the Pixel runs by default, the banner is a notice, and **Turn off** is one click. The footer "Cookie settings" reopens the choice. The decision is the first-party cookie `wb_marketing_consent` (`granted`/`denied`), which the server reads too; it, `_fbp` and `_fbc` are excluded from cookie encryption.
+- `autoConfig` is disabled, so only explicit events are sent: `PageView` on every Inertia navigation, `ViewContent` on Pricing, and `Lead` on a successful contact form.
+- CSP adds `connect.facebook.net` (script, connect) and `www.facebook.com` (connect) whenever a Pixel ID is configured, independent of the Meta messaging app.
+
+**Server events** (`App\Services\Marketing\MetaConversions` → queued `App\Jobs\SendMetaConversionEvent` on `default`, Graph `v25.0`, bearer token, 3 tries, retry on 429/5xx only).
+
+| Event | Trigger | `event_id` |
+|---|---|---|
+| `CompleteRegistration` | New customer account: password, Socialite (Google/GitHub/Microsoft) or Firebase. Invited teammates excluded. | `registration_{user}` |
+| `InitiateCheckout` | `POST /app/checkout` redirected to a hosted checkout. Value = plan list price for the cycle. | `checkout_{uuid}` |
+| `Subscribe` / `StartTrial` | `SubscriptionStarted` for Stripe/PayPal/Paddle. `free`/`manual` gateways, free plans and renewals excluded. Trials send value 0 plus `predicted_ltv`. | `subscription_{id}` |
+| `Lead` | Public contact form. The browser sends the same ID in `meta_event_id`, so Meta keeps one. | shared browser ID |
+
+- Events are sent **only when `wb_marketing_consent=granted`**. Payment webhooks have no browser, so registration and checkout store a consent/attribution snapshot in `users.marketing_attribution` (consent, `_fbp`, `_fbc`, IP, user agent, page URL without query string); webhook events use that snapshot.
+- Email, first and last name and `external_id` (`wisperbot_user_{id}`) are SHA-256 hashed before queuing; raw personal data never enters the queue or Meta payloads.
+- Known limits: `value` is the plan list price, not the charged amount after coupons or tax. Event auto-discovery also registers listeners declared in `AppServiceProvider`, so `MetaConversions` ignores a repeated `event_id` within one request or job.
+
 ## LinkedIn (2026-09-20)
 
 LinkedIn needs **two developer apps**, because its Community Management API "requires that it be the only product on the application": an app that also has Sign In with LinkedIn or Share on LinkedIn can never be granted it.
@@ -136,7 +171,7 @@ Both apps register the same callback (`{APP_URL}/app/social/accounts/callback/li
 
 - **Connecting.** `GET .../accounts/connect/linkedin` authorizes the member; `?target=pages` authorizes the Company Page app instead, and the variant travels in the OAuth state. The Page authorization has no sign-in scopes, so no member profile is read; Pages come from `GET /v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED`. The client then picks targets on `client.social.accounts.linkedin.select`, and only ids from that authorization can be stored.
 - **Publishing.** Each connected target is its own `social_media_accounts` row. `meta.actor_type` (`member` or `organization`) selects the author URN: `urn:li:person:{id}` or `urn:li:organization:{id}` (`LinkedInDriver::publish()`).
-- **Tokens.** LinkedIn issues no per-Page token and rotates refresh tokens, so every row from one authorization shares and rotates together (`RefreshSocialTokensJob::shareWithSiblings()`), refreshed with the keys of the app that issued them.
+- **Tokens.** LinkedIn issues no per-Page token and rotates refresh tokens, so every row from one authorization shares and rotates together (`SocialTokenRefresher::shareWithSiblings()`), refreshed with the keys of the app that issued them. Most apps get **no refresh token**, so a connection lasts 60 days; the client is reminded 7 days ahead (see *Social token renewal*).
 - **Comments** remain not integrated; they need Community Management comment permissions on top of posting access.
 
 ## X (2026-09-24)
@@ -150,6 +185,11 @@ X publishing allows **text with up to 3 images, or 1 video or GIF**, and **no li
 WisperBot never sends media metadata (alt text, $0.005 per request).
 
 - **Admin setup.** Admin → Integrations → X OAuth (`oauth_twitter`) holds the OAuth 2.0 Client ID and Client Secret from console.x.com, not the API key/secret pair. The app must be a confidential "Web App" with **Read and write** permission. It must register the callback `{APP_URL}/app/social/accounts/callback/twitter`. The X account that owns the app must hold credits and should have a spending limit. When credits run out, clients see "X API credits are unavailable. Contact your administrator."
+- **Test Connection** (2026-09-25, `ConnectionTester::testX()`) sends a token request with a dummy code, using the stored Basic credentials. X checks client credentials first:
+  - `invalid_client` means the Client ID or Secret is wrong, for example the API Key pasted instead of the OAuth 2.0 Client ID.
+  - Any other 400 means the pair is valid.
+  - No user is involved and nothing is billed.
+  - Other social OAuth providers still report only that the credentials are present.
 - **Connecting.** OAuth 2.0 Authorization Code with PKCE (S256): authorize at `https://x.com/i/oauth2/authorize`, and exchange at `https://api.x.com/2/oauth2/token` with Basic auth. Scopes are `tweet.read tweet.write users.read media.write offline.access`. An account connected before `media.write` was added can still post text. A post with media fails with "Reconnect your X account to allow images and video" before any X call. The exchange is rejected unless every scope and a refresh token are granted. The profile comes from `GET /2/users/me`.
 - **Content rules** (`XContentRules`, mirrored client-side by `resources/js/Utils/xText.js`):
   - No links of any kind: any scheme, `www.`, bare or internationalised domains, shorteners, or e-mail addresses.
@@ -169,11 +209,27 @@ WisperBot never sends media metadata (alt text, $0.005 per request).
   - Media-library files (`{APP_URL}/storage/...`) are read from the public disk. Other URLs must be public HTTPS. They are downloaded with `KnowledgeUrlGuard`, without automatic redirects, with a connected-IP check and a size cap.
   - Upload is chunked: `POST /2/media/upload/initialize`, `/{id}/append` in 4 MB segments, then `/{id}/finalize`. Video processing is polled with `GET /2/media/upload?command=STATUS` for up to 45 seconds per attempt.
   - Each uploaded media id is saved at once in `social_media_post_accounts.provider_media` and reused until one hour before X's expiry (about 24 hours). A retry, a still-processing video or **Publish now** never uploads the same file twice. The ids are cleared once the post is published.
-- **Tokens.** Access tokens last about 2 hours and X rotates the refresh token on every use. `SocialPublisher` refreshes right before publishing when the token expires within 5 minutes, under `Cache::lock('social-access-token:{id}')`, and stores the rotated pair. `RefreshSocialTokensJob` also refreshes X. An X account with a refresh token is not shown as expired and stays selectable in the composer.
+- **Tokens.** Access tokens last about 2 hours and X rotates the refresh token on every use. Renewal works like the other networks (see *Social token renewal*).
 - **No double charges.** X has no idempotency key. Media upload failures never create a post, so they are always safe to retry. `social_media_post_accounts.provider_attempted_at` is set just before the paid request. It is cleared only when X gives a definite answer: success, or a 4xx such as 401 reconnect, 402/403 credits, 403 permission, or 429 rate limit. After a timeout, a 5xx, or a success without a post ID, the outcome is unknown. The link fails with "X did not confirm this post. Check X before publishing it again." Queue retries never resend it. A client pressing **Publish now** clears the marker deliberately.
 - **No remote edit or delete.** `XDriver` implements no `ManagesPublishedPosts`. `PublishedPostLifecycle::LOCAL_ONLY_NETWORKS` makes X-only posts removable from WisperBot only (`DELETE /app/social/posts/{post}/local`). Deleting a mixed post deletes the other networks' copies and leaves the X copy on X. The success message says so.
 - **Comments** are not integrated.
 - Live X API behaviour is covered only by faked HTTP in `tests/Feature/Social/XPublishingTest.php`. It still needs one real connect-and-post check after credits are bought.
+
+## Social token renewal (2026-09-26)
+
+| Network | Access token | Refresh token | Result |
+|---|---|---|---|
+| Facebook / Instagram | Page token does not expire | not used | Lasts until a password change, a role change or revoked access |
+| YouTube (Google) | 1 hour | does not expire | Lasts indefinitely with renewal, if the Google OAuth app is **In production** (in Testing, Google revokes it after 7 days) and it is used within 6 months |
+| X | 2 hours | rotates on every use | Lasts indefinitely with renewal |
+| TikTok | 24 hours | about 365 days, reissued on refresh | Lasts indefinitely with renewal (to confirm on a live account) |
+| LinkedIn | 60 days | only for approved partner apps (365 days) | Reconnect every 60 days without one |
+
+- **`SocialTokenRefresher`** renews YouTube, TikTok, LinkedIn and X tokens with their refresh token, under `Cache::lock('social-access-token:{id}')`. It stores the new pair and shares a rotated LinkedIn pair with rows from the same authorization. `SocialPublisher` renews within 5 minutes of expiry, right before each post.
+- **`RefreshSocialTokensJob`** runs **hourly** (it was daily) and renews anything expiring within 2 hours.
+- **An account is disconnected only on `TokenRefreshRejectedException`.** That means a 400/401 about the token, such as `invalid_grant`, or TikTok's error body. The account then gets `active=false` and `meta.reconnect_required`, owners and admins get a `SocialConnectionAttentionNotification`, and the card shows "Reconnect needed · Reconnect".
+- **Temporary failures are retried next hour.** A 5xx, a timeout, or `invalid_client` / `unauthorized_client` (a wrong platform client secret, which is the admin's to fix) never disconnect client accounts.
+- **Status shown:** an account with a refresh token is never shown as "Token expired" and stays in the composer. Connections that cannot be renewed show "Expires in N days · Reconnect" from 7 days ahead, and owners and admins get one reminder per expiry date (`meta.expiry_reminder_for`).
 
 ## Realtime and mobile
 
