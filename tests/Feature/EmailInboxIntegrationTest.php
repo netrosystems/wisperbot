@@ -250,7 +250,7 @@ class EmailInboxIntegrationTest extends TestCase
             'subject' => 'Need help',
             'from' => ['emailAddress' => ['address' => 'customer@example.com', 'name' => 'Customer One']],
             'receivedDateTime' => now()->toIso8601String(),
-            'body' => ['contentType' => 'html', 'content' => '<p><strong>Hello</strong> support</p><script>alert(1)</script>'],
+            'body' => ['contentType' => 'html', 'content' => '<p><font color="#ff0000" size="6" face="Arial"><strong>Hello</strong></font> <span style="font-size: 24px; color: rgb(0, 0, 255); position: fixed">support</span></p><script>alert(1)</script>'],
             'hasAttachments' => true,
             'attachments' => [[
                 'filename' => 'guide.pdf',
@@ -273,7 +273,9 @@ class EmailInboxIntegrationTest extends TestCase
         $message = Message::first();
         $this->assertSame('email', $message->channel);
         $this->assertSame('Hello support', $message->body);
-        $this->assertSame('<p><strong>Hello</strong> support</p>', $message->payload['html_body']);
+        $this->assertStringContainsString('<font color="#ff0000" size="6" face="Arial"><strong>Hello</strong></font>', $message->payload['html_body']);
+        $this->assertStringContainsString('style="font-size: 24px; color: rgb(0, 0, 255); position: fixed"', $message->payload['html_body']);
+        $this->assertStringNotContainsString('script', $message->payload['html_body']);
         $this->assertSame('guide.pdf', $message->payload['attachments'][0]['name']);
         $this->assertSame('application/pdf', $message->payload['attachments'][0]['mime_type']);
         $this->assertTrue($message->payload['has_attachments']);

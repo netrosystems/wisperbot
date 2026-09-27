@@ -10,21 +10,18 @@ use DOMXPath;
 class EmailContentSanitizer
 {
     private const ALLOWED_TAGS = [
-        'a', 'b', 'blockquote', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3', 'h4',
-        'h5', 'h6', 'hr', 'i', 'li', 'ol', 'p', 'pre', 's', 'span', 'strong',
-        'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul',
+        'a', 'address', 'b', 'blockquote', 'br', 'caption', 'center', 'code', 'col',
+        'colgroup', 'dd', 'del', 'div', 'dl', 'dt', 'em', 'font', 'h1', 'h2', 'h3',
+        'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'li', 'ol', 'p', 'pre', 's',
+        'small', 'span', 'strong', 'style', 'sub', 'sup', 'table', 'tbody', 'td',
+        'tfoot', 'th', 'thead', 'tr', 'u', 'ul',
     ];
 
-    private const ALLOWED_TAG_STRING = '<a><b><blockquote><br><code><div><em><h1><h2><h3><h4><h5><h6><hr><i><li><ol><p><pre><s><span><strong><table><tbody><td><tfoot><th><thead><tr><u><ul>';
+    private const ALLOWED_TAG_STRING = '<a><address><b><blockquote><br><caption><center><code><col><colgroup><dd><del><div><dl><dt><em><font><h1><h2><h3><h4><h5><h6><hr><i><img><ins><li><ol><p><pre><s><small><span><strong><style><sub><sup><table><tbody><td><tfoot><th><thead><tr><u><ul>';
 
     private const DANGEROUS_TAGS = [
-        'script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'form',
-        'input', 'button', 'select', 'textarea', 'template', 'noscript', 'img',
-    ];
-
-    private const ALLOWED_STYLE_PROPERTIES = [
-        'background-color', 'color', 'font-style', 'font-weight', 'text-align',
-        'text-decoration', 'vertical-align', 'white-space',
+        'script', 'iframe', 'object', 'embed', 'svg', 'math', 'form',
+        'input', 'button', 'select', 'textarea', 'template', 'noscript', 'link',
     ];
 
     public function sanitize(?string $html): string
@@ -66,6 +63,10 @@ class EmailContentSanitizer
                 continue;
             }
 
+            if (strtolower($node->tagName) === 'style') {
+                $node->nodeValue = $this->sanitizeCss($node->textContent);
+            }
+
             $this->sanitizeAttributes($node);
         }
 
@@ -96,12 +97,34 @@ class EmailContentSanitizer
         $tag = strtolower($node->tagName);
         foreach ($attributes as $attributeName) {
             $name = strtolower($attributeName);
-            $allowed = $name === 'style'
+            $allowed = in_array($name, ['class', 'dir', 'id', 'lang', 'style', 'title'], true)
                 || ($tag === 'a' && in_array($name, ['href', 'title'], true))
-                || (in_array($tag, ['th', 'td'], true) && in_array($name, ['colspan', 'rowspan'], true));
+                || ($tag === 'font' && in_array($name, ['color', 'face', 'size'], true))
+                || ($tag === 'img' && in_array($name, ['alt', 'height', 'src', 'width'], true))
+                || (in_array($tag, ['table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'col', 'colgroup'], true)
+                    && in_array($name, ['align', 'bgcolor', 'border', 'cellpadding', 'cellspacing', 'colspan', 'height', 'rowspan', 'valign', 'width'], true));
 
             if (! $allowed || str_starts_with($name, 'on')) {
                 $node->removeAttribute($attributeName);
+            }
+        }
+
+        foreach (['class', 'id'] as $attribute) {
+            if ($node->hasAttribute($attribute)
+                && ! preg_match('/^[\p{L}\p{N}\s_:.-]{1,500}$/u', $node->getAttribute($attribute))) {
+                $node->removeAttribute($attribute);
+            }
+        }
+
+        if ($tag === 'font') {
+            if ($node->hasAttribute('color') && ! preg_match('/^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i', trim($node->getAttribute('color')))) {
+                $node->removeAttribute('color');
+            }
+            if ($node->hasAttribute('size') && ! preg_match('/^[1-7]$/', trim($node->getAttribute('size')))) {
+                $node->removeAttribute('size');
+            }
+            if ($node->hasAttribute('face') && ! preg_match('/^[\p{L}\p{N}\s,._\-"\']{1,100}$/u', trim($node->getAttribute('face')))) {
+                $node->removeAttribute('face');
             }
         }
 
@@ -114,24 +137,53 @@ class EmailContentSanitizer
             }
         }
 
-        if ($node->hasAttribute('style')) {
-            $safe = [];
-            foreach (explode(';', $node->getAttribute('style')) as $declaration) {
-                [$property, $value] = array_pad(explode(':', $declaration, 2), 2, '');
-                $property = strtolower(trim($property));
-                $value = trim($value);
-                if (in_array($property, self::ALLOWED_STYLE_PROPERTIES, true)
-                    && $value !== ''
-                    && ! preg_match('/url\s*\(|expression\s*\(|javascript:/i', $value)) {
-                    $safe[] = $property.': '.$value;
-                }
-            }
-            if ($safe === []) {
-                $node->removeAttribute('style');
-            } else {
-                $node->setAttribute('style', implode('; ', $safe));
+        if ($node->hasAttribute('src')) {
+            $src = trim($node->getAttribute('src'));
+            if (! preg_match('/^(https?:\/\/|data:image\/(?:png|jpe?g|gif|webp);base64,)/i', $src)) {
+                $node->removeAttribute('src');
+            } elseif ($tag === 'img') {
+                $node->setAttribute('loading', 'lazy');
+                $node->setAttribute('referrerpolicy', 'no-referrer');
             }
         }
+
+        if ($node->hasAttribute('style')) {
+            $style = $this->sanitizeDeclarations($node->getAttribute('style'));
+            if ($style === '') {
+                $node->removeAttribute('style');
+            } else {
+                $node->setAttribute('style', $style);
+            }
+        }
+    }
+
+    private function sanitizeCss(string $css): string
+    {
+        $css = (string) preg_replace('/\/\*.*?\*\//s', '', $css);
+        $css = (string) preg_replace('/@import\s+[^;]+;?/i', '', $css);
+        $css = (string) preg_replace('/@charset\s+[^;]+;?/i', '', $css);
+        $css = (string) preg_replace('/(?:expression\s*\(|javascript:|vbscript:|-moz-binding\s*:|behavior\s*:)/i', '', $css);
+
+        return trim($css);
+    }
+
+    private function sanitizeDeclarations(string $style): string
+    {
+        $safe = [];
+        foreach (explode(';', $style) as $declaration) {
+            [$property, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            $property = strtolower(trim($property));
+            $value = trim($value);
+            if ($property !== ''
+                && preg_match('/^(?:--)?[a-z][a-z0-9-]*$/i', $property)
+                && ! in_array($property, ['behavior', '-moz-binding'], true)
+                && $value !== ''
+                && ! preg_match('/expression\s*\(|javascript:|vbscript:/i', $value)) {
+                $safe[] = $property.': '.$value;
+            }
+        }
+
+        return implode('; ', $safe);
     }
 
     /** @return list<DOMNode> */
