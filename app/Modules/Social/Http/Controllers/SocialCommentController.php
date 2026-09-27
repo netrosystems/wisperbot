@@ -175,6 +175,14 @@ class SocialCommentController extends Controller
         return response()->json(['operation' => $op], 202);
     }
 
+    public function operation(Request $request, string $operation)
+    {
+        $workspace = $this->workspace($request);
+        $op = SocialCommentOperation::where('workspace_id', $workspace->id)->findOrFail($operation);
+
+        return response()->json(['operation' => $op]);
+    }
+
     public function settings(Request $request, int $account)
     {
         $workspace = $this->workspace($request, true, true);
