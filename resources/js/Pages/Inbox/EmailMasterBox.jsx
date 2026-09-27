@@ -2,7 +2,7 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import InboxLayout from '@/Layouts/InboxLayout';
 import {
     Archive, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle,
-    ExternalLink, Image as ImageIcon, Inbox, Mail, MailOpen,
+    Image as ImageIcon, Inbox, Mail, MailOpen,
     Paperclip, PenLine, Plus, RefreshCw, Search, Send, Settings2, X,
 } from 'lucide-react';
 import axios from 'axios';
@@ -683,14 +683,6 @@ export default function EmailMasterBox({
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Link
-                                            href={route('client.inbox.show', { conversation: selectedConversation.uuid, channel: 'email' })}
-                                            title="Open full Omni-Channel Chat view"
-                                            className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                                        >
-                                            <ExternalLink className="h-3.5 w-3.5" />
-                                            <span className="hidden sm:inline">Open in Chat</span>
-                                        </Link>
                                         <button
                                             type="button"
                                             onClick={() => setStatus(selectedConversation.status === 'resolved' ? 'open' : 'resolved')}

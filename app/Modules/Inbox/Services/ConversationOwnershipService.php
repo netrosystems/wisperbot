@@ -398,6 +398,25 @@ class ConversationOwnershipService
         }
     }
 
+    public function claimEmailForReply(Conversation $conversation, User $user): Conversation
+    {
+        $conversation->loadMissing(['channelAccount', 'joinedUser']);
+
+        if ($conversation->channelAccount?->channel !== 'email') {
+            $this->assertCanReply($conversation, $user);
+
+            return $conversation;
+        }
+
+        if (! $conversation->joined_user_id) {
+            return $this->join($conversation, $user);
+        }
+
+        $this->assertCanReply($conversation, $user);
+
+        return $conversation;
+    }
+
     private function joinLocked(Conversation $conversation, User $user): Conversation
     {
         $conversation->update([

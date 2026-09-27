@@ -141,9 +141,6 @@ class MobileEmailAttachmentTest extends TestCase
             'contact_id' => $contact->id,
             'status' => 'open',
             'assigned_to' => 'human',
-            'assigned_user_id' => $context['user']->id,
-            'joined_user_id' => $context['user']->id,
-            'joined_at' => now(),
         ]);
 
         $mockDriver = Mockery::mock(ChannelDriverInterface::class);
@@ -163,6 +160,10 @@ class MobileEmailAttachmentTest extends TestCase
             ->assertJsonPath('message.has_attachments', true)
             ->assertJsonPath('message.type', 'image')
             ->assertJsonPath('message.status', 'sent');
+
+        $conversation->refresh();
+        $this->assertSame($context['user']->id, $conversation->joined_user_id);
+        $this->assertSame($context['user']->id, $conversation->assigned_user_id);
 
         $this->assertDatabaseHas('messages', [
             'conversation_id' => $conversation->id,

@@ -434,8 +434,7 @@ class InboxController extends Controller
     public function reply(Request $request, Conversation $conversation): JsonResponse|RedirectResponse
     {
         $this->authorise($request, $conversation);
-        $conversation->loadMissing('joinedUser');
-        $this->ownership->assertCanReply($conversation, $request->user());
+        $conversation = $this->ownership->claimEmailForReply($conversation, $request->user());
 
         $validated = $request->validate([
             'body' => ['nullable', 'string', 'max:4096'],

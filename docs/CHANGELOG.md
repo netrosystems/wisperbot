@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Master Email replies now remain in the dedicated email workflow on web and mobile. Replying atomically claims an unowned thread for the current agent, existing ownership conflicts remain protected, new email composition returns to MasterBox, and the redundant Omni Inbox link was removed. Repair migration `2026_09_27_000200_repair_workspace_soft_delete_columns` restores missing workspace soft-delete columns on installations whose earlier migration was recorded without the schema change.
+
 - Added comment-only mobile discovery and operation tracking for the Agent App. Inbox setup now advertises the Social Comments feature and its Facebook/Instagram scope, inbox counts include needs-attention and per-agent unread comment totals, and a workspace-scoped operation endpoint supports reliable polling after asynchronous public replies, AI suggestions, and moderation. No post creation, scheduling, publishing, schema, or dependency behavior changed.
 
 - Added workspace Quick Replies under Contacts. Administrators/owners can create, edit, and delete reusable text; staff can search and insert it while starting or replying to conversations. Existing approved WhatsApp templates and their 24-hour-window behavior are unchanged.
