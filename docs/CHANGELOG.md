@@ -4,7 +4,7 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
-- Master Email replies now remain in the dedicated email workflow on web and mobile. Replying atomically claims an unowned thread for the current agent, existing ownership conflicts remain protected, new email composition returns to MasterBox, and the redundant Omni Inbox link was removed.
+- Master Email replies now remain in the dedicated email workflow on web and mobile. Agents explicitly join an email thread before replying, matching Omni Channel ownership; email payloads expose the joined owner and takeover state, new email composition returns to MasterBox, and the redundant Omni Inbox link was removed. Short rich-email bodies now size to their content, and the reply composer uses one compact focus border without being covered by the support launcher.
 
 - Added comment-only mobile discovery and operation tracking for the Agent App. Inbox setup now advertises the Social Comments feature and its Facebook/Instagram scope, inbox counts include needs-attention and per-agent unread comment totals, and a workspace-scoped operation endpoint supports reliable polling after asynchronous public replies, AI suggestions, and moderation. No post creation, scheduling, publishing, schema, or dependency behavior changed.
 

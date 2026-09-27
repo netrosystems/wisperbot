@@ -97,7 +97,7 @@ class EmailMasterBoxTest extends TestCase
         $this->assertSame('Welcome', Message::latest('id')->firstOrFail()->payload['subject']);
     }
 
-    public function test_replying_from_masterbox_auto_joins_an_unowned_email_thread(): void
+    public function test_replying_from_masterbox_requires_the_agent_to_join_first(): void
     {
         ['user' => $user, 'workspace' => $workspace] = $this->createWorkspaceContext();
         $account = ChannelAccount::create([
@@ -128,11 +128,19 @@ class EmailMasterBoxTest extends TestCase
 
         $this->actingAs($user)
             ->postJson(route('client.inbox.reply', $conversation), ['body' => 'Thanks for your email.'])
+            ->assertConflict()
+            ->assertJsonPath('error', 'Join this chat before replying.');
+
+        $this->assertNull($conversation->fresh()->joined_user_id);
+
+        $this->actingAs($user)
+            ->postJson(route('client.inbox.join', $conversation))
+            ->assertOk()
+            ->assertJsonPath('conversation.joined_user.id', $user->id);
+
+        $this->actingAs($user)
+            ->postJson(route('client.inbox.reply', $conversation), ['body' => 'Thanks for your email.'])
             ->assertOk()
             ->assertJsonPath('message.status', 'sent');
-
-        $conversation->refresh();
-        $this->assertSame($user->id, $conversation->joined_user_id);
-        $this->assertSame($user->id, $conversation->assigned_user_id);
     }
 }

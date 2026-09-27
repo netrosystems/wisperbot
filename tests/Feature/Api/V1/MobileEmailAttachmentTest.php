@@ -40,6 +40,9 @@ class MobileEmailAttachmentTest extends TestCase
             'contact_id' => $contact->id,
             'status' => 'open',
             'assigned_to' => 'human',
+            'assigned_user_id' => $context['user']->id,
+            'joined_user_id' => $context['user']->id,
+            'joined_at' => now(),
         ]);
         Message::create([
             'conversation_id' => $conversation->id,
@@ -69,7 +72,9 @@ class MobileEmailAttachmentTest extends TestCase
             ->assertJsonPath('messages.0.html_body', '<p><strong>Hello</strong> support</p>')
             ->assertJsonPath('messages.0.has_attachments', true)
             ->assertJsonPath('messages.0.attachments.0.name', 'guide.pdf')
-            ->assertJsonPath('messages.0.payload.html_body', '<p><strong>Hello</strong> support</p>');
+            ->assertJsonPath('messages.0.payload.html_body', '<p><strong>Hello</strong> support</p>')
+            ->assertJsonPath('thread.joined_user.id', $context['user']->id)
+            ->assertJsonPath('thread.can_takeover', false);
     }
 
     public function test_mobile_email_compose_accepts_and_processes_file_attachment(): void
@@ -149,7 +154,19 @@ class MobileEmailAttachmentTest extends TestCase
         $mockManager->shouldReceive('driver')->with('email')->andReturn($mockDriver);
         $this->app->instance(ChannelManager::class, $mockManager);
 
-        $file = UploadedFile::fake()->image('screenshot.png', 200, 200);
+        $this->withToken($token)
+            ->postJson("/api/v1/mobile/email/threads/{$conversation->uuid}/reply", [
+                'body' => 'Please see this screenshot.',
+            ])
+            ->assertConflict()
+            ->assertJsonPath('error', 'Join this chat before replying.');
+
+        $this->withToken($token)
+            ->postJson("/api/v1/mobile/conversations/{$conversation->uuid}/join")
+            ->assertOk()
+            ->assertJsonPath('conversation.joined_user.id', $context['user']->id);
+
+        $file = UploadedFile::fake()->create('screenshot.png', 120, 'image/png');
 
         $res = $this->withToken($token)->postJson("/api/v1/mobile/email/threads/{$conversation->uuid}/reply", [
             'body' => 'Please see this screenshot.',
@@ -160,10 +177,6 @@ class MobileEmailAttachmentTest extends TestCase
             ->assertJsonPath('message.has_attachments', true)
             ->assertJsonPath('message.type', 'image')
             ->assertJsonPath('message.status', 'sent');
-
-        $conversation->refresh();
-        $this->assertSame($context['user']->id, $conversation->joined_user_id);
-        $this->assertSame($context['user']->id, $conversation->assigned_user_id);
 
         $this->assertDatabaseHas('messages', [
             'conversation_id' => $conversation->id,

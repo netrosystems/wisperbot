@@ -391,6 +391,8 @@ class ConversationOwnershipService
 
     public function assertCanReply(Conversation $conversation, User $user): void
     {
+        $conversation->loadMissing('joinedUser');
+
         if ((int) $conversation->joined_user_id !== (int) $user->id) {
             throw new ConversationOwnershipException('Join this chat before replying.', 409, [
                 'joined_user' => $this->publicUser($conversation->joinedUser),
@@ -398,23 +400,18 @@ class ConversationOwnershipService
         }
     }
 
-    public function claimEmailForReply(Conversation $conversation, User $user): Conversation
+    public function canTakeover(Conversation $conversation, User $user): bool
     {
-        $conversation->loadMissing(['channelAccount', 'joinedUser']);
-
-        if ($conversation->channelAccount?->channel !== 'email') {
-            $this->assertCanReply($conversation, $user);
-
-            return $conversation;
+        if ($conversation->status === 'resolved' || ! $conversation->joined_user_id || (int) $conversation->joined_user_id === (int) $user->id) {
+            return false;
         }
 
-        if (! $conversation->joined_user_id) {
-            return $this->join($conversation, $user);
+        if ($user->isClientAdministrator()) {
+            return true;
         }
 
-        $this->assertCanReply($conversation, $user);
-
-        return $conversation;
+        return $this->availability->isAvailable((int) $conversation->workspace_id, $user)
+            && ! $this->availability->isAvailable((int) $conversation->workspace_id, (int) $conversation->joined_user_id);
     }
 
     private function joinLocked(Conversation $conversation, User $user): Conversation
