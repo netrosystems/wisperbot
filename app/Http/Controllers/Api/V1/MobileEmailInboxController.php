@@ -196,8 +196,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
         }
 
         $conversation = $this->emailConversation($request, $uuid, ['channelAccount', 'contact']);
-        $conversation->loadMissing('joinedUser');
-        $this->ownership->assertCanReply($conversation, $request->user());
+        $conversation = $this->ownership->claimEmailForReply($conversation, $request->user());
 
         $payload = [];
         $msgType = 'text';
