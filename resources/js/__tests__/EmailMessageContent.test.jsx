@@ -4,17 +4,20 @@ import { EmailAttachments, EmailBody } from '@/Components/Inbox/EmailMessageCont
 
 describe('EmailMessageContent', () => {
     it('renders formatting while removing executable and tracking content', () => {
-        const { container } = render(
+        render(
             <EmailBody
-                html={'<p><strong>Formatted</strong> email</p><img src="https://tracker.test/pixel"><script>alert(1)</script>'}
+                html={'<style>.red{color:red}</style><p class="red"><strong>Formatted</strong> email</p><img src="https://images.test/photo.png" onerror="alert(1)"><script>alert(1)</script>'}
                 text="Fallback"
             />,
         );
 
-        expect(screen.getByText('Formatted')).toBeInTheDocument();
-        expect(container.querySelector('strong')).not.toBeNull();
-        expect(container.querySelector('script')).toBeNull();
-        expect(container.querySelector('img')).toBeNull();
+        const frame = screen.getByTitle('Email content');
+        const source = frame.getAttribute('srcdoc');
+        expect(source).toContain('.red{color:red}');
+        expect(source).toContain('<strong>Formatted</strong>');
+        expect(source).toContain('https://images.test/photo.png');
+        expect(source).not.toContain('<script');
+        expect(source).not.toContain('onerror');
     });
 
     it('renders every attachment from the shared payload contract', () => {
