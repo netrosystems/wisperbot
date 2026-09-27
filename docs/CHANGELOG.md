@@ -4,6 +4,9 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added workspace Quick Replies under Contacts. Administrators/owners can create, edit, and delete reusable text; staff can search and insert it while starting or replying to conversations. Existing approved WhatsApp templates and their 24-hour-window behavior are unchanged.
+
+- Fixed rich email and attachment ingestion across Gmail, Microsoft 365, and IMAP. Web Master Email and Omnichannel views now render sanitized formatting and multiple stored attachments, while mobile email responses expose the same additive `html_body` and `attachments[]` payload contract with a plain-text fallback.
 - **Meta Pixel settings fixes.**
   - Test Event Code and Domain Verification Code can be cleared in Super Admin → Integrations. Blank fields were always kept, so a cleared test code silently kept every server event in Meta's test view. Fields flagged `clearable` in `IntegrationConfig::FIELDS` now delete on empty; secrets still keep their value when left blank.
   - Test connection now sends one test-coded event instead of reading the dataset, which Events Manager tokens are not allowed to do. It no longer reports "(#100) Missing Permission" for a working token.

@@ -41,6 +41,20 @@ class MessageReceived implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         $conversation = $this->message->conversation;
+        $payload = app(MessageMediaResolver::class)->augmentPayloadForRoute(
+            $this->message,
+            'api.v1.mobile.conversations.messages.media.signed',
+        );
+        if ($this->message->channel === 'email' && is_array($payload)) {
+            if (! empty($payload['html_body'])) {
+                $payload['has_html_body'] = true;
+                unset($payload['html_body']);
+            }
+            if (! empty($payload['attachments'])) {
+                $payload['has_attachments'] = true;
+                unset($payload['attachments']);
+            }
+        }
 
         return [
             'id' => $this->message->id,
@@ -49,10 +63,7 @@ class MessageReceived implements ShouldBroadcastNow
             'channel' => $this->message->channel,
             'type' => $this->message->type,
             'body' => app(MessageMediaResolver::class)->displayBody($this->message),
-            'payload' => app(MessageMediaResolver::class)->augmentPayloadForRoute(
-                $this->message,
-                'api.v1.mobile.conversations.messages.media.signed',
-            ),
+            'payload' => $payload,
             'status' => $this->message->status,
             'sent_at' => $this->message->sent_at?->toIso8601String(),
             'created_at' => $this->message->created_at?->toIso8601String(),

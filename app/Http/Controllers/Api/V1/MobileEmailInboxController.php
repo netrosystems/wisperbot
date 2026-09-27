@@ -499,6 +499,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
             'type' => $message->type,
             'body' => Demo::text($message->body),
             'subject' => $payload['subject'] ?? null,
+            'html_body' => Demo::active() ? null : ($payload['html_body'] ?? null),
             'attachment_url' => $previewUrl,
             'has_attachments' => $hasAttachments,
             'attachments' => $attachments,

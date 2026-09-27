@@ -78,4 +78,38 @@ class MessageReceivedBroadcastTest extends TestCase
         $this->assertContains("private-conversation.{$conv->id}", $channelNames);
         $this->assertContains("private-workspace.{$ctx['workspace']->id}", $channelNames);
     }
+
+    public function test_email_broadcast_uses_compact_payload_for_rich_content(): void
+    {
+        $ctx = $this->createWorkspaceContext();
+        $contact = Contact::factory()->create(['workspace_id' => $ctx['workspace']->id]);
+        $conv = Conversation::create([
+            'workspace_id' => $ctx['workspace']->id,
+            'contact_id' => $contact->id,
+            'status' => 'open',
+        ]);
+        $message = Message::create([
+            'conversation_id' => $conv->id,
+            'direction' => 'in',
+            'channel' => 'email',
+            'type' => 'text',
+            'body' => 'Rich email',
+            'payload' => [
+                'html_body' => '<p>'.str_repeat('Formatted content ', 1000).'</p>',
+                'has_attachments' => true,
+                'attachments' => [['name' => 'invoice.pdf', 'url' => 'https://example.test/invoice.pdf']],
+            ],
+            'status' => 'delivered',
+            'sent_at' => now(),
+        ]);
+        $message->setRelation('conversation', $conv);
+
+        $payload = (new MessageReceived($message))->broadcastWith();
+
+        $this->assertTrue($payload['payload']['has_html_body']);
+        $this->assertTrue($payload['payload']['has_attachments']);
+        $this->assertArrayNotHasKey('html_body', $payload['payload']);
+        $this->assertArrayNotHasKey('attachments', $payload['payload']);
+        $this->assertLessThan(10240, strlen(json_encode($payload, JSON_THROW_ON_ERROR)));
+    }
 }

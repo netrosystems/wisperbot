@@ -4,7 +4,7 @@ import { ChannelBrandIcon } from '@/Components/BrandIcons';
 import {
     LayoutDashboard, CreditCard, Package, FileText, Users, Settings,
     Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot, Database,
-    Zap, Share2, Tag, LifeBuoy, ExternalLink, MessageSquare,
+    Zap, Share2, Tag, LifeBuoy, ExternalLink, MessageSquare, MessagesSquare,
     ShoppingBag, Mail,
 } from 'lucide-react';
 
@@ -78,6 +78,15 @@ export default function useClientNav() {
         { label: t('nav.contacts'),  href: safeRoute('client.contacts.index'),  icon: <Users className={iconClass} />,  activePattern: 'client.contacts.*' },
         { label: t('nav.segments'),  href: safeRoute('client.segments.index'),  icon: <Tag className={iconClass} />,    activePattern: 'client.segments.*' },
     ];
+
+    if (isClientAdmin) {
+        contactsItems.push({
+            label: t('nav.quick_replies', { defaultValue: 'Quick Replies' }),
+            href: safeRoute('client.inbox.canned-replies.index'),
+            icon: <MessagesSquare className={iconClass} />,
+            activePattern: 'client.inbox.canned-replies.*',
+        });
+    }
 
     const waMessagingItems = [
         { label: t('nav.templates'),     href: safeRoute('client.whatsapp.templates.index'),     icon: whatsappNavIcon, activePattern: 'client.whatsapp.templates.*' },

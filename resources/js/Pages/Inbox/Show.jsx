@@ -14,6 +14,7 @@ import { ChannelBrandIcon, CHANNEL_LABELS, ConversationChannelIcon } from '@/Com
 import { formatTimeTz, formatInTz } from '@/Utils/datetime';
 import { playInboundSound, getSoundPrefs, setChannelSoundEnabled, SOUND_CHANNELS } from '@/Utils/notificationSound';
 import { getCountryFlagEmoji } from '@/Components/Inbox/LiveVisitorsMap';
+import { EmailAttachments, EmailBody } from '@/Components/Inbox/EmailMessageContent';
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
@@ -955,8 +956,16 @@ function MessageBubble({ msg, conversationId }) {
                     )}
 
                     {/* TEXT / fallback */}
-                    {!templateComponents && (mediaType === 'text' || (!['image','video','audio','document','location','contacts','interactive','template','poll','event','unsupported'].includes(mediaType))) && (
+                    {p.html_body && msg.channel === 'email' && (
+                        <EmailBody html={p.html_body} text={msg.body} className={isOut ? 'text-white' : ''} />
+                    )}
+
+                    {!p.html_body && !templateComponents && (mediaType === 'text' || (!['image','video','audio','document','location','contacts','interactive','template','poll','event','unsupported'].includes(mediaType))) && (
                         <WaText text={isOut && p.quick_replies?.length && typeof p.display_body === 'string' ? p.display_body : msg.body || '(media)'} />
+                    )}
+
+                    {msg.channel === 'email' && (Array.isArray(p.attachments) || p.has_attachments) && (
+                        <EmailAttachments payload={p} messageType={mediaType} />
                     )}
 
                     {isOut && Array.isArray(p.quick_replies) && p.quick_replies.length > 0 && (
@@ -1818,6 +1827,9 @@ export default function InboxShow({
         ch
             .listen('.MessageReceived', (e) => {
                 mergeIncomingMessages([e]);
+                if (e.channel === 'email' && (e.payload?.has_html_body || e.payload?.has_attachments)) {
+                    router.reload({ only: ['messages'], preserveScroll: true, preserveState: true });
+                }
                 if (e.reopened) {
                     setConversationStatus(e.conversation?.status ?? 'open');
                     setAssignedTo(e.conversation?.assigned_to ?? 'human');
