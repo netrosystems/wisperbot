@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\MobileAuthController;
 use App\Http\Controllers\Api\V1\MobileConversationController;
 use App\Http\Controllers\Api\V1\MobileEmailInboxController;
 use App\Http\Controllers\Api\V1\MobileInboxController;
+use App\Http\Controllers\Api\V1\MobileStatsController;
 use App\Http\Controllers\Api\V1\MobileTeamAvailabilityController;
 use App\Http\Controllers\Api\V1\NotificationApiController;
 use App\Http\Controllers\Api\V1\OutboundWebhookApiController;
@@ -114,6 +115,7 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 't
     Route::get('/inbox/ai-answering', [SegmentAiAnsweringController::class, 'index']);
     Route::patch('/inbox/ai-answering/{segment}', [SegmentAiAnsweringController::class, 'update']);
     Route::get('/inbox/counts', [MobileInboxController::class, 'counts']);
+    Route::get('/stats', MobileStatsController::class);
     Route::get('/inbox/templates', [MobileInboxController::class, 'templates']);
     Route::get('/inbox/labels', [MobileInboxController::class, 'labels']);
     Route::get('/inbox/canned-replies', [MobileInboxController::class, 'cannedReplies']);
