@@ -31,4 +31,10 @@ describe('EmailMessageContent', () => {
         expect(screen.getByText('2 attachments')).toBeInTheDocument();
     });
 
+    it('does not crash for legacy messages with a null payload', () => {
+        const { container } = render(<EmailAttachments payload={null} />);
+
+        expect(container).toBeEmptyDOMElement();
+    });
+
 });
