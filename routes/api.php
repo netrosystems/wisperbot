@@ -72,6 +72,7 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 't
         Route::get('/', [$controller, 'index']);
         Route::post('/accounts/{account}/settings', [$controller, 'settings'])->middleware('throttle:60,1');
         Route::post('/accounts/{account}/sync', [$controller, 'sync'])->middleware('throttle:20,1');
+        Route::get('/operations/{operation}', [$controller, 'operation']);
         Route::post('/operations/{operation}/retry', [$controller, 'retry'])->middleware('throttle:60,1');
         Route::get('/{comment}', [$controller, 'show'])->whereNumber('comment');
         Route::post('/{comment}/read', [$controller, 'read'])->whereNumber('comment');

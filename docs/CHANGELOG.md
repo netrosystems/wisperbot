@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added comment-only mobile discovery and operation tracking for the Agent App. Inbox setup now advertises the Social Comments feature and its Facebook/Instagram scope, inbox counts include needs-attention and per-agent unread comment totals, and a workspace-scoped operation endpoint supports reliable polling after asynchronous public replies, AI suggestions, and moderation. No post creation, scheduling, publishing, schema, or dependency behavior changed.
+
 - Added workspace Quick Replies under Contacts. Administrators/owners can create, edit, and delete reusable text; staff can search and insert it while starting or replying to conversations. Existing approved WhatsApp templates and their 24-hour-window behavior are unchanged.
 
 - Fixed rich email and attachment ingestion across Gmail, Microsoft 365, and IMAP. Web Master Email and Omnichannel views now render sanitized formatting and multiple stored attachments, while mobile email responses expose the same additive `html_body` and `attachments[]` payload contract with a plain-text fallback.
