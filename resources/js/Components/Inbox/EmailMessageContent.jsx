@@ -1,11 +1,12 @@
 import { ExternalLink, Paperclip } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 
 function safeEmailHtml(value) {
     if (typeof value !== 'string' || value.trim() === '') return '';
     if (typeof DOMParser === 'undefined') return '';
 
     const document = new DOMParser().parseFromString(value, 'text/html');
-    document.querySelectorAll('script, style, iframe, object, embed, svg, math, form, input, button, select, textarea, template, img').forEach(node => node.remove());
+    document.querySelectorAll('script, iframe, object, embed, svg, math, form, input, button, select, textarea, template, link').forEach(node => node.remove());
     document.querySelectorAll('*').forEach(node => {
         [...node.attributes].forEach(attribute => {
             if (attribute.name.toLowerCase().startsWith('on')) node.removeAttribute(attribute.name);
@@ -13,18 +14,68 @@ function safeEmailHtml(value) {
         if (node.hasAttribute('href') && !/^(https?:\/\/|mailto:|#)/i.test(node.getAttribute('href') || '')) {
             node.removeAttribute('href');
         }
+        if (node.hasAttribute('src') && !/^(https?:\/\/|data:image\/(?:png|jpe?g|gif|webp);base64,)/i.test(node.getAttribute('src') || '')) {
+            node.removeAttribute('src');
+        }
+        if (node.hasAttribute('style') && /expression\s*\(|javascript:|vbscript:/i.test(node.getAttribute('style') || '')) {
+            node.removeAttribute('style');
+        }
     });
 
-    return document.body.innerHTML;
+    document.querySelectorAll('style').forEach(node => {
+        node.textContent = (node.textContent || '')
+            .replace(/@import\s+[^;]+;?/gi, '')
+            .replace(/@charset\s+[^;]+;?/gi, '')
+            .replace(/expression\s*\(|javascript:|vbscript:|-moz-binding\s*:|behavior\s*:/gi, '');
+    });
+
+    const styles = [...document.querySelectorAll('style')].map(node => node.outerHTML).join('');
+    document.querySelectorAll('style').forEach(node => node.remove());
+
+    return styles + document.body.innerHTML;
 }
 
 export function EmailBody({ html, text, className = '' }) {
-    const safeHtml = safeEmailHtml(html);
+    const frameRef = useRef(null);
+    const [frameHeight, setFrameHeight] = useState(160);
+    const safeHtml = useMemo(() => safeEmailHtml(html), [html]);
+    const sourceDocument = useMemo(() => safeHtml ? `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; font-src https: data:; media-src https: data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="light">
+<base target="_blank">
+<style>
+html { color-scheme: light; background: #fff; }
+body { box-sizing: border-box; margin: 0; padding: 2px; color: #171717; background: #fff; font-family: Arial, Helvetica, sans-serif; overflow-wrap: anywhere; }
+*, *::before, *::after { box-sizing: border-box; }
+img { max-width: 100%; height: auto; }
+table { max-width: 100%; }
+pre { max-width: 100%; overflow: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>${safeHtml}</body>
+</html>` : '', [safeHtml]);
+
+    const resizeFrame = () => {
+        const document = frameRef.current?.contentDocument;
+        if (!document) return;
+        const height = Math.max(document.body?.scrollHeight || 0, document.documentElement?.scrollHeight || 0);
+        setFrameHeight(Math.max(120, Math.min(height + 8, 720)));
+    };
+
     if (safeHtml) {
         return (
-            <div
-                className={`email-rendered-body break-words text-sm leading-relaxed text-neutral-800 dark:text-neutral-200 [&_a]:text-brand-600 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-neutral-300 [&_blockquote]:pl-3 [&_h1]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-bold [&_h3]:mb-2 [&_h3]:font-semibold [&_li]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_td]:border [&_td]:border-neutral-200 [&_td]:p-1.5 [&_th]:border [&_th]:border-neutral-200 [&_th]:p-1.5 [&_ul]:list-disc ${className}`}
-                dangerouslySetInnerHTML={{ __html: safeHtml }}
+            <iframe
+                ref={frameRef}
+                title="Email content"
+                srcDoc={sourceDocument}
+                sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                referrerPolicy="no-referrer"
+                onLoad={resizeFrame}
+                className={`block w-full border-0 bg-white ${className}`}
+                style={{ height: `${frameHeight}px` }}
             />
         );
     }
