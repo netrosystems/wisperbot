@@ -132,6 +132,27 @@ describe('Mobile chat reply layout', () => {
         await waitFor(() => expect(reply).toHaveValue(''));
     });
 
+    it('opens quick replies beside the mic and inserts the selected reply', async () => {
+        axios.get.mockImplementation(url => {
+            if (String(url).includes('canned-replies.list')) {
+                return Promise.resolve({
+                    data: [{ id: 4, shortcut: 'hello', body: 'Hello {{contact.name}}, how can I help?' }],
+                });
+            }
+
+            return Promise.resolve({ data: { messages: [] } });
+        });
+
+        render(<InboxShow {...props} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'nav.quick_replies' }));
+        fireEvent.click(await screen.findByText('Hello {{contact.name}}, how can I help?'));
+
+        expect(screen.getByPlaceholderText('inbox.type_message_placeholder'))
+            .toHaveValue('Hello Customer, how can I help?');
+        expect(axios.post).not.toHaveBeenCalled();
+    });
+
     it('keeps desktop-only side columns out of mobile detail and preserves the return filter', () => {
         const { container } = render(<InboxShow {...props} />);
 

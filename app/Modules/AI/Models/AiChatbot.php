@@ -2,6 +2,7 @@
 
 namespace App\Modules\AI\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Database\Factories\AiChatbotFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,6 +11,7 @@ use Illuminate\Support\Str;
 
 class AiChatbot extends Model
 {
+    use ExcludesDeletedWorkspaces;
     use HasFactory;
 
     protected static function newFactory()

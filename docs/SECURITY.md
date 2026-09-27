@@ -59,6 +59,14 @@ a secret or an authorization boundary. Database privileges, not Laravel workspac
 scoping, govern what an operator can see through phpMyAdmin; use a read-only
 account for inspection and never configure automatic database login.
 
+## Marketing measurement data (2026-09-26)
+
+- The Conversions API token is an encrypted `meta_pixel` integration credential. It is never shared to Inertia props, rendered in HTML or logged; jobs send it as a bearer header, not a URL parameter.
+- Email, names and user IDs are SHA-256 hashed in `MetaConversions` before a job is queued. Query strings are stripped from event URLs.
+- `users.marketing_attribution` holds only the latest consent value, `_fbp`/`_fbc`, IP, user agent and page URL. It is hidden from model serialization and deleted with the user.
+- `wb_marketing_consent`, `_fbp` and `_fbc` are unencrypted by design (set by browser JavaScript). They carry no authority; a forged `granted` only affects the sender's own measurement.
+- The Pixel ID must be numeric before it is rendered, which blocks script injection through the setting.
+
 ## Managed AI credits and abuse controls
 
 - Managed credits are finite; a missing/null allowance means zero, never unlimited. They are pooled by organization/standalone billing owner so creating or deleting a workspace cannot mint credits.
@@ -96,9 +104,9 @@ Webhook endpoints should acknowledge quickly and queue expensive processing. The
 - Visitor IP/presence must be covered by privacy disclosures, retention policy, and customer configuration as required by law.
 - Media access must enforce conversation/workspace/session authorization; storage URLs should not become a cross-tenant public file browser.
 
-## Distribution licensing
+## Licensing
 
-The legacy Envato/Botble activation system was removed on 2026-09-21. The installer and Super Admin application do not require a purchase code, call an external license server, or store legacy license artifacts. Any future distribution licensing model requires a new security and product review before implementation.
+Production licensing is a server/admin-panel control and must remain enforced. Local bypass logic is acceptable only when `APP_ENV=local` (or an equally strict local-only guard) and must fail closed in staging/production. Licensing must not be scattered as a check on every business API request unless explicitly designed that way.
 
 ## Data retention and deletion
 

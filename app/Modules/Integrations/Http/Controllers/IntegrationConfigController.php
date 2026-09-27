@@ -128,8 +128,18 @@ class IntegrationConfigController extends Controller
         $merged = $existing;
         $changedKeys = [];
 
+        // Blank normally means "keep the stored secret". Fields marked
+        // clearable are optional settings (e.g. a Meta test event code) that
+        // must be removable, so an emptied field deletes the stored value.
+        $clearable = collect($fields)->filter(fn (array $f) => (bool) ($f['clearable'] ?? false))->pluck('key')->all();
+
         foreach ($incoming as $k => $v) {
             if ($v === null || $v === '') {
+                if (in_array($k, $clearable, true) && array_key_exists($k, $merged)) {
+                    unset($merged[$k]);
+                    $changedKeys[] = $k;
+                }
+
                 continue;
             }
             if (preg_match('/^•+/', (string) $v)) {

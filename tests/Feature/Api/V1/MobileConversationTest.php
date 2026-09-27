@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1;
 use App\Events\MessageStatusUpdated;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Modules\Inbox\Models\CannedReply;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
@@ -17,6 +18,43 @@ use Tests\TestCase;
 class MobileConversationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_mobile_canned_replies_match_the_dedicated_search_contract(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $otherWorkspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+
+        CannedReply::create([
+            'workspace_id' => $workspace->id,
+            'shortcut' => 'welcome',
+            'body' => 'Welcome to our support team.',
+        ]);
+        CannedReply::create([
+            'workspace_id' => $workspace->id,
+            'shortcut' => 'billing',
+            'body' => 'Our billing team will help you.',
+        ]);
+        CannedReply::create([
+            'workspace_id' => $otherWorkspace->id,
+            'shortcut' => 'private',
+            'body' => 'Another workspace reply.',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/mobile/inbox/canned-replies?search=welcome')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.shortcut', 'welcome')
+            ->assertJsonPath('data.0.body', 'Welcome to our support team.')
+            ->assertJsonMissing(['shortcut' => 'private']);
+
+        $this->getJson('/api/v1/mobile/inbox/canned-replies?search=billing')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.shortcut', 'billing');
+    }
 
     public function test_mobile_join_and_leave_contract_exposes_joined_agent(): void
     {
@@ -423,6 +461,39 @@ class MobileConversationTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $match->id)
             ->assertJsonPath('data.0.name', 'Alice Customer');
+    }
+
+    public function test_mobile_contact_search_returns_latest_contacts_with_pagination_meta(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->create(['workspace_id' => $workspace->id]);
+        $contacts = collect();
+
+        foreach (range(1, 31) as $index) {
+            $contact = Contact::create([
+                'workspace_id' => $workspace->id,
+                'first_name' => 'Contact '.$index,
+            ]);
+            $contact->forceFill(['created_at' => now()->subMinutes(31 - $index)])->saveQuietly();
+            $contacts->push($contact);
+        }
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/mobile/contacts/search?page=1')
+            ->assertOk()
+            ->assertJsonCount(30, 'data')
+            ->assertJsonPath('data.0.id', $contacts->last()->id)
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.per_page', 30)
+            ->assertJsonPath('meta.total', 31);
+
+        $this->getJson('/api/v1/mobile/contacts/search?page=2')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $contacts->first()->id)
+            ->assertJsonPath('meta.current_page', 2);
     }
 
     public function test_mobile_can_update_contact_by_conversation_uuid(): void

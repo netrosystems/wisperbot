@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\SystemSetting;
 use App\Modules\Integrations\Services\CredentialResolver;
+use App\Services\Marketing\MetaPixelSettings;
 use App\Services\OneSignalService;
 use Closure;
 use Illuminate\Http\Request;
@@ -86,7 +87,7 @@ class SecureHeaders
             // SDK loads from cdn; runtime sync/scripts also come from api.* (see OneSignal v16 CSP docs).
             $extra .= ' https://cdn.onesignal.com https://*.onesignal.com';
         }
-        if ($this->metaSdkEnabled()) {
+        if ($this->metaSdkEnabled() || $this->metaPixelEnabled()) {
             $extra .= ' https://connect.facebook.net';
         }
 
@@ -130,6 +131,12 @@ class SecureHeaders
             $sources[] = 'https://www.facebook.com';
             $sources[] = 'https://web.facebook.com';
             $sources[] = 'https://connect.facebook.net';
+        }
+        if ($this->metaPixelEnabled()) {
+            // fbevents.js loads its config from connect.facebook.net and
+            // reports to www.facebook.com/tr (fetch/beacon, plus img fallback).
+            $sources[] = 'https://connect.facebook.net';
+            $sources[] = 'https://www.facebook.com';
         }
         if ($this->firebaseEnabled()) {
             foreach ($this->firebaseConnectSources() as $source) {
@@ -199,6 +206,15 @@ class SecureHeaders
             'https://*.web.app',
             'https://accounts.google.com',
         ];
+    }
+
+    private function metaPixelEnabled(): bool
+    {
+        try {
+            return app(MetaPixelSettings::class)->browserPixelId() !== '';
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function metaSdkEnabled(): bool

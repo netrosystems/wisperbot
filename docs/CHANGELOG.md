@@ -22,6 +22,46 @@ This is a documentation-level changelog for user-visible and operationally signi
   images; the test command now matches its installed dependencies. Refreshed the
   production PHP dependency lock to remove all reported security advisories.
 
+- Added comment-only mobile discovery and operation tracking for the Agent App. Inbox setup now advertises the Social Comments feature and its Facebook/Instagram scope, inbox counts include needs-attention and per-agent unread comment totals, and a workspace-scoped operation endpoint supports reliable polling after asynchronous public replies, AI suggestions, and moderation. No post creation, scheduling, publishing, schema, or dependency behavior changed.
+
+- Added workspace Quick Replies under Contacts. Administrators/owners can create, edit, and delete reusable text; staff can search and insert it while starting or replying to conversations. Existing approved WhatsApp templates and their 24-hour-window behavior are unchanged.
+
+- Fixed rich email and attachment ingestion across Gmail, Microsoft 365, and IMAP. Web Master Email and Omnichannel views now render sanitized formatting and multiple stored attachments, while mobile email responses expose the same additive `html_body` and `attachments[]` payload contract with a plain-text fallback.
+- **Meta Pixel settings fixes.**
+  - Test Event Code and Domain Verification Code can be cleared in Super Admin → Integrations. Blank fields were always kept, so a cleared test code silently kept every server event in Meta's test view. Fields flagged `clearable` in `IntegrationConfig::FIELDS` now delete on empty; secrets still keep their value when left blank.
+  - Test connection now sends one test-coded event instead of reading the dataset, which Events Manager tokens are not allowed to do. It no longer reports "(#100) Missing Permission" for a working token.
+
+- **Meta Pixel and Conversions API for WisperBot's own ads.**
+  - Super Admin → Integrations → *Meta Pixel & Conversions API*: Dataset ID, encrypted Conversions API token, optional test event code and domain-verification code, with a connection test that sends no event.
+  - The browser Pixel runs on public pages only, after consent: opt-in for European time zones, notice with one-click opt-out elsewhere. The cookie banner is back, restyled in brand colours, with a "Cookie settings" footer link.
+  - Server events with deduplication: CompleteRegistration (password, Google/GitHub/Microsoft, Firebase), InitiateCheckout, Subscribe/StartTrial on a first paid subscription, and Lead from the contact form.
+  - The Facebook JS SDK no longer auto-logs app events (`autoLogAppEvents: false`); it is still loaded for Meta login dialogs.
+  - Migration `2026_09_26_000100_add_marketing_attribution_to_users`.
+
+- **Widget Setup (renamed from Appearance) now has tabs, and starter questions moved there.**
+  - The sidebar entry and page are now **Widget Setup**, with three tabs: **Appearance** (Branding; Launcher & welcome), **AI & visitors**, and **Starter questions**. One Save covers all tabs; a failed save opens the tab with the problem.
+  - Starter questions belong to the widget, not the Smart Bot. When switched on they show and are answered even with AI off or outside its schedule. The live preview shows them.
+  - The Smart Bot settings no longer edit starter questions and point to Widget Setup. The bot no longer answers them on other channels or in the API/playground.
+  - The customer contract (`config.starter_questions`, `answer_origin: "starter_question"`) is unchanged, so SDKs need no update.
+  - Migration `2026_09_26_000100_move_starter_questions_to_chat_widgets` copies each widget's linked bot's questions to the widget.
+
+- **Fixed social accounts showing "Token expired" and needing reconnects.**
+  - YouTube (1-hour tokens), TikTok, X and LinkedIn tokens with a refresh token are now renewed right before each post and by an hourly job (it was daily, which left YouTube "expired" about 23 hours a day and hidden from the composer).
+  - An account is disconnected only when the network rejects its refresh token. Timeouts, server errors and platform credential problems are retried instead.
+  - Owners and admins get a notification when a connection needs reconnecting, and a reminder 7 days before a LinkedIn connection's 60-day expiry. The account card shows "Reconnect needed" or "Expires in N days", with a direct Reconnect link.
+  - No migration.
+
+- Fixed `scripts/production/deploy-production.sh` rejecting a valid build archive with exit code 141 unless `build/manifest.json` was its last entry. A `grep -q` pipeline stopped reading early, and under `pipefail` the still-running `unzip` failed with SIGPIPE. The check is now `assert_build_artifact()`, covered by `tests/Scripts/production-build-artifact.sh`. The script tests also run on macOS's bash 3.2 now.
+
+- Refined homepage team photography to a vibrant, sunlit orange/cobalt campaign style following user references; retained actual product UI and recorded the updated photography guide.
+
+- Replaced homepage demonstration visuals with product-led compositions of actual WisperBot UI, official Agent App screenshots, and one professional fictional team photo. The initially generated sculptural collection was rejected and archived outside public assets. Existing navigation and conversion flows remain unchanged. Source inventory and privacy rules: `MARKETING_VISUAL_AUDIT.md`. Local on `oris`, pending approval.
+
+- Workspaces can be **renamed** and **deleted** by their owner (Workspaces page).
+  - Delete requires typing the workspace name. It hides the workspace and stops all its activity at once, keeps it restorable for 30 days under "Recently deleted", then erases its data with the daily `workspaces:purge-deleted` job.
+  - Members are moved to another workspace. Someone left with none is sent to restore or create one.
+  - Requires migration `2026_09_25_000100_add_soft_deletes_to_workspaces.php`, a dashboard build and the scheduler.
+
 - Social publishing no longer risks posting twice, and supports media on every network:
   - **Duplicate protection.** On every network, a post whose create request timed out, got a 5xx, or was cut off by a worker stop is never re-sent automatically. The client is told to check the network, then use Publish now.
   - **No re-uploads.** Retries reuse media already uploaded: Facebook photos, Instagram containers, LinkedIn assets.

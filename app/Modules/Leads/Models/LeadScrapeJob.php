@@ -2,10 +2,13 @@
 
 namespace App\Modules\Leads\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 
 class LeadScrapeJob extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'lead_scrape_jobs';
 
     protected $fillable = ['workspace_id', 'keyword', 'location', 'radius_meters', 'status', 'leads_found', 'error', 'started_at', 'completed_at'];

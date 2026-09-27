@@ -29,10 +29,13 @@ Web base: `/app/social/automation/comments` (session + CSRF). Mobile base: `/api
 | `POST /operations/{operation}/retry` | Retry a definitely failed outbound action only. Delivery-unknown returns 409 and never resends blindly. |
 | `POST /accounts/{account}/settings` | Owner/admin only: `mode: off|suggestions|automatic`, `chatbot_id`, `public_kb_confirmed`. Published/public-confirmed KB required for AI. |
 | `POST /accounts/{account}/sync` | Owner/admin connection check and bounded sync; 202. Per-account 60-second coalescing. |
+| `GET /operations/{operation}` | Workspace-scoped status for one queued reply, moderation, or suggestion operation. Internal idempotency and credential fingerprints are never serialized. |
 
 List parameters: `tab=needs_attention|all|ai_handled|resolved` (default needs_attention), `network=facebook|instagram`, `account_id`, `search`, `cursor`, `selected`. List page size 40; reply page size 50. Fetch `next_page_url` until complete. Preserve draft text client-side during pagination. Native apps must use capability flags and never treat a queued operation as delivered.
 
 Operation statuses: queued, sending, suggested, sent, needs_attention, failed, canceled, delivery_unknown. Replies have agent/AI attribution. Realtime event `.social.comments.changed` on private `workspace.{id}` carries only workspace/comment IDs; re-fetch authorized data. Mobile authenticates this channel through the existing Sanctum broadcast endpoint. Feature disabled returns 404; role denial 403; stale/unknown delivery conflicts 409; validation 422; rate limiting 429.
+
+Mobile navigation discovery is additive to the existing inbox APIs. `GET /api/v1/mobile/inbox/setup` returns `features.social_comments.enabled` and the supported `facebook`/`instagram` platform identifiers. `GET /api/v1/mobile/inbox/counts` returns `social_comments.enabled`, `needs_attention`, and the authenticated user's `unread` count. When the release flag is off, both counts are zero and comment tables are not queried.
 
 ## Meta access and limitations
 

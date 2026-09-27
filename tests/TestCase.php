@@ -9,11 +9,24 @@ use App\Models\Permission;
 use App\Models\Plan;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\Workspace;
 use App\Services\AddonEntitlementService;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Tests never call the external license server. License behaviour is
+        // covered explicitly by tests/Feature/License, which re-enables it.
+        config()->set('license.verify', false);
+
+        // Each test starts with its own list of deleted workspaces.
+        Workspace::forgetDeletedIds();
+    }
+
     /**
      * Create an AdminUser with the SUPER_ADMIN role and all permissions,
      * so RBAC middleware passes in feature tests.

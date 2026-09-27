@@ -1,10 +1,12 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import ClientLayout from '@/Layouts/ClientLayout';
 import { ArrowLeft, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import ChatWidgetForm from './Partials/ChatWidgetForm';
 
 /**
- * "Appearance" — branding + behaviour for the workspace's single chat widget.
+ * "Widget Setup" — appearance, AI answering, visitor access and starter
+ * questions for the workspace's single chat widget, in tabs.
  * Since each workspace now has at most one widget, this page IS the edit page:
  * no listing, no create button. Backend redirects here when the workspace has
  * no widget yet (it falls through to the Integration empty state).
@@ -14,7 +16,9 @@ export default function ChatWidgetSettings({
     chatbots = [],
     canUseCustomLauncherLogo = false,
 }) {
+    const { t } = useTranslation();
     const flash = usePage().props.flash ?? {};
+    const pageTitle = t('widget_appearance.page_title', 'Widget Setup');
 
     const submit = (payload, callbacks = {}) => {
         router.post(
@@ -27,8 +31,8 @@ export default function ChatWidgetSettings({
     };
 
     return (
-        <ClientLayout title="Widget appearance">
-            <Head title="Widget appearance" />
+        <ClientLayout title={pageTitle}>
+            <Head title={pageTitle} />
             <div className="space-y-6">
                 <div>
                     <Link
@@ -41,7 +45,7 @@ export default function ChatWidgetSettings({
                         {widget.name || 'Website chat widget'}
                     </h2>
                     <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
-                        Brand the chat bubble, choose greeting copy, wire up AI, and decide who can chat.
+                        Brand the chat bubble, wire up AI, decide who can chat, and add starter questions.
                     </p>
                 </div>
 

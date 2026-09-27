@@ -23,11 +23,13 @@ class ConnectionTester
                 $config->provider === 'oauth_microsoft_365' => $this->testMicrosoftOAuth($config),
                 $config->provider === 'oauth_google_mail' => $this->testGoogleMailOAuth($config),
                 $config->provider === 'telegram_business' => $this->testTelegramBusiness($config),
+                $config->provider === 'oauth_twitter' => $this->testX($config),
                 str_starts_with($config->provider, 'oauth_') => $this->testOAuth($config),
                 str_starts_with($config->provider, 'llm_') => $this->testLlm($config),
                 str_starts_with($config->provider, 'sms_') => $this->testSms($config),
                 $config->provider === 'google_workspace' => $this->testGoogleWorkspace($config),
                 $config->provider === 'onesignal' => $this->testOneSignal($config),
+                $config->provider === 'meta_pixel' => $this->testMetaPixel($config),
                 $config->provider === 'qdrant' => $this->testQdrant($config),
                 str_starts_with($config->provider, 'storage_') => $this->testStorage($config),
                 default => ['ok' => false, 'message' => 'No test available for this provider.'],
@@ -98,6 +100,42 @@ class ConnectionTester
             'ok' => false,
             'message' => 'Credential presence confirmed, but this provider cannot validate an OAuth client secret without a real user authorization. Complete one sandbox connect flow before enabling it for customers.',
         ];
+    }
+
+    /**
+     * X checks the client's Basic credentials before it looks at the code, so
+     * a token request with a dummy code tells a wrong Client ID or Secret
+     * (`invalid_client`) apart from a valid pair (any other 400 error). No
+     * user is involved and nothing is billed.
+     */
+    private function testX(IntegrationConfig $config): array
+    {
+        $credentials = $config->credentials ?? [];
+        $id = trim((string) ($credentials['client_id'] ?? ''));
+        $secret = trim((string) ($credentials['client_secret'] ?? ''));
+        if ($id === '' || $secret === '') {
+            return ['ok' => false, 'message' => 'OAuth 2.0 Client ID and Client Secret are required.'];
+        }
+
+        $response = HttpFacade::asForm()->timeout(10)->withBasicAuth($id, $secret)
+            ->post('https://api.x.com/2/oauth2/token', [
+                'grant_type' => 'authorization_code',
+                'code' => 'wisperbot-connection-test',
+                'redirect_uri' => rtrim((string) config('app.url'), '/').'/app/social/accounts/callback/twitter',
+                'code_verifier' => str_repeat('a', 43),
+                'client_id' => $id,
+            ]);
+        $error = (string) $response->json('error', '');
+
+        if ($response->status() === 401 || in_array($error, ['invalid_client', 'unauthorized_client'], true)) {
+            return ['ok' => false, 'message' => 'X rejected the OAuth 2.0 Client ID or Client Secret. Copy both again from X Developer Console → your app → Keys and tokens → OAuth 2.0 Client ID and Client Secret (not the API Key and Secret).'];
+        }
+
+        if ($response->status() === 400 && $error !== '') {
+            return ['ok' => true, 'message' => 'X accepted the OAuth 2.0 Client ID and Client Secret. Connect one X account to confirm the callback URL and permissions.'];
+        }
+
+        return ['ok' => false, 'message' => 'X could not be reached to check the credentials (HTTP '.$response->status().'). Try again later.'];
     }
 
     private function testMicrosoftOAuth(IntegrationConfig $config): array
@@ -434,6 +472,59 @@ class ConnectionTester
         return $resp->successful() && $resp->json('access_token')
             ? ['ok' => true,  'message' => 'Google Workspace connection successful.']
             : ['ok' => false, 'message' => $resp->json('error_description') ?? $resp->json('error') ?? 'Google token exchange failed.'];
+    }
+
+    /**
+     * Confirms the Conversions API token can send to this dataset by posting
+     * one event marked with a test event code. Test events never reach live
+     * reporting or ad optimization. Tokens generated in Events Manager may
+     * send events but not read dataset details, so reading is not a valid check.
+     *
+     * @return array{ok: bool, message: string}
+     */
+    private function testMetaPixel(IntegrationConfig $config): array
+    {
+        $credentials = $config->credentials ?? [];
+        $pixelId = trim((string) ($credentials['pixel_id'] ?? ''));
+        $token = trim((string) ($credentials['access_token'] ?? ''));
+
+        if (preg_match('/^\d{5,20}$/', $pixelId) !== 1) {
+            return ['ok' => false, 'message' => 'Enter the numeric Dataset (Pixel) ID from Events Manager.'];
+        }
+
+        if ($token === '') {
+            return ['ok' => true, 'message' => 'Dataset ID is valid. Browser Pixel only: add a Conversions API token to send server events.'];
+        }
+
+        $testCode = preg_replace('/[^A-Za-z0-9_-]/', '', trim((string) ($credentials['test_event_code'] ?? ''))) ?: 'TEST00000';
+
+        $response = HttpFacade::timeout(10)
+            ->acceptJson()
+            ->asJson()
+            ->withToken($token)
+            ->post('https://graph.facebook.com/v25.0/'.$pixelId.'/events', [
+                'data' => [[
+                    'event_name' => 'WisperBotConnectionTest',
+                    'event_time' => now()->getTimestamp(),
+                    'event_id' => 'connection_test_'.bin2hex(random_bytes(6)),
+                    'action_source' => 'system_generated',
+                    'user_data' => ['external_id' => [hash('sha256', 'wisperbot_connection_test')]],
+                ]],
+                'test_event_code' => $testCode,
+            ]);
+
+        if ($response->successful() && (int) $response->json('events_received') === 1) {
+            return ['ok' => true, 'message' => 'Conversions API token can send events to dataset '.$pixelId.'. The check was sent as a test event, so live reporting is unaffected.'];
+        }
+
+        $code = (int) $response->json('error.code');
+        $message = match (true) {
+            $code === 190 => 'The access token is invalid or expired. Generate a new one in Events Manager → dataset → Settings → Conversions API.',
+            in_array($code, [10, 100, 200, 294], true) => 'This token cannot send events to dataset '.$pixelId.'. Generate the token from this dataset\'s Settings → Conversions API. (Meta: '.($response->json('error.message') ?? 'permission error').')',
+            default => $response->json('error.message') ?? 'Meta did not accept the test event.',
+        };
+
+        return ['ok' => false, 'message' => $message];
     }
 
     private function testOneSignal(IntegrationConfig $config): array

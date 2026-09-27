@@ -4,7 +4,7 @@ import { ChannelBrandIcon } from '@/Components/BrandIcons';
 import {
     LayoutDashboard, CreditCard, Package, FileText, Users, Settings,
     Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot, Database,
-    Zap, Share2, Tag, LifeBuoy, ExternalLink, MessageSquare,
+    Zap, Share2, Tag, LifeBuoy, ExternalLink, MessageSquare, MessagesSquare,
     ShoppingBag, Mail,
 } from 'lucide-react';
 
@@ -79,6 +79,15 @@ export default function useClientNav() {
         { label: t('nav.segments'),  href: safeRoute('client.segments.index'),  icon: <Tag className={iconClass} />,    activePattern: 'client.segments.*' },
     ];
 
+    if (isClientAdmin) {
+        contactsItems.push({
+            label: t('nav.quick_replies', { defaultValue: 'Quick Replies' }),
+            href: safeRoute('client.inbox.canned-replies.index'),
+            icon: <MessagesSquare className={iconClass} />,
+            activePattern: 'client.inbox.canned-replies.*',
+        });
+    }
+
     const waMessagingItems = [
         { label: t('nav.templates'),     href: safeRoute('client.whatsapp.templates.index'),     icon: whatsappNavIcon, activePattern: 'client.whatsapp.templates.*' },
         { label: t('nav.auto_replies'),  href: safeRoute('client.whatsapp.auto-replies.index'),  icon: whatsappNavIcon, activePattern: 'client.whatsapp.auto-replies.*' },
@@ -97,7 +106,7 @@ export default function useClientNav() {
     ];
 
     const chatbotSetupItems = [
-        { label: t('nav.appearance', { defaultValue: 'Appearance' }), href: safeRoute('client.inbox.chat-widgets.settings'), icon: <Settings className={iconClass} />, activePattern: 'client.inbox.chat-widgets.settings' },
+        { label: t('nav.widget_setup', { defaultValue: 'Widget Setup' }), href: safeRoute('client.inbox.chat-widgets.settings'), icon: <Settings className={iconClass} />, activePattern: 'client.inbox.chat-widgets.settings' },
         { label: t('nav.integrations', { defaultValue: 'Integrations' }), href: safeRoute('client.inbox.chat-widgets.integration'), icon: <Webhook className={iconClass} />, activePattern: 'client.inbox.chat-widgets.integration' },
         { label: t('nav.wa_chatbot'), href: safeRoute('client.whatsapp.widget.index'), icon: whatsappNavIcon, activePattern: 'client.whatsapp.widget.*' },
     ];

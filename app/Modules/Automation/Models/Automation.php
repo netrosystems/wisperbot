@@ -2,11 +2,14 @@
 
 namespace App\Modules\Automation\Models;
 
+use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class Automation extends Model
 {
+    use ExcludesDeletedWorkspaces;
+
     protected $table = 'automations';
 
     protected static function boot(): void

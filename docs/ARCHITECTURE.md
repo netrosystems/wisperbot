@@ -78,6 +78,27 @@ Crossing 80% and 100% stores one threshold timestamp per period before dispatchi
 - Broadcast authorization uses `BroadcastChannelsServiceProvider`, which checks primary/current workspace, pivot membership, ownership, and same-client access.
 - Jobs receive durable record identifiers and must re-check ownership/state when they execute.
 
+### Workspace rename and deletion (2026-09-25)
+
+- **Rename:** `PUT /app/workspaces/{workspace}` (`client.workspaces.update`). Owner only (`WorkspacePolicy::update`), audited as `workspace.renamed`.
+- **Delete:** `DELETE /app/workspaces/{workspace}` (`client.workspaces.destroy`) needs `confirm_name` equal to the workspace name.
+  - Owner only. It soft-deletes the workspace (`deleted_at`, `deleted_by_user_id`) and moves every user whose `users.workspace_id` was that workspace to their first remaining accessible workspace, or `null`.
+  - Audited as `workspace.deleted`.
+  - `SoftDeletes` hides the workspace from switchers, `accessibleWorkspaces()`, `ResolveWebWorkspace` and the policies.
+- **Activity stops through one central check.** `App\Models\Concerns\ExcludesDeletedWorkspaces` is a global scope named `active_workspace`, applied to the records that let a workspace act on its own:
+  - channel accounts, WhatsApp business accounts, chat and WhatsApp widgets
+  - automations, campaigns, social accounts and posts
+  - ecommerce stores, lead-scrape jobs, SMTP and SMS configs
+  - Smart Bots, knowledge bases, WhatsApp auto-replies, social comment settings
+
+  Webhook lookups, widget loads and schedulers therefore find nothing for a deleted workspace. No per-module flag is changed, so a restore brings everything back as it was. `Workspace::deletedIds()` is cached, is re-read every 30 seconds per process, and is cleared on delete, restore and erase.
+- **Restore:** `POST /app/workspaces/{id}/restore` (`client.workspaces.restore`) is available to the owner for `Workspace::RESTORE_DAYS` (30) days, then returns HTTP 410. Audited as `workspace.restored`.
+- **No workspace left:** `EnsureClientScope` sends a user whose workspace was deleted to another accessible workspace. If none is left, they go to Workspaces to restore or create one. Users who never had a workspace, such as during onboarding, are unaffected.
+- **Erase:** `workspaces:purge-deleted` (daily at 03:30) calls `App\Services\WorkspacePurger` for workspaces deleted more than 30 days ago.
+  - Most `workspace_id` columns have no foreign key, so it deletes explicitly, in order: Knowledge Base vectors (Qdrant) and files first, then child rows (messages, assignments, notes, AI runs, KB documents, chunks and revisions, automation runs and logs, campaign recipients, tag and segment links, post links, WhatsApp numbers and template submissions, message media), then every table with a `workspace_id`, then the workspace.
+  - A Qdrant failure aborts before any row is deleted, and the next run retries.
+  - Kept on purpose: users (moved off), audit logs, AI credit ledgers and usage meters (billing history; erasing them would reset plan usage), notifications, and media-library files, which belong to their uploader.
+
 ### Workspace-scoped notifications
 
 Client notifications carry an immutable `workspace_id` captured from their source record before queueing. The customized Laravel database and broadcast channels add that scope to stored/realtime payloads; OneSignal and web-push payloads carry the same identifier. Web and Sanctum notification list, unread-count, read-all, read-one, and delete operations resolve the active accessible workspace and cannot mutate another workspace's records. Background producers resolve recipients from workspace ownership and pivot membership rather than only `users.workspace_id`, so a user with multiple workspace memberships receives each event under its originating workspace. Account-wide preferences remain user-level.
@@ -85,6 +106,8 @@ Client notifications carry an immutable `workspace_id` captured from their sourc
 Mobile clients use `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `POST /api/v1/notifications/read-all`, `POST /api/v1/notifications/{notification}/read`, and `DELETE /api/v1/notifications/{notification}` after selecting the active workspace. Responses and push payloads include `workspace_id`; a client must switch to or validate that accessible workspace before opening a notification deep link.
 
 Master Email Inbox alerts have a separate user-level source preference. `users.email_inbox_notifications_enabled` defaults to true; when false, an inbound message with `messages.channel=email` is still synchronized and remains visible/unread in the email inbox, but `NewMessageNotification` selects no database, broadcast, web-push, or OneSignal channel for that user. Non-email messages and all outbound/authentication/billing email behavior are unchanged. Mobile login and `GET /api/v1/auth/me` expose the additive boolean, and `PUT /api/v1/notifications/preferences/email-inbox` accepts required boolean `enabled` and returns only the resulting preference. Native-app UI/repository adoption remains owned by the app team.
+
+Inbound Gmail, Microsoft 365, and IMAP messages keep `messages.body` as the plain-text compatibility fallback and store sanitized rich content in `messages.payload.html_body`. Downloaded files use the existing message-media storage and are serialized as `messages.payload.attachments[]` with `name`, `url`, `mime_type`, `size`, and `type`; `has_attachments` remains true when a provider reports a source attachment that is too large or unsupported to store. The dedicated mobile email API also exposes additive top-level `html_body`, `attachments`, and `has_attachments` fields while preserving the Omnichannel-compatible `body` and `payload` contract. Native rendering remains owned by the app team.
 
 Workspace member availability is stored separately per workspace and evaluated in each member's IANA timezone. It filters only inbox new-message and human-handoff notifications. An available joined owner receives the alert alone; when that owner is off shift, other available members receive it. Realtime inbox updates and unread counts are never suppressed.
 

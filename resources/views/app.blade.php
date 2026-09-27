@@ -25,6 +25,13 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <meta name="vapid-public-key" content="{{ config('webpush.vapid_public_key') }}">
+        @php
+            // Guarded: integration_configs may be unreadable during first-run install.
+            $metaDomainVerification = rescue(static fn () => app(\App\Services\Marketing\MetaPixelSettings::class)->domainVerification(), '', false);
+        @endphp
+        @if($metaDomainVerification)
+        <meta name="facebook-domain-verification" content="{{ $metaDomainVerification }}">
+        @endif
 
         <title inertia>{{ config('app.name', 'WisperBot') }}</title>
         @php
@@ -207,7 +214,9 @@
             window.fbAsyncInit = function() {
                 FB.init({
                     appId: '{{ e($metaAppId) }}',
-                    autoLogAppEvents: true,
+                    // WisperBot measures marketing through the consent-gated
+                    // Pixel; the SDK is only needed for Meta login dialogs.
+                    autoLogAppEvents: false,
                     xfbml: false,
                     version: 'v20.0',
                 });

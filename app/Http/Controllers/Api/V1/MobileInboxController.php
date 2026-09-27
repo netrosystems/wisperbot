@@ -11,6 +11,7 @@ use App\Modules\Inbox\Services\WebchatPresence;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Contact;
 use App\Modules\Shared\Models\Conversation;
+use App\Modules\Social\Models\SocialComment;
 use App\Modules\Whatsapp\Models\WhatsappTemplate;
 use App\Support\Demo;
 use Illuminate\Http\JsonResponse;
@@ -36,6 +37,7 @@ class MobileInboxController extends WorkspaceScopedController
     {
         $wsId = $this->workspaceId($request);
         $liveSince = app(WebchatPresence::class)->onlineSince();
+        $socialCommentsEnabled = (bool) config('social_comments.enabled');
 
         $labels = InboxLabel::where('workspace_id', $wsId)
             ->orderBy('name')
@@ -63,6 +65,12 @@ class MobileInboxController extends WorkspaceScopedController
             ->count('contact_id');
 
         return response()->json([
+            'features' => [
+                'social_comments' => [
+                    'enabled' => $socialCommentsEnabled,
+                    'platforms' => ['facebook', 'instagram'],
+                ],
+            ],
             'ai_answering' => app(SegmentAiPolicyService::class)->payload($wsId, 'omni'),
             'ai_chatbots' => AiChatbot::where('workspace_id', $wsId)->orderBy('name')->get(['id', 'name']),
             'labels' => $labels,
@@ -93,11 +101,34 @@ class MobileInboxController extends WorkspaceScopedController
         $wsId = $this->workspaceId($request);
         $userId = $request->user()->id;
         $liveSince = app(WebchatPresence::class)->onlineSince();
+        $socialCommentsEnabled = (bool) config('social_comments.enabled');
 
         $openQuery = Conversation::where('workspace_id', $wsId)
             ->whereHas('channelAccount', fn ($account) => $account->whereIn('channel', self::OMNI_CHANNELS))
             ->whereHas('contentMessages')
             ->where('status', 'open');
+
+        $socialCommentCounts = [
+            'enabled' => $socialCommentsEnabled,
+            'needs_attention' => 0,
+            'unread' => 0,
+        ];
+
+        if ($socialCommentsEnabled) {
+            $socialComments = SocialComment::where('workspace_id', $wsId)->where('is_own', false);
+            $socialCommentCounts['needs_attention'] = (clone $socialComments)
+                ->where('status', 'needs_attention')
+                ->count();
+            $socialCommentCounts['unread'] = (clone $socialComments)
+                ->whereNotExists(function ($reads) use ($userId) {
+                    $reads->selectRaw('1')
+                        ->from('social_comment_reads')
+                        ->whereColumn('social_comment_reads.comment_id', 'social_comments.id')
+                        ->where('social_comment_reads.user_id', $userId)
+                        ->whereColumn('social_comment_reads.read_at', '>=', 'social_comments.updated_at');
+                })
+                ->count();
+        }
 
         return response()->json([
             'all' => (clone $openQuery)->count(),
@@ -113,6 +144,7 @@ class MobileInboxController extends WorkspaceScopedController
                 ->whereHas('contentMessages')
                 ->where('unread_count', '>', 0)
                 ->count(),
+            'social_comments' => $socialCommentCounts,
         ]);
     }
 
@@ -220,12 +252,12 @@ class MobileInboxController extends WorkspaceScopedController
                     ->orWhere('phone_e164', 'like', "%{$q}%")
                     ->orWhere('email', 'like', "%{$q}%");
             })
-            ->orderBy('first_name')
-            ->limit(30)
-            ->get(['id', 'uuid', 'first_name', 'last_name', 'phone_e164', 'email', 'avatar', 'custom_fields', 'source']);
+            ->latest()
+            ->orderByDesc('id')
+            ->paginate(30, ['id', 'uuid', 'first_name', 'last_name', 'phone_e164', 'email', 'avatar', 'custom_fields', 'source']);
 
         return response()->json([
-            'data' => $contacts->map(function ($c) {
+            'data' => $contacts->getCollection()->map(function ($c) {
                 $canWhatsapp = ! empty($c->phone_e164);
                 $canSms = ! empty($c->phone_e164);
                 $canEmail = ! empty($c->email);
@@ -307,7 +339,13 @@ class MobileInboxController extends WorkspaceScopedController
                         ],
                     ],
                 ];
-            }),
+            })->values(),
+            'meta' => [
+                'current_page' => $contacts->currentPage(),
+                'last_page' => $contacts->lastPage(),
+                'per_page' => $contacts->perPage(),
+                'total' => $contacts->total(),
+            ],
         ]);
     }
 
