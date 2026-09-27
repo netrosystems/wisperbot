@@ -320,7 +320,7 @@ class EmailAccountController extends Controller
             $message->update(['status' => 'sent', 'provider_message_id' => $providerId]);
             MessageSent::dispatch($message->load('conversation'));
 
-            return to_route('client.inbox.show', ['conversation' => $conversation, 'channel' => 'email'])
+            return to_route('client.inbox.email-inbox', ['conversation' => $conversation->uuid])
                 ->with('success', 'Email sent.');
         } catch (Throwable $e) {
             $message->update(['status' => 'failed', 'error_json' => ['message' => $e->getMessage()]]);
