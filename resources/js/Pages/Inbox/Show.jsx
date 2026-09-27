@@ -7,7 +7,7 @@ import {
     RefreshCw, Search, Inbox, User, CheckCircle, Clock, X, Smile,
     Paperclip, Image as ImageIcon, ChevronDown, UserCheck,
     LayoutTemplate, Plus, Loader2, Bot, Calendar, BarChart2, PhoneMissed,
-    Mic, Square,
+    Mic, Square, MessagesSquare,
     Volume2, VolumeX, ShoppingBag, Radio, Download,
 } from 'lucide-react';
 import { ChannelBrandIcon, CHANNEL_LABELS, ConversationChannelIcon } from '@/Components/BrandIcons';
@@ -1634,6 +1634,9 @@ export default function InboxShow({
     const [notePosting, setNotePosting]     = useState(false);
     const [cannedReplies, setCannedReplies] = useState([]);
     const [slashMenu, setSlashMenu]         = useState([]);
+    const [showQuickReplies, setShowQuickReplies] = useState(false);
+    const [quickReplyQuery, setQuickReplyQuery] = useState('');
+    const [loadingCannedReplies, setLoadingCannedReplies] = useState(true);
     const [convLabels, setConvLabels]       = useState(conversation.labels ?? []);
     const [assignedTo, setAssignedTo]       = useState(conversation.assigned_to ?? 'bot');
     const [assignedUserId, setAssignedUserId] = useState(conversation.assigned_user_id ?? null);
@@ -1743,6 +1746,23 @@ export default function InboxShow({
     const messagesRef = useRef(initialMessages ?? []);
 
     const { data, setData, reset } = useForm({ body: '', type: 'text', payload: null });
+
+    useEffect(() => {
+        let active = true;
+
+        axios.get(route('client.inbox.canned-replies.list'))
+            .then(response => {
+                if (active) setCannedReplies(Array.isArray(response.data) ? response.data : []);
+            })
+            .catch(() => {
+                if (active) setCannedReplies([]);
+            })
+            .finally(() => {
+                if (active) setLoadingCannedReplies(false);
+            });
+
+        return () => { active = false; };
+    }, []);
 
     const scrollToBottom = useCallback((behavior = 'smooth') => {
         if (messagesContainerRef.current) {
@@ -2086,6 +2106,17 @@ export default function InboxShow({
             setSlashMenu([]);
         }
     };
+
+    const selectCannedReply = (reply) => {
+        setData('body', renderCannedBody(reply.body, conversation.contact));
+        setSlashMenu([]);
+        setShowQuickReplies(false);
+        setQuickReplyQuery('');
+    };
+
+    const filteredQuickReplies = cannedReplies.filter(reply =>
+        `${reply.shortcut} ${reply.body}`.toLowerCase().includes(quickReplyQuery.trim().toLowerCase())
+    );
 
     const toggleLabel = (label) => {
         const attached = convLabels.some(l => l.id === label.id);
@@ -2458,6 +2489,7 @@ export default function InboxShow({
         conversation.contact?.phone_e164 && { key: 'sms', label: 'SMS', value: conversation.contact?.opt_in_sms },
         conversation.contact?.email && { key: 'email', label: t('common.email'), value: conversation.contact?.opt_in_email },
     ].filter(Boolean);
+    const showNewConversationButton = false;
 
     return (
         <InboxLayout mobileTitle={emailOnly ? 'Email MasterBox' : t('inbox.title')} mobileBackHref={emailOnly ? route('client.inbox.email-inbox') : route('client.inbox.index', filters)}>
@@ -2471,13 +2503,15 @@ export default function InboxShow({
                         <Link href={emailOnly ? route('client.inbox.email-inbox') : route('client.inbox.index')} className="text-sm font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-2 hover:text-brand-600 transition">
                             <Inbox className="h-4 w-4 text-brand-600" />{emailOnly ? 'Email MasterBox' : t('inbox.title')}
                         </Link>
-                        {!emailOnly && <button
-                            onClick={() => setShowNewModal(true)}
-                            title={t('inbox.new_conversation')}
-                            className="h-7 w-7 rounded-lg bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center transition shrink-0"
-                        >
-                            <Plus className="h-4 w-4" />
-                        </button>}
+                        {showNewConversationButton && !emailOnly && (
+                            <button
+                                onClick={() => setShowNewModal(true)}
+                                title={t('inbox.new_conversation')}
+                                className="h-7 w-7 rounded-lg bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center transition shrink-0"
+                            >
+                                <Plus className="h-4 w-4" />
+                            </button>
+                        )}
                     </div>
                     <FilterSidebar
                         filters={filters}
@@ -2780,7 +2814,7 @@ export default function InboxShow({
                             <div className="mb-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-lg max-h-48 overflow-y-auto">
                                 {slashMenu.map(reply => (
                                     <button key={reply.id} type="button"
-                                        onClick={() => { setData('body', renderCannedBody(reply.body, conversation.contact)); setSlashMenu([]); }}
+                                        onClick={() => selectCannedReply(reply)}
                                         className="w-full text-left px-3 py-2 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition border-b border-neutral-100 dark:border-neutral-800 last:border-0">
                                         <span className="font-mono text-xs font-semibold text-brand-600 dark:text-brand-400 mr-2">/{reply.shortcut}</span>
                                         <span className="text-xs text-neutral-500 line-clamp-1">{reply.body}</span>
@@ -2817,6 +2851,48 @@ export default function InboxShow({
                                 />
                             )}
 
+                            {showQuickReplies && (
+                                <div className="mb-2 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                                    <div className="flex items-center border-b border-neutral-100 dark:border-neutral-800">
+                                        <div className="relative min-w-0 flex-1">
+                                            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+                                            <input
+                                                autoFocus
+                                                value={quickReplyQuery}
+                                                onChange={event => setQuickReplyQuery(event.target.value)}
+                                                placeholder={t('common.search', { defaultValue: 'Search' })}
+                                                className="w-full border-0 bg-transparent py-2 pl-9 pr-2 text-sm focus:outline-none focus:ring-0"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowQuickReplies(false)}
+                                            aria-label={t('common.close', { defaultValue: 'Close' })}
+                                            className="mr-1.5 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                    <div className="max-h-44 overflow-y-auto">
+                                        {loadingCannedReplies ? (
+                                            <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-neutral-400" /></div>
+                                        ) : filteredQuickReplies.length === 0 ? (
+                                            <p className="px-3 py-4 text-center text-xs text-neutral-500">{t('inbox.no_canned_replies')}</p>
+                                        ) : filteredQuickReplies.map(reply => (
+                                            <button
+                                                key={reply.id}
+                                                type="button"
+                                                onClick={() => selectCannedReply(reply)}
+                                                className="block w-full border-b border-neutral-100 px-3 py-2 text-left last:border-0 hover:bg-brand-50 dark:border-neutral-800 dark:hover:bg-brand-900/20"
+                                            >
+                                                <span className="block text-xs font-semibold text-brand-700 dark:text-brand-300">/{reply.shortcut}</span>
+                                                <span className="mt-0.5 block truncate text-xs text-neutral-600 dark:text-neutral-400">{reply.body}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <form onSubmit={handleSend}>
                                 {/* Toolbar */}
                                 <div className="flex flex-wrap items-center gap-1 mb-1.5">
@@ -2844,6 +2920,22 @@ export default function InboxShow({
                                         title={recordingAudio ? 'Stop recording' : 'Record voice message'}
                                         className={`p-1.5 rounded-lg transition ${recordingAudio ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300 animate-pulse' : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}>
                                         {recordingAudio ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                                    </button>
+                                    {/* Quick replies */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowQuickReplies(value => !value);
+                                            setShowEmoji(false);
+                                            setShowTemplates(false);
+                                            setShowProducts(false);
+                                        }}
+                                        title={t('nav.quick_replies', { defaultValue: 'Quick Replies' })}
+                                        aria-label={t('nav.quick_replies', { defaultValue: 'Quick Replies' })}
+                                        aria-expanded={showQuickReplies}
+                                        className={`p-1.5 rounded-lg transition ${showQuickReplies ? 'bg-brand-50 text-brand-600 dark:bg-brand-900/20 dark:text-brand-300' : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}
+                                    >
+                                        <MessagesSquare className="h-4 w-4" />
                                     </button>
                                     {/* Share product */}
                                     {hasEcommerceStore && (

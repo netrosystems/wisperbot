@@ -710,6 +710,32 @@
                 },
                 "description": "List canned responses. Supports ?search= query parameter."
               }
+            },
+            {
+              "name": "Get Mobile Stats",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/stats",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "mobile",
+                    "stats"
+                  ]
+                },
+                "description": "Returns unpaginated workspace-scoped mobile inbox aggregates for message-bearing omni-channel conversations."
+              }
             }
           ]
         },
@@ -3291,6 +3317,19 @@
                   "path": ["api", "v1", "mobile", "social", "comments", "accounts", "{{social_account_id}}", "sync"]
                 },
                 "description": "Queues a manual comment synchronization for a connected Facebook or Instagram account."
+              }
+            },
+            {
+              "name": "Get Social Comment Operation",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json", "type": "text" }],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/mobile/social/comments/operations/{{social_operation_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "v1", "mobile", "social", "comments", "operations", "{{social_operation_id}}"]
+                },
+                "description": "Returns the current status and result payload for a social comment operation."
               }
             },
             {

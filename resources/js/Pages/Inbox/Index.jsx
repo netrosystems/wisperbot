@@ -646,6 +646,7 @@ export default function InboxIndex({ conversations: initialConversations, filter
     const filtered = conversations.data;
 
     const activeFolder = FOLDERS.find(f => (f.key ?? null) === (filters.folder ?? null));
+    const showNewConversationButton = false;
     const filterNavigation = (
         <FilterSidebar
             filters={filters}
@@ -668,9 +669,11 @@ export default function InboxIndex({ conversations: initialConversations, filter
                     <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 dark:text-neutral-200">{t('common.filter')}</summary>
                     {filterNavigation}
                 </details>
-                <button type="button" onClick={() => setShowNewModal(true)} aria-label={t('inbox.new_conversation')} className="mr-2 rtl:mr-0 rtl:ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:bg-brand-900/20">
-                    <Plus aria-hidden="true" className="h-5 w-5" />
-                </button>
+                {showNewConversationButton && (
+                    <button type="button" onClick={() => setShowNewModal(true)} aria-label={t('inbox.new_conversation')} className="mr-2 rtl:mr-0 rtl:ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:bg-brand-900/20">
+                        <Plus aria-hidden="true" className="h-5 w-5" />
+                    </button>
+                )}
             </div>
             <div className="flex min-h-0 flex-1 overflow-hidden">
 
@@ -681,13 +684,15 @@ export default function InboxIndex({ conversations: initialConversations, filter
                             <Inbox className="h-4 w-4 text-brand-600" />
                             {t('inbox.title')}
                         </p>
-                        <button
-                            onClick={() => setShowNewModal(true)}
-                            title={t('inbox.new_conversation')}
-                            className="h-7 w-7 rounded-lg bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center transition shrink-0"
-                        >
-                            <Plus className="h-4 w-4" />
-                        </button>
+                        {showNewConversationButton && (
+                            <button
+                                onClick={() => setShowNewModal(true)}
+                                title={t('inbox.new_conversation')}
+                                className="h-7 w-7 rounded-lg bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center transition shrink-0"
+                            >
+                                <Plus className="h-4 w-4" />
+                            </button>
+                        )}
                     </div>
                     {filterNavigation}
                 </aside>

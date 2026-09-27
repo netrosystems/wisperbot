@@ -116,6 +116,49 @@ class SocialCommentsTest extends TestCase
         $this->getJson($url)->assertJsonPath('comments.data.0.unread', false);
     }
 
+    public function test_mobile_bootstrap_and_counts_expose_comment_only_navigation_metadata(): void
+    {
+        $f = $this->fixture();
+
+        $this->actingAs($f['user'])->getJson('/api/v1/mobile/inbox/setup')
+            ->assertOk()
+            ->assertJsonPath('features.social_comments.enabled', true)
+            ->assertJsonPath('features.social_comments.platforms.0', 'facebook')
+            ->assertJsonPath('features.social_comments.platforms.1', 'instagram');
+
+        $this->getJson('/api/v1/mobile/inbox/counts')
+            ->assertOk()
+            ->assertJsonPath('social_comments.enabled', true)
+            ->assertJsonPath('social_comments.needs_attention', 1)
+            ->assertJsonPath('social_comments.unread', 1);
+
+        $this->postJson('/api/v1/mobile/social/comments/'.$f['comment']->id.'/read')->assertOk();
+        $this->travel(1)->seconds();
+        $this->patchJson('/api/v1/mobile/social/comments/'.$f['comment']->id, ['status' => 'resolved'])->assertOk();
+        $this->getJson('/api/v1/mobile/inbox/counts')
+            ->assertJsonPath('social_comments.needs_attention', 0)
+            ->assertJsonPath('social_comments.unread', 1);
+
+        $this->postJson('/api/v1/mobile/social/comments/'.$f['comment']->id.'/read')->assertOk();
+        $this->getJson('/api/v1/mobile/inbox/counts')
+            ->assertJsonPath('social_comments.unread', 0);
+    }
+
+    public function test_disabled_comment_feature_is_advertised_without_querying_comment_data(): void
+    {
+        $f = $this->fixture();
+        config(['social_comments.enabled' => false]);
+
+        $this->actingAs($f['user'])->getJson('/api/v1/mobile/inbox/setup')
+            ->assertOk()
+            ->assertJsonPath('features.social_comments.enabled', false);
+        $this->getJson('/api/v1/mobile/inbox/counts')
+            ->assertOk()
+            ->assertJsonPath('social_comments.enabled', false)
+            ->assertJsonPath('social_comments.needs_attention', 0)
+            ->assertJsonPath('social_comments.unread', 0);
+    }
+
     public function test_reply_idempotency_and_conflicting_body(): void
     {
         $f = $this->fixture();
@@ -187,6 +230,23 @@ class SocialCommentsTest extends TestCase
         (new ProcessSocialCommentOperation($op->id, $f['workspace']->id))->handle(app(MetaCommentProvider::class), $f['service'], app(ChatbotRunner::class));
         $this->assertSame('delivery_unknown', $op->fresh()->status);
         $this->actingAs($f['user'])->postJson('/api/v1/mobile/social/comments/operations/'.$op->id.'/retry')->assertConflict();
+    }
+
+    public function test_operation_status_is_workspace_scoped_and_hides_internal_keys(): void
+    {
+        $f = $this->fixture();
+        $other = $this->fixture();
+        $op = $f['service']->enqueue($f['comment'], 'reply', 'Open at nine', 'mobile-operation', $f['user']->id);
+        $url = '/api/v1/mobile/social/comments/operations/'.$op->id;
+
+        $this->actingAs($f['user'])->getJson($url)
+            ->assertOk()
+            ->assertJsonPath('operation.id', $op->id)
+            ->assertJsonPath('operation.status', 'queued')
+            ->assertJsonMissingPath('operation.idempotency_key')
+            ->assertJsonMissingPath('operation.credential_fingerprint');
+
+        $this->actingAs($other['user'])->getJson($url)->assertNotFound();
     }
 
     public function test_credential_rotation_and_comment_edits_cancel_queued_actions(): void
