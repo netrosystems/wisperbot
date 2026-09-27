@@ -82,7 +82,7 @@ Published and previewed content is sanitized again on read. The sanitizer remove
 - **Resolved-thread reopening**: A genuine new customer message reuses the same conversation and transcript, moves it from Resolved back to Open/Unassigned, resets stale ownership and AI-pause state, and updates the web inbox in realtime. Provider echoes, delivery callbacks, and historical imports do not reopen threads.
 - **Interactive Chat Interface**:
   - Rich message formatting with image, video, audio, and document attachment previews.
-  - Canned replies (`/quick-reply`) for fast repetitive response delivery.
+  - Workspace-scoped Quick Replies for fast repetitive response delivery. Admins/owners manage them from Contacts; staff can search and use them in existing or new conversations without changing WhatsApp approved templates.
   - Internal agent private notes and conversation tagging.
   - Real-time agent typing indicators and live presence detection.
 - **Master Email Inbox (`/app/inbox/email`)**: Dedicated multi-mailbox email client synchronizing Gmail, Microsoft 365, and IMAP/SMTP accounts with folder organization and threaded conversations.

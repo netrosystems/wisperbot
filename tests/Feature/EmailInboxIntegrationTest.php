@@ -9,9 +9,11 @@ use App\Modules\Inbox\Services\MicrosoftGraphMailClient;
 use App\Modules\Integrations\Models\IntegrationConfig;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Message;
+use App\Services\StorageManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Mockery;
 use Tests\TestCase;
 
@@ -100,6 +102,10 @@ class EmailInboxIntegrationTest extends TestCase
         ]);
         Http::fake([
             'gmail.googleapis.com/gmail/v1/users/me/messages?*' => Http::response(['messages' => [['id' => 'gmail-message-1']]]),
+            'gmail.googleapis.com/gmail/v1/users/me/messages/gmail-message-1/attachments/attachment-1' => Http::response([
+                'data' => rtrim(strtr(base64_encode('pdf-bytes'), '+/', '-_'), '='),
+                'size' => 9,
+            ]),
             'gmail.googleapis.com/gmail/v1/users/me/messages/gmail-message-1?*' => Http::response([
                 'id' => 'gmail-message-1',
                 'threadId' => 'gmail-thread-1',
@@ -107,13 +113,23 @@ class EmailInboxIntegrationTest extends TestCase
                 'labelIds' => ['INBOX', 'UNREAD'],
                 'snippet' => 'Hello support',
                 'payload' => [
-                    'mimeType' => 'text/plain',
+                    'mimeType' => 'multipart/mixed',
                     'headers' => [
                         ['name' => 'From', 'value' => 'Customer One <customer@example.com>'],
                         ['name' => 'Subject', 'value' => 'Need help'],
                         ['name' => 'Message-ID', 'value' => '<message@example.com>'],
                     ],
-                    'body' => ['data' => rtrim(strtr(base64_encode('Hello support'), '+/', '-_'), '=')],
+                    'parts' => [
+                        [
+                            'mimeType' => 'text/html',
+                            'body' => ['data' => rtrim(strtr(base64_encode('<p><strong>Hello</strong> support</p>'), '+/', '-_'), '=')],
+                        ],
+                        [
+                            'mimeType' => 'application/pdf',
+                            'filename' => 'guide.pdf',
+                            'body' => ['attachmentId' => 'attachment-1', 'size' => 9],
+                        ],
+                    ],
                 ],
             ]),
             'gmail.googleapis.com/gmail/v1/users/me/messages/send' => Http::response(['id' => 'gmail-sent-1', 'threadId' => 'gmail-thread-2']),
@@ -123,7 +139,10 @@ class EmailInboxIntegrationTest extends TestCase
         $items = $client->syncInbox($account);
         $this->assertSame('gmail:gmail-message-1', $items[0]['id']);
         $this->assertSame('customer@example.com', $items[0]['from']['emailAddress']['address']);
-        $this->assertSame('Hello support', $items[0]['body']['content']);
+        $this->assertSame('<p><strong>Hello</strong> support</p>', $items[0]['body']['content']);
+        $this->assertSame('html', $items[0]['body']['contentType']);
+        $this->assertSame('guide.pdf', $items[0]['attachments'][0]['filename']);
+        $this->assertSame('pdf-bytes', $items[0]['attachments'][0]['raw_bytes']);
         $this->assertSame(
             'gmail:gmail-sent-1',
             $client->sendMessage($account, 'buyer@example.net', 'Welcome', 'Hello from our team.'),
@@ -131,6 +150,51 @@ class EmailInboxIntegrationTest extends TestCase
         Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/messages/send')
             && $request->header('Authorization')[0] === 'Bearer google-access'
             && is_string($request['raw']));
+    }
+
+    public function test_microsoft_sync_downloads_file_attachments(): void
+    {
+        IntegrationConfig::create([
+            'provider' => 'oauth_microsoft_365',
+            'label' => 'Microsoft 365 Mail OAuth',
+            'mode' => 'live',
+            'credentials' => ['client_id' => 'client-id', 'client_secret' => 'secret', 'tenant' => 'organizations'],
+            'enabled' => true,
+        ]);
+        $context = $this->createWorkspaceContext();
+        $account = ChannelAccount::create([
+            'workspace_id' => $context['workspace']->id,
+            'channel' => 'email',
+            'provider' => 'microsoft_365',
+            'business_account_id' => 'microsoft-user-1',
+            'display_name' => 'Support',
+            'status' => 'active',
+            'credentials' => ['access_token' => 'graph-access', 'expires_at' => now()->addHour()->toIso8601String()],
+            'meta_json' => ['email' => 'support@example.com'],
+        ]);
+        Http::fake([
+            'graph.microsoft.com/v1.0/me/messages/graph-message-1/attachments*' => Http::response(['value' => [[
+                '@odata.type' => '#microsoft.graph.fileAttachment',
+                'name' => 'invoice.pdf',
+                'contentType' => 'application/pdf',
+                'size' => 9,
+                'contentBytes' => base64_encode('pdf-bytes'),
+            ]]]),
+            'graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta*' => Http::response([
+                'value' => [[
+                    'id' => 'graph-message-1',
+                    'subject' => 'Invoice',
+                    'body' => ['contentType' => 'html', 'content' => '<p>Invoice attached</p>'],
+                    'hasAttachments' => true,
+                ]],
+                '@odata.deltaLink' => 'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=next',
+            ]),
+        ]);
+
+        $items = app(MicrosoftGraphMailClient::class)->syncInbox($account);
+
+        $this->assertSame('invoice.pdf', $items[0]['attachments'][0]['filename']);
+        $this->assertSame('pdf-bytes', $items[0]['attachments'][0]['raw_bytes']);
     }
 
     public function test_email_setup_routes_are_workspace_authenticated(): void
@@ -168,6 +232,7 @@ class EmailInboxIntegrationTest extends TestCase
 
     public function test_mailbox_sync_creates_one_workspace_scoped_email_conversation_and_deduplicates(): void
     {
+        Storage::fake('public');
         $context = $this->createWorkspaceContext();
         $account = ChannelAccount::create([
             'workspace_id' => $context['workspace']->id,
@@ -185,7 +250,14 @@ class EmailInboxIntegrationTest extends TestCase
             'subject' => 'Need help',
             'from' => ['emailAddress' => ['address' => 'customer@example.com', 'name' => 'Customer One']],
             'receivedDateTime' => now()->toIso8601String(),
-            'body' => ['content' => '<p>Hello support</p>'],
+            'body' => ['contentType' => 'html', 'content' => '<p><strong>Hello</strong> support</p><script>alert(1)</script>'],
+            'hasAttachments' => true,
+            'attachments' => [[
+                'filename' => 'guide.pdf',
+                'mime_type' => 'application/pdf',
+                'size' => 9,
+                'raw_bytes' => 'pdf-bytes',
+            ]],
         ];
         $microsoft = Mockery::mock(MicrosoftGraphMailClient::class);
         $microsoft->shouldReceive('syncInbox')->twice()->withArgs(fn ($value) => $value->is($account))->andReturn([$item]);
@@ -201,6 +273,11 @@ class EmailInboxIntegrationTest extends TestCase
         $message = Message::first();
         $this->assertSame('email', $message->channel);
         $this->assertSame('Hello support', $message->body);
+        $this->assertSame('<p><strong>Hello</strong> support</p>', $message->payload['html_body']);
+        $this->assertSame('guide.pdf', $message->payload['attachments'][0]['name']);
+        $this->assertSame('application/pdf', $message->payload['attachments'][0]['mime_type']);
+        $this->assertTrue($message->payload['has_attachments']);
+        $this->assertTrue(app(StorageManager::class)->disk()->exists($message->payload['attachments'][0]['path']));
         $this->assertSame('customer@example.com', $message->conversation->contact->email);
         $this->assertSame($context['workspace']->id, $message->conversation->workspace_id);
     }

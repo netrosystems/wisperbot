@@ -8,6 +8,7 @@ import {
 import axios from 'axios';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatTimeTz } from '@/Utils/datetime';
+import { EmailAttachments, EmailBody } from '@/Components/Inbox/EmailMessageContent';
 
 const FOLDERS = [
     { key: 'inbox', label: 'Inbox', icon: Inbox },
@@ -256,9 +257,6 @@ function MessageBlock({ message, contact, mailbox, timezone = 'Asia/Dhaka' }) {
     const senderEmail = safeText(outbound ? (mailbox?.meta_json?.email || mailbox?.display_name) : contact?.email, 'unknown');
     const recipient = outbound ? (contact?.email || 'Customer') : (mailbox?.meta_json?.email || mailbox?.display_name || 'Your team');
     const body = safeText(message.body, '');
-    const previewUrl = message.payload?.preview_url;
-    const isImage = message.type === 'image' || (previewUrl && /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(previewUrl));
-    const filename = message.payload?.filename || 'attachment';
 
     return (
         <article className={`overflow-hidden rounded-2xl border shadow-xs transition ${
@@ -307,44 +305,8 @@ function MessageBlock({ message, contact, mailbox, timezone = 'Asia/Dhaka' }) {
 
             {/* Email Body Content */}
             <div className="p-4 sm:p-6">
-                {body && (
-                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-neutral-800 dark:text-neutral-200">
-                        {body}
-                    </div>
-                )}
-
-                {/* Attachments */}
-                {previewUrl && (
-                    <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800">
-                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-neutral-400">Attachment</p>
-                        {isImage ? (
-                            <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="group inline-block max-w-sm overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 shadow-xs transition hover:opacity-95 dark:border-neutral-700 dark:bg-neutral-800">
-                                <img src={previewUrl} alt={filename} className="max-h-64 object-cover" />
-                                <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                    <span className="truncate max-w-xs">{filename}</span>
-                                    <span className="text-brand-600 font-semibold group-hover:underline">View ↗</span>
-                                </div>
-                            </a>
-                        ) : (
-                            <a href={previewUrl} target="_blank" rel="noopener noreferrer" download={filename} className="inline-flex items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-xs font-semibold text-neutral-700 shadow-xs transition hover:bg-neutral-100 hover:border-brand-300 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-950/40 dark:text-brand-300">
-                                    <Paperclip className="h-4 w-4" />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="max-w-xs truncate font-medium">{filename}</p>
-                                    {message.payload?.file_size && <p className="text-[10px] text-neutral-400">{(message.payload.file_size / 1024).toFixed(1)} KB</p>}
-                                </div>
-                            </a>
-                        )}
-                    </div>
-                )}
-
-                {message.payload?.has_attachments && !previewUrl && (
-                    <div className="mt-3 flex items-center gap-2 rounded-xl bg-neutral-50 p-2.5 text-xs text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
-                        <Paperclip className="h-4 w-4 text-neutral-400" />
-                        <span>Source attachment included in connected mailbox</span>
-                    </div>
-                )}
+                <EmailBody html={message.payload?.html_body} text={body} />
+                <EmailAttachments payload={message.payload} messageType={message.type} />
             </div>
         </article>
     );
