@@ -19,6 +19,8 @@ Always run `git status --short` and inspect recent history before starting; this
 
 ## Current focus
 
+2026-09-27 mobile stats API (local, uncommitted): added authenticated `GET /api/v1/mobile/stats` for unpaginated, workspace-scoped aggregates over message-bearing Omni conversations. It returns total, open, unread-message, unread-conversation, assigned, resolved, and channel counts; empty visitor sessions, email, SMS, and foreign-workspace records are excluded. No migration, mobile-app change, or new dependency.
+
 2026-09-25 photography refinement: `vibrant-support-team.webp` and its 768px variant replace the muted team photo locally. Bright orange/cobalt lifestyle styling follows the newest user references. Real UI assets stay unchanged. Original photo is preserved as a superseded source; included in the marketing artwork commit on `oris`; not deployed.
 
 2026-09-25 homepage artwork (local on `oris`): the first generated collection was rejected and superseded by product-led bento compositions using actual WisperBot UI crops, official Agent App images, and one professional fictional American-European team photo. No customer records or secrets appear in assets. Production forms used for captures were not saved or published; sample widget messages are isolated locally. See `docs/MARKETING_VISUAL_AUDIT.md`; delivery assets are in `public/images/marketing/product-ui/`, sources/prompts/archive in `output/marketing-visuals/2026-09-25/`. Frontend/public-asset deployment only; no migration, worker restart, or SDK change. Included in the marketing artwork commit on `oris`; not deployed.
