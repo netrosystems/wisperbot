@@ -37,7 +37,7 @@ function safeEmailHtml(value) {
 
 export function EmailBody({ html, text, className = '' }) {
     const frameRef = useRef(null);
-    const [frameHeight, setFrameHeight] = useState(160);
+    const [frameHeight, setFrameHeight] = useState(32);
     const safeHtml = useMemo(() => safeEmailHtml(html), [html]);
     const sourceDocument = useMemo(() => safeHtml ? `<!doctype html>
 <html>
@@ -62,7 +62,7 @@ pre { max-width: 100%; overflow: auto; white-space: pre-wrap; }
         const document = frameRef.current?.contentDocument;
         if (!document) return;
         const height = Math.max(document.body?.scrollHeight || 0, document.documentElement?.scrollHeight || 0);
-        setFrameHeight(Math.max(120, Math.min(height + 8, 720)));
+        setFrameHeight(Math.max(32, Math.min(height + 4, 720)));
     };
 
     if (safeHtml) {

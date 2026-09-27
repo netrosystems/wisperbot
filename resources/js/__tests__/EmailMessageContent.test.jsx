@@ -13,6 +13,7 @@ describe('EmailMessageContent', () => {
 
         const frame = screen.getByTitle('Email content');
         const source = frame.getAttribute('srcdoc');
+        expect(frame).toHaveStyle({ height: '32px' });
         expect(source).toContain('.red{color:red}');
         expect(source).toContain('<strong>Formatted</strong>');
         expect(source).toContain('https://images.test/photo.png');

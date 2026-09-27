@@ -155,7 +155,7 @@ class InboxController extends Controller
             $selected = Conversation::where('workspace_id', $workspaceId)
                 ->where('uuid', $request->string('conversation')->toString())
                 ->whereHas('channelAccount', fn ($query) => $query->where('channel', 'email'))
-                ->with(['contact', 'channelAccount', 'labels', 'latestInboundMessage', 'lastHumanReply.sender'])
+                ->with(['contact', 'channelAccount', 'labels', 'latestInboundMessage', 'lastHumanReply.sender', 'joinedUser'])
                 ->first();
             if ($selected) {
                 $messages = $selected->messages()
@@ -170,6 +170,7 @@ class InboxController extends Controller
                 if ($selected->unread_count > 0) {
                     $selected->update(['unread_count' => 0]);
                 }
+                $selected->setAttribute('can_takeover', $this->ownership->canTakeover($selected, $request->user()));
             }
         }
 
@@ -434,7 +435,7 @@ class InboxController extends Controller
     public function reply(Request $request, Conversation $conversation): JsonResponse|RedirectResponse
     {
         $this->authorise($request, $conversation);
-        $conversation = $this->ownership->claimEmailForReply($conversation, $request->user());
+        $this->ownership->assertCanReply($conversation, $request->user());
 
         $validated = $request->validate([
             'body' => ['nullable', 'string', 'max:4096'],
