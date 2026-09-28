@@ -61,6 +61,56 @@ export default function Pricing({ plans = [] }) {
         const cycle = yearly ? 'year' : 'month'
         return `/register?plan_id=${encodeURIComponent(plan.id)}&cycle=${cycle}`
     }
+    // With five plans, the first three (in admin order) share the top row and
+    // the two largest plans sit below as wide cards.
+    const tiered = displayPlans.length === 5
+    const corePlans = tiered ? displayPlans.slice(0, 3) : displayPlans
+    const edgePlans = tiered ? displayPlans.slice(3) : []
+    const cardLabel = (plan, wide) => {
+        if (plan.is_popular) return t('pricing.popular', 'Most popular')
+        if (plan.is_featured) return t('pricing.featured', 'Featured plan')
+        if (wide && plan === edgePlans[0]) return t('pricing.for_scale', 'For high-volume teams')
+        if (wide) return t('pricing.for_agencies', 'For agencies & resellers')
+        return t('pricing.plan', 'WisperBot plan')
+    }
+    const renderCard = (plan, wide = false) => {
+        const price = yearly ? plan.price_yearly : plan.price_monthly
+        const cta = (
+            <MButton href={registrationHref(plan)}>
+                {price === 0 ? t('pricing.start_free', 'Start free') : t('pricing.choose', 'Choose this plan')}
+            </MButton>
+        )
+        const summary = (
+            <>
+                <small>{cardLabel(plan, wide)}</small>
+                <h2>{plan.name}</h2>
+                <p>{plan.description}</p>
+                <div className="m-price-amount">
+                    {money(price, plan.currency)}
+                    <span> / {yearly ? t('pricing.year', 'year') : t('pricing.month', 'month')}</span>
+                </div>
+            </>
+        )
+        const className = 'm-price-card' + (plan.is_featured ? ' featured' : '') + (wide ? ' wide' : '')
+        if (wide) {
+            return (
+                <article key={plan.id} className={className}>
+                    <div className="m-price-card-summary">
+                        {summary}
+                        {cta}
+                    </div>
+                    <CheckList items={featuresFor(plan)} />
+                </article>
+            )
+        }
+        return (
+            <article key={plan.id} className={className}>
+                {summary}
+                <CheckList items={featuresFor(plan)} />
+                {cta}
+            </article>
+        )
+    }
     return (
         <LandingLayout>
             <SeoHead
@@ -88,29 +138,14 @@ export default function Pricing({ plans = [] }) {
                 </div>
             </PageHero>
             <section className="m-section-sm m-container">
-                <div className="m-price-grid">
-                    {displayPlans.map((plan) => (
-                        <article key={plan.id} className={'m-price-card ' + (plan.is_featured ? 'featured' : '')}>
-                            <small>
-                                {plan.is_featured
-                                    ? t('pricing.featured', 'Featured plan')
-                                    : t('pricing.plan', 'WisperBot plan')}
-                            </small>
-                            <h2>{plan.name}</h2>
-                            <p>{plan.description}</p>
-                            <div className="m-price-amount">
-                                {money(yearly ? plan.price_yearly : plan.price_monthly, plan.currency)}
-                                <span> / {yearly ? t('pricing.year', 'year') : t('pricing.month', 'month')}</span>
-                            </div>
-                            <CheckList items={featuresFor(plan)} />
-                            <MButton href={registrationHref(plan)}>
-                                {(yearly ? plan.price_yearly : plan.price_monthly) === 0
-                                    ? t('pricing.start_free', 'Start free')
-                                    : t('pricing.choose', 'Choose this plan')}
-                            </MButton>
-                        </article>
-                    ))}
+                <div className={'m-price-grid' + (tiered ? ' is-tiered' : '')}>
+                    {corePlans.map((plan) => renderCard(plan))}
                 </div>
+                {tiered && (
+                    <div className="m-price-grid-wide">
+                        {edgePlans.map((plan) => renderCard(plan, true))}
+                    </div>
+                )}
                 <p className="m-price-note">
                     {t(
                         'pricing.provider_note',

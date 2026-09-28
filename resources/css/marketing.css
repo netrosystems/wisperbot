@@ -3708,6 +3708,82 @@
 .m-price-card .m-button {
     margin-top: auto;
 }
+/* Five plans: three core plans on top, entry and agency plans as wide cards below. */
+.m-price-grid.is-tiered {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.m-price-card.featured {
+    border-color: var(--m-orange);
+    background: #fff8f3;
+    box-shadow: 0 18px 40px -24px rgba(255, 118, 46, 0.45);
+}
+.m-price-grid.is-tiered .m-price-card > small {
+    line-height: 14px;
+    padding-block: 4px;
+}
+.m-price-card.featured > small,
+.m-price-card-summary > small {
+    align-self: flex-start;
+}
+.m-price-card.featured > small {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--m-orange);
+    color: #fff;
+    font-weight: 600;
+}
+.m-price-grid-wide {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+    margin-top: 22px;
+}
+.m-price-card.wide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    column-gap: 32px;
+    align-items: start;
+    background: var(--m-cream);
+}
+.m-price-card-summary {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.m-price-card-summary > small {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #62754f;
+}
+.m-price-card-summary > p {
+    font-size: 12px;
+    color: #647256;
+    margin-top: 14px;
+}
+.m-price-card-summary .m-price-amount {
+    margin-bottom: 24px;
+}
+.m-price-card.wide .m-check-list {
+    margin: 0;
+    padding-left: 32px;
+    border-left: 1px solid var(--m-line);
+}
+@media (max-width: 1023px) {
+    .m-price-grid.is-tiered,
+    .m-price-grid-wide {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .m-price-card.wide {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .m-price-card.wide .m-check-list {
+        margin-top: 24px;
+        padding: 24px 0 0;
+        border-left: 0;
+        border-top: 1px solid var(--m-line);
+    }
+}
 .m-price-note {
     font-size: 11px;
     color: #96a686;
