@@ -1,6 +1,6 @@
 # Operations
 
-Last verified against code: 2026-08-21.
+Last verified against code: 2026-09-28.
 
 ## Local environment
 
@@ -37,12 +37,24 @@ See [the Docker operator setup](../docker/README.md#optional-browser-database-ad
 Production CI/CD is defined in `.github/workflows/deploy-production.yml`. A
 merged same-repository `dev` → `main` pull request opens an SSH session using
 the protected `production` environment, fast-forwards the server checkout, and
-runs `./deploy.sh`. Only after the deployment and health check succeed does the
-workflow publish a GitHub release for the `APP_VERSION` assigned on that VPS.
+runs `bash ./deploy.sh`. Only after the deployment and health check succeed does
+the workflow collect the deployed revision/version through a separate SSH call
+and publish a GitHub release for the `APP_VERSION` assigned on that VPS.
 Required secret names and host-key setup are documented in
 [`DEPLOYMENT.md`](../DEPLOYMENT.md#github-actions-production-deployment).
 Protect `main` so changes arrive through reviewed pull requests; direct pushes
-do not trigger this deployment workflow.
+do not trigger this deployment workflow. Neither do local merges pushed to
+`main`, pushes to `dev`, unmerged pull requests, fork pull requests, or merges
+from any source branch other than `dev`.
+
+The deployment finalizer and release creation are idempotent for the same Git
+revision, and production deployments are serialized. It is safe to rerun a
+failed job after correcting its root cause: a successful deployment will not
+receive another version bump, and an existing GitHub release is preserved. A
+failed SSH connection, Git fast-forward, Docker build, migration, service start,
+or `/up` health check prevents release creation. Before retrying, keep the VPS
+checkout clean with `git status --short`; do not stash or discard unexplained
+production changes.
 
 Meta Pixel & Conversions API (2026-09-26): deploy the matching backend and `public/build`, run migration `2026_09_26_000100_add_marketing_attribution_to_users`, then rebuild config/routes if cached. Events are queued on `default`, so no new worker is needed. In Super Admin → Integrations → *Meta Pixel & Conversions API*, enter the Dataset ID and the Conversions API token generated in Events Manager, then enable it and run Test connection. To verify, add a Test Event Code, accept cookies on the public site, sign up and submit the contact form, and confirm PageView, Lead and CompleteRegistration appear once each (browser and server deduplicated) in Events Manager → Test events. Clear the code afterwards. Without a token the Pixel still works in the browser only.
 
