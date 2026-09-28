@@ -15,6 +15,7 @@ import SocialWorkspaceTabs from '@/Components/Social/SocialWorkspaceTabs';
 import CommentPlatformAvailability from '@/Components/Social/CommentPlatformAvailability';
 
 import { confirmDialog } from '@/Components/ConfirmDialog';
+import { MediaPreview, MediaThumb } from '@/Components/Social/SocialMedia';
 const NETWORKS = [
     { id: 'facebook', label: 'Facebook' },
     { id: 'instagram', label: 'Instagram' },
@@ -351,7 +352,7 @@ function PostDetails({ post, accountMap, timezone, onClose }) {
                                 {post.remote_lifecycle.update_reason || post.remote_lifecycle.reason || post.remote_lifecycle.local_remove_reason}
                             </p>
                         )}
-                        {(post.media_urls ?? []).length > 0 && <div className="mt-4 grid grid-cols-2 gap-2">{post.media_urls.filter(Boolean).map(url => <img key={url} src={url} alt="" className="max-h-52 w-full rounded-lg object-cover" />)}</div>}
+                        {(post.media_urls ?? []).length > 0 && <div className="mt-4 grid grid-cols-2 gap-2">{post.media_urls.filter(Boolean).map(url => <MediaPreview key={url} url={url} className="max-h-52 w-full rounded-lg object-cover" />)}</div>}
                         {post.publish_results && Object.keys(post.publish_results).length > 0 && (
                             <div className="mt-5">
                                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">{t('social.publish_results')}</p>
@@ -396,7 +397,7 @@ function PostList({ posts, accountMap, timezone, onView }) {
                         {posts.data.map(post => (
                             <tr key={post.id} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40">
                                 <td className="px-4 py-3"><button onClick={() => onView(post)} className="flex w-full min-w-0 items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-brand-500/30">
-                                    {(post.media_urls ?? []).filter(Boolean)[0] ? <img src={post.media_urls.filter(Boolean)[0]} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" /> : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-400 dark:bg-neutral-800"><ImageIcon className="h-4 w-4" /></span>}
+                                    {(post.media_urls ?? []).filter(Boolean)[0] ? <MediaThumb url={post.media_urls.filter(Boolean)[0]} /> : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-400 dark:bg-neutral-800"><ImageIcon className="h-4 w-4" /></span>}
                                     <span className="min-w-0"><span className="block truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{post.title || t('social.post_fallback')}</span><span className="mt-0.5 block truncate text-xs text-neutral-500">{post.body}</span></span>
                                 </button></td>
                                 <td className="px-4 py-3"><div className="flex -space-x-1">{(post.target_accounts ?? []).slice(0, 4).map(id => accountMap[id] ? <span key={id} title={accountMap[id].name} className="rounded-full bg-white ring-2 ring-white dark:bg-neutral-900 dark:ring-neutral-900"><AccountAvatar account={accountMap[id]} showName={false} /></span> : null)}{(post.target_accounts ?? []).length > 4 && <span className="ml-2 text-xs text-neutral-500">+{post.target_accounts.length - 4}</span>}</div></td>

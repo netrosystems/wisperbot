@@ -11,6 +11,7 @@ import { browserTz, tzLocalToUtcIso, formatInTz } from '@/Utils/datetime';
 import { xMediaKind, xWeightedLength, X_MAX_WEIGHTED_LENGTH } from '@/Utils/xText';
 import XVersionPanel, { networkContentPayload, xContent } from '@/Pages/Social/Posts/XVersionPanel';
 import { mediaWarnings } from '@/Utils/socialMedia';
+import { MediaPreview } from '@/Components/Social/SocialMedia';
 
 const CHAR_LIMITS = { tiktok: 2200, linkedin: 3000, facebook: 63206, instagram: 2200, youtube: 5000, twitter: X_MAX_WEIGHTED_LENGTH };
 
@@ -57,7 +58,7 @@ function FacebookPreview({ body, mediaUrls, accountName, pictureUrl }) {
             </p>
             {mediaUrls?.[0] && (
                 <div className="mt-3 -mx-4 flex justify-center overflow-hidden bg-neutral-100 dark:bg-neutral-950">
-                    <img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" />
+                    <MediaPreview url={mediaUrls[0]} alt="Post media preview" />
                 </div>
             )}
             <div className="mt-3 flex items-center justify-between text-neutral-500 text-xs border-t border-neutral-100 dark:border-neutral-700 pt-2">
@@ -81,7 +82,7 @@ function InstagramPreview({ body, mediaUrls, accountName, pictureUrl }) {
                 <span className="font-semibold text-neutral-900 dark:text-neutral-100 text-xs">@{handle}</span>
             </div>
             {mediaUrls?.[0]
-                ? <div className="flex justify-center bg-neutral-100 dark:bg-neutral-950"><img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" /></div>
+                ? <div className="flex justify-center bg-neutral-100 dark:bg-neutral-950"><MediaPreview url={mediaUrls[0]} alt="Post media preview" /></div>
                 : <div className="w-full h-36 bg-gradient-to-br from-neutral-100 to-neutral-200 dark:from-neutral-800 dark:to-neutral-700 flex items-center justify-center text-neutral-400 text-xs">{t('social.preview_photo_video')}</div>
             }
             <div className="px-3 pt-2 pb-3">
@@ -112,7 +113,7 @@ function LinkedInPreview({ body, mediaUrls, accountName, pictureUrl }) {
             <p className="text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap break-words leading-snug">
                 {body || <span className="text-neutral-400 italic">{t('social.preview_post_placeholder')}</span>}
             </p>
-            {mediaUrls?.[0] && <div className="mt-3 flex justify-center overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-950"><img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" /></div>}
+            {mediaUrls?.[0] && <div className="mt-3 flex justify-center overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-950"><MediaPreview url={mediaUrls[0]} alt="Post media preview" /></div>}
             <div className="mt-3 flex items-center gap-4 text-neutral-500 text-xs border-t border-neutral-100 dark:border-neutral-700 pt-2">
                 <span className="flex items-center gap-1"><ThumbsUp className="h-3.5 w-3.5" /> {t('social.preview_like')}</span>
                 <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {t('social.preview_comment')}</span>
@@ -130,7 +131,7 @@ function TikTokPreview({ body, mediaUrls, accountName }) {
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-black text-sm font-[system-ui] overflow-hidden">
             <div className="relative">
                 {mediaUrls?.[0]
-                    ? <img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" />
+                    ? <MediaPreview url={mediaUrls[0]} alt="Post media preview" />
                     : <div className="w-full h-52 bg-neutral-900 flex items-center justify-center text-neutral-600 text-xs">{t('social.preview_video')}</div>
                 }
                 <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
@@ -154,7 +155,7 @@ function YouTubePreview({ body, mediaUrls, accountName }) {
     return (
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm font-[system-ui] overflow-hidden">
             {mediaUrls?.[0]
-                ? <div className="flex justify-center bg-neutral-100 dark:bg-neutral-950"><img src={mediaUrls[0]} alt="Post media preview" className="block max-h-[32rem] w-full object-contain" /></div>
+                ? <div className="flex justify-center bg-neutral-100 dark:bg-neutral-950"><MediaPreview url={mediaUrls[0]} alt="Post media preview" /></div>
                 : <div className="w-full h-36 bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
                     <div className="h-12 w-12 rounded-full bg-red-600 flex items-center justify-center">
                         <div className="border-t-[8px] border-b-[8px] border-l-[14px] border-t-transparent border-b-transparent border-l-white ml-1" />
