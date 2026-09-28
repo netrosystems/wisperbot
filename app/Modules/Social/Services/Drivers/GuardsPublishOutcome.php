@@ -2,6 +2,7 @@
 
 namespace App\Modules\Social\Services\Drivers;
 
+use App\Modules\Social\Exceptions\MetaAccessRevokedException;
 use App\Modules\Social\Exceptions\PublishOutcomeUnknownException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -33,6 +34,8 @@ trait GuardsPublishOutcome
     protected function createdId(Response $response, string $key = 'id'): string
     {
         if (! $response->successful()) {
+            $this->throwIfMetaAccessRemoved($response);
+
             throw new \RuntimeException(ucfirst($this->network()).' publish failed (HTTP '.$response->status().'): '.mb_substr($response->body(), 0, 500));
         }
 
@@ -42,5 +45,14 @@ trait GuardsPublishOutcome
         }
 
         return $id;
+    }
+
+    /** A Facebook or Instagram refusal because the connection lost access. */
+    protected function throwIfMetaAccessRemoved(Response $response): void
+    {
+        if (in_array($this->network(), ['facebook', 'instagram'], true)
+            && in_array((int) $response->json('error.code'), MetaAccessRevokedException::CODES, true)) {
+            throw new MetaAccessRevokedException(mb_substr((string) $response->json('error.message', 'Meta refused access.'), 0, 300));
+        }
     }
 }

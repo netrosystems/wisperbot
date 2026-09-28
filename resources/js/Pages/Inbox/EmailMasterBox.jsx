@@ -2,13 +2,14 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import InboxLayout from '@/Layouts/InboxLayout';
 import {
     Archive, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle,
-    ExternalLink, Image as ImageIcon, Inbox, Mail, MailOpen,
+    Image as ImageIcon, Inbox, Mail, MailOpen,
     Paperclip, PenLine, Plus, RefreshCw, Search, Send, Settings2, X,
 } from 'lucide-react';
 import axios from 'axios';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatTimeTz } from '@/Utils/datetime';
 import { EmailAttachments, EmailBody } from '@/Components/Inbox/EmailMessageContent';
+import { confirmDialog } from '@/Components/ConfirmDialog';
 
 const FOLDERS = [
     { key: 'inbox', label: 'Inbox', icon: Inbox },
@@ -322,6 +323,7 @@ export default function EmailMasterBox({
 }) {
     const { props } = usePage();
     const timezone = props.timezone || 'Asia/Dhaka';
+    const authUser = props.auth?.user;
     const [sentMessages, setSentMessages] = useState([]);
     const [prevConvId, setPrevConvId] = useState(selectedConversation?.id);
     const [search, setSearch] = useState('');
@@ -329,6 +331,7 @@ export default function EmailMasterBox({
     const [reply, setReply] = useState('');
     const [replyAttachment, setReplyAttachment] = useState(null);
     const [sending, setSending] = useState(false);
+    const [ownershipBusy, setOwnershipBusy] = useState(false);
     const [sendError, setSendError] = useState('');
     const replyFileRef = useRef(null);
     const replyImageRef = useRef(null);
@@ -336,6 +339,27 @@ export default function EmailMasterBox({
     const threadScrollRef = useRef(null);
     const prevConversationId = useRef(null);
     const prevMessagesCount = useRef(0);
+
+    useEffect(() => {
+        let hiddenHost = null;
+        let previousDisplay = '';
+        const hideSupportWidget = () => {
+            const host = document.getElementById('wb-chat-host');
+            if (!host || host === hiddenHost) return;
+            hiddenHost = host;
+            previousDisplay = host.style.display;
+            host.style.display = 'none';
+        };
+
+        hideSupportWidget();
+        const observer = new window.MutationObserver(hideSupportWidget);
+        observer.observe(document.body, { childList: true });
+
+        return () => {
+            observer.disconnect();
+            if (hiddenHost?.isConnected) hiddenHost.style.display = previousDisplay;
+        };
+    }, []);
 
     // Reset local sent messages when selecting a different conversation
     if (selectedConversation?.id !== prevConvId) {
@@ -372,10 +396,10 @@ export default function EmailMasterBox({
         } else {
             prevMessagesCount.current = messages.length;
         }
-    }, [selectedConversation?.id, messages]);
+    }, [selectedConversation, messages]);
 
-    const conversationsData = conversations?.data ?? [];
     const filtered = useMemo(() => {
+        const conversationsData = conversations?.data ?? [];
         if (!conversationsData.length) return [];
         if (!search.trim()) return conversationsData;
         const q = search.trim().toLowerCase();
@@ -389,7 +413,7 @@ export default function EmailMasterBox({
             ].filter(Boolean).join(' ').toLowerCase();
             return haystack.includes(q);
         });
-    }, [conversationsData, search]);
+    }, [conversations?.data, search]);
 
     const navigate = (next) => router.get(route('client.inbox.email-inbox'), { ...filters, ...next }, { preserveState: true, replace: true });
     const selectFolder = folder => navigate({ folder, account_id: filters.account_id || undefined, conversation: undefined });
@@ -434,14 +458,39 @@ export default function EmailMasterBox({
             if (data.error) setSendError(data.error);
         } catch (error) {
             setSendError(error.response?.data?.message || error.response?.data?.error || 'The reply could not be sent.');
+            if (error.response?.status === 409) {
+                router.reload({ only: ['selectedConversation'] });
+            }
         } finally {
             setSending(false);
         }
     };
 
     const setStatus = status => router.post(route('client.inbox.status', selectedConversation.uuid), { status }, { preserveScroll: true });
+    const changeOwnership = async action => {
+        if (action === 'takeover' && !(await confirmDialog({
+            title: 'Take over chat?',
+            message: `Take over this chat from ${selectedConversation?.joined_user?.name || 'the current agent'}?`,
+            confirmLabel: 'Take over',
+            destructive: false,
+        }))) return;
+        setOwnershipBusy(true);
+        setSendError('');
+        try {
+            await axios.post(route(`client.inbox.${action}`, selectedConversation.uuid));
+            router.reload({ only: ['selectedConversation'] });
+        } catch (error) {
+            setSendError(error.response?.data?.message || error.response?.data?.error || 'Could not update chat ownership.');
+            router.reload({ only: ['selectedConversation'] });
+        } finally {
+            setOwnershipBusy(false);
+        }
+    };
     const selectedSubject = safeText(messages.find(m => safeText(m.payload?.subject))?.payload?.subject) || subjectOf(selectedConversation);
     const selectedMailbox = selectedConversation?.channel_account;
+    const joinedUser = selectedConversation?.joined_user ?? null;
+    const isJoinedByMe = Number(joinedUser?.id) === Number(authUser?.id);
+    const canTakeOver = Boolean(joinedUser) && Boolean(selectedConversation?.can_takeover);
 
     return (
         <InboxLayout mobileTitle="Email MasterBox">
@@ -683,14 +732,13 @@ export default function EmailMasterBox({
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Link
-                                            href={route('client.inbox.show', { conversation: selectedConversation.uuid, channel: 'email' })}
-                                            title="Open full Omni-Channel Chat view"
-                                            className="flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                                        >
-                                            <ExternalLink className="h-3.5 w-3.5" />
-                                            <span className="hidden sm:inline">Open in Chat</span>
-                                        </Link>
+                                        {selectedConversation.status !== 'resolved' && (!joinedUser
+                                            ? <button type="button" disabled={ownershipBusy} onClick={() => changeOwnership('join')} className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">Join Chat</button>
+                                            : isJoinedByMe
+                                                ? <div className="flex items-center gap-2"><span className="max-w-[130px] truncate text-xs font-medium text-neutral-600 dark:text-neutral-300">{joinedUser.name} joined</span><button type="button" disabled={ownershipBusy} onClick={() => changeOwnership('leave')} className="text-xs font-medium text-neutral-500 hover:text-red-600 disabled:opacity-50">Leave</button></div>
+                                                : canTakeOver
+                                                    ? <button type="button" disabled={ownershipBusy} onClick={() => changeOwnership('takeover')} className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300">Take over</button>
+                                                    : <span className="max-w-[130px] truncate text-xs font-medium text-neutral-500">{joinedUser.name} joined</span>)}
                                         <button
                                             type="button"
                                             onClick={() => setStatus(selectedConversation.status === 'resolved' ? 'open' : 'resolved')}
@@ -716,7 +764,7 @@ export default function EmailMasterBox({
                                 <div ref={bottomRef} />
                             </div>
 
-                            <form onSubmit={submitReply} className="border-t border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 sm:p-5">
+                            {isJoinedByMe ? <form onSubmit={submitReply} className="border-t border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900 sm:p-4">
                                 {replyAttachment && (
                                     <div className="mb-2 flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-800">
                                         {replyAttachment.type === 'image' && replyAttachment.url ? (
@@ -736,14 +784,14 @@ export default function EmailMasterBox({
                                     </div>
                                 )}
 
-                                <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-100 dark:border-neutral-700 dark:bg-neutral-800 dark:focus-within:ring-brand-950">
+                                <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm transition focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500/25 dark:border-neutral-700 dark:bg-neutral-800">
                                     <textarea
                                         value={reply}
                                         onChange={event => setReply(event.target.value)}
                                         onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') submitReply(event); }}
-                                        rows={3}
+                                        rows={2}
                                         placeholder={`Reply to ${selectedConversation.contact?.email || 'customer'}…`}
-                                        className="w-full resize-none rounded-2xl border-0 bg-transparent px-4 py-3 text-sm focus:ring-0"
+                                        className="block min-h-[72px] w-full resize-none rounded-none border-0 bg-transparent px-4 py-3 text-sm leading-6 outline-none ring-0 focus:border-transparent focus:outline-none focus:ring-0 focus:shadow-none"
                                     />
                                     <div className="flex items-center justify-between border-t border-neutral-100 px-3 py-2 dark:border-neutral-700">
                                         <div className="flex items-center gap-1">
@@ -771,7 +819,7 @@ export default function EmailMasterBox({
                                         </div>
                                         <button
                                             disabled={sending || (!reply.trim() && !replyAttachment)}
-                                            className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-40"
+                                            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-40"
                                         >
                                             <Send className="h-4 w-4" />
                                             {sending ? 'Sending…' : 'Send'}
@@ -779,7 +827,14 @@ export default function EmailMasterBox({
                                     </div>
                                 </div>
                                 {sendError && <p className="mt-2 text-xs text-red-600">{sendError}</p>}
-                            </form>
+                            </form> : <div className="flex items-center justify-between gap-3 border-t border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900 sm:p-4">
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">{joinedUser ? `${joinedUser.name} joined this chat` : 'Join before replying'}</p>
+                                    <p className="text-xs text-neutral-500">{selectedConversation.status === 'resolved' ? 'Reopen the conversation before joining.' : joinedUser ? 'Only the joined owner can send replies.' : 'The first teammate to join becomes the active owner.'}</p>
+                                    {sendError && <p className="mt-1 text-xs text-red-600">{sendError}</p>}
+                                </div>
+                                <button type="button" disabled={ownershipBusy || selectedConversation.status === 'resolved' || (joinedUser && !canTakeOver)} onClick={() => changeOwnership(joinedUser ? 'takeover' : 'join')} className="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">{ownershipBusy ? 'Working...' : joinedUser ? 'Take over' : 'Join Chat'}</button>
+                            </div>}
                         </>
                     )}
                 </main>

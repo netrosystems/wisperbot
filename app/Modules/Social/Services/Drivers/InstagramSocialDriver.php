@@ -113,6 +113,8 @@ class InstagramSocialDriver implements ManagesPublishedPosts, SocialNetworkInter
             ->post("https://graph.facebook.com/v25.0/{$igUserId}/media", $fields + ['access_token' => $token]);
         $id = $response->json('id');
         if (! $response->successful() || ! is_string($id) || $id === '') {
+            $this->throwIfMetaAccessRemoved($response);
+
             throw new \RuntimeException('Instagram container creation failed: '.mb_substr($response->body(), 0, 500));
         }
 

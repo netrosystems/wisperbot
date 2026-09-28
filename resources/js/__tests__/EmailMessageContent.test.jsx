@@ -13,6 +13,7 @@ describe('EmailMessageContent', () => {
 
         const frame = screen.getByTitle('Email content');
         const source = frame.getAttribute('srcdoc');
+        expect(frame).toHaveStyle({ height: '32px' });
         expect(source).toContain('.red{color:red}');
         expect(source).toContain('<strong>Formatted</strong>');
         expect(source).toContain('https://images.test/photo.png');
@@ -29,6 +30,12 @@ describe('EmailMessageContent', () => {
         expect(screen.getByText('invoice.pdf')).toBeInTheDocument();
         expect(screen.getByAltText('photo.jpg')).toBeInTheDocument();
         expect(screen.getByText('2 attachments')).toBeInTheDocument();
+    });
+
+    it('does not crash for legacy messages with a null payload', () => {
+        const { container } = render(<EmailAttachments payload={null} />);
+
+        expect(container).toBeEmptyDOMElement();
     });
 
 });

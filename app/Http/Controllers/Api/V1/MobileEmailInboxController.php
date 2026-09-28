@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Events\MessageSent;
+use App\Models\User;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\Inbox\Jobs\SyncEmailAccountJob;
 use App\Modules\Inbox\Services\ConversationOwnershipService;
@@ -80,6 +81,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
                 'lastMessage.user:id,name,avatar',
                 'latestInboundMessage',
                 'assignedUser:id,name,avatar',
+                'joinedUser:id,name,avatar',
             ])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
@@ -100,7 +102,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
             ->paginate($validated['per_page'] ?? 30);
 
         return response()->json([
-            'data' => $query->getCollection()->map(fn (Conversation $conversation) => $this->formatThread($conversation)),
+            'data' => $query->getCollection()->map(fn (Conversation $conversation) => $this->formatThread($conversation, $request->user())),
             'meta' => [
                 'current_page' => $query->currentPage(),
                 'last_page' => $query->lastPage(),
@@ -130,6 +132,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
             'channelAccount',
             'lastMessage.user:id,name,avatar',
             'assignedUser:id,name,avatar',
+            'joinedUser:id,name,avatar',
             'latestInboundMessage',
         ]);
         $messages = $conversation->messages()
@@ -143,7 +146,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
         }
 
         return response()->json([
-            'thread' => $this->formatThread($conversation),
+            'thread' => $this->formatThread($conversation, $request->user()),
             'messages' => $messages->getCollection()->reverse()->values()->map(fn (Message $message) => $this->formatMessage($message)),
             'meta' => [
                 'current_page' => $messages->currentPage(),
@@ -196,7 +199,6 @@ class MobileEmailInboxController extends WorkspaceScopedController
         }
 
         $conversation = $this->emailConversation($request, $uuid, ['channelAccount', 'contact']);
-        $conversation->loadMissing('joinedUser');
         $this->ownership->assertCanReply($conversation, $request->user());
 
         $payload = [];
@@ -381,7 +383,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
         MessageSent::dispatch($message);
 
         return response()->json([
-            'thread' => $this->formatThread($conversation->fresh(['contact', 'channelAccount', 'lastMessage.user:id,name,avatar', 'assignedUser:id,name,avatar'])),
+            'thread' => $this->formatThread($conversation->fresh(['contact', 'channelAccount', 'lastMessage.user:id,name,avatar', 'assignedUser:id,name,avatar', 'joinedUser:id,name,avatar']), $request->user()),
             'message' => $this->formatMessage($message),
             'error' => $sendError,
         ], 201);
@@ -446,7 +448,7 @@ class MobileEmailInboxController extends WorkspaceScopedController
         ];
     }
 
-    private function formatThread(Conversation $conversation): array
+    private function formatThread(Conversation $conversation, ?User $actor = null): array
     {
         $subjectMessage = $conversation->latestInboundMessage ?? $conversation->lastMessage;
 
@@ -471,6 +473,13 @@ class MobileEmailInboxController extends WorkspaceScopedController
                 'name' => $conversation->assignedUser->name,
                 'avatar' => $conversation->assignedUser->avatarUrl(),
             ] : null,
+            'joined_at' => $conversation->joined_at?->toIso8601String(),
+            'joined_user' => $conversation->joinedUser ? [
+                'id' => $conversation->joinedUser->id,
+                'name' => $conversation->joinedUser->name,
+                'avatar' => $conversation->joinedUser->avatarUrl(),
+            ] : null,
+            'can_takeover' => $actor ? $this->ownership->canTakeover($conversation, $actor) : false,
         ];
     }
 

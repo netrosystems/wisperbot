@@ -391,11 +391,27 @@ class ConversationOwnershipService
 
     public function assertCanReply(Conversation $conversation, User $user): void
     {
+        $conversation->loadMissing('joinedUser');
+
         if ((int) $conversation->joined_user_id !== (int) $user->id) {
             throw new ConversationOwnershipException('Join this chat before replying.', 409, [
                 'joined_user' => $this->publicUser($conversation->joinedUser),
             ]);
         }
+    }
+
+    public function canTakeover(Conversation $conversation, User $user): bool
+    {
+        if ($conversation->status === 'resolved' || ! $conversation->joined_user_id || (int) $conversation->joined_user_id === (int) $user->id) {
+            return false;
+        }
+
+        if ($user->isClientAdministrator()) {
+            return true;
+        }
+
+        return $this->availability->isAvailable((int) $conversation->workspace_id, $user)
+            && ! $this->availability->isAvailable((int) $conversation->workspace_id, (int) $conversation->joined_user_id);
     }
 
     private function joinLocked(Conversation $conversation, User $user): Conversation
