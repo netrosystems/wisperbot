@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -42,7 +42,15 @@ describe('in-app confirm dialog', () => {
 
 describe('delete buttons', () => {
     it('never use the browser confirm pop-up, which Chrome can silently suppress', () => {
-        const files = execSync("grep -rlE '(window\\.)?\\bconfirm\\(' resources/js/Pages || true", { encoding: 'utf8' }).split('\n').filter(Boolean);
+        const files = [];
+        const collectFiles = (directory) => {
+            readdirSync(directory, { withFileTypes: true }).forEach((entry) => {
+                const path = join(directory, entry.name);
+                if (entry.isDirectory()) collectFiles(path);
+                else if (/\.(jsx?|tsx?)$/.test(entry.name)) files.push(path);
+            });
+        };
+        collectFiles('resources/js/Pages');
         const offenders = files.flatMap((file) => readFileSync(file, 'utf8').split('\n')
             .filter((line) => /(^|[^\w.])(window\.)?confirm\(/.test(line) && /delet|remov|destroy|revoke|disconnect|trash|flush/i.test(line))
             .map((line) => `${file}: ${line.trim().slice(0, 80)}`));

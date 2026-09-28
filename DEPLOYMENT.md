@@ -1,5 +1,92 @@
 # WisperBot deployment
 
+## Production Docker deployment
+
+The supported single-VPS Docker stack builds the PHP dependencies and Vite
+assets into immutable images, runs MariaDB and Redis privately, and starts the
+scheduler plus every named queue worker. Host Nginx/Certbot proxy HTTPS to the
+loopback-only container port. See [`docker/README.md`](docker/README.md).
+Optional browser database administration uses the separate `db-admin` Compose
+profile and a host Nginx HTTPS path; see the
+[operator setup](docker/README.md#optional-browser-database-administration).
+
+Initial deployment and subsequent updates use:
+
+```bash
+./deploy.sh
+```
+
+## GitHub Actions production deployment
+
+`.github/workflows/deploy-production.yml` deploys production only after a pull
+request from the repository's `dev` branch is merged into `main`. It does not
+run for pushes to `dev`, unmerged/closed pull requests, pull requests from
+forks, or direct pushes to `main`.
+
+The trigger contract is exact:
+
+| Repository event | Deploys? |
+| :--- | :---: |
+| Merge a same-repository `dev` → `main` pull request | Yes |
+| Push a commit to `dev` | No |
+| Push directly to `main` | No |
+| Merge `dev` locally and push `main` | No |
+| Merge another branch directly into `main` | No |
+| Close the `dev` → `main` pull request without merging | No |
+| Merge a fork pull request | No |
+
+Use feature branch → `dev` → a final GitHub `dev` → `main` pull request for
+every production release. Protect `main` against direct pushes so repository
+policy matches the workflow trigger.
+
+Create a GitHub environment named `production` and add these environment
+secrets (repository secrets with the same names also work):
+
+- `VPS_HOST`: the VPS hostname or IP address.
+- `VPS_PORT`: the SSH port; omit it to use `22`.
+- `VPS_USERNAME`: the SSH user that owns/can deploy the checkout.
+- `VPS_APP_PATH`: the absolute path to the WisperBot checkout containing
+  `deploy.sh` and the production `.env`.
+- `VPS_SSH_PRIVATE_KEY`: the private half of a deploy key whose public half is
+  already authorized for `VPS_USERNAME` on the VPS.
+- `VPS_SSH_KNOWN_HOSTS`: a pinned `known_hosts` entry for the VPS. Obtain and
+  verify this out of band; for example, compare the server fingerprint before
+  saving the output of `ssh-keyscan -H YOUR-DOMAIN`.
+
+The server checkout must already be able to fetch `origin/main` non-
+interactively and must be clean before deployment (`git status --short` should
+produce no output). The workflow fetches and fast-forwards the checkout, runs
+`bash ./deploy.sh`, reads the application version assigned by
+`app:deploy:finalize`, and creates `v<APP_VERSION>` as the latest GitHub release
+with generated notes. `deploy.sh` is also tracked as executable for direct
+operator use. Revision/version metadata is collected in a separate SSH call
+after the Docker deployment so deployment subprocesses cannot consume it from
+standard input.
+
+Deployment and release jobs are serialized. A failed deployment never creates
+a release. The application finalizer records the deployed Git revision, so a
+rerun of the same revision does not increment `APP_VERSION` twice; if the first
+run deployed successfully but failed before publishing the release, a rerun
+can safely create the missing release. If the release already exists, it is
+left unchanged.
+
+Automation removes manual command drift, but it cannot make infrastructure
+infallible. An unreachable VPS, rejected/rotated SSH key, dirty server checkout,
+failed Git fetch, full disk, Docker/build failure, migration error, or failed
+health check still fails the job and requires diagnosis. Keep the production
+checkout free of local tracked changes and do not manually change tracked file
+permissions.
+
+The script imports a root `wisperbot.sql` only when the database has no tables,
+backs up the database before migrations, runs the deployment finalizer, and
+checks `/up`. The `.env`, database volume, Redis volume, and storage volume are
+persistent. It requires `.env` to exist but does not reject missing or
+non-production values before starting Docker; configuration failures surface
+from Docker, Laravel, or the final health check. Never use
+`docker compose down -v` in production.
+
+The manual deployment below remains valid for non-Docker servers.
+
 Run these steps from the WisperBot application directory after the new code is
 merged into `main`:
 

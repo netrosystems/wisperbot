@@ -4,6 +4,34 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added production CI/CD for same-repository `dev` → `main` pull-request
+  merges. GitHub Actions securely connects to the existing VPS checkout,
+  fast-forwards `main`, runs the guarded Docker `deploy.sh`, and publishes a
+  versioned GitHub release only after the deployment health check succeeds.
+  Direct pushes and other merge paths intentionally do not deploy. The first
+  live rollout also hardened script execution and revision/version collection:
+  `deploy.sh` is executable and invoked through Bash, while release metadata is
+  read in a separate SSH call after Docker finishes. Same-revision retries and
+  existing releases are idempotent.
+
+- Added optional browser database administration to the single-VPS Docker stack:
+  phpMyAdmin remains loopback-only behind a host Nginx HTTPS path and a separate
+  HTTP password, with its own MariaDB login. The `db-admin` profile is off by
+  default and requires operator configuration; no application migration or Vite
+  build is needed.
+
+- Removed the legacy Envato/Botble distribution licensing system pending a new business model. Fresh installs no longer request a purchase code, the Super Admin panel no longer redirects to license activation or exposes “License & Updates,” and WisperBot no longer calls the legacy license/update server. The license-coupled updater was removed with it. Existing subscription plans and customer billing are unchanged.
+
+- Added a production Docker deployment for a single Ubuntu VPS: immutable
+  PHP/Vite images, private MariaDB and Redis, hosted Pusher configuration, all
+  named queue workers, scheduler, guarded legacy SQL import, pre-migration and
+  operator backups, loopback-only HTTP exposure, and host Nginx/Certbot setup.
+  The PHP image includes IMAP for generic mailbox sync, and container startup
+  repairs persistent Laravel storage ownership before workers begin. An isolated
+  Docker test target verifies the backend without adding dev packages to runtime
+  images; the test command now matches its installed dependencies. Refreshed the
+  production PHP dependency lock to remove all reported security advisories.
+
 - Social post videos no longer show as broken images. The post list shows the video's first frame with a play badge, the post details play it in place, and the Facebook, Instagram, LinkedIn, TikTok and YouTube composer previews show the video too. Only the start of the file is fetched for a thumbnail (`preload="metadata"`, `#t=0.1`); a file that cannot load shows a film icon.
 
 - **Facebook and Instagram connections no longer fail silently.**

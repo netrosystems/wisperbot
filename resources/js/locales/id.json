@@ -892,11 +892,6 @@
         "tax_rates": "Tarif Pajak",
         "landing_page": "Konten Situs",
         "cms_pages": "Halaman CMS",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
         "cron_setup": "Pengaturan Cron",
         "support": {
             "index": "Indeks",
@@ -4245,9 +4240,6 @@
     },
     "install": {
         "run": "Run"
-    },
-    "license": {
-        "activate": "Activate"
     },
     "branding": {
         "favicon_url": "Favicon Url"

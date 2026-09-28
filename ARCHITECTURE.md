@@ -85,7 +85,7 @@ WisperBot implements a **Modular Monolith** architecture where distinct business
 ```text
 wisperbot/
 ├── app/
-│   ├── Console/Commands/        # System maintenance, license checks, cron tasks
+│   ├── Console/Commands/        # System maintenance, installation, cron tasks
 │   ├── Http/
 │   │   ├── Controllers/         # Platform, admin, and client root controllers
 │   │   ├── Middleware/          # Tenancy, Addon verification, 2FA, Sanctum
@@ -103,7 +103,7 @@ wisperbot/
 │   │   ├── Social/              # Social media OAuth, post composer, scheduler
 │   │   └── Whatsapp/            # WABA management, cloud templates, auto-replies
 │   ├── Providers/               # Service providers (Module discovery, Broadcast channels)
-│   └── Services/                # Cross-cutting services (Stripe, Licensing, Storage)
+│   └── Services/                # Cross-cutting services (Stripe, installation, storage)
 ├── resources/
 │   ├── js/
 │   │   ├── Components/          # Shared React UI & domain composites

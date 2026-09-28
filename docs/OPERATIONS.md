@@ -1,6 +1,6 @@
 # Operations
 
-Last verified against code: 2026-08-21.
+Last verified against code: 2026-09-28.
 
 ## Local environment
 
@@ -20,6 +20,41 @@ composer dev
 Local Pusher/Reverb credentials are optional for basic inbox testing. When realtime is not configured, the visible Omni inbox reconciles new messages every four seconds, so widget messages still appear without a manual refresh. This fallback does not replace production websocket monitoring: production should configure and verify Pusher/Reverb for immediate events and uses a slower 30-second reconciliation only as recovery.
 
 ## Production deployment
+
+The single-VPS production Docker path is documented in
+[`docker/README.md`](../docker/README.md). It uses hosted Pusher, a host-managed
+Nginx/Certbot proxy, private MariaDB/Redis containers, an immutable PHP/Vite
+build, persistent named volumes, one worker per required queue, a dedicated
+scheduler container, and daily database/storage backups retained on the VPS.
+`./deploy.sh` safely imports `wisperbot.sql` only into an empty database,
+creates a pre-migration backup, runs migrations/finalization, and verifies the
+loopback HTTP health endpoint. Do not use
+`docker compose down -v` because it removes production data volumes.
+Optional browser database administration uses the `db-admin` Compose profile,
+loopback-bound phpMyAdmin, and a separately password-protected HTTPS Nginx path.
+See [the Docker operator setup](../docker/README.md#optional-browser-database-administration).
+
+Production CI/CD is defined in `.github/workflows/deploy-production.yml`. A
+merged same-repository `dev` → `main` pull request opens an SSH session using
+the protected `production` environment, fast-forwards the server checkout, and
+runs `bash ./deploy.sh`. Only after the deployment and health check succeed does
+the workflow collect the deployed revision/version through a separate SSH call
+and publish a GitHub release for the `APP_VERSION` assigned on that VPS.
+Required secret names and host-key setup are documented in
+[`DEPLOYMENT.md`](../DEPLOYMENT.md#github-actions-production-deployment).
+Protect `main` so changes arrive through reviewed pull requests; direct pushes
+do not trigger this deployment workflow. Neither do local merges pushed to
+`main`, pushes to `dev`, unmerged pull requests, fork pull requests, or merges
+from any source branch other than `dev`.
+
+The deployment finalizer and release creation are idempotent for the same Git
+revision, and production deployments are serialized. It is safe to rerun a
+failed job after correcting its root cause: a successful deployment will not
+receive another version bump, and an existing GitHub release is preserved. A
+failed SSH connection, Git fast-forward, Docker build, migration, service start,
+or `/up` health check prevents release creation. Before retrying, keep the VPS
+checkout clean with `git status --short`; do not stash or discard unexplained
+production changes.
 
 Meta Pixel & Conversions API (2026-09-26): deploy the matching backend and `public/build`, run migration `2026_09_26_000100_add_marketing_attribution_to_users`, then rebuild config/routes if cached. Events are queued on `default`, so no new worker is needed. In Super Admin → Integrations → *Meta Pixel & Conversions API*, enter the Dataset ID and the Conversions API token generated in Events Manager, then enable it and run Test connection. To verify, add a Test Event Code, accept cookies on the public site, sign up and submit the contact form, and confirm PageView, Lead and CompleteRegistration appear once each (browser and server deduplicated) in Events Manager → Test events. Clear the code afterwards. Without a token the Pixel still works in the browser only.
 
@@ -63,8 +98,6 @@ Workspace-segment Omni/email Smart Bot replies run on `ai`; inbound Meta/WhatsAp
 The scheduler also runs `reconcile-ai-credit-reservations` every five minutes. It refunds reservations older than `config/ai_credits.php`'s configured ten-minute window; a stopped scheduler can therefore leave managed credits temporarily reserved.
 
 Live product pricing is disabled by default. Deploy `2026_09_19_000100_create_live_kb_products.php`, matching backend/frontend code, and set `KB_LIVE_PRODUCT_FACTS_ENABLED=true` only for staged rollout. `refresh-live-kb-products` runs every five minutes and queues at most `KB_LIVE_PRODUCT_REFRESH_BATCH` due published URL sources on `ai`; records are considered current for `KB_LIVE_PRODUCT_FRESHNESS_MINUTES` (default 15), with `KB_LIVE_PRODUCT_REQUESTS_PER_MINUTE` limiting each host. Clear configuration caches and restart `ai` and message workers after changing these settings. Monitor source detection status, queue failures, verification latency, host rate limits, and `product_diagnostics`; do not weaken robots, HTTPS, redirect, DNS, or SSRF controls to make an unsupported site pass.
-
-`workspaces-purge-deleted` runs `php artisan workspaces:purge-deleted` daily at 03:30. It permanently erases workspaces deleted more than 30 days ago. Use `--dry-run` to list what is due. A Knowledge Base vector cleanup failure leaves that workspace in place and exits non-zero, so check the logs and the next run. Deploy migration `2026_09_25_000100_add_soft_deletes_to_workspaces.php` before this code.
 
 The Super Admin Cron Setup heartbeat confirms scheduler activity; it does not prove every queue is being consumed.
 
