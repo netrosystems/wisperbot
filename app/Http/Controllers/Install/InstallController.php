@@ -4,21 +4,16 @@ namespace App\Http\Controllers\Install;
 
 use App\Http\Controllers\Controller;
 use App\Services\Install\InstallerService;
-use App\Services\License\LicenseManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
 class InstallController extends Controller
 {
-    public function __construct(
-        private InstallerService $installer,
-        private LicenseManager $license,
-    ) {}
+    public function __construct(private InstallerService $installer) {}
 
     /** Render the setup wizard, or bounce away if the app is already installed. */
     public function show(): InertiaResponse|RedirectResponse
@@ -29,11 +24,6 @@ class InstallController extends Controller
 
         return Inertia::render('Install/Setup', [
             'requirements' => $this->installer->requirements(),
-            'licensing' => [
-                'enabled' => $this->license->enabled(),
-                'verify_type' => $this->license->defaultVerifyType(),
-                'verify_types' => $this->license->verifyTypes(),
-            ],
             'defaults' => [
                 'app_name' => config('app.name', 'WisperBot'),
                 'app_url' => config('app.url', 'http://localhost'),
@@ -64,28 +54,6 @@ class InstallController extends Controller
         return response()->json($this->installer->testConnection($this->dbCredentials($data)));
     }
 
-    /** Activate the license for the installer's "Activate" button (JSON). */
-    public function activateLicense(Request $request): JsonResponse
-    {
-        if ($this->installer->isInstalled()) {
-            abort(404);
-        }
-
-        $isEnvato = $request->input('verify_type', $this->license->defaultVerifyType()) === 'envato';
-
-        $data = $request->validate([
-            'license_code' => ['required', 'string'],
-            'verify_type' => ['nullable', Rule::in(LicenseManager::TYPES)],
-            'client_name' => [Rule::requiredIf($isEnvato), 'nullable', 'string', 'max:255'],
-        ], [], ['client_name' => 'Envato buyer name']);
-
-        return response()->json($this->license->activate(
-            $data['license_code'],
-            (string) ($data['client_name'] ?? ''),
-            $data['verify_type'] ?? null,
-        ));
-    }
-
     /** Run the full install: write env, migrate, seed, create admin, lock. */
     public function run(Request $request): RedirectResponse
     {
@@ -93,12 +61,7 @@ class InstallController extends Controller
             return redirect()->route('admin.login');
         }
 
-        $licenseIsEnvato = $request->input('verify_type', $this->license->defaultVerifyType()) === 'envato';
-
         $data = $request->validate([
-            'license_code' => [Rule::requiredIf($this->license->enabled()), 'nullable', 'string'],
-            'verify_type' => ['nullable', Rule::in(LicenseManager::TYPES)],
-            'client_name' => [Rule::requiredIf($this->license->enabled() && $licenseIsEnvato), 'nullable', 'string', 'max:255'],
             'app_name' => ['required', 'string', 'max:255'],
             'app_url' => ['required', 'url'],
             'app_env' => ['required', 'in:production,local'],
@@ -111,37 +74,17 @@ class InstallController extends Controller
             'admin_email' => ['required', 'email', 'max:255'],
             'admin_password' => ['required', 'string', 'min:8', 'confirmed'],
             'import_demo' => ['boolean'],
-        ], [], ['client_name' => 'Envato buyer name']);
-
-        // 1. Activate + verify the license (when licensing is enabled). The
-        //    License step normally activates already; activate here as a
-        //    fallback, then confirm validity with a fresh (uncached) verify.
-        if ($this->license->enabled()) {
-            if (! $this->license->isActivated()) {
-                $activation = $this->license->activate(
-                    (string) ($data['license_code'] ?? ''),
-                    (string) ($data['client_name'] ?? ''),
-                    $data['verify_type'] ?? null,
-                );
-                if (! $activation['ok']) {
-                    throw ValidationException::withMessages(['license_code' => $activation['message']]);
-                }
-            }
-            $verification = $this->license->verify(useCache: false);
-            if (! $verification['ok']) {
-                throw ValidationException::withMessages(['license_code' => $verification['message']]);
-            }
-        }
+        ]);
 
         $db = $this->dbCredentials($data);
 
-        // 2. Verify the database is reachable before persisting anything.
+        // 1. Verify the database is reachable before persisting anything.
         $test = $this->installer->testConnection($db);
         if (! $test['ok']) {
             throw ValidationException::withMessages(['db_database' => $test['message']]);
         }
 
-        // 3. Persist environment (DB creds + app info). NOT APP_INSTALLED yet.
+        // 2. Persist environment (DB creds + app info). NOT APP_INSTALLED yet.
         $env = [
             'APP_NAME' => $data['app_name'],
             'APP_URL' => $data['app_url'],
@@ -156,7 +99,7 @@ class InstallController extends Controller
         $this->installer->writeEnv($env);
         $this->installer->ensureAppKey();
 
-        // 4. Migrate + seed against the new connection. This is the long part.
+        // 3. Migrate + seed against the new connection. This is the long part.
         @set_time_limit(0);
         @ignore_user_abort(true);
 
@@ -173,7 +116,7 @@ class InstallController extends Controller
                 $data['admin_password'],
             );
 
-            // 5. Lock the installer and refresh caches. Written LAST so any
+            // 4. Lock the installer and refresh caches. Written LAST so any
             //    failure above leaves the wizard reachable for a clean retry.
             $this->installer->markInstalled();
             $this->installer->clearCaches();

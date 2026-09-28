@@ -894,7 +894,6 @@
         "tax_rates": "Vergi Oranları",
         "landing_page": "Site İçeriği",
         "cms_pages": "CMS Sayfaları",
-        "license": "License",
         "cron_setup": "Cron Kurulumu",
         "support": {
             "index": "Dizin",
@@ -4241,9 +4240,6 @@
     },
     "install": {
         "run": "Run"
-    },
-    "license": {
-        "activate": "Activate"
     },
     "branding": {
         "favicon_url": "Favicon Url"

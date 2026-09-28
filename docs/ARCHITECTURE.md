@@ -12,7 +12,7 @@ Static analysis reads both `database/migrations` and `app/Modules/*/database/mig
 
 WisperBot is a modular Laravel 12 monolith with an Inertia/React frontend. It serves four primary surfaces:
 
-1. Public marketing, blog, CMS, install, license, and authentication pages.
+1. Public marketing, blog, CMS, install, and authentication pages.
 2. Client web application under `/app`.
 3. Super Admin application under `/admin`.
 4. JSON APIs under `/api/v1`, public widget APIs under `/widget/v1`, and provider webhooks under `/webhooks`.
@@ -56,7 +56,7 @@ Modules are auto-discovered by `App\Providers\ModuleServiceProvider` from `app/M
 | `Integrations` | Encrypted integration configuration and integration management foundations. |
 | `Leads` | Legacy lead-related models/jobs; client lead scraper UI/integration is intentionally not a product feature. |
 
-Cross-cutting application code in `app/` owns accounts, workspaces, billing, licensing, admin, mobile APIs, notifications, audit logs, media, CMS/blog, and deployment commands.
+Cross-cutting application code in `app/` owns accounts, workspaces, billing, admin, mobile APIs, notifications, audit logs, media, CMS/blog, and deployment commands.
 
 ### Managed AI credits
 

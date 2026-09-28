@@ -21,6 +21,29 @@ Local Pusher/Reverb credentials are optional for basic inbox testing. When realt
 
 ## Production deployment
 
+The single-VPS production Docker path is documented in
+[`docker/README.md`](../docker/README.md). It uses hosted Pusher, a host-managed
+Nginx/Certbot proxy, private MariaDB/Redis containers, an immutable PHP/Vite
+build, persistent named volumes, one worker per required queue, a dedicated
+scheduler container, and daily database/storage backups retained on the VPS.
+`./deploy.sh` safely imports `wisperbot.sql` only into an empty database,
+creates a pre-migration backup, runs migrations/finalization, and verifies the
+loopback HTTP health endpoint. Do not use
+`docker compose down -v` because it removes production data volumes.
+Optional browser database administration uses the `db-admin` Compose profile,
+loopback-bound phpMyAdmin, and a separately password-protected HTTPS Nginx path.
+See [the Docker operator setup](../docker/README.md#optional-browser-database-administration).
+
+Production CI/CD is defined in `.github/workflows/deploy-production.yml`. A
+merged same-repository `dev` → `main` pull request opens an SSH session using
+the protected `production` environment, fast-forwards the server checkout, and
+runs `./deploy.sh`. Only after the deployment and health check succeed does the
+workflow publish a GitHub release for the `APP_VERSION` assigned on that VPS.
+Required secret names and host-key setup are documented in
+[`DEPLOYMENT.md`](../DEPLOYMENT.md#github-actions-production-deployment).
+Protect `main` so changes arrive through reviewed pull requests; direct pushes
+do not trigger this deployment workflow.
+
 Meta Pixel & Conversions API (2026-09-26): deploy the matching backend and `public/build`, run migration `2026_09_26_000100_add_marketing_attribution_to_users`, then rebuild config/routes if cached. Events are queued on `default`, so no new worker is needed. In Super Admin → Integrations → *Meta Pixel & Conversions API*, enter the Dataset ID and the Conversions API token generated in Events Manager, then enable it and run Test connection. To verify, add a Test Event Code, accept cookies on the public site, sign up and submit the contact form, and confirm PageView, Lead and CompleteRegistration appear once each (browser and server deduplicated) in Events Manager → Test events. Clear the code afterwards. Without a token the Pixel still works in the browser only.
 
 Blog platform upgrade (2026-09-18): deploy matching backend and frontend assets, then run the normal deployment finalizer/cache rebuild. No migration, scheduler, or queue change is required. Public requests sanitize and structurally repair legacy article HTML without rewriting the stored row; the next editorial save persists the normalized HTML through the existing revision flow. After deployment, verify `/blog`, a legacy rich article, its contents anchors, a responsive table, and Article/Breadcrumb/FAQ JSON-LD where applicable. Do not run a bulk database rewrite for old articles.
@@ -63,8 +86,6 @@ Workspace-segment Omni/email Smart Bot replies run on `ai`; inbound Meta/WhatsAp
 The scheduler also runs `reconcile-ai-credit-reservations` every five minutes. It refunds reservations older than `config/ai_credits.php`'s configured ten-minute window; a stopped scheduler can therefore leave managed credits temporarily reserved.
 
 Live product pricing is disabled by default. Deploy `2026_09_19_000100_create_live_kb_products.php`, matching backend/frontend code, and set `KB_LIVE_PRODUCT_FACTS_ENABLED=true` only for staged rollout. `refresh-live-kb-products` runs every five minutes and queues at most `KB_LIVE_PRODUCT_REFRESH_BATCH` due published URL sources on `ai`; records are considered current for `KB_LIVE_PRODUCT_FRESHNESS_MINUTES` (default 15), with `KB_LIVE_PRODUCT_REQUESTS_PER_MINUTE` limiting each host. Clear configuration caches and restart `ai` and message workers after changing these settings. Monitor source detection status, queue failures, verification latency, host rate limits, and `product_diagnostics`; do not weaken robots, HTTPS, redirect, DNS, or SSRF controls to make an unsupported site pass.
-
-`workspaces-purge-deleted` runs `php artisan workspaces:purge-deleted` daily at 03:30. It permanently erases workspaces deleted more than 30 days ago. Use `--dry-run` to list what is due. A Knowledge Base vector cleanup failure leaves that workspace in place and exits non-zero, so check the logs and the next run. Deploy migration `2026_09_25_000100_add_soft_deletes_to_workspaces.php` before this code.
 
 The Super Admin Cron Setup heartbeat confirms scheduler activity; it does not prove every queue is being consumed.
 

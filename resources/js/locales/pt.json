@@ -892,11 +892,6 @@
         "tax_rates": "Alíquotas de impostos",
         "landing_page": "Conteúdo do site",
         "cms_pages": "Páginas do CMS",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
         "cron_setup": "Configuração do cron",
         "support": {
             "index": "Lista",
@@ -4245,9 +4240,6 @@
     },
     "install": {
         "run": "Run"
-    },
-    "license": {
-        "activate": "Activate"
     },
     "branding": {
         "favicon_url": "Favicon Url"

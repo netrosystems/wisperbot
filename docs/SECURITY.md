@@ -38,7 +38,7 @@ Provider assets should not be attached to multiple workspaces when inbound routi
 ## Authentication
 
 - Web client: Laravel session, CSRF, verified email, client role and scope.
-- Super Admin: separate admin guard, license middleware, RBAC/permissions.
+- Super Admin: separate admin guard and RBAC/permissions.
 - Mobile: Sanctum bearer token; rate-limited login with a structured `429` response.
 - Developer API: Sanctum tokens plus paid add-on and per-token abilities.
 - Private broadcast auth: session endpoint for web; Sanctum endpoint for mobile.
@@ -50,6 +50,14 @@ Provider assets should not be attached to multiple workspaces when inbound routi
 - UI credential placeholders never reveal stored values; blank update means retain current secret.
 - Logs and exception messages must redact Authorization headers, access/refresh tokens, API keys, app secrets, webhook secrets, widget identity secrets, license codes, and passwords.
 - Documentation and tests use fake values only.
+
+Production browser database administration, when enabled, runs in a separate
+`db-admin` Compose profile. Its phpMyAdmin port binds to `127.0.0.1` on the VPS;
+host Nginx must require HTTPS and independent HTTP authentication before proxying
+the private path. phpMyAdmin still requires a MariaDB login. The URL path is not
+a secret or an authorization boundary. Database privileges, not Laravel workspace
+scoping, govern what an operator can see through phpMyAdmin; use a read-only
+account for inspection and never configure automatic database login.
 
 ## Marketing measurement data (2026-09-26)
 

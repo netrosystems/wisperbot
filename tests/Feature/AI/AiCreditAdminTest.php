@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\AI;
 
-use App\Http\Middleware\EnsureLicensed;
 use App\Http\Middleware\EnsureNotDemoMode;
 use App\Models\Plan;
 use App\Modules\AI\Models\AiCreditLedger;
@@ -19,7 +18,7 @@ class AiCreditAdminTest extends TestCase
 
     public function test_admin_report_and_adjustment_are_attributed_and_audited(): void
     {
-        $this->withoutMiddleware([EnsureLicensed::class, EnsureNotDemoMode::class]);
+        $this->withoutMiddleware(EnsureNotDemoMode::class);
         config()->set('ai_credits.enforce', true);
         $admin = $this->createSuperAdmin();
         $context = $this->createWorkspaceContext();
@@ -59,7 +58,7 @@ class AiCreditAdminTest extends TestCase
 
     public function test_admin_cannot_revoke_consumed_or_reserved_credits(): void
     {
-        $this->withoutMiddleware([EnsureLicensed::class, EnsureNotDemoMode::class]);
+        $this->withoutMiddleware(EnsureNotDemoMode::class);
         config()->set('ai_credits.enforce', true);
         $admin = $this->createSuperAdmin();
         $context = $this->createWorkspaceContext();
