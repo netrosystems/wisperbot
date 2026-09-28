@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Social post videos no longer show as broken images. The post list shows the video's first frame with a play badge, the post details play it in place, and the Facebook, Instagram, LinkedIn, TikTok and YouTube composer previews show the video too. Only the start of the file is fetched for a thumbnail (`preload="metadata"`, `#t=0.1`); a file that cannot load shows a film icon.
+
 - **Facebook and Instagram connections no longer fail silently.**
   - Cause: with the personal Facebook login, connecting a Page replaced the Pages chosen before, so other Facebook/Instagram connections (even in other workspaces) stopped working while still showing "Active".
   - Optional Login for Business configuration for Social Media Automation (`config_id_publishing` in the Meta App integration): each connection gets its own business token, like the Inbox already does.

@@ -18,6 +18,10 @@ Destructive actions (delete, remove, disconnect, revoke, move to trash, delete a
 
 When one settings form has several topics (Widget Setup: Appearance, AI & visitors, Starter questions), split it into pill tabs above the cards: `role="tablist"`, `role="tab"` buttons with `aria-selected`/`aria-controls`, rounded-full border pills, the active one `border-brand-200 bg-brand-50 text-brand-700`. Every `role="tabpanel"` stays mounted and inactive ones use `hidden`, so unsaved edits survive switching and one Save covers all tabs. A tab holding a validation error gets a small red dot, and a failed save opens that tab unless the open tab has an error too. The live preview and Save button sit beside the tabs, not inside one. Remember the last tab per browser session only as a convenience.
 
+## Social post media
+
+Post media URLs may be images or videos. Render them with `MediaThumb` (small square, a video's first frame with a play badge) or `MediaPreview` (full size, videos playable) from `@/Components/Social/SocialMedia`, never a bare `<img>`: an `<img>` pointed at a video shows a broken image. Both fall back to an image or film icon when the file cannot load.
+
 ## Customer chat widget shell
 
 Starter questions (2026-09-19; widget-owned since 2026-09-26): when the widget has them on, up to five full-width, left-aligned outlined chips (12px radius, 13px text, 44px minimum on touch screens, `role="group"` labelled “Common questions”) stack directly under the welcome message, indented to the bubble column. They stay at the top of the conversation and remain tappable after later messages, but are disabled while sending, during pre-chat and while a person handles the chat. They look like reply pills but are not tied to one message.
