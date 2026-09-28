@@ -58,17 +58,18 @@ jobs:
                   set -Eeuo pipefail
 
                   printf -v remote_app_path '%q' "$VPS_APP_PATH"
-                  deploy_log="$RUNNER_TEMP/deploy.log"
+                  ssh_options=(
+                    -i "$RUNNER_TEMP/ssh/deploy_key"
+                    -o BatchMode=yes
+                    -o IdentitiesOnly=yes
+                    -o StrictHostKeyChecking=yes
+                    -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts"
+                    -p "$VPS_PORT"
+                  )
 
-                  ssh \
-                    -i "$RUNNER_TEMP/ssh/deploy_key" \
-                    -o BatchMode=yes \
-                    -o IdentitiesOnly=yes \
-                    -o StrictHostKeyChecking=yes \
-                    -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
-                    -p "$VPS_PORT" \
+                  ssh "${ssh_options[@]}" \
                     "$VPS_USERNAME@$VPS_HOST" \
-                    "bash -s -- $remote_app_path" <<'REMOTE_SCRIPT' | tee "$deploy_log"
+                    "bash -s -- $remote_app_path" <<'REMOTE_DEPLOY'
                   set -Eeuo pipefail
 
                   app_path="$1"
@@ -78,7 +79,17 @@ jobs:
                   git checkout main
                   git pull --ff-only origin main
 
-                  ./deploy.sh
+                  bash ./deploy.sh
+                  REMOTE_DEPLOY
+
+                  deployment_metadata="$(
+                    ssh "${ssh_options[@]}" \
+                      "$VPS_USERNAME@$VPS_HOST" \
+                      "bash -s -- $remote_app_path" <<'REMOTE_METADATA'
+                  set -Eeuo pipefail
+
+                  app_path="$1"
+                  cd "$app_path"
 
                   deployed_revision="$(git rev-parse HEAD)"
                   release_version="$(sed -nE 's/^[[:space:]]*APP_VERSION[[:space:]]*=[[:space:]]*v?([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' .env | tail -n 1)"
@@ -90,10 +101,13 @@ jobs:
 
                   printf '__WISPERBOT_DEPLOYED_REVISION__=%s\n' "$deployed_revision"
                   printf '__WISPERBOT_RELEASE_VERSION__=%s\n' "$release_version"
-                  REMOTE_SCRIPT
+                  REMOTE_METADATA
+                  )"
 
-                  deployed_revision="$(sed -n 's/^__WISPERBOT_DEPLOYED_REVISION__=//p' "$deploy_log" | tail -n 1)"
-                  release_version="$(sed -n 's/^__WISPERBOT_RELEASE_VERSION__=//p' "$deploy_log" | tail -n 1)"
+                  printf '%s\n' "$deployment_metadata"
+
+                  deployed_revision="$(sed -n 's/^__WISPERBOT_DEPLOYED_REVISION__=//p' <<< "$deployment_metadata" | tail -n 1)"
+                  release_version="$(sed -n 's/^__WISPERBOT_RELEASE_VERSION__=//p' <<< "$deployment_metadata" | tail -n 1)"
 
                   if [[ ! "$deployed_revision" =~ ^[0-9a-f]{40}$ ]]; then
                     echo "The VPS did not report a valid deployed Git revision." >&2
