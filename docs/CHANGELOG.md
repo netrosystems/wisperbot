@@ -4,6 +4,11 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Added production CI/CD for same-repository `dev` → `main` pull-request
+  merges. GitHub Actions securely connects to the existing VPS checkout,
+  fast-forwards `main`, runs the guarded Docker `deploy.sh`, and publishes a
+  versioned GitHub release only after the deployment health check succeeds.
+
 - Added optional browser database administration to the single-VPS Docker stack:
   phpMyAdmin remains loopback-only behind a host Nginx HTTPS path and a separate
   HTTP password, with its own MariaDB login. The `db-admin` profile is off by

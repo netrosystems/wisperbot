@@ -2,6 +2,17 @@
 
 Snapshot date: 2026-09-09.
 
+## Production CI/CD — 2026-09-28
+
+`.github/workflows/deploy-production.yml` now deploys only after a same-repo
+`dev` pull request is merged into `main`. It fast-forwards the existing VPS
+checkout and runs the repository's guarded Docker `deploy.sh`; after a
+successful health-checked deployment it creates the `v<APP_VERSION>` GitHub
+release with generated notes. Configure the `production` environment and the
+six documented VPS/SSH secrets before the first merge. No migration,
+application dependency, or frontend-only build step is introduced by the
+workflow; `deploy.sh` remains the deployment authority.
+
 ## Legacy distribution licensing removed — 2026-09-21
 
 The Envato/Botble purchase-code system is removed pending design of a different business model. Fresh installation no longer shows or submits a license step; `/license`, `install.activate-license`, the `licensed` middleware, Super Admin “License & Updates” routes/navigation, external license-server services/configuration, and their dedicated test are gone. The old updater was license-server-specific and was removed with the licensing feature. Existing `storage/app/.license*` files, if present on a deployed host, are inert and may be deleted during deployment cleanup. No migration is required; deploy the PHP code and rebuilt Vite assets, then clear route/config caches.
