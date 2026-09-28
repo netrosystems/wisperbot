@@ -2,20 +2,15 @@ import { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import InstallLayout from '@/Layouts/InstallLayout';
 import { Button } from '@/Components/ui';
-import { ListChecks, KeyRound, AppWindow, Database, ShieldCheck, Rocket, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { ListChecks, AppWindow, Database, ShieldCheck, Rocket, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import RequirementsStep from '@/Components/Install/RequirementsStep';
-import LicenseStep from '@/Components/Install/LicenseStep';
 import AppSettingsStep from '@/Components/Install/AppSettingsStep';
 import DatabaseStep from '@/Components/Install/DatabaseStep';
 import AdminStep from '@/Components/Install/AdminStep';
 import SeedStep from '@/Components/Install/SeedStep';
-import { licenseCopy } from '@/lib/licenseLabels';
 
-export default function Setup({ requirements, defaults, licensing = { enabled: false } }) {
+export default function Setup({ requirements, defaults }) {
     const { data, setData, post, processing, errors } = useForm({
-        license_code: '',
-        client_name: '',
-        verify_type: licensing.verify_type || 'non_envato',
         app_name: defaults.app_name || '',
         app_url: defaults.app_url || '',
         app_env: defaults.app_env || 'production',
@@ -33,20 +28,13 @@ export default function Setup({ requirements, defaults, licensing = { enabled: f
 
     const [step, setStep] = useState(0);
     const [dbOk, setDbOk] = useState(false);
-    const [licenseOk, setLicenseOk] = useState(false);
-
-    const licenseUi = licenseCopy(data.verify_type);
-
-    // Steps are built dynamically so the License step only appears when the
-    // distribution is configured for license verification.
     const steps = [
         { key: 'requirements', label: 'Requirements', desc: 'Check your server', icon: ListChecks, title: 'Server requirements', subtitle: 'Make sure your server meets the requirements below.' },
-        licensing.enabled && { key: 'license', label: licenseUi.stepLabel, desc: licenseUi.stepDesc, icon: KeyRound, title: licenseUi.stepTitle, subtitle: licenseUi.stepSubtitle },
         { key: 'application', label: 'Application', desc: 'Name & address', icon: AppWindow, title: 'Application settings', subtitle: 'Basic information about your installation.' },
         { key: 'database', label: 'Database', desc: 'Connect your database', icon: Database, title: 'Database connection', subtitle: 'Enter your database credentials and test the connection.' },
         { key: 'admin', label: 'Admin', desc: 'Create your account', icon: ShieldCheck, title: 'Administrator account', subtitle: 'Create the super-admin you will sign in with.' },
         { key: 'finish', label: 'Finish', desc: 'Seed & install', icon: Rocket, title: 'Confirm & install', subtitle: 'Choose what to seed, then start the installation.' },
-    ].filter(Boolean);
+    ];
 
     const current = steps[step];
     const isLast = step === steps.length - 1;
@@ -55,8 +43,6 @@ export default function Setup({ requirements, defaults, licensing = { enabled: f
         switch (current.key) {
             case 'requirements':
                 return requirements.ok;
-            case 'license':
-                return licenseOk;
             case 'application':
                 return data.app_name.trim() && data.app_url.trim();
             case 'database':
@@ -89,9 +75,6 @@ export default function Setup({ requirements, defaults, licensing = { enabled: f
             <Head title="Install" />
 
             {current.key === 'requirements' && <RequirementsStep requirements={requirements} />}
-            {current.key === 'license' && (
-                <LicenseStep data={data} setData={setData} errors={errors} onValidityChange={setLicenseOk} verifyType={licensing.verify_type} verifyTypes={licensing.verify_types} />
-            )}
             {current.key === 'application' && <AppSettingsStep data={data} setData={setData} errors={errors} />}
             {current.key === 'database' && (
                 <DatabaseStep data={data} setData={setData} errors={errors} onValidityChange={setDbOk} />

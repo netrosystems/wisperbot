@@ -1,0 +1,130 @@
+name: Deploy production
+
+on:
+    pull_request:
+        branches:
+            - main
+        types:
+            - closed
+
+permissions:
+    contents: write
+
+concurrency:
+    group: production-deployment
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        name: Deploy VPS and publish release
+        if: >-
+            github.event.pull_request.merged == true &&
+            github.event.pull_request.head.ref == 'dev' &&
+            github.event.pull_request.head.repo.full_name == github.repository
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        environment: production
+
+        env:
+            VPS_HOST: ${{ secrets.VPS_HOST }}
+            VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+            VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+            VPS_APP_PATH: ${{ secrets.VPS_APP_PATH }}
+            VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+            VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+
+        steps:
+            - name: Configure SSH
+              shell: bash
+              run: |
+                  set -Eeuo pipefail
+
+                  for variable_name in VPS_HOST VPS_PORT VPS_USERNAME VPS_APP_PATH VPS_SSH_PRIVATE_KEY VPS_SSH_KNOWN_HOSTS; do
+                    if [[ -z "${!variable_name:-}" ]]; then
+                      echo "Missing required production secret: ${variable_name}" >&2
+                      exit 1
+                    fi
+                  done
+
+                  install -m 700 -d "$RUNNER_TEMP/ssh"
+                  printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ssh/deploy_key"
+                  printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+                  chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+
+            - name: Deploy main on the VPS
+              id: deploy
+              shell: bash
+              run: |
+                  set -Eeuo pipefail
+
+                  printf -v remote_app_path '%q' "$VPS_APP_PATH"
+                  deploy_log="$RUNNER_TEMP/deploy.log"
+
+                  ssh \
+                    -i "$RUNNER_TEMP/ssh/deploy_key" \
+                    -o BatchMode=yes \
+                    -o IdentitiesOnly=yes \
+                    -o StrictHostKeyChecking=yes \
+                    -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+                    -p "$VPS_PORT" \
+                    "$VPS_USERNAME@$VPS_HOST" \
+                    "bash -s -- $remote_app_path" <<'REMOTE_SCRIPT' | tee "$deploy_log"
+                  set -Eeuo pipefail
+
+                  app_path="$1"
+                  cd "$app_path"
+
+                  git fetch --prune origin main
+                  git checkout main
+                  git pull --ff-only origin main
+
+                  ./deploy.sh
+
+                  deployed_revision="$(git rev-parse HEAD)"
+                  release_version="$(sed -nE 's/^[[:space:]]*APP_VERSION[[:space:]]*=[[:space:]]*v?([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' .env | tail -n 1)"
+
+                  if [[ -z "$release_version" ]]; then
+                    echo "Could not read APP_VERSION from the production .env after deployment." >&2
+                    exit 1
+                  fi
+
+                  printf '__WISPERBOT_DEPLOYED_REVISION__=%s\n' "$deployed_revision"
+                  printf '__WISPERBOT_RELEASE_VERSION__=%s\n' "$release_version"
+                  REMOTE_SCRIPT
+
+                  deployed_revision="$(sed -n 's/^__WISPERBOT_DEPLOYED_REVISION__=//p' "$deploy_log" | tail -n 1)"
+                  release_version="$(sed -n 's/^__WISPERBOT_RELEASE_VERSION__=//p' "$deploy_log" | tail -n 1)"
+
+                  if [[ ! "$deployed_revision" =~ ^[0-9a-f]{40}$ ]]; then
+                    echo "The VPS did not report a valid deployed Git revision." >&2
+                    exit 1
+                  fi
+
+                  if [[ ! "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "The VPS did not report a valid semantic application version." >&2
+                    exit 1
+                  fi
+
+                  echo "revision=$deployed_revision" >> "$GITHUB_OUTPUT"
+                  echo "tag=v$release_version" >> "$GITHUB_OUTPUT"
+
+            - name: Create GitHub release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RELEASE_TAG: ${{ steps.deploy.outputs.tag }}
+                  DEPLOYED_REVISION: ${{ steps.deploy.outputs.revision }}
+              shell: bash
+              run: |
+                  set -Eeuo pipefail
+
+                  if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                    echo "GitHub release $RELEASE_TAG already exists; nothing to create."
+                    exit 0
+                  fi
+
+                  gh release create "$RELEASE_TAG" \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --target "$DEPLOYED_REVISION" \
+                    --title "WisperBot $RELEASE_TAG" \
+                    --generate-notes \
+                    --latest

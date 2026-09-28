@@ -25,7 +25,6 @@ import {
     Radio,
     Brain,
     Clock,
-    KeyRound,
     LogOut,
     Newspaper,
     Coins,
@@ -55,7 +54,6 @@ const ADMIN_NAV_ITEMS = [
     { labelKey: 'admin.cron_setup', route: 'admin.cron-setup.index', href: () => route('admin.cron-setup.index'), icon: Clock, permission: 'view_settings' },
     { labelKey: 'admin.pusher_settings', route: 'admin.pusher-settings.index', href: () => route('admin.pusher-settings.index'), icon: Radio, permission: 'manage_settings' },
     { labelKey: 'admin.nav.settings', route: 'admin.settings.index', href: () => route('admin.settings.index'), icon: Settings, permission: 'view_settings' },
-    { labelKey: 'admin.license', route: 'admin.license.index', href: () => route('admin.license.index'), icon: KeyRound, permission: 'view_settings' },
     { labelKey: 'admin.audit_log', route: 'admin.audit-log.index', href: () => route('admin.audit-log.index'), icon: FileText, permission: 'view_settings' },
     { labelKey: 'admin.nav.integrations', route: 'admin.integrations.index', href: () => route('admin.integrations.index'), icon: Plug, permission: 'manage_integrations' },
     { labelKey: 'admin.nav.ai', route: 'admin.ai.index', href: () => route('admin.ai.index'), icon: Brain, permission: 'view_settings' },
@@ -67,7 +65,7 @@ const ADMIN_NAV_GROUPS = [
     { key: 'revenue', label: 'Revenue & plans', routes: ['admin.payments.index', 'admin.plans.index', 'admin.coupons.index', 'admin.tax-rates.index', 'admin.payment-gateways.index', 'admin.currencies.index'] },
     { key: 'content', label: 'Content & localization', routes: ['admin.landing-page.index', 'admin.cms-pages.index', 'admin.blog.index', 'admin.locales.index', 'admin.email-system.index'] },
     { key: 'platform', label: 'Platform services', routes: ['admin.integrations.index', 'admin.ai.index', 'admin.queue.index', 'admin.cron-setup.index', 'admin.pusher-settings.index'] },
-    { key: 'access', label: 'Access & security', routes: ['admin.admins.index', 'admin.roles-permissions.index', 'admin.audit-log.index', 'admin.license.index'] },
+    { key: 'access', label: 'Access & security', routes: ['admin.admins.index', 'admin.roles-permissions.index', 'admin.audit-log.index'] },
     { key: 'settings', label: 'Settings', routes: ['admin.settings.index'] },
 ];
 

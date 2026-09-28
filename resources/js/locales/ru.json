@@ -894,7 +894,6 @@
         "tax_rates": "Налоговые ставки",
         "landing_page": "Контент сайта",
         "cms_pages": "Страницы CMS",
-        "license": "License",
         "cron_setup": "Настройка Cron",
         "support": {
             "index": "Список",
@@ -4241,9 +4240,6 @@
     },
     "install": {
         "run": "Запустить"
-    },
-    "license": {
-        "activate": "Активировать"
     },
     "branding": {
         "favicon_url": "Favicon Url"

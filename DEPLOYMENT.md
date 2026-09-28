@@ -1,5 +1,60 @@
 # WisperBot deployment
 
+## Production Docker deployment
+
+The supported single-VPS Docker stack builds the PHP dependencies and Vite
+assets into immutable images, runs MariaDB and Redis privately, and starts the
+scheduler plus every named queue worker. Host Nginx/Certbot proxy HTTPS to the
+loopback-only container port. See [`docker/README.md`](docker/README.md).
+Optional browser database administration uses the separate `db-admin` Compose
+profile and a host Nginx HTTPS path; see the
+[operator setup](docker/README.md#optional-browser-database-administration).
+
+Initial deployment and subsequent updates use:
+
+```bash
+./deploy.sh
+```
+
+## GitHub Actions production deployment
+
+`.github/workflows/deploy-production.yml` deploys production only after a pull
+request from the repository's `dev` branch is merged into `main`. It does not
+run for pushes to `dev`, unmerged/closed pull requests, pull requests from
+forks, or direct pushes to `main`.
+
+Create a GitHub environment named `production` and add these environment
+secrets (repository secrets with the same names also work):
+
+- `VPS_HOST`: the VPS hostname or IP address.
+- `VPS_PORT`: the SSH port; omit it to use `22`.
+- `VPS_USERNAME`: the SSH user that owns/can deploy the checkout.
+- `VPS_APP_PATH`: the absolute path to the WisperBot checkout containing
+  `deploy.sh` and the production `.env`.
+- `VPS_SSH_PRIVATE_KEY`: the private half of a deploy key whose public half is
+  already authorized for `VPS_USERNAME` on the VPS.
+- `VPS_SSH_KNOWN_HOSTS`: a pinned `known_hosts` entry for the VPS. Obtain and
+  verify this out of band; for example, compare the server fingerprint before
+  saving the output of `ssh-keyscan -H YOUR-DOMAIN`.
+
+The server checkout must already be able to fetch `origin/main` non-
+interactively. The workflow fetches and fast-forwards the checkout, runs
+`./deploy.sh`, reads the application version assigned by
+`app:deploy:finalize`, and creates `v<APP_VERSION>` as the latest GitHub release
+with generated notes. Deployment and release jobs are serialized. A failed
+deployment never creates a release; rerunning a successful deployment is safe
+because an existing release is left unchanged.
+
+The script imports a root `wisperbot.sql` only when the database has no tables,
+backs up the database before migrations, runs the deployment finalizer, and
+checks `/up`. The `.env`, database volume, Redis volume, and storage volume are
+persistent. It requires `.env` to exist but does not reject missing or
+non-production values before starting Docker; configuration failures surface
+from Docker, Laravel, or the final health check. Never use
+`docker compose down -v` in production.
+
+The manual deployment below remains valid for non-Docker servers.
+
 Run these steps from the WisperBot application directory after the new code is
 merged into `main`:
 

@@ -892,11 +892,6 @@
         "tax_rates": "세율",
         "landing_page": "사이트 콘텐츠",
         "cms_pages": "CMS 페이지",
-        "license": {
-            "index": "Index",
-            "deactivate": "Deactivate",
-            "activate": "Activate"
-        },
         "cron_setup": "Cron 설정",
         "support": {
             "index": "목록",
@@ -4245,9 +4240,6 @@
     },
     "install": {
         "run": "Run"
-    },
-    "license": {
-        "activate": "Activate"
     },
     "branding": {
         "favicon_url": "Favicon Url"

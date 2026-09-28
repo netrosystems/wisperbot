@@ -176,9 +176,8 @@ class ImpersonationSessionTest extends TestCase
         $idBefore = session()->getId();
 
         // Call the controller directly so we can inspect session state
-        // without following the redirect chain (the post-redirect client
-        // dashboard is licensed and would bounce to /license, hiding the
-        // session rotation we want to verify).
+        // without following the redirect chain and losing the session detail
+        // this test is intended to verify.
         $request = Request::create(
             route('admin.clients.impersonate', $client),
             'POST'

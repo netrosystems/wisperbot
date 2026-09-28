@@ -44,7 +44,7 @@ return [
             // rtrim guards against a trailing slash in APP_URL (e.g. "https://site/"),
             // which would otherwise yield "https://site//storage/..." (double slash)
             // and 404 every uploaded logo/favicon/media asset.
-            'url' => rtrim(env('APP_URL'), '/').'/storage',
+            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

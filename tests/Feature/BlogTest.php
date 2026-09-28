@@ -15,14 +15,6 @@ class BlogTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Feature tests must not depend on the external production license API.
-        config()->set('license.verify', false);
-    }
-
     private function admin(): AdminUser
     {
         return $this->createSuperAdmin();
