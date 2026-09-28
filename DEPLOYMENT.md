@@ -23,6 +23,22 @@ request from the repository's `dev` branch is merged into `main`. It does not
 run for pushes to `dev`, unmerged/closed pull requests, pull requests from
 forks, or direct pushes to `main`.
 
+The trigger contract is exact:
+
+| Repository event | Deploys? |
+| :--- | :---: |
+| Merge a same-repository `dev` → `main` pull request | Yes |
+| Push a commit to `dev` | No |
+| Push directly to `main` | No |
+| Merge `dev` locally and push `main` | No |
+| Merge another branch directly into `main` | No |
+| Close the `dev` → `main` pull request without merging | No |
+| Merge a fork pull request | No |
+
+Use feature branch → `dev` → a final GitHub `dev` → `main` pull request for
+every production release. Protect `main` against direct pushes so repository
+policy matches the workflow trigger.
+
 Create a GitHub environment named `production` and add these environment
 secrets (repository secrets with the same names also work):
 
@@ -38,12 +54,28 @@ secrets (repository secrets with the same names also work):
   saving the output of `ssh-keyscan -H YOUR-DOMAIN`.
 
 The server checkout must already be able to fetch `origin/main` non-
-interactively. The workflow fetches and fast-forwards the checkout, runs
-`./deploy.sh`, reads the application version assigned by
+interactively and must be clean before deployment (`git status --short` should
+produce no output). The workflow fetches and fast-forwards the checkout, runs
+`bash ./deploy.sh`, reads the application version assigned by
 `app:deploy:finalize`, and creates `v<APP_VERSION>` as the latest GitHub release
-with generated notes. Deployment and release jobs are serialized. A failed
-deployment never creates a release; rerunning a successful deployment is safe
-because an existing release is left unchanged.
+with generated notes. `deploy.sh` is also tracked as executable for direct
+operator use. Revision/version metadata is collected in a separate SSH call
+after the Docker deployment so deployment subprocesses cannot consume it from
+standard input.
+
+Deployment and release jobs are serialized. A failed deployment never creates
+a release. The application finalizer records the deployed Git revision, so a
+rerun of the same revision does not increment `APP_VERSION` twice; if the first
+run deployed successfully but failed before publishing the release, a rerun
+can safely create the missing release. If the release already exists, it is
+left unchanged.
+
+Automation removes manual command drift, but it cannot make infrastructure
+infallible. An unreachable VPS, rejected/rotated SSH key, dirty server checkout,
+failed Git fetch, full disk, Docker/build failure, migration error, or failed
+health check still fails the job and requires diagnosis. Keep the production
+checkout free of local tracked changes and do not manually change tracked file
+permissions.
 
 The script imports a root `wisperbot.sql` only when the database has no tables,
 backs up the database before migrations, runs the deployment finalizer, and
