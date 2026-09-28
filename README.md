@@ -37,6 +37,23 @@ composer dev
 
 `composer dev` runs the Laravel server, a queue listener for every application queue (website-chat AI replies need the `ai` queue), Laravel Pail, and Vite together. Configure a local database and non-production integration credentials before testing integration flows. Never commit `.env` or credentials.
 
+## Production Releases
+
+Production deployment is intentionally tied to one GitHub event: merging a
+same-repository pull request from `dev` into `main`. A push to `dev`, a direct
+push or local merge pushed to `main`, a pull request from another branch or
+fork, and a closed-but-unmerged pull request do not deploy. Promote work through
+feature branch → `dev` → a final `dev` → `main` pull request.
+
+The `Deploy production` GitHub Actions workflow serializes releases, connects
+to the existing VPS checkout through the protected `production` environment,
+fast-forwards `main`, and runs `bash ./deploy.sh`. The script builds the Docker
+images, backs up the database, migrates, finalizes the application version,
+restarts the services, and checks `/up`. Only after that succeeds does the
+workflow create the matching `v<APP_VERSION>` GitHub release. See
+[Deployment](DEPLOYMENT.md#github-actions-production-deployment) for required
+secrets, trigger details, retry behavior, and diagnostics.
+
 ## Verification
 
 ```bash

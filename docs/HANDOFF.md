@@ -13,6 +13,17 @@ six documented VPS/SSH secrets before the first merge. No migration,
 application dependency, or frontend-only build step is introduced by the
 workflow; `deploy.sh` remains the deployment authority.
 
+The first live run on 2026-09-28 verified the environment secrets, SSH access,
+read-only VPS → GitHub fetch, Docker deployment, migration/finalizer, service
+restart, and `/up` health check. It exposed two workflow-only issues that are
+now fixed: the checkout initially stored `deploy.sh` without its executable bit,
+and the long-running Docker subprocesses consumed the remaining remote standard
+input before release metadata could be printed. The workflow now both tracks
+the script as executable and calls it through Bash, then reads Git revision and
+`APP_VERSION` in a separate SSH session. Keep the VPS checkout clean; direct
+pushes/local merges to `main` and all source branches other than `dev` remain
+deliberate non-triggers.
+
 ## Legacy distribution licensing removed — 2026-09-21
 
 The Envato/Botble purchase-code system is removed pending design of a different business model. Fresh installation no longer shows or submits a license step; `/license`, `install.activate-license`, the `licensed` middleware, Super Admin “License & Updates” routes/navigation, external license-server services/configuration, and their dedicated test are gone. The old updater was license-server-specific and was removed with the licensing feature. Existing `storage/app/.license*` files, if present on a deployed host, are inert and may be deleted during deployment cleanup. No migration is required; deploy the PHP code and rebuilt Vite assets, then clear route/config caches.

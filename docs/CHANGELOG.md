@@ -8,6 +8,11 @@ This is a documentation-level changelog for user-visible and operationally signi
   merges. GitHub Actions securely connects to the existing VPS checkout,
   fast-forwards `main`, runs the guarded Docker `deploy.sh`, and publishes a
   versioned GitHub release only after the deployment health check succeeds.
+  Direct pushes and other merge paths intentionally do not deploy. The first
+  live rollout also hardened script execution and revision/version collection:
+  `deploy.sh` is executable and invoked through Bash, while release metadata is
+  read in a separate SSH call after Docker finishes. Same-revision retries and
+  existing releases are idempotent.
 
 - Added optional browser database administration to the single-VPS Docker stack:
   phpMyAdmin remains loopback-only behind a host Nginx HTTPS path and a separate
