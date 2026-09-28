@@ -5,11 +5,17 @@ namespace App\Modules\Social\Models;
 use App\Models\Concerns\ExcludesDeletedWorkspaces;
 use App\Modules\Social\Services\SocialTokenRefresher;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
-/** @property array<string, mixed>|null $meta */
+/**
+ * Disconnecting soft deletes the account, so scheduled posts keep pointing at
+ * it and reconnecting the same account brings it back (see revive()).
+ *
+ * @property array<string, mixed>|null $meta
+ */
 class SocialAccount extends Model
 {
-    use ExcludesDeletedWorkspaces;
+    use ExcludesDeletedWorkspaces, SoftDeletes;
 
     protected $table = 'social_media_accounts';
 
@@ -27,6 +33,17 @@ class SocialAccount extends Model
             'access_token' => 'encrypted',
             'refresh_token' => 'encrypted',
         ];
+    }
+
+    /**
+     * Brings back a disconnected account with this identity before it is
+     * saved again, so it keeps its id and the posts scheduled for it.
+     *
+     * @param  array{workspace_id: int, network: string, account_id: string}  $identity
+     */
+    public static function revive(array $identity): void
+    {
+        static::onlyTrashed()->where($identity)->first()?->restore();
     }
 
     public function posts()

@@ -3,19 +3,24 @@
 namespace App\Modules\Social\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Models\Workspace;
 use App\Modules\Integrations\Services\CredentialResolver;
 use App\Modules\Integrations\Services\MetaPageDiscoveryService;
 use App\Modules\Social\Jobs\SyncSocialComments;
 use App\Modules\Social\Models\SocialAccount;
+use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Services\Drivers\FacebookDriver;
 use App\Modules\Social\Services\Drivers\InstagramSocialDriver;
 use App\Modules\Social\Services\Drivers\LinkedInDriver;
 use App\Modules\Social\Services\Drivers\TikTokDriver;
 use App\Modules\Social\Services\Drivers\XDriver;
 use App\Modules\Social\Services\Drivers\YoutubeDriver;
+use App\Modules\Social\Services\MetaConnectionHealth;
 use App\Modules\Social\Services\OAuth\OAuthManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Inertia\Inertia;
@@ -28,6 +33,7 @@ class SocialAccountController extends Controller
     public function __construct(
         private readonly OAuthManager $oauth,
         private readonly MetaPageDiscoveryService $metaPages,
+        private readonly MetaConnectionHealth $metaHealth,
     ) {
         $this->drivers = [
             'facebook' => new FacebookDriver,
@@ -130,6 +136,9 @@ class SocialAccountController extends Controller
 
         // For Facebook / Instagram: fetch pages the user manages and upsert each one.
         if (in_array($network, ['facebook', 'instagram'])) {
+            // A business token only reaches the assets chosen in Meta's window,
+            // so its Pages need no granular-scope filtering to be safe.
+            $businessLogin = ($stored['meta_login'] ?? null) === 'business';
             $fields = $network === 'instagram'
                 ? 'id,name,access_token,picture,instagram_business_account{id,name,username,profile_picture_url}'
                 : 'id,name,access_token,picture';
@@ -158,16 +167,21 @@ class SocialAccountController extends Controller
                     'error' => $e->getMessage(),
                 ]);
 
-                return redirect()->route('client.social.automation.index')
-                    ->with('error', 'Meta authorization succeeded, but WisperBot could not verify which account you selected. No accounts were connected. Please try again.');
+                if (! $businessLogin) {
+                    return redirect()->route('client.social.automation.index')
+                        ->with('error', 'Meta authorization succeeded, but WisperBot could not verify which account you selected. No accounts were connected. Please try again.');
+                }
+                $selectedTargetIds = [];
             }
 
-            if ($selectedTargetIds === []) {
+            if ($selectedTargetIds === [] && ! $businessLogin) {
                 return redirect()->route('client.social.automation.index')
                     ->with('error', 'Meta did not return a selected Page or Instagram account. No accounts were connected. Reconnect and choose the specific account you want to add.');
             }
 
-            $pages = $this->filterMetaPagesToSelectedTargets($pages, $selectedTargetIds);
+            if ($selectedTargetIds !== []) {
+                $pages = $this->filterMetaPagesToSelectedTargets($pages, $selectedTargetIds);
+            }
 
             if ($discovery['errors'] !== []) {
                 Log::warning('Social OAuth: one or more Meta Page discovery sources failed', [
@@ -191,6 +205,8 @@ class SocialAccountController extends Controller
             }
 
             $connected = 0;
+            $connectedIds = [];
+            $loginMeta = ['meta_login' => $businessLogin ? 'business' : 'personal'];
 
             foreach ($pages as $page) {
                 $pageToken = $page['access_token'] ?? null;
@@ -215,25 +231,30 @@ class SocialAccountController extends Controller
                         ? '@'.$igAccount['username']
                         : ($igAccount['name'] ?? $page['name']);
 
+                    $identity = ['workspace_id' => $wid, 'network' => 'instagram', 'account_id' => $igAccount['id']];
+                    SocialAccount::revive($identity);
                     $connectedAccount = SocialAccount::updateOrCreate(
-                        ['workspace_id' => $wid, 'network' => 'instagram', 'account_id' => $igAccount['id']],
+                        $identity,
                         [
                             'name' => $igName,
                             'picture_url' => $igAccount['profile_picture_url'] ?? ($page['picture']['data']['url'] ?? null),
                             'access_token' => $pageToken, // page token is used for IG Graph API calls
-                            'meta' => array_merge(SocialAccount::where('workspace_id', $wid)->where('network', 'instagram')->where('account_id', $igAccount['id'])->first()?->meta ?? [], ['page_id' => (string) $page['id']]),
+                            'meta' => array_merge($this->withoutReconnectFlags(SocialAccount::where($identity)->first()?->meta), $loginMeta, ['page_id' => (string) $page['id']]),
                             'refresh_token' => null,
                             'token_expires_at' => null,
                             'active' => true,
                         ]
                     );
                 } else {
+                    $identity = ['workspace_id' => $wid, 'network' => 'facebook', 'account_id' => (string) $page['id']];
+                    SocialAccount::revive($identity);
                     $connectedAccount = SocialAccount::updateOrCreate(
-                        ['workspace_id' => $wid, 'network' => 'facebook', 'account_id' => $page['id']],
+                        $identity,
                         [
                             'name' => $page['name'],
                             'picture_url' => $page['picture']['data']['url'] ?? null,
                             'access_token' => $pageToken,
+                            'meta' => array_merge($this->withoutReconnectFlags(SocialAccount::where($identity)->first()?->meta), $loginMeta),
                             'refresh_token' => null,
                             'token_expires_at' => null,
                             'active' => true,
@@ -245,6 +266,7 @@ class SocialAccountController extends Controller
                     SyncSocialComments::dispatch($connectedAccount->id, $wid, true)->afterCommit();
                 }
                 $connected++;
+                $connectedIds[] = $connectedAccount->id;
             }
 
             if ($connected === 0) {
@@ -255,8 +277,11 @@ class SocialAccountController extends Controller
                 return redirect()->route('client.social.automation.index')->with('error', $message);
             }
 
-            return redirect()->route('client.social.automation.index')
+            $redirect = redirect()->route('client.social.automation.index')
                 ->with('success', $connected.' '.ucfirst($network).' account(s) connected.');
+            $lost = $this->metaConnectionsLostBy($request, $connectedIds);
+
+            return $lost === '' ? $redirect : $redirect->with('warning', $lost);
         }
 
         // LinkedIn can authorize a member plus the Company Pages they admin.
@@ -293,6 +318,7 @@ class SocialAccountController extends Controller
         }
 
         $identity = ['workspace_id' => $wid, 'network' => $network, 'account_id' => $accountInfo['account_id']];
+        SocialAccount::revive($identity);
         $existing = SocialAccount::where($identity)->first();
 
         SocialAccount::updateOrCreate(
@@ -390,6 +416,7 @@ class SocialAccountController extends Controller
 
         foreach ($targets as $target) {
             $identity = ['workspace_id' => $wid, 'network' => 'linkedin', 'account_id' => $target['account_id']];
+            SocialAccount::revive($identity);
             $existing = SocialAccount::where($identity)->first();
 
             SocialAccount::updateOrCreate($identity, [
@@ -414,12 +441,78 @@ class SocialAccountController extends Controller
             ->with('success', count($targets).' LinkedIn account(s) connected.');
     }
 
+    /**
+     * Keeps the account (soft deleted) so its scheduled posts still point at
+     * it; reconnecting the same account restores it. The tokens are wiped.
+     */
     public function disconnect(Request $request, SocialAccount $account): RedirectResponse
     {
         abort_unless((int) $account->workspace_id === $this->workspaceId($request), 403);
+
+        $pending = SocialPost::where('workspace_id', $account->workspace_id)
+            ->whereIn('status', ['scheduled', 'draft', 'failed'])
+            ->where(fn ($query) => $query->whereJsonContains('target_accounts', $account->id)
+                ->orWhereJsonContains('target_accounts', (string) $account->id))
+            ->count();
+
+        $account->update(['active' => false, 'access_token' => '', 'refresh_token' => null, 'token_expires_at' => null]);
         $account->delete();
 
-        return back()->with('success', 'Account disconnected.');
+        return back()->with('success', $pending === 0
+            ? 'Account disconnected.'
+            : "Account disconnected. {$pending} ".($pending === 1 ? 'post still includes' : 'posts still include').' it: reconnect the same account before they are due, or they will fail for this network.');
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $meta
+     * @return array<string, mixed>
+     */
+    private function withoutReconnectFlags(?array $meta): array
+    {
+        return array_diff_key($meta ?? [], ['reconnect_required' => true, 'reconnect_reason' => true]);
+    }
+
+    /**
+     * With a personal Facebook login, choosing Pages in Meta's window replaces
+     * the previous choice, so connecting here can cut off a Page connected
+     * earlier, even in another workspace. Ask Meta about the person's other
+     * Facebook and Instagram connections and name any that just lost access.
+     *
+     * @param  list<int>  $connectedIds
+     */
+    private function metaConnectionsLostBy(Request $request, array $connectedIds): string
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $workspaceIds = array_values(array_unique(array_filter(array_map('intval', [
+            $user->getAttribute('workspace_id'),
+            $user->getAttribute('current_workspace_id'),
+            ...$user->accessibleWorkspaces()->pluck('id')->all(),
+        ]))));
+
+        /** @var Collection<int, SocialAccount> $others */
+        $others = SocialAccount::whereIn('workspace_id', $workspaceIds)
+            ->whereIn('network', MetaConnectionHealth::NETWORKS)
+            ->whereNotIn('id', $connectedIds)
+            ->where('active', true)
+            ->limit(25)
+            ->get();
+
+        $lost = $others->filter(fn (SocialAccount $account): bool => $this->metaHealth->check($account) === 'broken');
+        if ($lost->isEmpty()) {
+            return '';
+        }
+
+        $workspaces = Workspace::whereIn('id', $lost->pluck('workspace_id'))->pluck('name', 'id');
+        $names = $lost->map(fn (SocialAccount $account): string => sprintf(
+            '%s (%s, %s)',
+            $account->name,
+            $account->network === 'instagram' ? 'Instagram' : 'Facebook',
+            $workspaces[$account->workspace_id] ?? 'another workspace',
+        ))->implode(', ');
+
+        return "Meta removed WisperBot's access to {$names}, because it was not selected this time. "
+            .'Reconnect '.($lost->count() === 1 ? 'it' : 'them').' and keep every Page and Instagram account you use selected in Meta\'s window.';
     }
 
     /**

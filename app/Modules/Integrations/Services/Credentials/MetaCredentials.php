@@ -33,4 +33,14 @@ class MetaCredentials extends CredentialValueObject
     {
         return $this->get('config_id_social') ?: null;
     }
+
+    /**
+     * Login for Business configuration used by Social Media Automation. Its
+     * business tokens belong to each connection, so connecting one Page never
+     * removes access to another. Without it the personal Facebook login is used.
+     */
+    public function configIdPublishing(): ?string
+    {
+        return $this->get('config_id_publishing') ?: null;
+    }
 }
