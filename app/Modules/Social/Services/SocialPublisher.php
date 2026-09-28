@@ -3,12 +3,13 @@
 namespace App\Modules\Social\Services;
 
 use App\Modules\Broadcasting\Models\UsageMeter;
-use App\Modules\Social\Models\SocialAccount;
-use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Exceptions\ClientSafePublishException;
+use App\Modules\Social\Exceptions\MetaAccessRevokedException;
 use App\Modules\Social\Exceptions\PublishOutcomeUnknownException;
 use App\Modules\Social\Exceptions\TokenRefreshRejectedException;
 use App\Modules\Social\Exceptions\XPublishException;
+use App\Modules\Social\Models\SocialAccount;
+use App\Modules\Social\Models\SocialPost;
 use App\Modules\Social\Models\SocialPostAccount;
 use App\Modules\Social\Services\Drivers\FacebookDriver;
 use App\Modules\Social\Services\Drivers\InstagramSocialDriver;
@@ -47,7 +48,7 @@ class SocialPublisher
             ->whereIn('id', $post->target_accounts ?? [])
             ->get();
 
-        $results = [];
+        $results = $this->disconnectedTargets($post, $accounts->modelKeys());
 
         foreach ($accounts as $account) {
             $link = SocialPostAccount::firstOrCreate(
@@ -58,6 +59,7 @@ class SocialPublisher
             // On job retry, skip accounts already successfully published.
             if ($link->status === 'published') {
                 $results[$account->id] = ['status' => 'published', 'post_id' => $link->platform_post_id];
+
                 continue;
             }
 
@@ -76,6 +78,16 @@ class SocialPublisher
             }
 
             $results[$account->id] = $this->publishOnce($post, $account, $link, $driver);
+        }
+
+        // Show clients why a network failed; link errors are already client-safe.
+        foreach ($results as $accountId => $result) {
+            if ($result['status'] === 'failed' && ! isset($result['error'])) {
+                $error = SocialPostAccount::where('post_id', $post->id)->where('social_account_id', $accountId)->value('error');
+                if (is_string($error) && $error !== '') {
+                    $results[$accountId]['error'] = $error;
+                }
+            }
         }
 
         $succeededCount = collect($results)->filter(fn ($r) => $r['status'] === 'published')->count();
@@ -104,6 +116,39 @@ class SocialPublisher
         if ($failedCount > 0) {
             throw new \RuntimeException("{$failedCount} social account publish attempt(s) failed.");
         }
+    }
+
+    /**
+     * A target that was disconnected used to be skipped without a word, so a
+     * post "published" while silently leaving out a network. It now fails for
+     * that network with the reason; reconnecting the same account brings the
+     * old connection back and a retry publishes there.
+     *
+     * @param  list<int>  $foundIds
+     * @return array<int, array{status: string, error: string}>
+     */
+    private function disconnectedTargets(SocialPost $post, array $foundIds): array
+    {
+        $missing = array_values(array_diff(array_map('intval', $post->target_accounts ?? []), $foundIds));
+        if ($missing === []) {
+            return [];
+        }
+
+        $trashed = SocialAccount::onlyTrashed()->where('workspace_id', $post->workspace_id)->whereIn('id', $missing)->get()->keyBy('id');
+        $results = [];
+        foreach ($missing as $id) {
+            $account = $trashed->get($id);
+            $label = $account ? (self::LABELS[$account->network] ?? ($account->network === 'twitter' ? 'X' : ucfirst($account->network))) : null;
+            $error = $account
+                ? "{$label} account {$account->name} was disconnected. Reconnect it in Social Media Automation, then publish again."
+                : 'This account was removed from the workspace. Edit the post to choose another account.';
+            if ($account) {
+                SocialPostAccount::updateOrCreate(['post_id' => $post->id, 'social_account_id' => $id], ['status' => 'failed', 'error' => $error]);
+            }
+            $results[$id] = ['status' => 'failed', 'error' => $error];
+        }
+
+        return $results;
     }
 
     /**
@@ -144,6 +189,16 @@ class SocialPublisher
         } catch (PublishOutcomeUnknownException $e) {
             Log::error('Social publish outcome unknown', ['post_id' => $post->id, 'account_id' => $account->id, 'network' => $account->network, 'error' => $e->getPrevious()?->getMessage()]);
             $link->update(['status' => 'failed', 'error' => $unconfirmed]);
+
+            return ['status' => 'failed'];
+        } catch (MetaAccessRevokedException $e) {
+            Log::warning('Social publish refused: Meta access removed', ['post_id' => $post->id, 'account_id' => $account->id, 'network' => $account->network, 'error' => $e->getMessage()]);
+            app(MetaConnectionHealth::class)->markBroken($account);
+            $link->update([
+                'status' => 'failed',
+                'error' => "{$label} no longer lets WisperBot post to {$account->name}. Reconnect {$label} in Social Media Automation, keep this account selected in Meta, then publish again.",
+                'provider_attempted_at' => null,
+            ]);
 
             return ['status' => 'failed'];
         } catch (\Throwable $e) {

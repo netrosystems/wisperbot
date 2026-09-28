@@ -2,13 +2,11 @@
 
 namespace App\Modules\Social\Jobs;
 
-use App\Models\User;
-use App\Models\Workspace;
 use App\Modules\Social\Exceptions\TokenRefreshRejectedException;
 use App\Modules\Social\Models\SocialAccount;
+use App\Modules\Social\Services\MetaConnectionHealth;
+use App\Modules\Social\Services\SocialConnectionAlerts;
 use App\Modules\Social\Services\SocialTokenRefresher;
-use App\Notifications\SocialConnectionAttentionNotification;
-use App\Services\WorkspaceNotificationRecipients;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,6 +20,9 @@ use Illuminate\Support\Facades\Log;
  * anything. Only a refresh token the network rejected disconnects an account;
  * timeouts and server errors are retried next hour. Connections that cannot be
  * renewed (LinkedIn without a refresh token) get one reminder a week ahead.
+ * Facebook and Instagram tokens do not expire but can lose access; Meta is
+ * asked about each one, so a lost connection shows "Reconnect needed" before
+ * the next scheduled post fails.
  */
 class RefreshSocialTokensJob implements ShouldQueue
 {
@@ -53,6 +54,18 @@ class RefreshSocialTokensJob implements ShouldQueue
             });
 
         $this->remindExpiringConnections();
+        $this->checkMetaConnections();
+    }
+
+    private function checkMetaConnections(): void
+    {
+        $health = app(MetaConnectionHealth::class);
+        SocialAccount::whereIn('network', MetaConnectionHealth::NETWORKS)
+            ->chunkById(100, function ($accounts) use ($health): void {
+                foreach ($accounts as $account) {
+                    $health->check($account);
+                }
+            });
     }
 
     private function remindExpiringConnections(): void
@@ -76,17 +89,6 @@ class RefreshSocialTokensJob implements ShouldQueue
 
     private function notify(SocialAccount $account, ?int $daysLeft): void
     {
-        $workspace = Workspace::find($account->workspace_id);
-        if (! $workspace) {
-            return;
-        }
-
-        $managerIds = $workspace->members()->wherePivotIn('role', ['owner', 'admin'])->pluck('users.id');
-        app(WorkspaceNotificationRecipients::class)->for((int) $workspace->id)
-            ->filter(fn (User $user) => (int) $workspace->owner_id === (int) $user->id
-                || $user->client_role === User::CLIENT_ROLE_ADMINISTRATOR
-                || $managerIds->contains($user->id))
-            ->unique('id')
-            ->each(fn (User $user) => $user->notify(new SocialConnectionAttentionNotification($account->network, (string) $account->name, $daysLeft, (int) $workspace->id)));
+        app(SocialConnectionAlerts::class)->notify($account, $daysLeft);
     }
 }

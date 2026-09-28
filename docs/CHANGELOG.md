@@ -4,6 +4,16 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Facebook and Instagram connections no longer fail silently.**
+  - Cause: with the personal Facebook login, connecting a Page replaced the Pages chosen before, so other Facebook/Instagram connections (even in other workspaces) stopped working while still showing "Active".
+  - Optional Login for Business configuration for Social Media Automation (`config_id_publishing` in the Meta App integration): each connection gets its own business token, like the Inbox already does.
+  - Every hour Meta is asked whether each Facebook/Instagram connection still works; broken ones show "Reconnect needed" and owners/admins are notified once. The flag clears itself when access returns.
+  - Connecting a Page warns if it just cut off another connection.
+  - A publish refused by Meta for lost access shows a plain reason, and a failed post now shows each network's reason.
+  - Disconnect keeps the account (soft delete) and reconnecting the same Page restores it, so scheduled posts stay attached. Posts for a disconnected account fail with the reason instead of silently skipping that network.
+  - New `php artisan social:reattach-posts` for posts still pointing at an account deleted before this change.
+  - Migration `2026_09_28_000100_add_deleted_at_to_social_media_accounts`.
+
 - Master Email replies now remain in the dedicated email workflow on web and mobile. Agents explicitly join an email thread before replying, matching Omni Channel ownership; email payloads expose the joined owner and takeover state, new email composition returns to MasterBox, and the redundant Omni Inbox link was removed. Short rich-email bodies now size to their content, and the reply composer uses one compact focus border without being covered by the support launcher.
 
 - Added comment-only mobile discovery and operation tracking for the Agent App. Inbox setup now advertises the Social Comments feature and its Facebook/Instagram scope, inbox counts include needs-attention and per-agent unread comment totals, and a workspace-scoped operation endpoint supports reliable polling after asynchronous public replies, AI suggestions, and moderation. No post creation, scheduling, publishing, schema, or dependency behavior changed.

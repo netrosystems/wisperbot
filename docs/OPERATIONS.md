@@ -54,7 +54,9 @@ Run Laravel's scheduler every minute:
 
 Long-running `schedule:work` is also valid where process supervision exists. Important tasks include social dispatch (ten-second cadence within the scheduler process), campaign launch, email sync, eBay sync, token refresh, billing reconciliation, trial expiry, digests, unanswered reminders, and cleanup.
 
-`refresh-social-tokens` runs hourly on the `social` queue (since 2026-09-26; it was daily). YouTube access tokens last one hour, so a stopped scheduler or `social` worker makes clients see disconnected YouTube accounts. Keep the Google OAuth consent screen **In production**: in Testing, Google revokes refresh tokens after 7 days and every YouTube client must reconnect weekly.
+`refresh-social-tokens` runs hourly on the `social` queue (since 2026-09-26; it was daily). Since 2026-09-28 it also asks Meta whether each Facebook/Instagram connection still works and marks broken ones "Reconnect needed" (one `debug_token` call per connection per hour).
+
+Posts that still point at a social account deleted before 2026-09-28 (when Disconnect deleted the row) silently skipped that network until they were re-pointed. Preview, then move them to the reconnected account with `php artisan social:reattach-posts {old_id} {new_id}` and `--apply`. It only touches scheduled, draft and failed posts in the new account's workspace. YouTube access tokens last one hour, so a stopped scheduler or `social` worker makes clients see disconnected YouTube accounts. Keep the Google OAuth consent screen **In production**: in Testing, Google revokes refresh tokens after 7 days and every YouTube client must reconnect weekly.
 
 Workspace-segment Omni/email Smart Bot replies run on `ai`; inbound Meta/WhatsApp work still requires `whatsapp`, and mailbox sync requires `default` plus the scheduler. `OMNICHANNEL_AI_ANSWERING_ENABLED` and `EMAIL_AI_ANSWERING_ENABLED` pause delivery without deleting the two saved segment policies. `INBOX_AI_REPLY_DEBOUNCE_SECONDS` defaults to 2. Deploy both the original channel-policy migration and the corrective segment-policy migration before restarting matching workers.
 

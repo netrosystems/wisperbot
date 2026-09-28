@@ -3,8 +3,8 @@
 namespace App\Modules\Social\Services\OAuth;
 
 use App\Modules\Integrations\Services\CredentialResolver;
-use App\Modules\Social\Exceptions\TokenRefreshRejectedException;
 use App\Modules\Integrations\Services\Credentials\OAuthClientCredentials;
+use App\Modules\Social\Exceptions\TokenRefreshRejectedException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Session;
@@ -166,6 +166,23 @@ class OAuthManager
 
     private function facebookAuthUrl($creds, string $redirect, string $network): string
     {
+        // A personal Facebook login gives the person one set of permissions for
+        // WisperBot: signing in again for another Page replaces it and silently
+        // cuts off Pages left unselected. A Login for Business configuration
+        // issues a business token per connection instead, so connections stay
+        // independent. The configuration defines the permissions.
+        $configId = $this->credentials->meta()?->configIdPublishing();
+        if ($configId !== null) {
+            return 'https://www.facebook.com/'.self::META_GRAPH_VERSION.'/dialog/oauth?'.http_build_query([
+                'client_id' => $creds->clientId() ?? '',
+                'redirect_uri' => $redirect,
+                'config_id' => $configId,
+                'response_type' => 'code',
+                'override_default_response_type' => 'true',
+                'state' => $this->storeState(['network' => $network, 'meta_login' => 'business']),
+            ]);
+        }
+
         $scopes = $network === 'instagram'
             ? 'instagram_basic,instagram_content_publish,instagram_manage_contents,pages_read_engagement,pages_show_list,business_management'
             : 'pages_manage_posts,pages_read_engagement,pages_show_list,business_management';

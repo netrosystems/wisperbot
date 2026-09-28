@@ -357,11 +357,14 @@ function PostDetails({ post, accountMap, timezone, onClose }) {
                                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">{t('social.publish_results')}</p>
                                 <div className="space-y-1.5">
                                     {Object.entries(post.publish_results).map(([accountId, result]) => (
-                                        <div key={accountId} className="flex items-center justify-between rounded-lg bg-neutral-50 px-3 py-2 text-xs dark:bg-neutral-800">
-                                            <span className="text-neutral-600 dark:text-neutral-300">{accountMap[accountId]?.name ?? t('social.account_number', { id: accountId })}</span>
-                                            <span className={result.status === 'published' ? 'font-medium text-emerald-600' : 'font-medium text-red-600'}>
-                                                {result.status === 'published' ? t('social.result_published') : t('social.result_failed')}
-                                            </span>
+                                        <div key={accountId} className="rounded-lg bg-neutral-50 px-3 py-2 text-xs dark:bg-neutral-800">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-neutral-600 dark:text-neutral-300">{accountMap[accountId]?.name ?? t('social.account_number', { id: accountId })}</span>
+                                                <span className={result.status === 'published' ? 'font-medium text-emerald-600' : 'font-medium text-red-600'}>
+                                                    {result.status === 'published' ? t('social.result_published') : t('social.result_failed')}
+                                                </span>
+                                            </div>
+                                            {result.status !== 'published' && result.error && <p className="mt-1 leading-5 text-red-700 dark:text-red-300">{result.error}</p>}
                                         </div>
                                     ))}
                                 </div>
@@ -474,6 +477,7 @@ export default function SocialAutomation({ accounts = [], activeAccounts = [], p
 
                 {props.flash?.success && <div role="status" className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">{props.flash.success}</div>}
                 {props.flash?.error && <div role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-200">{props.flash.error}</div>}
+                {props.flash?.warning && <div role="alert" className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{props.flash.warning}</div>}
 
                 <ConnectedAccounts accounts={accounts} onConnect={() => setProviderPicker(true)} />
 

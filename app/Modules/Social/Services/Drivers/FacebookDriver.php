@@ -101,6 +101,8 @@ class FacebookDriver implements ManagesPublishedPosts, SocialNetworkInterface
                     ]);
                     $photoId = $upload->json('id');
                     if (! $upload->successful() || ! is_string($photoId) || $photoId === '') {
+                        $this->throwIfMetaAccessRemoved($upload);
+
                         throw new \RuntimeException('Facebook photo upload failed: '.mb_substr($upload->body(), 0, 500));
                     }
                     if ($cache !== null) {

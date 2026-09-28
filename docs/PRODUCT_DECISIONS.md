@@ -108,6 +108,13 @@ Product decision: 2026-09-19; moved from the Smart Bot to the widget on 2026-09-
 - The questions are shown and answered whenever the switch is on, whether or not AI is on or within its schedule. They are fixed answers, not AI. Once a person handles the chat, the questions are disabled and get no automatic answer.
 - They apply only to the website widget and customer SDK. Other channels neither show nor answer them.
 
+## Social account disconnect and reconnect (2026-09-28)
+
+- **Disconnect** wipes the tokens but keeps the account (soft delete), and says how many posts still include it. Reconnecting the same Page or profile brings back the same account, so those posts publish again.
+- A post whose account was disconnected or removed **fails for that network with the reason**; it is never published while silently leaving that network out.
+- A failed post shows each network's reason in its details.
+- Facebook/Instagram connections Meta cut off are shown as **Reconnect needed** within an hour, and a connect that cut off other connections says so immediately.
+
 ## Developer features
 
 - API tokens, external webhooks, and API documentation are hidden by default and sold through the Developer Tools add-on.
