@@ -6,7 +6,7 @@ import { Toaster, toast } from 'sonner';
 import Topbar from '@/Components/Topbar';
 import Sidebar from '@/Components/Sidebar';
 import UpgradeModal from '@/Components/UpgradeModal';
-import useClientNav from '@/Layouts/useClientNav';
+import useClientNav, { isNavItemActive, navItemKey } from '@/Layouts/useClientNav';
 import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
 
 function safeRoute(name, ...args) {
@@ -153,8 +153,8 @@ export default function ClientLayout({ header, children, title }) {
                     ...group,
                     items: group.items.map(item => ({
                         ...item,
-                        key: item.activePattern || item.label,
-                        active: () => item.activePattern ? route().current(item.activePattern) : false,
+                        key: navItemKey(item),
+                        active: () => isNavItemActive(item.activePattern),
                     }))
                 }))}
 footer={<ClientLayoutFooter />}

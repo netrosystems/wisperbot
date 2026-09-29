@@ -130,7 +130,7 @@ Published and previewed content is sanitized again on read. The sanitizer remove
 Public comments are implemented locally behind `SOCIAL_COMMENTS_ENABLED=false`: compact Posts/Comments navigation, cursor list/thread detail, explicit public replies, per-account Off/Suggestions/Automatic modes, reviewed public KB previews, scoped mobile APIs, signed event ingestion, bounded synchronization, and safe operation retries. Comments do not become private inbox conversations. Public release remains gated on Meta approval and external-client verification; ad discovery and native mobile screens are not claimed. See `docs/SOCIAL_COMMENTS.md`.
 
 #### Capabilities
-- **Social Media Automation (`/app/social/automation`)**: A unified workspace for compact OAuth account management, upcoming/draft/published/failed post lists, search and filters, and an integrated calendar view.
+- **Post Scheduler (`/app/social/automation`, formerly Social Media Automation)**: A unified workspace for compact OAuth account management, upcoming/draft/published/failed post lists, search and filters, and an integrated calendar view.
 - **Multi-Platform Scheduling (`/app/social/automation/schedule`)**: Compose copy, attach media, preview platform-specific layouts, and explicitly choose scheduled delivery or immediate publication.
 - **Connected Accounts**: Connect multiple Facebook Pages, Instagram Business Accounts, LinkedIn profiles, YouTube channels, and TikTok accounts from the unified workflow.
 - **Capability-Driven Deletion**: Safely distinguishes remote platform deletion capabilities between Facebook (supported) and Instagram (API limited).

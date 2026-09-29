@@ -104,7 +104,6 @@ class SocialAutomationController extends Controller
         }
 
         return Inertia::render('Social/Automation/Index', [
-            'commentsEnabled' => (bool) config('social_comments.enabled'),
             // Company Pages need the separate LinkedIn app to be configured.
             'linkedinPagesEnabled' => (bool) CredentialResolver::system()->oauth('linkedin')?->allowsOrganizationPosting(),
             'commentPlatforms' => SocialCommentCapabilities::catalog(),

@@ -11,7 +11,6 @@ import ClientLayout from '@/Layouts/ClientLayout';
 import { SocialBrandIcon } from '@/Components/BrandIcons';
 import { browserTz, formatInTz } from '@/Utils/datetime';
 import AiPlannerModal from '../Posts/AiPlannerModal';
-import SocialWorkspaceTabs from '@/Components/Social/SocialWorkspaceTabs';
 import CommentPlatformAvailability from '@/Components/Social/CommentPlatformAvailability';
 
 import { confirmDialog } from '@/Components/ConfirmDialog';
@@ -460,7 +459,7 @@ export default function SocialAutomation({ accounts = [], activeAccounts = [], p
     };
     const empty = filters.view === 'calendar' ? calendarPosts.length === 0 : !posts?.data?.length;
     const hasAnyPosts = Number(tabCounts.all ?? 0) > 0;
-    const pageTitle = t('social.automation_title', { defaultValue: 'Social Media Automation' });
+    const pageTitle = t('social.automation_title', { defaultValue: 'Post Scheduler' });
 
     return (
         <ClientLayout title={pageTitle}>
@@ -473,8 +472,6 @@ export default function SocialAutomation({ accounts = [], activeAccounts = [], p
                         {activeAccounts.length > 0 ? <Link href={route('client.social.automation.schedule')} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-soft hover:bg-brand-700"><Plus className="h-4 w-4" />{t('social.schedule_post', { defaultValue: 'Schedule post' })}</Link> : <button disabled title={t('social.connect_before_scheduling', { defaultValue: 'Connect an active account before scheduling a post.' })} className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white opacity-50"><Plus className="h-4 w-4" />{t('social.schedule_post', { defaultValue: 'Schedule post' })}</button>}
                     </div>
                 </header>
-
-                {props.commentsEnabled && <SocialWorkspaceTabs />}
 
                 {props.flash?.success && <div role="status" className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">{props.flash.success}</div>}
                 {props.flash?.error && <div role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-200">{props.flash.error}</div>}

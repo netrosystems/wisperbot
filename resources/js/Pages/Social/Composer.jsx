@@ -301,14 +301,14 @@ export default function SocialComposer({ accounts }) {
 
     return (
         <ClientLayout title={t('social.composer_title', { defaultValue: 'Schedule a Post' })}>
-            <Head title={t('social.composer_head', { defaultValue: 'Schedule a Post · Social Media Automation' })} />
+            <Head title={t('social.composer_head', { defaultValue: 'Schedule a Post · Post Scheduler' })} />
             <div className="flex gap-6 items-start">
 
                 {/* ── LEFT: composer ── */}
                 <div className="w-full max-w-xl shrink-0 space-y-5">
                     <div>
                         <Link href={route('client.social.automation.index')} className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-neutral-500 transition hover:text-brand-600">
-                            <ArrowLeft className="h-4 w-4" /> {t('social.back_to_automation', { defaultValue: 'Back to Social Media Automation' })}
+                            <ArrowLeft className="h-4 w-4" /> {t('social.back_to_automation', { defaultValue: 'Back to Post Scheduler' })}
                         </Link>
                         <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{t('social.composer_title', { defaultValue: 'Schedule a Post' })}</h2>
                         <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">{t('social.composer_subtitle', { defaultValue: 'Write or generate content, preview each network, then schedule it or publish now.' })}</p>

@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Social Media Automation is now Post Scheduler, and Comments has its own sidebar entry.** The Social Media group lists Automations, Post Scheduler and (when social comments are enabled) Comments. The Posts/Comments tabs inside the page were removed. Server messages that said "Reconnect … in Social Media Automation" now say Post Scheduler. Frontend bundle and backend deploy together; no migration.
+
 - Added production CI/CD for same-repository `dev` → `main` pull-request
   merges. GitHub Actions securely connects to the existing VPS checkout,
   fast-forwards `main`, runs the guarded Docker `deploy.sh`, and publishes a

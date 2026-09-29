@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Toaster, toast } from 'sonner';
 import Sidebar from '@/Components/Sidebar';
 import UpgradeModal from '@/Components/UpgradeModal';
-import useClientNav from '@/Layouts/useClientNav';
+import useClientNav, { isNavItemActive, navItemKey } from '@/Layouts/useClientNav';
 import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
 
 export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
@@ -63,8 +63,8 @@ export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
                         ...group,
                         items: group.items.map(item => ({
                             ...item,
-                            key: item.activePattern || item.label,
-                            active: () => item.activePattern ? route().current(item.activePattern) : false,
+                            key: navItemKey(item),
+                            active: () => isNavItemActive(item.activePattern),
                         }))
                     }))}
                 />

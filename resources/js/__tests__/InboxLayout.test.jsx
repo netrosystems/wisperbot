@@ -5,7 +5,7 @@ import InboxLayout from '@/Layouts/InboxLayout';
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({ t: key => key }),
 }));
-vi.mock('@/Layouts/useClientNav', () => ({ default: () => [] }));
+vi.mock('@/Layouts/useClientNav', () => ({ default: () => [], isNavItemActive: () => false, navItemKey: item => item.label }));
 vi.mock('@/Components/UpgradeModal', () => ({ default: () => null }));
 vi.mock('sonner', () => ({ Toaster: () => null, toast: vi.fn() }));
 vi.mock('@/Components/Sidebar', () => ({

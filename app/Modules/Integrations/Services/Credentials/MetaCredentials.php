@@ -35,7 +35,7 @@ class MetaCredentials extends CredentialValueObject
     }
 
     /**
-     * Login for Business configuration used by Social Media Automation. Its
+     * Login for Business configuration used by Post Scheduler. Its
      * business tokens belong to each connection, so connecting one Page never
      * removes access to another. Without it the personal Facebook login is used.
      */

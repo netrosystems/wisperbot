@@ -102,6 +102,7 @@ class HandleInertiaRequests extends Middleware
                 'app_version' => $this->appVersion(),
                 'onboardingSummary' => null,
                 'entitlements' => ['developer_tools' => false],
+                'features' => ['social_comments' => false],
                 'aiCredits' => null,
                 'aiCreditRates' => [],
             ];
@@ -411,6 +412,10 @@ class HandleInertiaRequests extends Middleware
                     $user instanceof User ? $user : null,
                     AddonEntitlementService::DEVELOPER_TOOLS
                 ),
+            ],
+            // Rollout flags the client sidebar needs on every page.
+            'features' => [
+                'social_comments' => (bool) config('social_comments.enabled'),
             ],
         ];
     }

@@ -140,7 +140,7 @@ class SocialPublisher
             $account = $trashed->get($id);
             $label = $account ? (self::LABELS[$account->network] ?? ($account->network === 'twitter' ? 'X' : ucfirst($account->network))) : null;
             $error = $account
-                ? "{$label} account {$account->name} was disconnected. Reconnect it in Social Media Automation, then publish again."
+                ? "{$label} account {$account->name} was disconnected. Reconnect it in Post Scheduler, then publish again."
                 : 'This account was removed from the workspace. Edit the post to choose another account.';
             if ($account) {
                 SocialPostAccount::updateOrCreate(['post_id' => $post->id, 'social_account_id' => $id], ['status' => 'failed', 'error' => $error]);
@@ -196,7 +196,7 @@ class SocialPublisher
             app(MetaConnectionHealth::class)->markBroken($account);
             $link->update([
                 'status' => 'failed',
-                'error' => "{$label} no longer lets WisperBot post to {$account->name}. Reconnect {$label} in Social Media Automation, keep this account selected in Meta, then publish again.",
+                'error' => "{$label} no longer lets WisperBot post to {$account->name}. Reconnect {$label} in Post Scheduler, keep this account selected in Meta, then publish again.",
                 'provider_attempted_at' => null,
             ]);
 

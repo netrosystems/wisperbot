@@ -5,7 +5,7 @@ import {
     LayoutDashboard, CreditCard, Package, FileText, Users, Settings,
     Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot, Database,
     Zap, Share2, Tag, LifeBuoy, ExternalLink, MessageSquare, MessagesSquare,
-    ShoppingBag, Mail,
+    ShoppingBag, Mail, CalendarClock,
 } from 'lucide-react';
 
 const iconClass = 'h-4 w-4';
@@ -13,6 +13,16 @@ const whatsappNavIcon = <ChannelBrandIcon channel="whatsapp" className={iconClas
 
 function safeRoute(name, ...args) {
     try { return route(name, ...args); } catch { return '#'; }
+}
+
+/** An item's `activePattern` is one Ziggy route pattern or a list of them. */
+export function isNavItemActive(activePattern) {
+    if (!activePattern) return false;
+    return [].concat(activePattern).some(pattern => route().current(pattern));
+}
+
+export function navItemKey(item) {
+    return [].concat(item.activePattern || item.label).join('|');
 }
 
 /**
@@ -24,7 +34,7 @@ function safeRoute(name, ...args) {
  * and items. Keep all nav changes here only.
  */
 export default function useClientNav() {
-    const { auth, branding, entitlements } = usePage().props;
+    const { auth, branding, entitlements, features } = usePage().props;
     const { t } = useTranslation();
     const user = auth?.user;
     const docsUrl = branding?.docs_url;
@@ -117,8 +127,17 @@ export default function useClientNav() {
         { label: t('nav.ai_providers'),    href: safeRoute('client.ai.providers.index'),        icon: <Bot className={iconClass} />,      activePattern: 'client.ai.providers.*' },
     ];
 
+    // Comments has its own entry, so the scheduler lists its routes instead of `client.social.*`.
     const socialItems = [
-        { label: t('nav.social_media_automation', { defaultValue: 'Social Media Automation' }), href: safeRoute('client.social.automation.index'), icon: <Share2 className={iconClass} />, activePattern: 'client.social.*' },
+        {
+            label: t('nav.post_scheduler', { defaultValue: 'Post Scheduler' }),
+            href: safeRoute('client.social.automation.index'),
+            icon: <CalendarClock className={iconClass} />,
+            activePattern: ['client.social.automation.*', 'client.social.posts.*', 'client.social.accounts.*', 'client.social.calendar', 'client.social.composer'],
+        },
+        ...(features?.social_comments
+            ? [{ label: t('nav.social_comments', { defaultValue: 'Comments' }), href: safeRoute('client.social.comments.index'), icon: <MessageSquare className={iconClass} />, activePattern: 'client.social.comments.*' }]
+            : []),
     ];
 
     const automationItems = [
