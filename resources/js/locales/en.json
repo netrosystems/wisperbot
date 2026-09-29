@@ -171,7 +171,8 @@
         "calendar_view": "Calendar View",
         "social_accounts": "Social Accounts",
         "connected_social_media": "Connected Social Media",
-        "social_media_automation": "Social Media Automation",
+        "post_scheduler": "Post Scheduler",
+        "social_comments": "Comments",
         "lead_scraper": "Lead Scraper",
         "automations": "Automations",
         "orders": "Orders",
@@ -793,9 +794,6 @@
         "templates": "Templates",
         "audit_log": "Audit log",
         "logout": "Logout",
-        "impersonation": {
-            "stop": "Stop"
-        },
         "user_id": "User ID",
         "all_statuses": "All statuses",
         "status_success": "Success",
@@ -858,7 +856,6 @@
         "edit_client_title": "Edit client",
         "manage_users_title": "Manage client users",
         "assign_plan_title": "Assign plan",
-        "impersonate_title": "Login as client",
         "delete_client_title": "Delete client",
         "edit_user_title": "Edit user",
         "delete_user_title": "Delete user",
@@ -1178,10 +1175,6 @@
     "open_menu": "Open menu",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "Return to Admin",
-        "impersonating": "Impersonating: {{name}}"
     },
     "head": {
         "admin": "Admin",
@@ -2924,9 +2917,9 @@
         "whatsapp_business": "WhatsApp Business",
         "no_whatsapp_accounts": "No WhatsApp accounts connected yet.",
         "authorize_whatsapp_help": "Choose whether to keep using an existing WhatsApp Business app number or set up a Cloud API-only number.",
-        "connect_whatsapp_business_app": "Connect existing WhatsApp Business app",
+        "connect_whatsapp_business_app": "Connect Business App",
         "whatsapp_coexistence_help": "Keep using the WhatsApp Business app while WisperBot syncs contacts, recent history, and future messages.",
-        "connect_whatsapp_cloud_api": "Set up a Cloud API number",
+        "connect_whatsapp_cloud_api": "Connect WABA",
         "continue_meta_whatsapp": "Continue with Meta — Connect WhatsApp",
         "connecting_whatsapp": "Connecting WhatsApp account…",
         "complete_setup_with_meta": "Complete setup with Meta",
@@ -4024,12 +4017,9 @@
         "saving": "Saving…"
     },
     "social": {
-        "automation_title": "Social Media Automation",
-        "workspace_navigation": "Social media workspace",
-        "workspace_posts": "Posts",
-        "workspace_comments": "Comments",
-        "comments_title": "Social Media Automation",
-        "comments_page_title": "Comments · Social Media Automation",
+        "automation_title": "Post Scheduler",
+        "comments_title": "Comments",
+        "comments_page_title": "Comments",
         "comments_heading": "Comments",
         "comments_ai_settings": "AI reply settings",
         "comments_search": "Search comments",
@@ -4097,13 +4087,13 @@
         "confirm_delete_remote_post": "Delete this post from the supported connected social networks and WisperBot? This cannot be undone.",
         "confirm_remove_local": "Remove this post from WisperBot? It stays on the social network.",
         "remove_from_wisperbot": "Remove from WisperBot",
-        "back_to_automation": "Back to Social Media Automation",
+        "back_to_automation": "Back to Post Scheduler",
         "delivery": "When should this publish?",
         "delivery_schedule": "Schedule for later",
         "delivery_publish_now": "Publish now",
         "schedule_time_required": "Choose a future date and time before scheduling this post.",
         "composer_title": "Schedule a Post",
-        "composer_head": "Schedule a Post · Social Media Automation",
+        "composer_head": "Schedule a Post · Post Scheduler",
         "composer_subtitle": "Write or generate content, preview each network, then schedule it or publish now.",
         "post_to": "Post To",
         "no_accounts_connected": "No accounts connected.",

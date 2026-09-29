@@ -15,6 +15,12 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
   - Members whose main workspace it was move to another workspace they can open. An owner may delete their last workspace, and is then asked to restore it or create a new one.
 - **Kept after erasure:** user accounts, audit logs and billing usage history. Provider-side connections (Meta webhooks, store webhooks) are not unregistered; their traffic is simply ignored.
 
+## No client impersonation (2026-09-29)
+
+- Super Admins cannot sign in as a client ("Login as client" was removed). Support must work from the admin panel or with the client present.
+- Sessions that were impersonating when this shipped are signed out of both the admin and client guards on their next request.
+- Demo mode no longer offers a way into the client panel through impersonation.
+
 ## Marketing measurement and consent (2026-09-26)
 
 - WisperBot measures its **own** Meta advertising with a Pixel and the Conversions API. It runs only on the public website and sign-in/sign-up, never inside client workspaces or Admin, and never includes tenants' customer data.
@@ -28,7 +34,7 @@ WisperBot is a white-label-friendly, multi-workspace customer communication plat
 - Email is separate as **Email MasterBox**; email and SMS must not appear as channels inside the Omni Channel Inbox.
 - Channel connection is **Inbox Channel Setup**.
 - Website chat management is grouped as **Chatbot Widget**, with Widgets, **Widget Setup** (renamed from Appearance on 2026-09-26) and Integrations. Widget Setup has three tabs: **Appearance** (branding, launcher and welcome), **AI & visitors** (Smart Bot answering, pre-chat, domains, identity verification, widget/SDK switches) and **Starter questions**. One Save covers all tabs.
-- Social publishing uses one client destination named **Social Media Automation**. Account connection is the compact first section, post management defaults to Upcoming, and List/Calendar are views of the same workspace. The focused composer opens from **Schedule Post** and requires an explicit Schedule for later or Publish now choice.
+- Social publishing uses one client destination named **Post Scheduler** (renamed from Social Media Automation on 2026-09-29). Social comments are a separate **Comments** destination listed directly below it in the sidebar's Social Media group, shown only when `SOCIAL_COMMENTS_ENABLED=true`; the two pages no longer share in-page Posts/Comments tabs. Account connection is the compact first section, post management defaults to Upcoming, and List/Calendar are views of the same workspace. The focused composer opens from **Schedule Post** and requires an explicit Schedule for later or Publish now choice.
 - AI is presented as **AI Automations** and chatbots as **Smart Bots**.
 - Widget Appearance uses **Smart Bot** consistently in its AI-answering toggle, selector and empty-state guidance; internal chatbot identifiers and API fields remain unchanged.
 - Media Library remains a normal content/group asset because campaigns, posts, automation, email, and chat reuse uploads.

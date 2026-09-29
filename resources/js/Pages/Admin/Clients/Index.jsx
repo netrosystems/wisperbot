@@ -8,7 +8,6 @@ import {
     Pencil,
     Users,
     CheckCircle,
-    LogIn,
     Trash2,
 } from 'lucide-react';
 import axios from 'axios';
@@ -217,10 +216,6 @@ export default function AdminClientsIndex({ clients, plans = [], filters = {} })
         });
     };
 
-    const doImpersonate = (client) => {
-        router.post(route('admin.clients.impersonate', { client: client.id }));
-    };
-
     const doDeleteClient = (client) => {
         router.delete(route('admin.clients.destroy', { client: client.id }), {
             preserveScroll: true,
@@ -309,7 +304,6 @@ export default function AdminClientsIndex({ clients, plans = [], filters = {} })
                                                         <ActionIcon title={t('admin.edit_client_title')} icon={Pencil} onClick={() => openEditClient(c)} />
                                                         <ActionIcon title={t('admin.manage_users_title')} icon={Users} onClick={() => openManageUsers(c)} />
                                                         <ActionIcon title={t('admin.assign_plan_title')} icon={CheckCircle} onClick={() => openAssignPlan(c)} />
-                                                        <ActionIcon title={t('admin.impersonate_title')} icon={LogIn} onClick={() => doImpersonate(c)} />
                                                     </>
                                                 )}
                                                 {canDelete && (

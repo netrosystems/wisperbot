@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { Toaster, toast } from 'sonner';
 import Sidebar from '@/Components/Sidebar';
 import UpgradeModal from '@/Components/UpgradeModal';
-import useClientNav from '@/Layouts/useClientNav';
+import useClientNav, { isNavItemActive, navItemKey } from '@/Layouts/useClientNav';
 import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
 
 export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
     const { t } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { auth, impersonation, branding, demo_mode, currentWorkspace } = usePage().props;
+    const { auth, branding, demo_mode, currentWorkspace } = usePage().props;
     const logoUrl = branding?.logo_url;
     const clientNavGroups = useClientNav();
 
@@ -36,21 +36,8 @@ export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
         return () => { window.Echo.leave(`App.Models.User.${auth.user.id}`); };
     }, [auth?.user?.id, currentWorkspace?.id]);
 
-    const returnToAdmin = () => {
-        router.post(impersonation?.returnUrl ?? route('admin.impersonation.stop'));
-    };
-
     return (
         <div style={{ height: '100dvh' }} className="app-shell h-screen overflow-hidden bg-[#f4f5f7] dark:bg-neutral-950 flex flex-col">
-            {impersonation?.active && (
-                <div className="flex items-center justify-between gap-4 bg-amber-500/90 text-white px-4 py-2 text-sm font-medium shrink-0">
-                    <span>{t('impersonation.impersonating', { name: impersonation.clientName })}</span>
-                    <button type="button" onClick={returnToAdmin} className="rounded-soft bg-white/20 px-3 py-1.5 font-medium hover:bg-white/30 transition">
-                        {t('impersonation.return_to_admin')}
-                    </button>
-                </div>
-            )}
-
             <div className="flex min-h-0 flex-1 overflow-hidden">
                 <Sidebar
                     scrollKey="client"
@@ -63,8 +50,8 @@ export default function InboxLayout({ children, mobileTitle, mobileBackHref }) {
                         ...group,
                         items: group.items.map(item => ({
                             ...item,
-                            key: item.activePattern || item.label,
-                            active: () => item.activePattern ? route().current(item.activePattern) : false,
+                            key: navItemKey(item),
+                            active: () => isNavItemActive(item.activePattern),
                         }))
                     }))}
                 />

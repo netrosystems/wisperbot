@@ -6,7 +6,7 @@ Local QA preview: `http://127.0.0.1:8011/app/social/automation/comments` uses a 
 
 ## Client workflow
 
-Social Media Automation has Posts and Comments tabs when `SOCIAL_COMMENTS_ENABLED=true`. Comments is a compact list/detail workspace; list order does not jump when realtime events arrive. Agents reply publicly, resolve/reopen, pause AI on a thread, and use supported moderation actions with confirmation. Read markers are per user. Drafts survive selection/filter changes while the page remains mounted, but are not persisted to browser storage.
+When `SOCIAL_COMMENTS_ENABLED=true`, **Comments** is its own sidebar entry below **Post Scheduler** in the Social Media group (2026-09-29; previously a tab inside Social Media Automation). The flag reaches every page as the shared Inertia prop `features.social_comments`. Comments is a compact list/detail workspace; list order does not jump when realtime events arrive. Agents reply publicly, resolve/reopen, pause AI on a thread, and use supported moderation actions with confirmation. Read markers are per user. Drafts survive selection/filter changes while the page remains mounted, but are not persisted to browser storage.
 
 Owners/admins open AI reply settings, select the account and a chatbot with a published KB, confirm its public suitability, and save Suggestions only. Generate a suggestion and select **Mark preview reviewed** before enabling Automatic replies. A changed published revision requires renewed confirmation and preview. Off is the default. A paused or missing ancestor, unavailable author identity, imported history, business-account echo, or prior pending/sent reply prevents automatic response.
 

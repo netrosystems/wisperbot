@@ -11,7 +11,6 @@ use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -292,54 +291,6 @@ class ClientController extends Controller
         }
 
         return redirect()->back()->with('success', __('Plan assigned.'));
-    }
-
-    public function impersonate(Request $request, Client $client): RedirectResponse
-    {
-        $this->authorizeForUser($request->user('admin'), 'impersonate', $client);
-
-        if ($request->session()->get('impersonating')) {
-            return redirect()->route('admin.clients.index')->with('error', __('Already impersonating.'));
-        }
-
-        $targetUser = $client->users()
-            ->where('status', User::STATUS_ACTIVE)
-            ->orderByRaw("CASE WHEN client_role = 'administrator' THEN 0 ELSE 1 END")
-            ->orderBy('created_at')
-            ->first();
-
-        if (! $targetUser) {
-            return redirect()->back()->with('error', __('Client has no active users. Add a user first.'));
-        }
-
-        // Safety: a client user must have role=client, otherwise the role
-        // middleware will bounce them to admin.dashboard on the next request
-        // and the impersonation looks broken.
-        if ($targetUser->role !== 'client') {
-            return redirect()->back()->with('error', __('Selected user cannot be impersonated.'));
-        }
-
-        $admin = $request->user('admin');
-
-        // Rotate the session ID *before* setting impersonation flags so the
-        // new (impersonated) session row is fresh and doesn't inherit any
-        // accidentally-mirrored admin state from the prior session row.
-        $session = $request->session();
-        $session->regenerate();
-
-        $session->put('impersonator_admin_id', $admin->id);
-        $session->put('impersonating', true);
-        $session->put('impersonated_client_id', $client->id);
-
-        Auth::guard('web')->login($targetUser, $request->boolean('remember', false));
-        $session->regenerateToken();
-
-        $this->auditLog->logAdmin('impersonation.started', User::class, (int) $targetUser->id, [
-            'client_id' => $client->id,
-            'client_name' => $client->name,
-        ]);
-
-        return redirect()->route('client.dashboard');
     }
 
     /**

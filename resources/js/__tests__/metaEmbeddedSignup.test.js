@@ -8,6 +8,16 @@ import {
 } from '@/Utils/metaEmbeddedSignup';
 
 describe('Meta Embedded Signup helpers', () => {
+    it('keeps compact WhatsApp CTA labels consistent across locale dictionaries', () => {
+        const locales = import.meta.glob('../locales/*.json', { eager: true, import: 'default' });
+        const dictionaries = Object.entries(locales).filter(([, locale]) => locale.inbox);
+        expect(dictionaries.length).toBeGreaterThan(0);
+        for (const [path, locale] of dictionaries) {
+            expect(locale.inbox.connect_whatsapp_business_app, path).toBe('Connect Business App');
+            expect(locale.inbox.connect_whatsapp_cloud_api, path).toBe('Connect WABA');
+        }
+    });
+
     it('launches Coexistence with Meta’s required feature type', () => {
         expect(embeddedSignupExtras('whatsapp', WHATSAPP_ONBOARDING_COEXISTENCE)).toEqual({
             setup: {},

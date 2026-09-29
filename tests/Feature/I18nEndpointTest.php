@@ -19,7 +19,7 @@ class I18nEndpointTest extends TestCase
         $response->assertOk();
 
         $translations = $response->json('translation');
-        $this->assertSame('Social Media Automation', $translations['social.automation_title'] ?? null);
+        $this->assertSame('Post Scheduler', $translations['social.automation_title'] ?? null);
         $this->assertSame('No posts found', $translations['social.no_posts_for_view'] ?? null);
         $this->assertSame('No posts scheduled yet', $translations['social.no_posts_yet_compact'] ?? null);
 

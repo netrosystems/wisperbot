@@ -26,10 +26,11 @@ describe('Social comments workspace', () => {
         expect(screen.getByText('YouTube · Comments not integrated')).toBeInTheDocument();
         expect(screen.getByText('Additional authorization is required.')).toBeInTheDocument();
     });
-    it('shows readable compact navigation and one account onboarding action', () => {
+    it('is its own page with one account onboarding action', () => {
         render(<Comments {...props} accounts={[]} />);
-        expect(screen.getByRole('link', { name: 'Posts' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Comments' })).toHaveAttribute('aria-current', 'page');
+        // Navigation to Post Scheduler lives in the sidebar, not in page tabs.
+        expect(screen.getByRole('heading', { level: 1, name: 'Comments' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Posts' })).not.toBeInTheDocument();
         expect(screen.getAllByRole('link', { name: 'Connect account' })).toHaveLength(1);
         expect(screen.queryByText(/social\./)).not.toBeInTheDocument();
     });

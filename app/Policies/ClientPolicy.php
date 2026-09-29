@@ -36,9 +36,4 @@ class ClientPolicy
     {
         return $user->hasPermissionTo('view_clients'); // or manage_subscriptions
     }
-
-    public function impersonate(AdminUser $user, Client $client): bool
-    {
-        return $user->hasPermissionTo('view_clients');
-    }
 }

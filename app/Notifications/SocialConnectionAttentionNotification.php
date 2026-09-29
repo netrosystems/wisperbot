@@ -38,8 +38,8 @@ class SocialConnectionAttentionNotification extends Notification implements Work
         return [
             'type' => 'social_connection_attention',
             'message' => $this->daysLeft === null
-                ? "{$label} disconnected {$this->accountName}. Reconnect it in Social Media Automation to keep publishing."
-                : "The {$label} connection for {$this->accountName} expires in {$this->daysLeft} ".($this->daysLeft === 1 ? 'day' : 'days').'. Reconnect it in Social Media Automation to keep publishing.',
+                ? "{$label} disconnected {$this->accountName}. Reconnect it in Post Scheduler to keep publishing."
+                : "The {$label} connection for {$this->accountName} expires in {$this->daysLeft} ".($this->daysLeft === 1 ? 'day' : 'days').'. Reconnect it in Post Scheduler to keep publishing.',
             'url' => route('client.social.automation.index'),
         ];
     }

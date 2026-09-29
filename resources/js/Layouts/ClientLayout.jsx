@@ -6,7 +6,7 @@ import { Toaster, toast } from 'sonner';
 import Topbar from '@/Components/Topbar';
 import Sidebar from '@/Components/Sidebar';
 import UpgradeModal from '@/Components/UpgradeModal';
-import useClientNav from '@/Layouts/useClientNav';
+import useClientNav, { isNavItemActive, navItemKey } from '@/Layouts/useClientNav';
 import { isNotificationForWorkspace } from '@/Utils/workspaceNotifications';
 
 function safeRoute(name, ...args) {
@@ -68,7 +68,7 @@ function ClientLayoutFooter() {
 export default function ClientLayout({ header, children, title }) {
     const { t } = useTranslation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { auth, impersonation, current_workspace_usage, unreadNotificationsCount, onesignal, currentWorkspace } = usePage().props;
+    const { auth, current_workspace_usage, unreadNotificationsCount, onesignal, currentWorkspace } = usePage().props;
     const [unreadCount, setUnreadCount] = useState(unreadNotificationsCount ?? 0);
     const clientNavGroups = useClientNav();
 
@@ -115,10 +115,6 @@ export default function ClientLayout({ header, children, title }) {
         };
     }, [auth?.user?.id, currentWorkspace?.id, t]);
 
-    const returnToAdmin = () => {
-        router.post(impersonation?.returnUrl ?? route('admin.impersonation.stop'));
-    };
-
     const demoMode = usePage().props.demo_mode === true;
 
     const userNavItems = [
@@ -131,19 +127,6 @@ export default function ClientLayout({ header, children, title }) {
 
     return (
         <div className="app-shell min-h-screen bg-[#f4f5f7] dark:bg-neutral-950">
-            {impersonation?.active && (
-                <div className="flex items-center justify-between gap-4 bg-amber-500/90 text-white px-4 py-2 text-sm font-medium">
-                    <span>{t('impersonation.impersonating', { name: impersonation.clientName })}</span>
-                    <button
-                        type="button"
-                        onClick={returnToAdmin}
-                        className="rounded-soft bg-white/20 px-3 py-1.5 font-medium hover:bg-white/30 transition"
-                    >
-                        {t('impersonation.return_to_admin')}
-                    </button>
-                </div>
-            )}
-
             <Sidebar
                 scrollKey="client"
                 open={sidebarOpen}
@@ -153,8 +136,8 @@ export default function ClientLayout({ header, children, title }) {
                     ...group,
                     items: group.items.map(item => ({
                         ...item,
-                        key: item.activePattern || item.label,
-                        active: () => item.activePattern ? route().current(item.activePattern) : false,
+                        key: navItemKey(item),
+                        active: () => isNavItemActive(item.activePattern),
                     }))
                 }))}
 footer={<ClientLayoutFooter />}

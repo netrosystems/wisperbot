@@ -5,7 +5,6 @@ import { ArrowLeft, Check, ChevronDown, ExternalLink, MessageSquare, MoreHorizon
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import ClientLayout from '@/Layouts/ClientLayout';
-import SocialWorkspaceTabs from '@/Components/Social/SocialWorkspaceTabs';
 import CommentPlatformAvailability from '@/Components/Social/CommentPlatformAvailability';
 import { SocialBrandIcon } from '@/Components/BrandIcons';
 
@@ -104,14 +103,13 @@ export default function Comments({ comments, counts, filters, accounts, chatbots
     const pending = detail?.operations?.some(op => ['queued', 'sending', 'delivery_unknown'].includes(op.status) && op.kind !== 'suggest');
     const currentAccount = accounts.find(account => Number(account.id) === Number(settingsAccount));
 
-    return <ClientLayout title={text('title', 'Social Media Automation')}>
-        <Head title={text('page_title', 'Comments · Social Media Automation')} />
+    return <ClientLayout title={text('title', 'Comments')}>
+        <Head title={text('page_title', 'Comments')} />
         <div className="space-y-3">
             <header className="flex items-center justify-between gap-3">
-                <div><h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">{text('title', 'Social Media Automation')}</h1><p className="mt-1 text-sm text-neutral-500">{text('subtitle', 'Review conversations. Reply confidently. Keep your community connected.')}</p></div>
+                <div><h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">{text('title', 'Comments')}</h1><p className="mt-1 text-sm text-neutral-500">{text('subtitle', 'Review conversations. Reply confidently. Keep your community connected.')}</p></div>
                 {canManage && accounts.length > 0 && <button className={`${control} inline-flex shrink-0 items-center gap-2`} onClick={() => setSettingsOpen(true)}><Settings2 className="h-4 w-4" /><span className="hidden sm:inline">{text('ai_settings', 'AI reply settings')}</span><span className="sm:hidden">{text('settings', 'Settings')}</span></button>}
             </header>
-            <SocialWorkspaceTabs active="comments" />
             <CommentPlatformAvailability platforms={commentPlatforms} />
             {error && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{error}</div>}
             {notice && <div role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{notice}</div>}

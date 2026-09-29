@@ -178,7 +178,6 @@ class DefaultTranslations
             'admin.edit_client_title' => 'Edit client',
             'admin.manage_users_title' => 'Manage client users',
             'admin.assign_plan_title' => 'Assign plan',
-            'admin.impersonate_title' => 'Login as client',
             'admin.delete_client_title' => 'Delete client',
             'admin.edit_user_title' => 'Edit user',
             'admin.delete_user_title' => 'Delete user',
@@ -429,8 +428,6 @@ class DefaultTranslations
             'head.welcome' => 'Welcome',
             'head.admin' => 'Admin',
             'app.name' => config('app.name', 'WisperBot'),
-            'impersonation.impersonating' => 'Impersonating: {{name}}',
-            'impersonation.return_to_admin' => 'Return to Admin',
         ];
     }
 }

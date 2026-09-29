@@ -4,6 +4,10 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Client impersonation removed.** Admin → Clients no longer has "Login as client", the "Impersonating … / Return to Admin" banner is gone, and `admin.clients.impersonate` / `admin.impersonation.stop` no longer exist. A session that was mid-impersonation at deploy is signed out and sent to the admin login. Past `impersonation.*` audit-log rows are kept. No migration.
+
+- **Social Media Automation is now Post Scheduler, and Comments has its own sidebar entry.** The Social Media group lists Automations, Post Scheduler and (when social comments are enabled) Comments. The Posts/Comments tabs inside the page were removed. Server messages that said "Reconnect … in Social Media Automation" now say Post Scheduler. Frontend bundle and backend deploy together; no migration.
+
 - Added production CI/CD for same-repository `dev` → `main` pull-request
   merges. GitHub Actions securely connects to the existing VPS checkout,
   fast-forwards `main`, runs the guarded Docker `deploy.sh`, and publishes a
@@ -172,6 +176,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 - Separated website widget availability from customer mobile SDK availability on the same widget. Website embeds keep using the website key and `Widget enabled`; customer SDK apps get a separate SDK key and `SDK enabled`, with existing widgets and old SDK builds remaining available by default.
 - Added webchat source detection for newly created conversations: website widget chats keep the existing website icon, customer SDK chats can show a mobile/app icon, and conversation APIs expose additive `started_from` metadata while old conversations remain unlabelled.
+
+- Shortened the WhatsApp setup CTAs to Connect Business App and Connect WABA. Existing helper text and Meta onboarding modes remain unchanged.
 
 - Raised dedicated authenticated mobile API headroom from a shared 60 to an isolated configurable 300 requests/minute/user, including mobile profile and private-channel authorization. Login, generic/developer API, and stricter action-specific limits remain unchanged. Mobile throttling now provides a structured 429 reason and retry delay.
 
