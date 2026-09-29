@@ -734,9 +734,6 @@
         "templates": "Şablonlar",
         "audit_log": "Denetim günlüğü",
         "logout": "Çıkış",
-        "impersonation": {
-            "stop": "Durdur"
-        },
         "user_id": "Kullanıcı ID",
         "all_statuses": "Tüm durumlar",
         "status_success": "Başarılı",
@@ -799,7 +796,6 @@
         "edit_client_title": "Müşteriyi düzenle",
         "manage_users_title": "Müşteri kullanıcılarını yönet",
         "assign_plan_title": "Plan ata",
-        "impersonate_title": "Müşteri olarak giriş yap",
         "delete_client_title": "Müşteriyi sil",
         "edit_user_title": "Kullanıcıyı düzenle",
         "delete_user_title": "Kullanıcıyı sil",
@@ -1119,10 +1115,6 @@
     "open_menu": "Open menu",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "Return to Admin",
-        "impersonating": "Impersonating: {{name}}"
     },
     "head": {
         "admin": "Admin",

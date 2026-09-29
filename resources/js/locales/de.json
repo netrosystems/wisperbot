@@ -732,9 +732,6 @@
         "templates": "Vorlagen",
         "audit_log": "Audit-Log",
         "logout": "Abmelden",
-        "impersonation": {
-            "stop": "Beenden"
-        },
         "user_id": "Benutzer-ID",
         "all_statuses": "Alle Status",
         "status_success": "Erfolgreich",
@@ -797,7 +794,6 @@
         "edit_client_title": "Kunde bearbeiten",
         "manage_users_title": "Kundenbenutzer verwalten",
         "assign_plan_title": "Tarif zuweisen",
-        "impersonate_title": "Als Kunde anmelden",
         "delete_client_title": "Kunde löschen",
         "edit_user_title": "Benutzer bearbeiten",
         "delete_user_title": "Benutzer löschen",
@@ -1015,7 +1011,6 @@
                 "update": "Update",
                 "destroy": "Destroy"
             },
-            "impersonate": "Impersonate",
             "destroy": "Destroy",
             "export": "Export",
             "store": "Store",
@@ -1119,10 +1114,6 @@
     "open_menu": "Menü öffnen",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "Zurück zum Admin",
-        "impersonating": "Angemeldet als: {{name}}"
     },
     "head": {
         "admin": "Admin",

@@ -732,9 +732,6 @@
         "templates": "템플릿",
         "audit_log": "감사 로그",
         "logout": "로그아웃",
-        "impersonation": {
-            "stop": "중지"
-        },
         "user_id": "사용자 ID",
         "all_statuses": "모든 상태",
         "status_success": "성공",
@@ -797,7 +794,6 @@
         "edit_client_title": "클라이언트 편집",
         "manage_users_title": "클라이언트 사용자 관리",
         "assign_plan_title": "요금제 배정",
-        "impersonate_title": "클라이언트로 로그인",
         "delete_client_title": "클라이언트 삭제",
         "edit_user_title": "사용자 편집",
         "delete_user_title": "사용자 삭제",
@@ -1015,7 +1011,6 @@
                 "update": "Update",
                 "destroy": "Destroy"
             },
-            "impersonate": "Impersonate",
             "destroy": "Destroy",
             "export": "Export",
             "store": "Store",
@@ -1119,10 +1114,6 @@
     "open_menu": "메뉴 열기",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "관리자로 돌아가기",
-        "impersonating": "대리 로그인 중: {{name}}"
     },
     "head": {
         "admin": "관리자",

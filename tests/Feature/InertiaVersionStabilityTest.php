@@ -2,41 +2,18 @@
 
 namespace Tests\Feature;
 
-use App\Models\AdminUser;
 use App\Models\Client;
-use App\Models\Permission;
-use App\Models\Role;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Services\AppVersionManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
 
 /**
- * Regression tests for the "Appearance bounces me back to admin" bug.
- *
- * The visible symptom — clicking Appearance while impersonating a client
- * "bounces" the user back to the super-admin dashboard, after which any
- * attempt to impersonate again is rejected with "Already impersonating" —
- * was traced to Inertia's asset version mismatch.
- *
- * After `app:deploy:finalize` the rebuilt JS bundle produces a different
- * `public/build/manifest.json`, which Inertia hashes for its asset version.
- * Browser tabs that were open before the deploy keep sending the OLD
- * `X-Inertia-Version` header on every SPA navigation. The server detects
- * the mismatch and answers with 409 + `X-Inertia-Location: <same-url>`,
- * forcing a hard reload that wipes the impersonation banner and
- * impersonation banner re-renders after a brief flicker.
- *
- * The fix pins the Inertia version to APP_VERSION (the .env value that
- * already drives the deploy pipeline), so:
- *   - The version only changes on intentional deploys.
- *   - Stale tabs in the wild keep working until the user navigates to a
- *     fresh page, at which point the boot HTML carries the new version.
- *
- * These tests assert that the Inertia version returned by the server is
- * stable across impersonation navigations and matches APP_VERSION.
+ * Inertia forces a hard reload (409 + X-Inertia-Location) whenever the SPA's
+ * asset version differs from the server's. Hashing the Vite manifest flips on
+ * every build, so stale tabs reloaded on their next navigation. The version is
+ * pinned to APP_VERSION instead, so it only changes on intentional deploys.
  */
 class InertiaVersionStabilityTest extends TestCase
 {
@@ -50,9 +27,9 @@ class InertiaVersionStabilityTest extends TestCase
         $this->app->instance(AppVersionManager::class, new AppVersionManager(sys_get_temp_dir().'/wisperbot-no-env-'.uniqid()));
     }
 
-    public function test_appearance_route_responds_200_for_inertia_request_during_impersonation(): void
+    public function test_appearance_route_responds_200_for_inertia_request_with_matching_version(): void
     {
-        [$admin, $user, $client] = $this->bootstrapImpersonation();
+        $user = $this->signedInClientUser();
 
         // Pull the version the server actually advertises on the boot HTML.
         $boot = $this->actingAs($user, 'web')
@@ -81,7 +58,7 @@ class InertiaVersionStabilityTest extends TestCase
     {
         config(['app.version' => '1.2.3']);
 
-        [$admin, $user, $client] = $this->bootstrapImpersonation();
+        $user = $this->signedInClientUser();
 
         $boot = $this->actingAs($user, 'web')
             ->get(route('client.inbox.chat-widgets.settings'));
@@ -103,7 +80,7 @@ class InertiaVersionStabilityTest extends TestCase
     {
         config(['app.version' => '1.0.0']);
 
-        [$admin, $user, $client] = $this->bootstrapImpersonation();
+        $user = $this->signedInClientUser();
 
         $before = $this->extractInertiaVersion((string) $this->actingAs($user, 'web')
             ->get(route('client.inbox.chat-widgets.settings'))
@@ -118,29 +95,8 @@ class InertiaVersionStabilityTest extends TestCase
         $this->assertNotSame($before, $after, 'A version bump should produce a different Inertia version.');
     }
 
-    /**
-     * @return array{0: AdminUser, 1: User, 2: Client}
-     */
-    private function bootstrapImpersonation(): array
+    private function signedInClientUser(): User
     {
-        $admin = AdminUser::create([
-            'name' => 'Test Super Admin',
-            'email' => 'superadmin-'.uniqid().'@test.local',
-            'password' => bcrypt('password'),
-            'status' => AdminUser::STATUS_ACTIVE,
-        ]);
-
-        $superAdminRole = Role::firstOrCreate(
-            ['key' => Role::KEY_SUPER_ADMIN],
-            ['name' => 'Super Admin', 'description' => 'All permissions'],
-        );
-        $viewClients = Permission::firstOrCreate(
-            ['key' => 'view_clients'],
-            ['name' => 'View Clients', 'category' => 'Clients'],
-        );
-        $superAdminRole->permissions()->sync([$viewClients->id]);
-        $admin->roles()->sync([$superAdminRole->id]);
-
         $client = Client::create([
             'name' => 'Test Co',
             'email' => 'client-'.uniqid().'@test.local',
@@ -150,7 +106,8 @@ class InertiaVersionStabilityTest extends TestCase
             'client_id' => $client->id,
             'name' => 'Default',
         ]);
-        $user = User::factory()->create([
+
+        return User::factory()->create([
             'client_id' => $client->id,
             'workspace_id' => $workspace->id,
             'role' => User::ROLE_CLIENT,
@@ -158,14 +115,6 @@ class InertiaVersionStabilityTest extends TestCase
             'status' => User::STATUS_ACTIVE,
             'email_verified_at' => now(),
         ]);
-
-        session()->put('impersonating', true);
-        session()->put('impersonator_admin_id', $admin->id);
-        session()->put('impersonated_client_id', $client->id);
-        Auth::guard('web')->login($user);
-        Auth::guard('admin')->login($admin);
-
-        return [$admin, $user, $client];
     }
 
     private function extractInertiaVersion(string $html): string

@@ -1,10 +1,10 @@
 <?php
 
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
-use App\Http\Controllers\Admin\ImpersonationController;
 use App\Http\Controllers\Install\InstallController;
 use App\Http\Middleware\BroadcastingAuthDebug;
 use App\Http\Middleware\CheckApiAbility;
+use App\Http\Middleware\EndLegacyImpersonation;
 use App\Http\Middleware\EnforceLimit;
 use App\Http\Middleware\EnsureAddonEntitled;
 use App\Http\Middleware\EnsureAdminRole;
@@ -84,11 +84,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->middleware(['web', 'auth:admin'])
                 ->name('admin.logout');
 
-            // Impersonation stop: callable by impersonated user (web guard), no admin auth required
-            Route::post('admin/impersonation/stop', [ImpersonationController::class, 'stop'])
-                ->middleware(['web', 'auth'])
-                ->name('admin.impersonation.stop');
-
             // Admin panel (authenticated admin only; RBAC applied per-route).
             Route::middleware(['web', 'auth:admin', 'demo'])
                 ->prefix('admin')
@@ -101,6 +96,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Runs before the DB-querying middleware below so a fresh deploy is
             // redirected to /install without touching the (empty) database.
             EnsureInstalled::class,
+            // Temporary: signs out sessions left mid-impersonation by the removed feature.
+            EndLegacyImpersonation::class,
             AddLinkHeadersForPreloadedAssets::class,
             ResolveWebWorkspace::class,
             SetLocale::class,

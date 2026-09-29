@@ -732,9 +732,6 @@
         "templates": "Template",
         "audit_log": "Log audit",
         "logout": "Keluar",
-        "impersonation": {
-            "stop": "Berhenti"
-        },
         "user_id": "ID Pengguna",
         "all_statuses": "Semua status",
         "status_success": "Berhasil",
@@ -797,7 +794,6 @@
         "edit_client_title": "Edit klien",
         "manage_users_title": "Kelola pengguna klien",
         "assign_plan_title": "Tetapkan paket",
-        "impersonate_title": "Masuk sebagai klien",
         "delete_client_title": "Hapus klien",
         "edit_user_title": "Edit pengguna",
         "delete_user_title": "Hapus pengguna",
@@ -1015,7 +1011,6 @@
                 "update": "Update",
                 "destroy": "Destroy"
             },
-            "impersonate": "Impersonate",
             "destroy": "Destroy",
             "export": "Export",
             "store": "Store",
@@ -1119,10 +1114,6 @@
     "open_menu": "Buka menu",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "Kembali ke Admin",
-        "impersonating": "Menyamar sebagai: {{name}}"
     },
     "head": {
         "admin": "Admin",

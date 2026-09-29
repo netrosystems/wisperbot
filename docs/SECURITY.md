@@ -13,7 +13,7 @@ Authenticated dedicated mobile routes have an isolated, bounded per-user rate li
 - Mobile/external clients: Sanctum bearer tokens and explicit abilities.
 - Provider webhooks: unauthenticated transport endpoints verified inside controllers.
 - Queue workers: trusted application processes consuming untrusted serialized input references/payloads.
-- Super Admin: privileged system configuration and impersonation capabilities.
+- Super Admin: privileged system configuration. There is no client impersonation (removed 2026-09-29): admins cannot sign in as a client user. `EndLegacyImpersonation` signs out any session still carrying the old `impersonating` marker; remove it once pre-removal sessions have expired.
 
 ## Workspace isolation
 

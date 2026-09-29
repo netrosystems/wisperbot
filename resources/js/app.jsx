@@ -21,7 +21,7 @@ initI18n();
 // Inertia response (HandleInertiaRequests::share → csrf_token); sync it into both
 // the global axios header and the <meta> tag (used by raw fetch() calls) so it can
 // never go stale. Without this, the boot-time token survives a session-token
-// rotation (e.g. impersonation) and every POST 419s until a full page reload.
+// rotation (e.g. on login) and every POST 419s until a full page reload.
 function syncCsrfToken(page) {
     const token = page?.props?.csrf_token;
     if (!token) return;

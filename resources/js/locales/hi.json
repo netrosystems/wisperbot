@@ -717,9 +717,6 @@
         "templates": "टेम्पलेट",
         "audit_log": "ऑडिट लॉग",
         "logout": "लॉग आउट",
-        "impersonation": {
-            "stop": "रोकें"
-        },
         "user_id": "उपयोगकर्ता ID",
         "all_statuses": "सभी स्थितियाँ",
         "status_success": "सफल",
@@ -762,7 +759,6 @@
         "edit_client_title": "क्लाइंट संपादित करें",
         "manage_users_title": "क्लाइंट उपयोगकर्ता प्रबंधित करें",
         "assign_plan_title": "योजना सौंपें",
-        "impersonate_title": "क्लाइंट के रूप में लॉगिन",
         "delete_client_title": "क्लाइंट हटाएं",
         "edit_user_title": "उपयोगकर्ता संपादित करें",
         "delete_user_title": "उपयोगकर्ता हटाएं",
@@ -1113,10 +1109,6 @@
     "open_menu": "मेनू खोलें",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "एडमिन पर लौटें",
-        "impersonating": "प्रतिरूपण: {{name}}"
     },
     "head": {
         "admin": "एडमिन",

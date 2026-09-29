@@ -717,9 +717,6 @@
         "templates": "القوالب",
         "audit_log": "سجل المراجعة",
         "logout": "تسجيل الخروج",
-        "impersonation": {
-            "stop": "إيقاف"
-        },
         "user_id": "معرف المستخدم",
         "all_statuses": "كل الحالات",
         "status_success": "ناجح",
@@ -762,7 +759,6 @@
         "edit_client_title": "تعديل العميل",
         "manage_users_title": "إدارة مستخدمي العميل",
         "assign_plan_title": "تعيين خطة",
-        "impersonate_title": "تسجيل الدخول كعميل",
         "delete_client_title": "حذف العميل",
         "edit_user_title": "تعديل المستخدم",
         "delete_user_title": "حذف المستخدم",
@@ -1113,10 +1109,6 @@
     "open_menu": "فتح القائمة",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "العودة إلى الإدارة",
-        "impersonating": "انتحال شخصية: {{name}}"
     },
     "head": {
         "admin": "المشرف",

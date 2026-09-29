@@ -207,14 +207,12 @@ class DemoModeTest extends TestCase
         $this->assertSame('passed', $response->getContent());
     }
 
-    public function test_impersonation_start_is_allowed_in_demo_mode(): void
+    public function test_logout_is_allowed_in_demo_mode(): void
     {
         config(['app.demo_mode' => true]);
 
-        // "Log in as client" only switches the session, so it stays usable in
-        // demo mode — the visitor can explore the (still write-blocked) client panel.
         $response = (new EnsureNotDemoMode)->handle(
-            $this->postRequestNamed('admin.clients.impersonate'),
+            $this->postRequestNamed('logout'),
             fn () => response('passed', 200),
         );
 

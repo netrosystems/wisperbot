@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Client impersonation removed.** Admin → Clients no longer has "Login as client", the "Impersonating … / Return to Admin" banner is gone, and `admin.clients.impersonate` / `admin.impersonation.stop` no longer exist. A session that was mid-impersonation at deploy is signed out and sent to the admin login. Past `impersonation.*` audit-log rows are kept. No migration.
+
 - **Social Media Automation is now Post Scheduler, and Comments has its own sidebar entry.** The Social Media group lists Automations, Post Scheduler and (when social comments are enabled) Comments. The Posts/Comments tabs inside the page were removed. Server messages that said "Reconnect … in Social Media Automation" now say Post Scheduler. Frontend bundle and backend deploy together; no migration.
 
 - Added production CI/CD for same-repository `dev` → `main` pull-request

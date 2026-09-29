@@ -732,9 +732,6 @@
         "templates": "Modelli",
         "audit_log": "Registro attività",
         "logout": "Esci",
-        "impersonation": {
-            "stop": "Interrompi"
-        },
         "user_id": "ID utente",
         "all_statuses": "Tutti gli stati",
         "status_success": "Riuscito",
@@ -797,7 +794,6 @@
         "edit_client_title": "Modifica cliente",
         "manage_users_title": "Gestisci utenti del cliente",
         "assign_plan_title": "Assegna piano",
-        "impersonate_title": "Accedi come cliente",
         "delete_client_title": "Elimina cliente",
         "edit_user_title": "Modifica utente",
         "delete_user_title": "Elimina utente",
@@ -1015,7 +1011,6 @@
                 "update": "Update",
                 "destroy": "Destroy"
             },
-            "impersonate": "Impersonate",
             "destroy": "Destroy",
             "export": "Export",
             "store": "Store",
@@ -1119,10 +1114,6 @@
     "open_menu": "Apri menu",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "Torna all'Admin",
-        "impersonating": "Stai impersonando: {{name}}"
     },
     "head": {
         "admin": "Admin",

@@ -734,9 +734,6 @@
         "templates": "Modèles",
         "audit_log": "Journal d'audit",
         "logout": "Se déconnecter",
-        "impersonation": {
-            "stop": "Arrêter"
-        },
         "user_id": "ID utilisateur",
         "all_statuses": "Tous les statuts",
         "status_success": "Succès",
@@ -799,7 +796,6 @@
         "edit_client_title": "Modifier le client",
         "manage_users_title": "Gérer les utilisateurs du client",
         "assign_plan_title": "Attribuer un forfait",
-        "impersonate_title": "Se connecter en tant que client",
         "delete_client_title": "Supprimer le client",
         "edit_user_title": "Modifier l'utilisateur",
         "delete_user_title": "Supprimer l'utilisateur",
@@ -1119,10 +1115,6 @@
     "open_menu": "Ouvrir le menu",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "Revenir à l'administration",
-        "impersonating": "Usurpation de : {{name}}"
     },
     "head": {
         "admin": "Administration",

@@ -52,7 +52,6 @@ Route::post('/clients/{client}/users', [ClientController::class, 'storeUser'])->
 Route::put('/clients/{client}/users/{user}', [ClientController::class, 'updateUser'])->name('clients.users.update')->middleware('permission:update_clients');
 Route::delete('/clients/{client}/users/{user}', [ClientController::class, 'destroyUser'])->name('clients.users.destroy')->middleware('permission:update_clients');
 Route::post('/clients/{client}/assign-plan', [ClientController::class, 'assignPlan'])->name('clients.assign-plan')->middleware('permission:view_clients');
-Route::post('/clients/{client}/impersonate', [ClientController::class, 'impersonate'])->name('clients.impersonate')->middleware('permission:view_clients');
 Route::post('/clients/{client}/branding', [ClientBrandingController::class, 'update'])->name('clients.branding')->middleware('permission:update_clients');
 
 // Plans

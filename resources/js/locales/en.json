@@ -794,9 +794,6 @@
         "templates": "Templates",
         "audit_log": "Audit log",
         "logout": "Logout",
-        "impersonation": {
-            "stop": "Stop"
-        },
         "user_id": "User ID",
         "all_statuses": "All statuses",
         "status_success": "Success",
@@ -859,7 +856,6 @@
         "edit_client_title": "Edit client",
         "manage_users_title": "Manage client users",
         "assign_plan_title": "Assign plan",
-        "impersonate_title": "Login as client",
         "delete_client_title": "Delete client",
         "edit_user_title": "Edit user",
         "delete_user_title": "Delete user",
@@ -1179,10 +1175,6 @@
     "open_menu": "Open menu",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "Return to Admin",
-        "impersonating": "Impersonating: {{name}}"
     },
     "head": {
         "admin": "Admin",

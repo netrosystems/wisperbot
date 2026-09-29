@@ -513,9 +513,6 @@
         "templates": "模板",
         "audit_log": "审计日志",
         "logout": "退出登录",
-        "impersonation": {
-            "stop": "停止"
-        },
         "user_id": "用户ID",
         "all_statuses": "所有状态",
         "status_success": "成功",
@@ -558,7 +555,6 @@
         "edit_client_title": "编辑客户",
         "manage_users_title": "管理客户用户",
         "assign_plan_title": "分配计划",
-        "impersonate_title": "以客户身份登录",
         "delete_client_title": "删除客户",
         "edit_user_title": "编辑用户",
         "delete_user_title": "删除用户",
@@ -757,10 +753,6 @@
     "open_menu": "打开菜单",
     "app": {
         "name": "WisperBot"
-    },
-    "impersonation": {
-        "return_to_admin": "返回管理员",
-        "impersonating": "正在模拟：{{name}}"
     },
     "head": {
         "admin": "管理员",

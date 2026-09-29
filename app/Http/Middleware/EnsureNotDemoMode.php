@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
  * (POST, PUT, PATCH, DELETE) on the route groups this middleware guards — the
  * client area, the admin panel, the client module routes, and the public
  * /api/v1 REST API. A short allowlist keeps authentication actions working so a
- * visitor can still log in and out and an admin can leave an impersonation.
+ * visitor can still log in and out.
  *
  * Reads (GET/HEAD/OPTIONS) always pass; PII in those responses is masked
  * separately by App\Support\Concerns\MasksDemoData / App\Support\Demo.
@@ -27,11 +27,6 @@ class EnsureNotDemoMode
     private const ALLOWED_ROUTE_NAMES = [
         'logout',
         'admin.logout',
-        // Impersonation start/stop only switches the session — it writes no
-        // business data — so a demo visitor can "Log in as client" to explore the
-        // client panel (where every write is still blocked) and return.
-        'admin.clients.impersonate',
-        'admin.impersonation.stop',
     ];
 
     public function handle(Request $request, Closure $next): Response

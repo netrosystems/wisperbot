@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\Admin\LandingPageController;
-use App\Models\Client;
 use App\Models\Currency;
 use App\Models\Locale;
 use App\Models\SystemSetting;
@@ -41,9 +40,7 @@ class HandleInertiaRequests extends Middleware
      *
      * Inertia uses this value to detect when the server is serving a different
      * release than the one the SPA is running. When they disagree, Inertia
-     * forces a hard reload — which during impersonation looks like the user
-     * has been "bounced back to admin" and clears the SPA's impersonation
-     * banner. Hashing the Vite manifest (the framework default) flips on every
+     * forces a hard reload, which drops any in-page state. Hashing the Vite manifest (the framework default) flips on every
      * `npm run build`, so a single stale tab triggers the reload on the next
      * navigation. We instead pin the version to APP_VERSION, which only changes
      * on intentional deploys. Fresh pages receive the new version in the boot
@@ -311,16 +308,6 @@ class HandleInertiaRequests extends Middleware
             $auth['permissions'] = $adminUser->permissionKeys();
         }
 
-        $impersonation = null;
-        if ($user && $request->session()->get('impersonating') && $request->session()->get('impersonated_client_id')) {
-            $client = Client::find($request->session()->get('impersonated_client_id'));
-            $impersonation = [
-                'active' => true,
-                'clientName' => $client?->name ?? 'Unknown',
-                'returnUrl' => route('admin.impersonation.stop'),
-            ];
-        }
-
         $supportedLocalesMap = [];
 
         foreach ($i18nLocales as $loc) {
@@ -361,7 +348,7 @@ class HandleInertiaRequests extends Middleware
             // Current CSRF token, re-shared on every Inertia response so the SPA can
             // keep its axios header + <meta> tag in sync. Without this a long-lived
             // page keeps the boot-time token, which goes stale when the session token
-            // rotates (e.g. on impersonation) and causes 419s until a hard reload.
+            // rotates (e.g. on login) and causes 419s until a hard reload.
             'csrf_token' => csrf_token(),
             'flash' => [
                 'success' => $request->session()->get('success'),
@@ -373,7 +360,6 @@ class HandleInertiaRequests extends Middleware
             ],
             'auth' => $auth,
             'unreadNotificationsCount' => $unreadNotificationsCount,
-            'impersonation' => $impersonation,
             'theme' => $user?->theme ?? 'light',
             'timezone' => $user?->timezone ?? 'UTC',
             'currentWorkspace' => $currentWorkspace,
