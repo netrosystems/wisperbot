@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **WhatsApp onboarding (Coexistence and WABA) attaches the right account and number.** The browser stopped listening for Meta's "account and number chosen" message after 15 seconds, before scanning the QR code or adding a number could finish, so the server guessed the account and could pick an older, empty one. It now listens while Meta's window is open. When it must guess, it picks the granted account that has phone numbers. A fallback key's "object does not exist" error no longer hides the real result. Sync from Meta now shows its result on the card, the card shows the account's name, and four untranslated WhatsApp health labels ("Health Delayed Hint" and similar) show real text. No migration.
+
 - **Client impersonation removed.** Admin → Clients no longer has "Login as client", the "Impersonating … / Return to Admin" banner is gone, and `admin.clients.impersonate` / `admin.impersonation.stop` no longer exist. A session that was mid-impersonation at deploy is signed out and sent to the admin login. Past `impersonation.*` audit-log rows are kept. No migration.
 
 - **Social Media Automation is now Post Scheduler, and Comments has its own sidebar entry.** The Social Media group lists Automations, Post Scheduler and (when social comments are enabled) Comments. The Posts/Comments tabs inside the page were removed. Server messages that said "Reconnect … in Social Media Automation" now say Post Scheduler. Frontend bundle and backend deploy together; no migration.

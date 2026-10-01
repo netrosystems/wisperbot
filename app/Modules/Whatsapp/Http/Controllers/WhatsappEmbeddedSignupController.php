@@ -248,10 +248,18 @@ class WhatsappEmbeddedSignupController extends Controller
         return app(WhatsappConnectionHealthController::class)->repair($request, $waba, app(WhatsappConnectionHealthService::class));
     }
 
+    /**
+     * Used when Meta's session message (which names the chosen account) did
+     * not reach the browser. A person who manages several WhatsApp Business
+     * Accounts gets all of them on the token, so the first one may be an old,
+     * empty account rather than the one just onboarded: prefer the account
+     * whose numbers the token can see.
+     */
     private function discoverWabaId(
         string $accessToken,
         MetaCredentials $meta,
     ): ?string {
+        $candidates = [];
         try {
             $response = Http::get('https://graph.facebook.com/v25.0/debug_token', [
                 'input_token' => $accessToken,
@@ -273,7 +281,7 @@ class WhatsappEmbeddedSignupController extends Controller
 
                 foreach ((array) ($scope['target_ids'] ?? []) as $targetId) {
                     if (is_string($targetId) || is_int($targetId)) {
-                        return (string) $targetId;
+                        $candidates[] = (string) $targetId;
                     }
                 }
             }
@@ -283,7 +291,21 @@ class WhatsappEmbeddedSignupController extends Controller
             ]);
         }
 
-        return null;
+        $candidates = array_values(array_unique($candidates));
+        if (count($candidates) > 1) {
+            foreach ($candidates as $candidate) {
+                try {
+                    if (CloudApiClient::fetchWabaPhoneNumbers($candidate, $accessToken) !== []) {
+                        return $candidate;
+                    }
+                } catch (\Throwable) {
+                    // Not readable with this token; try the next account.
+                }
+            }
+            Log::warning('WhatsApp embedded signup: no granted WABA has phone numbers yet', ['candidates' => $candidates]);
+        }
+
+        return $candidates[0] ?? null;
     }
 
     private function subscribeWabaWebhooks(string $wabaId, string $userToken, string $verifyToken, MetaCredentials $meta, bool $coexistence = false): ?string
@@ -396,23 +418,28 @@ class WhatsappEmbeddedSignupController extends Controller
         ])));
 
         $rows = [];
-        $lastError = null;
+        $firstError = null;
+        $answered = false;
         $syncToken = $userToken;
 
         foreach ($tokens as $token) {
             try {
                 $rows = CloudApiClient::fetchWabaPhoneNumbers($waba->waba_id, $token);
+                $answered = true;
                 if ($rows !== []) {
                     $syncToken = $token;
                     break;
                 }
             } catch (\Throwable $e) {
-                $lastError = $e->getMessage();
+                // The connecting person's token is tried first; a fallback
+                // token that cannot see a client's account must not hide its
+                // real answer behind "object does not exist".
+                $firstError ??= $e->getMessage();
             }
         }
 
-        if ($rows === [] && $lastError) {
-            throw new \RuntimeException($lastError);
+        if ($rows === [] && ! $answered && $firstError) {
+            throw new \RuntimeException($firstError);
         }
 
         if ($selectedPhoneNumberId) {

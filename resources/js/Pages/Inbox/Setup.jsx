@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
     embeddedSignupLoginOptions,
-    isWhatsappEmbeddedSignupFinish,
+    listenForWabaSessionInfo,
     WHATSAPP_ONBOARDING_CLOUD_API,
     WHATSAPP_ONBOARDING_COEXISTENCE,
 } from '@/Utils/metaEmbeddedSignup';
@@ -371,10 +371,15 @@ function WabaCard({ waba, channelAccounts, chatbots, canManageAi, onReconnect })
         });
     };
 
+    // The server reports a failed sync as a page error; show it on this card
+    // so the button does not appear to do nothing.
+    const [syncError, setSyncError] = useState(null);
     const syncPhones = () => {
         setSyncingPhones(true);
+        setSyncError(null);
         router.post(route('client.whatsapp.setup.sync-phone-numbers', { waba: waba.id }), {}, {
             preserveScroll: true,
+            onError: (errors) => setSyncError(errors.sync ?? Object.values(errors)[0] ?? null),
             onFinish: () => setSyncingPhones(false),
         });
     };
@@ -389,7 +394,7 @@ function WabaCard({ waba, channelAccounts, chatbots, canManageAi, onReconnect })
                     </div>
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">{t('inbox.whatsapp_account_label', { defaultValue: 'WhatsApp account' })}</span>
+                            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">{waba.meta_json?.display_name || t('inbox.whatsapp_account_label', { defaultValue: 'WhatsApp account' })}</span>
                             <StatusBadge status={waba.status} />
                         </div>
                     </div>
@@ -445,6 +450,7 @@ function WabaCard({ waba, channelAccounts, chatbots, canManageAi, onReconnect })
                             {syncingPhones ? t('inbox.syncing') : t('inbox.sync_from_meta')}
                         </button>
                     </div>
+                    {syncError && <p role="alert" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">{syncError}</p>}
 
                     {phoneList.length > 0 ? (
                         <div className="space-y-2">
@@ -876,54 +882,6 @@ function TelegramAccountRow({ account, chatbots, canManageAi }) {
 
 /* ─────────────────── Meta Embedded Signup helpers ─────────────────── */
 
-/**
- * Listens for the WA_EMBEDDED_SIGNUP postMessage that Meta sends when
- * sessionInfoVersion:'3' is set. Resolves with { waba_id, phone_number_id }.
- */
-function waitForWabaSessionInfo(timeout = 15000) {
-    return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-            window.removeEventListener('message', handler);
-            // Meta can return a valid OAuth code without sending the optional
-            // WA_EMBEDDED_SIGNUP payload (notably when previous settings are
-            // reused). The backend can discover the granted WABA from the token.
-            resolve({});
-        }, timeout);
-
-        function handler(event) {
-            let hostname;
-            try {
-                hostname = new URL(event.origin).hostname;
-            } catch {
-                return;
-            }
-            if (hostname !== 'facebook.com' && !hostname.endsWith('.facebook.com')) return;
-
-            try {
-                const parsed = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-                if (parsed?.type === 'WA_EMBEDDED_SIGNUP') {
-                    if (parsed.event === 'CANCEL' || parsed.event === 'ERROR') {
-                        clearTimeout(timer);
-                        window.removeEventListener('message', handler);
-                        reject(new Error(parsed.data?.error_message ?? 'WhatsApp authorization was not completed.'));
-                        return;
-                    }
-
-                    if (!isWhatsappEmbeddedSignupFinish(parsed.event)) return;
-
-                    clearTimeout(timer);
-                    window.removeEventListener('message', handler);
-                    resolve(parsed.data ?? {});
-                }
-            } catch {
-                // Ignore unrelated non-JSON cross-window messages.
-            }
-        }
-
-        window.addEventListener('message', handler);
-    });
-}
-
 function initFbSdk(appId) {
     if (typeof window.FB === 'undefined' || !appId) return false;
     try {
@@ -1049,14 +1007,14 @@ function EmbeddedSignupButton({ configId, appId, channel, whatsappOnboarding = W
         }
 
         const isWhatsapp = channel === 'whatsapp';
-        const sessionInfoPromise = isWhatsapp ? waitForWabaSessionInfo() : Promise.resolve(null);
+        const sessionInfo = isWhatsapp ? listenForWabaSessionInfo() : null;
 
         window.FB.login(
             (response) => {
                 if (response.authResponse && response.authResponse.code) {
                     const code = response.authResponse.code;
                     if (isWhatsapp) {
-                        sessionInfoPromise
+                        sessionInfo.result()
                             .then((info) => {
                                 setLoading(false);
                                 onCode(code, info?.waba_id ?? null, info?.phone_number_id ?? null, whatsappOnboarding);
@@ -1067,6 +1025,7 @@ function EmbeddedSignupButton({ configId, appId, channel, whatsappOnboarding = W
                         onCode(code);
                     }
                 } else {
+                    sessionInfo?.stop();
                     setLoading(false);
                     if (response.status !== 'connected') {
                         setError(t('inbox.authorization_cancelled'));
