@@ -67,6 +67,59 @@ class WhatsappEmbeddedSignupTest extends TestCase
         $this->assertSame('WABA_456', $wabaId);
     }
 
+    public function test_discovery_prefers_the_granted_waba_that_has_phone_numbers(): void
+    {
+        // A person managing an older, empty account and the account Coexistence
+        // just created gets both on the token; the first one is the old one.
+        Http::fake([
+            'graph.facebook.com/*/debug_token*' => Http::response([
+                'data' => ['granular_scopes' => [
+                    ['scope' => 'whatsapp_business_management', 'target_ids' => ['WABA_OLD_EMPTY', 'WABA_COEXIST']],
+                ]],
+            ]),
+            'graph.facebook.com/v25.0/WABA_OLD_EMPTY/phone_numbers*' => Http::response(['data' => []]),
+            'graph.facebook.com/v25.0/WABA_COEXIST/phone_numbers*' => Http::response(['data' => [['id' => 'PHONE_1']]]),
+        ]);
+
+        $method = new \ReflectionMethod(WhatsappEmbeddedSignupController::class, 'discoverWabaId');
+        $method->setAccessible(true);
+
+        $this->assertSame('WABA_COEXIST', $method->invoke(
+            new WhatsappEmbeddedSignupController,
+            'USER_TOKEN',
+            new MetaCredentials(['app_id' => 'APP_ID', 'app_secret' => 'APP_SECRET']),
+        ));
+    }
+
+    public function test_an_empty_phone_list_is_not_replaced_by_a_fallback_token_error(): void
+    {
+        $waba = WhatsappBusinessAccount::factory()->create([
+            'workspace_id' => 7,
+            'waba_id' => 'WABA_EMPTY',
+            'credentials' => ['system_user_token' => 'USER_TOKEN'],
+        ]);
+
+        // The connecting person's token sees the account but no numbers; the
+        // app and platform tokens cannot see a client's account at all.
+        Http::fake(fn ($request) => $request->hasHeader('Authorization', 'Bearer USER_TOKEN')
+            ? Http::response(['data' => []])
+            : Http::response(['error' => ['message' => 'Unsupported get request. Object with ID WABA_EMPTY does not exist', 'code' => 100, 'error_subcode' => 33]], 400));
+
+        $method = new \ReflectionMethod(WhatsappEmbeddedSignupController::class, 'syncPhoneNumbers');
+        $method->setAccessible(true);
+
+        $count = $method->invoke(
+            new WhatsappEmbeddedSignupController,
+            $waba,
+            'USER_TOKEN',
+            new MetaCredentials(['app_id' => 'APP_ID', 'app_secret' => 'APP_SECRET', 'system_user_token' => 'PLATFORM_TOKEN']),
+            null,
+            false,
+        );
+
+        $this->assertSame(0, $count);
+    }
+
     public function test_meta_phone_sync_prunes_stale_local_phone_numbers(): void
     {
         $waba = WhatsappBusinessAccount::factory()->create([
