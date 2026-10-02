@@ -1,20 +1,36 @@
-# Smart Bot 2.0 — plan
+# Smart Bot 2.0 — complete plan
 
-- **Status:** approved by the owner 2026-10-02 with the §8 recommendations. Phase 0 in progress on `feat/smart-bot-phase-0`.
+- **Owner:** WisperBot product (approved 2026-10-02)
 - **Applies to:** the Smart Bot that answers on the website widget, customer SDK, WhatsApp, Messenger, Instagram, Telegram and email; the playground; the public AI API (`/ai/chatbots/{id}/chat`); and automation AI steps.
 - **Builds on:** Cerqle's Smart Bot 2.0, a sister codebase. Phases 0–1 are live there and accepted on its own bot (eval run #8: 97.3% of answerable questions answered, 100% of unanswerable ones declined, 0 invented figures, p50 3.4 s). Phase 2 (live data) is in progress there. This plan ports what is proven and keeps WisperBot's own strengths.
-- **Authoritative spec until this plan replaces it:** [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md). Each phase updates that spec, [`CHANGELOG.md`](CHANGELOG.md) and [`HANDOFF.md`](HANDOFF.md) in the same commit, and this plan's status table.
+- **Authoritative spec:** [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md) describes how the bot works today; this document is the plan.
+- **This document is the single plan.** Update the status table and checklists in the same commit as the work, together with the spec, [`CHANGELOG.md`](CHANGELOG.md) and [`HANDOFF.md`](HANDOFF.md), as `AGENTS.md` requires.
 
 ---
 
-## 1. Summary
+## 1. Status at a glance
 
-**The problem.**
+| Phase | What it delivers | Effort | Status |
+|---|---|---|---|
+| **0** Measure and quick fixes | Every turn records why it ended; `ai:smart-bot-report`; reply budget and cut-off retry; reasoning kept low; all system messages kept; guidance retry; figure check; no silent turns | 3–5 days | ◐ **Code done** 2026-10-02 in PR #181 (`dev` → `main`, awaiting owner approval to merge and deploy). Then: 7-day baseline, threshold decision, 30-question check |
+| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ☐ Not started |
+| **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times; 1 or 2 credits per answer | 3–4 weeks | ☐ Not started |
+| **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks | ☐ Not started |
+| **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks | ☐ Not started |
+| **5** Quality at scale | AI performance page, nightly quality gate, alerts | continuous | ☐ Not started; builds on Phase 1's test set |
+
+Next: merge PR #181, deploy, and take the baseline. Phases 0–2 (about 7–9 weeks) fix what clients notice; Phases 3–5 make it scale.
+
+---
+
+## 2. Why
+
+**Problem.**
 - The bot falls back ("I could not find verified information…") far too often.
 - It cannot reason about the company beyond a literal match in the knowledge base.
 - It cannot give real-time prices.
 
-**What we will build:** one agentic answer engine that:
+**Goal.** One agentic answer engine that:
 1. answers from the client's knowledge;
 2. when the knowledge does not cover a question, gives **helpful, company-aware guidance** without inventing facts;
 3. **looks up live data** (store products, a price sheet, the client's own API, opening hours) when the question needs it;
@@ -24,20 +40,7 @@
 - **One agent, not a swarm.** Cheap gates first, a model only when needed, tools only when the question needs live data.
 - **Port Cerqle's engine instead of inventing a new one.** Most components copy over with renamed namespaces and config keys.
 
-| Phase | Delivers | Effort |
-|---|---|---|
-| **0** Measure and quick fixes | Know the real fallback rate; fix the bugs that cause most fallbacks today | 3–5 days |
-| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, quality test set | 3–4 weeks |
-| **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times | 3–4 weeks |
-| **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks |
-| **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks |
-| **5** Quality at scale | AI performance page, nightly quality gate, alerts | continuous |
-
-Phases 0–2 (about 7–9 weeks) fix what clients notice. Phases 3–5 make it scale.
-
----
-
-## 2. What we found (code review, 2026-10-02)
+### 2.1 What we found (code review, 2026-10-02)
 
 The causes below are ranked by how many fallbacks they probably cause. They come from reading the code, not from measurements. Phase 0 measures them before anything else changes.
 
@@ -66,9 +69,18 @@ The causes below are ranked by how many fallbacks they probably cause. They come
 - **Safe fetching:** `KnowledgeUrlGuard` and `KnowledgeSourceUrlResolver` (SSRF-safe fetching).
 - **Conversation features:** quick replies (`ChatReplyOptions`), video answers, starter questions, and `orderSummary()`.
 
----
+Status of each cause:
 
-## 3. How the best products do it
+| # | Fixed in |
+|---|---|
+| 1 | Phase 0, after the baseline (the cut-off is `KB_RETRIEVAL_MATCH_THRESHOLD`) |
+| 2 | Phase 0 in part (guidance retry); Phase 1 (answer controls) |
+| 3 | Phase 0 (guidance retry); Phase 1 (answer ladder) |
+| 4, 5, 6, 7, 10 | ✅ Phase 0 code (PR #181) |
+| 8 | Phase 3 |
+| 9 | Phase 2 |
+
+### 2.2 How the best products do it
 
 | Product | What we take |
 |---|---|
@@ -79,6 +91,21 @@ The causes below are ranked by how many fallbacks they probably cause. They come
 | **Chatbase** | Custom API actions and Shopify actions. |
 | **Anthropic, "contextual retrieval"** | Chunk context + keyword search + reranking cut retrieval failures by up to 67%. |
 | **The "multi-agent RAG" note** | A planner plus specialist agents helps only when a question needs several sources at once, at about 15× the tokens. A single retriever plus a reranker answers about 90% of questions. **We build one agent** with a planner, good retrieval and tools; specialist agents only if the data shows they are needed. |
+
+---
+
+## 3. Owner decisions
+
+| Date | Topic | Decision |
+|---|---|---|
+| 2026-10-02 | Plan | **Approved** as proposed; start Phase 0. |
+| 2026-10-02 | Default answer freedom | **Balanced** for new and existing bots once engine v2 is on: knowledge first, then helpful company-aware guidance; never invent prices, policies, dates, stock or links. Per bot: Strict / Balanced / Flexible. |
+| 2026-10-02 | Credits | **1** credit per answer, **2** with live data; fallbacks, clarifying questions and free gates cost 0; **BYOK free**. One ledger row per turn. |
+| 2026-10-02 | First live-data sources | Store products → price sheet → client API → opening hours. Store and sheet need no technical setup; the API is for advanced clients. |
+| 2026-10-02 | Account and order questions | Keep the last-3-orders context; **no** order-lookup tool yet; a customer asking about their own order goes to a person. |
+| 2026-10-02 | When the AI cannot answer | Provider failure or empty reply → holding reply in the customer's script **and** handover to a person (shipped in Phase 0). |
+| 2026-10-02 | Rollout | WisperBot's own bot first, then 3–5 pilot clients, then all bots. |
+| 2026-10-02 | Cerqle code | Port with attribution; keep the two codebases' shared parts aligned where practical. |
 
 ---
 
@@ -160,14 +187,14 @@ Small knowledge (≤ ~20k tokens): skip search, send it whole (prompt caching ke
 
 ## 6. Phases and tasks
 
-Legend: ☐ to do · ☑ done · ↻ port from Cerqle (path in Cerqle's `app/Modules/AI/`) · ✚ WisperBot-specific.
+Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path in Cerqle's `app/Modules/AI/`) · ✚ WisperBot-specific.
 
-### Phase 0 — measure and quick fixes (3–5 days)
+### Phase 0 — measure and quick fixes ◐ (code done 2026-10-02, PR #181; baseline pending)
 
 **Measure first**
 - ☑ (2026-10-02) Record a diagnostics row on **every** path, including the old-path fallback (`ai_kb_retrieval_diagnostics`, reason code, passages, scores, model, finish reason).
 - ☑ (2026-10-02) `php artisan ai:smart-bot-report [--days=14] [--workspace=] [--json]`: answer, fallback, clarification and handover rates, by reason. Written for WisperBot's tables as `app/Console/Commands/SmartBotReportCommand.php`, after Cerqle's `Console/SmartBotReport.php`.
-- ☐ Read the production flag values and take a 7-day baseline before changing behaviour.
+- ☐ Read the production flag values and take a 7-day baseline before changing behaviour. After PR #181 is deployed: `php artisan ai:smart-bot-report --days=7` inside the production `app` container (the report prints the flag values too).
 
 **Fix the fallback bugs** (each with a test)
 - ☐ Recalibrate the retrieval cut-off (for example 0.60 → 0.45, clarification 0.30), confirmed against the baseline. Cerqle lowered its cut-off the same way (0.72 → 0.45), and the four test questions that had fallen back were then answered.
@@ -178,9 +205,16 @@ Legend: ☐ to do · ☑ done · ↻ port from Cerqle (path in Cerqle's `app/Mod
 - ☑ (2026-10-02) Follow-up queries never include the bot's own fallback text.
 - ☑ (2026-10-02, website chat too) The channel reply job never drops a reply silently: a provider failure sends a holding reply in the customer's language and hands over.
 
-**Acceptance:** fallback rate measured before and after; no increase in invented figures on the eval set (Phase 1 builds it, so use a hand-written list of 30 questions here).
+**Shipped 2026-10-02 in PR #181** (not yet merged): migration `2026_10_02_000100_add_turn_reasons_to_ai_kb_retrieval_diagnostics`; new env `SMART_BOT_REPLY_MAX_TOKENS` (600), `SMART_BOT_GUIDANCE_RETRY` (on). Details in [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#fewer-silent-and-needless-fallbacks-2026-10-02).
 
-### Phase 1 — smarter answer engine (3–4 weeks)
+**Still to do in Phase 0:**
+- ☐ 7-day baseline report after deploy.
+- ☐ Threshold decision from the baseline.
+- ☐ A hand-written list of 30 questions on WisperBot's own bot (answerable and unanswerable), asked before and after.
+
+**Acceptance:** fallback rate measured before and after; no increase in invented figures on the 30 questions (Phase 1 builds the full test set).
+
+### Phase 1 — smarter answer engine ☐ (3–4 weeks)
 
 **1.1 Metered turns**
 - ↻ `LlmTurn` (`Services/Llm/LlmTurn.php`): one reservation per answer; `step()` per model call; `finish()` charges once; `abort()` refunds. Rebuilt on WisperBot's `AiCreditLedger` / `AiCreditReservation`.
@@ -220,7 +254,7 @@ Legend: ☐ to do · ☑ done · ↻ port from Cerqle (path in Cerqle's `app/Mod
 - fallbacks and handover offers −40% against the Phase 0 baseline;
 - p50 ≤ 5 s.
 
-### Phase 2 — live data (3–4 weeks)
+### Phase 2 — live data ☐ (3–4 weeks)
 
 **2.1 Tool framework**
 - ↻ `AgentTool`, `ToolContext`, `ToolResult`, `ToolRegistry` (max 3 calls), `ToolExecutor`, `ArgsValidator`, `PersonalData`, `TurnTools`; the `ai_tool_calls` audit table (masked arguments, latency, cache hit).
@@ -245,7 +279,7 @@ Legend: ☐ to do · ☑ done · ↻ port from Cerqle (path in Cerqle's `app/Mod
 **2.4 Answers and credits**
 - ☐ "As of HH:MM" on replies that used live data.
 - ☐ The validator accepts figures only from the evidence or live data.
-- ☐ Credits per the owner's decision (§8).
+- ☐ Credits per the owner's decision (§3): reserve 2, settle 1 or 2 on one ledger row; BYOK free.
 - ☐ Plan limits on connectors and price sheets.
 
 **Acceptance:**
@@ -255,7 +289,7 @@ Legend: ☐ to do · ☑ done · ↻ port from Cerqle (path in Cerqle's `app/Mod
 - prompt-injection tests pass;
 - zero account or order lookups through tools.
 
-### Phase 3 — knowledge ingestion and retrieval (4–6 weeks)
+### Phase 3 — knowledge ingestion and retrieval ☐ (4–6 weeks)
 
 - ☐ Main-content extraction: remove nav, footer and cookie banners; keep tables as Markdown; title, description, language, canonical URL.
 - ☐ Heading- and table-aware chunking that keeps line breaks, with a breadcrumb per chunk (contextual retrieval). Reuse embeddings when content is unchanged.
@@ -270,14 +304,14 @@ Legend: ☐ to do · ☑ done · ↻ port from Cerqle (path in Cerqle's `app/Mod
 - ≥ 90% of unchanged pages skip re-embedding;
 - tenancy tests pass.
 
-### Phase 4 — procedures and memory (3–4 weeks)
+### Phase 4 — procedures and memory ☐ (3–4 weeks)
 
 - ☐ **Procedures:** "when to use" plus plain-language steps and allowed tools, chosen by the planner (like Intercom Procedures). Example: "If someone asks for a refund, ask for the order date, then…".
 - ☐ **Memory:** an allow-listed contact profile, summaries of past resolved conversations, a rolling summary beyond 20 turns; deleted with the contact.
 - ☐ **Handover summary** for agents.
 - ☐ Voice-note transcription and image understanding behind a flag.
 
-### Phase 5 — quality at scale (continuous)
+### Phase 5 — quality at scale ☐ (continuous)
 
 - ☐ **AI Performance page:**
   - answer, guidance, fallback and handover rates;
@@ -297,7 +331,24 @@ Legend: ☐ to do · ☑ done · ↻ port from Cerqle (path in Cerqle's `app/Mod
 
 ---
 
-## 7. Cost and latency
+## 7. Platform needs checklist
+
+| Need | Status |
+|---|---|
+| Widget/SDK/API keep their `response_mode` values; new answer kinds are additive | ☐ Phase 1 (Phase 0 adds `response_mode=handoff` only on holding replies) |
+| SDK changes are the app team's to build and release; server tests never claim SDK delivery | Standing rule (`AGENTS.md`) |
+| No silent turns on channels and website chat | ✅ Phase 0 code |
+| BYOK providers (OpenAI, Anthropic, Gemini, Qwen, DeepSeek): budgets, finish reasons, all system messages | ✅ Phase 0 code; contract tests per provider in Phase 1 |
+| Measurement: every turn's reason; diagnostics pruned after 90 days | ✅ Phase 0 code |
+| WhatsApp buttons/lists, Messenger/Instagram quick replies, per-channel length | ☐ Phase 1.7 |
+| Handover in any language; "yes" to the bot's offer hands over | ☐ Phase 1 |
+| Plan limits on connectors, price sheets, crawl pages | ☐ Phase 2 and 3 |
+| Privacy: gaps scrubbed of emails and phone numbers; Qdrant data deleted with the workspace | ☐ Phase 1.5 and 3 |
+| Bangla and other Indic scripts in search and figure checks | ◐ Figure check in Phase 0; tokenising in Phase 3 |
+
+---
+
+## 8. Cost, latency and credits
 
 | Path | Model calls | Est. cost per reply | p50 |
 |---|---|---|---|
@@ -311,38 +362,35 @@ A credit is worth about $0.01–0.02 depending on the plan, so margins stay posi
 
 ---
 
-## 8. Decisions needed
+## 9. Operating notes
 
-| Topic | Proposal | Why |
-|---|---|---|
-| Default answer freedom | **Balanced** for new and existing bots once engine v2 is on | Removes dead-end fallbacks without inventing facts; Strict stays one click away |
-| Credits | **1** per answer, **2** with live data; fallbacks, clarifying questions and free gates cost 0; **BYOK free** | Same as Cerqle; one ledger row per turn |
-| First live-data sources | Store products → price sheet → client API → opening hours | Store and sheet need no technical setup; API is for advanced clients |
-| Account and order questions | Keep the last-3-orders context; **no** order-lookup tool yet; a customer asking about their own order goes to a person | Avoids identity and privacy risk until identity checks exist |
-| Rollout | WisperBot's own bot first, then 3–5 pilot clients, then all bots | Measured canary, as in Cerqle |
-| Cerqle code | Port with attribution in the decision record; keep the two codebases' shared parts aligned where practical | Proven, accepted work; less risk than rewriting |
+**Configuration** (`config/chatbot.php`, `config/knowledge_base.php`, `config/ai_credits.php`):
+- `chatbot.reply_max_tokens` (`SMART_BOT_REPLY_MAX_TOKENS`, default 600, kept between 500 and 2000);
+- `chatbot.guidance_retry_enabled` (`SMART_BOT_GUIDANCE_RETRY`, default on);
+- `knowledge_base.retrieval_match_threshold` (`KB_RETRIEVAL_MATCH_THRESHOLD`, default 0.60; the managed policy allows 0.45–0.85) and `clarification_min_threshold` (`KB_CLARIFICATION_MIN_THRESHOLD`, 0.38);
+- managed models: `AI_MANAGED_ROUTINE_MODEL` / `AI_MANAGED_COMPLEX_MODEL` (default `gpt-4o-mini`).
 
----
+**Flags** (env, default off): `SMART_BOT_BUSINESS_AWARE_ROUTING`, `KB_HYBRID_RETRIEVAL_ENABLED`, `KB_GUARDED_PUBLISHING`, `KB_LIVE_PRODUCT_FACTS_ENABLED`. Planned: `SMART_BOT_ENGINE_V2`, `SMART_BOT_TOOLS`, `SMART_BOT_DATA_CONNECTORS`.
 
-## 9. Rollout and safety
+**Measure:** `php artisan ai:smart-bot-report --days=14 [--workspace=ID] [--json]` before and after every phase. Every turn's `reason_code` is in `ai_kb_retrieval_diagnostics`.
 
-- Every behaviour change ships behind a flag, off by default. Phase 0 bug fixes ship directly.
-- **Canary:**
-  1. WisperBot's own bot.
-  2. Re-ask the baseline questions, compare `ai:smart-bot-report` and `ai:eval`.
-  3. Pilot clients.
-  4. Everyone.
-- **Rollback levers:**
-  - answer model and reasoning effort by environment variable;
-  - engine v2 per bot;
-  - each tool behind its flag;
-  - connectors switch off per bot.
-- **Checks per phase:** `php artisan test`, `npm test -- --run`, `npm run build`, `./vendor/bin/pint --test`, no new PHPStan findings on changed files (AGENTS.md).
-- **Release:** feature branch → `dev` → PR to `main`. Merging that PR deploys production, so it needs the owner's approval each time.
+**Rollback levers:**
+- reply budget, guidance retry and cut-off by environment variable (no redeploy beyond a config refresh);
+- engine v2 per bot (Phase 1);
+- each tool and connector behind its flag (Phase 2).
 
 ---
 
-## 10. Risks
+## 10. Process for every phase
+
+1. **Branch:** feature branch → fast-forward `dev` → PR `dev` → `main`. Merging that PR deploys production (`.github/workflows/deploy-production.yml`), so it needs the owner's approval each time.
+2. **Docs in the same commit:** this plan's status table and checklists, `KNOWLEDGE_BASE_SMART_BOT.md`, `CHANGELOG.md`, `HANDOFF.md`.
+3. **Gate:** `php artisan test`, `npm test -- --run`, `npm run build`, `./vendor/bin/pint --test`, no new PHPStan findings on changed files.
+4. **Canary:** WisperBot's own bot first; re-ask the baseline questions; compare `ai:smart-bot-report` (and `ai:eval` from Phase 1) with the baseline; then pilot clients; then everyone. Every behaviour change ships behind a flag, off by default; bug fixes ship directly.
+
+---
+
+## 11. Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -356,7 +404,7 @@ A credit is worth about $0.01–0.02 depending on the plan, so margins stay posi
 
 ---
 
-## 11. Key files
+## 12. Key files
 
 **WisperBot today:**
 - `app/Modules/AI/Services/ChatbotRunner.php`
