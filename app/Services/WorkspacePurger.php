@@ -105,6 +105,7 @@ class WorkspacePurger
             ['ai_runs', 'chatbot_id', 'ai_chatbots'],
             ['inbox_label_conversation', 'label_id', 'inbox_labels'],
             ['ai_kb_chunks', 'kb_id', 'ai_knowledge_bases'],
+            ['ai_eval_results', 'run_id', 'ai_eval_runs'],
             ['ai_kb_test_cases', 'kb_id', 'ai_knowledge_bases'],
             ['ai_kb_documents', 'kb_id', 'ai_knowledge_bases'],
             ['ai_kb_product_offers', 'product_id', 'ai_kb_products'],

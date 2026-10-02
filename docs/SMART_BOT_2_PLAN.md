@@ -13,7 +13,7 @@
 | Phase | What it delivers | Effort | Status |
 |---|---|---|---|
 | **0** Measure and quick fixes | Every turn records why it ended; `ai:smart-bot-report`; reply budget and cut-off retry; reasoning kept low; all system messages kept; guidance retry; figure check; no silent turns | 3–5 days | ◐ **Code done** 2026-10-02 in PR #181 (`dev` → `main`, awaiting owner approval to merge and deploy). Then: 7-day baseline, threshold decision, 30-question check |
-| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) built 2026-10-02, off by default, canary on WisperBot's own bot next. Then: test set, answer controls UI, company brief, unanswered questions, channels |
+| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) built 2026-10-03. Next: the canary with a v1-vs-v2 test run, then answer controls UI, company brief, unanswered questions, channels |
 | **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times; 1 or 2 credits per answer | 3–4 weeks | ☐ Not started |
 | **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks | ☐ Not started |
 | **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks | ☐ Not started |
@@ -243,8 +243,9 @@ Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path i
 - ↻ "Why this answer" and 👍/👎 under bot messages in the inbox and the mobile API; "Improve" writes a Q&A.
 
 **1.6 Quality test set**
-- ↻ `ai:eval:synthesize {bot}`, `ai:eval {bot} [--judge]`, `EvalScorer`: answered %, declined %, invented figures, p50. Platform-billed, never charged to the client.
-- ✚ Merge with the existing knowledge base test cases (`ai_kb_test_cases`).
+- ☑ (2026-10-03) `ai:eval:synthesize {bot}`, `ai:eval {bot} [--judge] [--byok]`, `ai:eval:cases {bot}`, `EvalScorer`: answered %, declined %, invented figures, p50. Platform-billed through `LlmGateway::evaluating()` / `platformChat()`, never charged to the client, and no diagnostics, gaps or cached answers.
+- ☑ (2026-10-03) ✚ The Knowledge Base tester's questions (`ai_kb_test_cases`) are part of the set (`source = kb_test`).
+- ☐ First runs on WisperBot's own bot: v1 baseline, then v2.
 
 **1.7 Channels**
 - ↻ Native WhatsApp reply buttons and lists, Messenger and Instagram quick replies (`NativeChoices`), per-channel formatting and length (`ChannelFormatter`).

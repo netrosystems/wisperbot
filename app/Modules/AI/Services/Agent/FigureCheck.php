@@ -26,6 +26,16 @@ class FigureCheck
      */
     public function unsupported(string $text, string $evidence): bool
     {
+        return $this->unsupportedFigures($text, $evidence) !== [];
+    }
+
+    /**
+     * The figures in the text that do not appear in the evidence, as written.
+     *
+     * @return list<string>
+     */
+    public function unsupportedFigures(string $text, string $evidence): array
+    {
         $figures = function (string $value): array {
             $value = strtr(mb_strtolower($value), self::DIGITS);
             // Thousands separators, including South Asian grouping (1,50,000).
@@ -47,13 +57,14 @@ class FigureCheck
                     default => $unit,
                 };
                 $significant = $unit !== '' || trim($match[1]) !== '' || strlen($match[2]) >= 2;
-                $found[] = ['number' => $number, 'unit' => $unit, 'significant' => $significant];
+                $found[] = ['number' => $number, 'unit' => $unit, 'significant' => $significant, 'text' => trim($match[0])];
             }
 
             return $found;
         };
 
         $available = $figures($evidence);
+        $missing = [];
         foreach ($figures($text) as $figure) {
             if (! $figure['significant']) {
                 continue;
@@ -64,11 +75,11 @@ class FigureCheck
             $supported = array_filter($available, fn (array $candidate): bool => $candidate['number'] === $figure['number']
                 && ($figure['unit'] === '' || $candidate['unit'] === $figure['unit'] || (! $strictUnit && $candidate['unit'] === '')));
             if ($supported === []) {
-                return true;
+                $missing[] = $figure['text'];
             }
         }
 
-        return false;
+        return array_values(array_unique($missing));
     }
 
     /** Digits of other scripts written as ASCII digits. */

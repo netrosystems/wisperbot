@@ -350,3 +350,14 @@ Engine v2 core on `oris`, ported from Cerqle: `LlmTurn` (one charge per answer),
 **Not verified against real providers:** tests fake OpenAI. Check one live v2 answer per provider in use, especially Gemini and Anthropic JSON replies (they use JSON mode, not the strict schema).
 
 **Next increments:** the quality test set (1.6) to compare v1 and v2, the answer-controls UI (1.4), the company brief (1.3), unanswered questions and feedback (1.5), native channel choices (1.7), full-context mode and burst batching.
+
+## Smart Bot 2.0 Phase 1.6, answer-quality test set (2026-10-03)
+
+`ai:eval:synthesize`, `ai:eval`, `ai:eval:cases` on `oris`. Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#answer-quality-test-set-smart-bot-20-phase-16-2026-10-03).
+
+**First use (production `app` container, WisperBot's own bot):**
+1. `php artisan ai:eval:synthesize {bot} --dry-run`, review, then without `--dry-run`. Retire bad questions with `ai:eval:cases {bot} --retire=ID`.
+2. `php artisan ai:eval {bot}` on engine v1 for the baseline.
+3. Move the bot to v2 (`ai:engine {bot} v2`, with `SMART_BOT_ENGINE_V2=true`) and run `ai:eval {bot}` again. Compare answered %, declined %, invented figures and p50.
+
+Writing questions and runs need WisperBot's managed OpenAI integration (Admin → Integrations); they never spend client credits. Not verified against the real provider: tests fake OpenAI.

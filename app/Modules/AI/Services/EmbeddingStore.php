@@ -332,6 +332,17 @@ class EmbeddingStore
     }
 
     /**
+     * The chunks retrieval may return for a knowledge base: ready, in the
+     * active index generation of an enabled, approved, published document.
+     *
+     * @return Builder<AiKbChunk>
+     */
+    public function liveChunks(int $kbId): Builder
+    {
+        return $this->eligibleChunks(AiKbChunk::query()->where('kb_id', $kbId), null);
+    }
+
+    /**
      * @param  Builder<AiKbChunk>  $query
      * @return Builder<AiKbChunk>
      */

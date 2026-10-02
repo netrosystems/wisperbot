@@ -52,6 +52,7 @@ final class LlmTurn
         private readonly ?int $chatbotId,
         private readonly ?int $conversationId,
         public readonly ?array $replay = null,
+        private readonly bool $evaluation = false,
     ) {}
 
     /**
@@ -118,6 +119,11 @@ final class LlmTurn
         UsageMeter::track($this->workspaceId, 'ai_tokens', $this->tokensUsed());
     }
 
+    public function isEvaluation(): bool
+    {
+        return $this->evaluation;
+    }
+
     /** No usable answer, or one that is not charged (a question back, an offer of a person). */
     public function abort(string $reason): void
     {
@@ -128,7 +134,7 @@ final class LlmTurn
         if ($this->ledger) {
             $this->credits->refund($this->ledger, $reason);
         }
-        if ($this->tokensUsed() > 0) {
+        if ($this->tokensUsed() > 0 && ! $this->evaluation) {
             UsageMeter::track($this->workspaceId, 'ai_tokens', $this->tokensUsed());
         }
     }
@@ -174,6 +180,10 @@ final class LlmTurn
 
     private function record(string $label, ?LlmResponse $response, string $status): void
     {
+        // A test run is platform spend, not the client's usage.
+        if ($this->evaluation) {
+            return;
+        }
         AiRun::create([
             'chatbot_id' => $this->chatbotId,
             'conversation_id' => $this->conversationId,

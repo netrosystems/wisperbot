@@ -16,7 +16,58 @@ use Illuminate\Support\Str;
 
 class LlmGateway
 {
+    /**
+     * Set while a test run answers (Smart Bot 2.0, Phase 1.6): every call
+     * uses the platform's provider (or, when allowed, the workspace's own
+     * key) with no credit reservation, ledger row, AiRun or usage meter.
+     *
+     * @var array{byok:bool}|null
+     */
+    private static ?array $evaluation = null;
+
     public function __construct(private readonly AiCreditService $credits) {}
+
+    /**
+     * Runs $callback as a platform-billed test run.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    public static function evaluating(bool $allowByok, callable $callback): mixed
+    {
+        $previous = self::$evaluation;
+        self::$evaluation = ['byok' => $allowByok];
+        try {
+            return $callback();
+        } finally {
+            self::$evaluation = $previous;
+        }
+    }
+
+    public static function isEvaluating(): bool
+    {
+        return self::$evaluation !== null;
+    }
+
+    /**
+     * A platform-billed call for test-set work (writing and grading
+     * questions). Uses WisperBot's managed model and never touches a client's
+     * credits; only the features in `chatbot.eval.platform_features` may use it.
+     *
+     * @param  array<int,array<string,mixed>>  $messages
+     * @param  array<string,mixed>  $opts
+     */
+    public function platformChat(string $feature, array $messages, array $opts = []): LlmResponse
+    {
+        if (! in_array($feature, (array) config('chatbot.eval.platform_features', []), true)) {
+            throw new \LogicException("The feature {$feature} is not a platform-billed feature.");
+        }
+        $resolved = LlmManager::managedChat($feature);
+
+        return $this->runStep($resolved['client'], $messages, ['model' => $resolved['model']] + $opts);
+    }
 
     public function chat(
         int $workspaceId,
@@ -45,7 +96,7 @@ class LlmGateway
             $route = $this->openRoute($workspaceId, $feature, $idempotencyKey, $actorId);
             $reservation = $route['reservation'];
             $source = $route['source'];
-            if ($reservation->replayedResponse) {
+            if ($reservation?->replayedResponse) {
                 return $reservation->replayedResponse;
             }
             $resolved = $route['resolved'];
@@ -75,10 +126,15 @@ class LlmGateway
             if (! $valid) {
                 throw new AiOutputRejectedException('The AI provider returned an unusable response.');
             }
-            $this->credits->succeed($reservation->ledger, $response, $providerName);
+            if ($reservation) {
+                $this->credits->succeed($reservation->ledger, $response, $providerName);
+            }
         } catch (\Throwable $e) {
             if ($reservation) {
                 $this->credits->refund($reservation->ledger, $e instanceof AiCreditsException ? $e->errorCode : 'provider_failed');
+            }
+            if (self::isEvaluating()) {
+                throw $e;
             }
             AiRun::create([
                 'chatbot_id' => $chatbotId,
@@ -101,6 +157,9 @@ class LlmGateway
             throw $e;
         }
 
+        if (self::isEvaluating()) {
+            return $response;
+        }
         $totalTokens = $response->promptTokens + $response->completionTokens;
         UsageMeter::track($workspaceId, 'ai_tokens', $totalTokens);
 
@@ -141,11 +200,11 @@ class LlmGateway
         $this->credits->creditsFor($feature);
         $route = $this->openRoute($workspaceId, $feature, $idempotencyKey, auth()->id() ?: null);
         $reservation = $route['reservation'];
-        if ($reservation->replayedResponse) {
+        if ($reservation?->replayedResponse) {
             return new LlmTurn($this, $this->credits, null, null, null, null, $workspaceId, $feature, $chatbotId, $conversationId, LlmTurn::storedAnswer($reservation->replayedResponse));
         }
 
-        return new LlmTurn($this, $this->credits, $reservation->ledger, $route['resolved']['client'], $route['resolved']['provider'], $route['model'], $workspaceId, $feature, $chatbotId, $conversationId);
+        return new LlmTurn($this, $this->credits, $reservation?->ledger, $route['resolved']['client'], $route['resolved']['provider'], $route['model'], $workspaceId, $feature, $chatbotId, $conversationId, evaluation: self::isEvaluating());
     }
 
     /**
@@ -176,11 +235,34 @@ class LlmGateway
      * that already succeeded carries its replayed response and no provider.
      * A reservation opened here is refunded if the provider cannot be resolved.
      *
-     * @return array{reservation:AiCreditReservation,resolved:array{provider:string,client:LlmProviderInterface,model?:string}|null,model:?string,source:string}
+     * In a test run no reservation is opened: the platform pays.
+     *
+     * @return array{reservation:AiCreditReservation|null,resolved:array{provider:string,client:LlmProviderInterface,model?:string}|null,model:?string,source:string}
      */
     private function openRoute(int $workspaceId, string $feature, string $idempotencyKey, ?int $actorId): array
     {
         $mode = AiWorkspaceSetting::modeFor($workspaceId);
+        if (self::$evaluation !== null) {
+            // A workspace on its own key would put the test on the client's bill.
+            if ($mode === 'byok') {
+                if (! self::$evaluation['byok']) {
+                    throw new \RuntimeException('This workspace answers with its own AI key, so a test run would bill the client. Re-run with --byok to accept that.');
+                }
+
+                return ['reservation' => null, 'resolved' => LlmManager::forWorkspaceByok($workspaceId), 'model' => null, 'source' => 'byok'];
+            }
+            try {
+                $resolved = LlmManager::managedChat($feature);
+
+                return ['reservation' => null, 'resolved' => $resolved, 'model' => $resolved['model'], 'source' => 'platform'];
+            } catch (\Throwable $managedFailure) {
+                if ($mode !== 'auto_fallback' || ! self::$evaluation['byok']) {
+                    throw $managedFailure;
+                }
+
+                return ['reservation' => null, 'resolved' => LlmManager::forWorkspaceByok($workspaceId), 'model' => null, 'source' => 'byok'];
+            }
+        }
         $source = $mode === 'byok' ? 'byok' : 'managed';
         $reservation = null;
 
@@ -232,6 +314,9 @@ class LlmGateway
             $provider = LlmManager::forWorkspaceEmbed($workspaceId);
             $embeddings = $provider->embed($texts);
         } catch (\Throwable $e) {
+            if (self::isEvaluating()) {
+                throw $e;
+            }
             AiRun::create([
                 'chatbot_id' => null,
                 'conversation_id' => null,
@@ -248,6 +333,9 @@ class LlmGateway
             ]);
 
             throw $e;
+        }
+        if (self::isEvaluating()) {
+            return $embeddings;
         }
         $tokenEstimate = array_sum(array_map(fn ($t) => (int) ceil(strlen($t) / 4), $texts));
 

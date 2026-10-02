@@ -38,4 +38,20 @@ return [
         'standard' => ['words' => 90, 'max_tokens' => 700],
         'detailed' => ['words' => 160, 'max_tokens' => 1000],
     ],
+    // The answer-quality test set (Phase 1.6): `ai:eval:synthesize`, `ai:eval`.
+    'eval' => [
+        // Only these may use LlmGateway::platformChat() (platform-billed).
+        'platform_features' => ['eval_synthesize', 'eval_judge'],
+        // A run passes when it meets all of these (Phase 1 acceptance).
+        'targets' => [
+            'answered_rate' => 0.85,
+            'declined_rate' => 0.90,
+            'invented_figures' => 0,
+        ],
+        'default_cases' => 60,
+        'max_cases' => 100,
+        // Translated cases test multilingual answers; bn-Latn is romanised
+        // Bangla ("apnader plan er dam koto?").
+        'languages' => ['bn', 'bn-Latn', 'ar'],
+    ],
 ];

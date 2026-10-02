@@ -52,6 +52,12 @@ class ChatbotRunner
 
     private string $turnChannel = 'api';
 
+    /** A test run (Phase 1.6): no diagnostics rows, knowledge gaps or cached answers. */
+    private bool $evaluating = false;
+
+    /** @var array<string,mixed> Why the last turn ended, as its diagnostics row would record it. */
+    private array $lastTurn = [];
+
     public function __construct(
         private LlmGateway $llmGateway,
         private EmbeddingStore $embedStore,
@@ -62,6 +68,29 @@ class ChatbotRunner
         private SmartBotRetrievalPolicy $retrievalPolicy,
         private LiveProductAnswerService $liveProducts,
     ) {}
+
+    /**
+     * A copy that answers as in production but leaves no trace in the
+     * workspace: used by the answer-quality test set, which is platform-billed
+     * through LlmGateway::evaluating().
+     */
+    public function forEvaluation(): static
+    {
+        $runner = clone $this;
+        $runner->evaluating = true;
+
+        return $runner;
+    }
+
+    /**
+     * Why the last turn ended and how: reason code, engine, trace, model.
+     *
+     * @return array<string,mixed>
+     */
+    public function lastTurnContext(): array
+    {
+        return $this->lastTurn;
+    }
 
     /** @return array{reply:string|null,tokens_used:int,resources:array<int,array<string,mixed>>,display_body?:string,quick_replies?:array<int,array{id:string,label:string}>,answer_origin?:string,response_mode?:string,citations?:array<int,array{title:string,url:string}>,product_facts?:array<int,array<string,mixed>>,intent?:string} */
     public function run(AiChatbot $bot, Message $inboundMessage, bool $throwProviderErrors = false): array
@@ -1407,7 +1436,7 @@ PROMPT;
     private function storeAnswerCache(AiChatbot $bot, string $question, int $revisionId, array $result): void
     {
         // Choices depend on the current dialogue; do not reuse them for other visitors.
-        if (! empty($result['quick_replies'])) {
+        if ($this->evaluating || ! empty($result['quick_replies'])) {
             return;
         }
         $normalized = $this->normalizeQuestion($question);
@@ -1748,6 +1777,9 @@ PROMPT;
 
     private function recordGap(AiChatbot $bot, int $workspaceId, string $question, float $score): void
     {
+        if ($this->evaluating) {
+            return;
+        }
         $normalized = $this->normalizeQuestion($question);
         $gap = AiKbKnowledgeGap::firstOrNew([
             'kb_id' => $bot->ai_kb_id,
@@ -1800,7 +1832,7 @@ PROMPT;
         int $completionTokens,
         array $metadata,
     ): void {
-        AiKbRetrievalDiagnostic::create([
+        $attributes = [
             'workspace_id' => $workspaceId,
             'kb_id' => $bot->ai_kb_id,
             'chatbot_id' => $bot->id,
@@ -1833,7 +1865,11 @@ PROMPT;
             'latency_ms' => $metadata['latency_ms'] ?? null,
             'engine' => $metadata['engine'] ?? 'v1',
             'trace' => $metadata['trace'] ?? null,
-        ]);
+        ];
+        $this->lastTurn = $attributes;
+        if (! $this->evaluating) {
+            AiKbRetrievalDiagnostic::create($attributes);
+        }
     }
 
     private function businessAwareEnabled(): bool
