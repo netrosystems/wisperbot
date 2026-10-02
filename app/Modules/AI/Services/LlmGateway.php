@@ -74,10 +74,16 @@ class LlmGateway
             $model = $opts['model'] ?? $model;
             $response = $resolved['client']->chat($messages, $opts);
             $valid = ! is_callable($responseValidator) || $responseValidator($response);
-            // Model output varies between samples. When the caller confirms a
-            // rejected reply was a genuine attempt (not a deliberate refusal), one
-            // more sample is drawn under the same reservation, so it is charged once.
-            if (! $valid && is_callable($retryRejected) && trim($response->content) !== '' && $retryRejected($response)) {
+            // A reply cut off by its output budget (often spent on reasoning) is
+            // drawn once more with double the budget, under the same reservation.
+            if ($response->truncated() && (! $valid || trim($response->content) === '')) {
+                $opts['max_tokens'] = min(4096, 2 * (int) ($opts['max_tokens'] ?? 1024));
+                $response = $resolved['client']->chat($messages, $opts);
+                $valid = ! is_callable($responseValidator) || $responseValidator($response);
+            } elseif (! $valid && is_callable($retryRejected) && trim($response->content) !== '' && $retryRejected($response)) {
+                // Model output varies between samples. When the caller confirms a
+                // rejected reply was a genuine attempt (not a deliberate refusal), one
+                // more sample is drawn under the same reservation, so it is charged once.
                 $response = $resolved['client']->chat($messages, $opts);
                 $valid = $responseValidator($response);
             }

@@ -13,6 +13,7 @@ class AiKbRetrievalDiagnostic extends Model
         'intent', 'answer_origin', 'response_mode', 'retrieval_strategy', 'semantic_score',
         'lexical_score', 'acceptance_reason', 'research_outcome', 'research_latency_ms',
         'citations', 'product_diagnostics', 'credit_result',
+        'reason_code', 'channel', 'model', 'finish_reason', 'latency_ms',
     ];
 
     protected function casts(): array
@@ -23,6 +24,7 @@ class AiKbRetrievalDiagnostic extends Model
             'best_score' => 'float',
             'semantic_score' => 'float',
             'lexical_score' => 'float',
+            'latency_ms' => 'integer',
         ];
     }
 }

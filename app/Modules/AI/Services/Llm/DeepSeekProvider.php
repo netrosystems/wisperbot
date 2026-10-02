@@ -38,6 +38,7 @@ class DeepSeekProvider implements LlmProviderInterface
             completionTokens: $json['usage']['completion_tokens'] ?? 0,
             model: $json['model'] ?? $this->chatModel,
             latencyMs: (int) ((microtime(true) - $start) * 1000),
+            finishReason: LlmResponse::normalizeFinishReason($json['choices'][0]['finish_reason'] ?? null),
         );
     }
 

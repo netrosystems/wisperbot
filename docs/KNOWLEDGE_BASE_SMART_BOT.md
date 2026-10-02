@@ -271,10 +271,24 @@ The website widget shows the reply text first and then a “▶ See Tutorial →
 
 - **Website chat replies run on the `ai` queue** (`ProcessWebchatAiReplyJob`, 120-second timeout, one attempt), like WhatsApp/Messenger/email. Previously they ran inside the visitor's send request, and a slow model or approved-source fetch could exceed PHP's 30-second limit and lose the reply. The widget receives the reply by poll or realtime as before.
 - **Structured outputs.** OpenAI chat calls send the strict `smart_bot_reply` JSON schema (`reply`, `quick_replies`, `grounded`, `response_type`, `show_video`, all required), so no decision key can be omitted. Models that reject structured outputs (HTTP 400) are retried once in plain JSON mode. Other providers keep JSON mode.
-- **One retry.** When a reply fails validation but was a genuine attempt (non-empty reply), the gateway draws one more sample under the same credit reservation, so it is charged once. A deliberate empty “cannot answer” is not retried.
+- **One retry.** When a reply fails validation but was a genuine attempt (non-empty reply), the gateway draws one more sample under the same credit reservation, so it is charged once. A deliberate empty “cannot answer” is not retried by the gateway (see the guidance retry below).
 - **Cross-language retrieval.** When a message is probably not English (non-Latin script, or no English function words, as in romanized Bengali), `KnowledgeRetrievalService::englishSearchQuery()` rewrites it into a short English search query (0-credit `kb_search_translation` action, cached per workspace and message). The query is **added** to the search, never substituted, so a Knowledge Base in the customer's own language still matches directly; the legacy path keeps whichever search scores better. Replies stay in the customer's language and script: romanized input is answered in Latin letters.
 - **Rate limits.** Zero-credit internal steps no longer count toward the per-minute managed request budget (10/min on plans up to 100 credits, otherwise 30/min), because they belong to a customer action that is already counted. The concurrency cap still applies.
 - **Roman Bangla social phrases** (for example “kemon acho”, “assalamualaikum”, “dhonnobad”, “thik ache”, “allah hafez”) are handled as greetings, thanks, acknowledgements, or goodbyes when business-aware routing is on.
+
+### Fewer silent and needless fallbacks (2026-10-02)
+
+Smart Bot 2.0 Phase 0 ([plan](SMART_BOT_2_PLAN.md)). Measured with `ai:smart-bot-report` (see [Turn reasons](#turn-reasons-2026-10-02)).
+
+- **Reply budget.** A Smart Bot reply may use `chatbot.reply_max_tokens` (`SMART_BOT_REPLY_MAX_TOKENS`, default 600, kept between 500 and 2000); it was 320, which 70 words of Bangla plus choices could exceed, so the cut-off JSON failed to parse.
+- **Cut-off replies.** Providers report a normalised `finish_reason`. When a reply stops at its budget (`length`) and is empty or invalid, `LlmGateway` asks once more with double the budget (at most 4096) under the same credit reservation.
+- **Reasoning and thinking tokens.** These come out of the same budget. OpenAI `gpt-5`, `gpt-5-mini`, `gpt-5-nano` send `reasoning_effort: minimal`, later `gpt-5.x` models `none`, and o-series models `low` (with `max_completion_tokens` and no temperature). Gemini 2.5 Flash sends `thinkingBudget: 0` and Gemini 3 `thinkingLevel: low`, and thought parts are never shown. A model that rejects the setting (HTTP 400) is asked again without it.
+- **Every system message reaches Anthropic and Gemini.** Both providers kept only the last system message, so in chats longer than six turns the history summary from `boundedHistory()` replaced the rules and knowledge. They now join all system messages in order. Anthropic replies join all text blocks.
+- **Guidance retry.** When the model declines a business question because the passages do not answer it (empty, ungrounded reply), a bot with answer scope Business only (`answer_scope=business_only`, the default) asks once more with the business-guidance prompt instead of sending the fallback. It needs a meaningful business profile. The reply may not state any figure that is not in the business profile or the customer's message. It is a separate credit reservation (key `…:guidance`); the declined call was refunded, so the turn is still charged once. Verified-sources-only bots never get it. `SMART_BOT_GUIDANCE_RETRY=false` turns it off. Diagnostics reason `answered_guidance`.
+- **Figure check.** `hasUnsupportedFigures()` also reads Arabic-Indic, Persian and Devanagari digits, South Asian grouping (`1,50,000`), “24/7” as 24 hours, “percent” as `%`, and “hr”/“hrs” as hours.
+- **Follow-up search.** A short follow-up no longer adds the bot's own fallback reply to the search query; such turns are recognised by `answer_origin`/`response_mode` or by matching a known fallback text.
+- **Never silent.** When the Smart Bot produces no reply on a channel or the website chat (provider error, empty reply), `ProcessChannelAiReplyJob` and `ProcessWebchatAiReplyJob` send a holding reply in the customer's script (Bengali, Arabic, Devanagari, otherwise English; `AiHoldingReply`) and hand the conversation to the team (`HumanHandoffService`, reason `ai_unavailable`, which pauses the AI and notifies available members). Before, the customer received nothing.
+- **Not changed yet:** the retrieval cut-off stays 0.60 (`KB_RETRIEVAL_MATCH_THRESHOLD`; the managed policy allows 0.45–0.85). Lower it only after the baseline report shows how many `no_context` turns score between 0.45 and 0.60.
 
 Measured on the Telzen Knowledge Base: before this change, “Kivabe esim pabo?”, “data kaj korche na”, and “ইসিম কিভাবে ইনস্টল করব” all fell back (meaning scores 0.21–0.25). With the English search query they reach `answer`/`clarification` from the client's document (0.42–0.69).
 
@@ -336,6 +350,27 @@ One logical answer is charged once. Internal classification, provider retries, d
 
 Management diagnostics may record intent, answer origin, response mode, retrieval strategy, semantic/lexical score summaries, acceptance reason, research outcome, latency, citation URLs, and credit result.
 
+### Turn reasons (2026-10-02)
+
+Every `ChatbotRunner::run()` and `runForApi()` turn writes one `ai_kb_retrieval_diagnostics` row, whatever the flags, including bots without a Knowledge Base (`kb_id` is then null). Public comment replies are not included. Each row has a `reason_code`, the `channel` (the inbound message channel, or `api`), and, when the model was called, `model`, `finish_reason` (`stop`, `length`, `content_filter` or the provider's own value) and `latency_ms`. A failure to write the row is reported and never blocks the reply.
+
+| `reason_code` | Meaning |
+|---|---|
+| `answered` | The model's reply was sent (`response_mode` tells answer from clarification). |
+| `answered_guidance` | The model declined, and the one-time guidance retry answered instead. |
+| `answered_cached` | Exact FAQ, exact cache or semantic cache answer; no model call. |
+| `conversation`, `offer` | Zero-credit greeting/thanks or offer reply. |
+| `live_product` | Live product fact reply. |
+| `no_context` | No passage passed the retrieval cut-off on a knowledge-only bot; the model was not called. `best_score` is kept. |
+| `retrieval_error` | Retrieval failed, then the turn fell back as above. |
+| `out_of_scope`, `research_empty` | Business-aware routing sent the turn to the fallback. |
+| `kb_unpublished` | Guarded publishing is on and the Knowledge Base has no published revision. |
+| `empty_reply` | The model returned nothing (often `finish_reason=length`). Refunded. |
+| `declined_empty`, `ungrounded_reply`, `unsupported_figures`, `unparseable_reply` | The reply failed validation (`declined_empty` is the model's deliberate empty “cannot answer”). Refunded. |
+| `provider_error`, `credits_unavailable` | The provider call failed, or no credits could be reserved. |
+
+`php artisan ai:smart-bot-report [--days=14] [--workspace=ID] [--json]` reads these rows back (read-only): answered and fallback rates, reasons, answer origins, channels, models, finish reasons, p50/p95 model latency, the best scores of `no_context` turns (how many would pass a 0.45 cut-off), the `chatbot_reply` credit ledger, and the current flag values. Rows older than 90 days are deleted daily at 03:10 (`prune-smart-bot-diagnostics`).
+
 Do not store or expose provider secrets, hidden prompts, embeddings, complete retrieved/fetched context, generated customer content beyond normal message storage, or cross-tenant examples. Public widget responses receive only safe customer-facing metadata.
 
 The Knowledge Base tester may show Answer/Clarification/Fallback, compact Meaning/Wording confidence, and selected passage summaries. It must not expose embeddings or hidden prompts.
@@ -394,3 +429,5 @@ At minimum, cover:
 - JavaScript widget renderer: `public/widget/wisperbot-chat-widget.js`
 - Smart Bot client settings: `resources/js/Pages/AI/Chatbots/Index.jsx`
 - Knowledge Base tester: `resources/js/Pages/AI/KnowledgeBases/Show.jsx`
+- Turn report: `app/Console/Commands/SmartBotReportCommand.php` (`ai:smart-bot-report`)
+- Holding reply when the bot produces nothing: `app/Modules/Inbox/Services/AiHoldingReply.php`

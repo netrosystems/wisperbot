@@ -19,12 +19,14 @@ class GeminiProvider implements LlmProviderInterface
         $start = microtime(true);
         $model = $opts['model'] ?? $this->chatModel;
 
-        // Extract system instruction separately; remaining turns mapped to user/model
-        $systemInstruction = null;
+        // Every system message becomes part of the system instruction, in order:
+        // a later one (such as a history summary) must add to the main
+        // instructions, never replace them. Remaining turns map to user/model.
+        $systemParts = [];
         $contents = [];
         foreach ($messages as $m) {
             if ($m['role'] === 'system') {
-                $systemInstruction = ['parts' => [['text' => $m['content']]]];
+                $systemParts[] = ['text' => (string) $m['content']];
             } else {
                 $contents[] = [
                     'role' => $m['role'] === 'assistant' ? 'model' : 'user',
@@ -40,13 +42,24 @@ class GeminiProvider implements LlmProviderInterface
         if (($opts['json_object'] ?? false) === true) {
             $body['generationConfig']['responseMimeType'] = 'application/json';
         }
-        if ($systemInstruction) {
-            $body['systemInstruction'] = $systemInstruction;
+        if ($systemParts !== []) {
+            $body['systemInstruction'] = ['parts' => $systemParts];
+        }
+        // Thinking tokens come out of the same output budget, so a short reply
+        // budget could be spent before any answer is written.
+        if (($thinking = $this->thinkingConfig($model)) !== null) {
+            $body['generationConfig']['thinkingConfig'] = $thinking;
         }
 
-        $resp = Http::withHeaders(['x-goog-api-key' => $this->apiKey])
-            ->retry(2, 500)->timeout(60)
-            ->post(self::BASE."/models/{$model}:generateContent", $body);
+        $send = fn (array $payload) => Http::withHeaders(['x-goog-api-key' => $this->apiKey])
+            ->retry(2, 500, throw: false)->timeout(60)
+            ->post(self::BASE."/models/{$model}:generateContent", $payload);
+        $resp = $send($body);
+        if ($resp->status() === 400 && isset($body['generationConfig']['thinkingConfig'])) {
+            // A model that does not accept this thinking setting still answers without it.
+            unset($body['generationConfig']['thinkingConfig']);
+            $resp = $send($body);
+        }
 
         if (! $resp->successful()) {
             throw new \RuntimeException('Gemini chat failed: '.$resp->body());
@@ -54,7 +67,10 @@ class GeminiProvider implements LlmProviderInterface
 
         $json = $resp->json();
         $latency = (int) ((microtime(true) - $start) * 1000);
-        $content = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        $content = implode('', array_map(
+            fn (array $part): string => ($part['thought'] ?? false) === true ? '' : (string) ($part['text'] ?? ''),
+            array_filter($json['candidates'][0]['content']['parts'] ?? [], 'is_array'),
+        ));
         $meta = $json['usageMetadata'] ?? [];
 
         return new LlmResponse(
@@ -63,7 +79,18 @@ class GeminiProvider implements LlmProviderInterface
             completionTokens: $meta['candidatesTokenCount'] ?? 0,
             model: $model,
             latencyMs: $latency,
+            finishReason: LlmResponse::normalizeFinishReason($json['candidates'][0]['finishReason'] ?? null),
         );
+    }
+
+    /** @return array<string,int|string>|null */
+    private function thinkingConfig(string $model): ?array
+    {
+        return match (true) {
+            str_starts_with($model, 'gemini-2.5-flash') => ['thinkingBudget' => 0],
+            str_starts_with($model, 'gemini-3') => ['thinkingLevel' => 'low'],
+            default => null,
+        };
     }
 
     public function embed(array $texts): array

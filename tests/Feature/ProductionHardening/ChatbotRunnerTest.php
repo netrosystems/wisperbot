@@ -149,7 +149,7 @@ class ChatbotRunnerTest extends TestCase
         $this->assertStringContainsString('Reply in the customer\'s language', $capturedSystemPrompt);
         $this->assertStringContainsString('Never substitute general knowledge for business facts', $capturedSystemPrompt);
         $this->assertStringContainsString('Markdown link', $capturedSystemPrompt);
-        $this->assertSame(320, $capturedMaxTokens);
+        $this->assertSame(600, $capturedMaxTokens);
     }
 
     public function test_knowledge_only_bot_bypasses_an_unrelated_question_without_calling_chat(): void
