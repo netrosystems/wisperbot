@@ -6,7 +6,9 @@ use App\Events\MessageSent;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Services\AiCreditService;
 use App\Modules\AI\Services\ChatbotRunner;
+use App\Modules\Inbox\Services\AiHoldingReply;
 use App\Modules\Inbox\Services\EmailAiMessageGuard;
+use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Conversation;
@@ -46,6 +48,8 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
         ChatbotRunner $runner,
         ChannelManager $channels,
         AiCreditService $credits,
+        AiHoldingReply $holding,
+        HumanHandoffService $handoff,
     ): void {
         $lock = Cache::lock('conversation-ai-generation:'.$this->conversationId, 150);
         if (! $lock->get()) {
@@ -94,17 +98,30 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
                 $message->body = $emailGuard->promptBody($message);
             }
             $message->setRelation('conversation', $conversation);
-            $result = $runner->run($chatbot, $message, true);
+            // A turn the bot cannot answer is never left silent: the customer is
+            // told a person will reply, and the conversation is handed over.
+            $handOver = false;
+            try {
+                $result = $runner->run($chatbot, $message, true);
+            } catch (\Throwable $e) {
+                $this->storeError($account, 'generation_failed');
+                Log::error('inbox.ai_reply.failed', [
+                    'conversation_id' => $this->conversationId,
+                    'error' => $e->getMessage(),
+                ]);
+                $result = null;
+            }
             $reply = trim((string) ($result['reply'] ?? ''));
-            if ($reply === '') {
-                $this->logDecision('empty_reply', $conversation, $message);
-
-                return;
+            if ($result === null || $reply === '') {
+                $this->logDecision($result === null ? 'generation_failed' : 'empty_reply', $conversation, $message);
+                $result = $holding->result((string) $message->body);
+                $reply = $result['reply'];
+                $handOver = true;
             }
 
-            Cache::lock('conversation-ai-reply:'.$this->conversationId, 150)->block(10, function () use ($channels, $conversation, $credits, $message, $policy, $reply, $result): void {
+            Cache::lock('conversation-ai-reply:'.$this->conversationId, 150)->block(10, function () use ($channels, $conversation, $credits, $message, $policy, $reply, $result, $handOver, $handoff): void {
                 $segment = $policy->segmentFor($conversation->channelAccount);
-                Cache::lock('workspace-ai-policy:'.$conversation->workspace_id.':'.$segment, 150)->block(10, function () use ($channels, $conversation, $credits, $message, $policy, $reply, $result): void {
+                Cache::lock('workspace-ai-policy:'.$conversation->workspace_id.':'.$segment, 150)->block(10, function () use ($channels, $conversation, $credits, $message, $policy, $reply, $result, $handOver, $handoff): void {
                     $conversation->refresh()->load('channelAccount');
                     $latestInboundId = $conversation->messages()->where('direction', 'in')->max('id');
                     $reason = $this->conversationBlockReason($conversation) ?: $policy->decision($conversation->channelAccount);
@@ -113,12 +130,10 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
                         if ($decision === 'superseded') {
                             self::dispatch($conversation->id)->onQueue('ai')->delay(now()->addSeconds(2));
                         }
-                        $credits->refundCompleted(
-                            (int) $conversation->workspace_id,
-                            'chatbot_reply',
-                            'chatbot:message:'.$message->id,
-                            'delivery_'.$decision,
-                        );
+                        // The reply may have come from the guidance retry, under its own key.
+                        foreach (['chatbot:message:'.$message->id, 'chatbot:message:'.$message->id.':guidance'] as $key) {
+                            $credits->refundCompleted((int) $conversation->workspace_id, 'chatbot_reply', $key, 'delivery_'.$decision);
+                        }
                         $this->logDecision($decision, $conversation, $message);
 
                         return;
@@ -174,6 +189,9 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
 
                     $conversation->update(['last_message_at' => now()]);
                     MessageSent::dispatch($botMessage->load('conversation'));
+                    if ($handOver) {
+                        $handoff->request($conversation, AiHoldingReply::HANDOFF_REASON);
+                    }
                 });
             });
         } catch (LockTimeoutException) {

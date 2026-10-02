@@ -36,6 +36,10 @@ class ChatbotRunner
         ],
     ];
 
+    private const HANDOFF_FALLBACK = 'I do not have a verified answer for that yet. Would you like me to connect you with a person?';
+
+    private const CLARIFY_FALLBACK = 'I can help with questions about this business, but I could not find verified information for that. Could you share a relevant product or service detail, or would you like human help?';
+
     /** The last model reply this turn, kept so a rejected turn can say why. */
     private ?LlmResponse $lastResponse = null;
 
@@ -133,7 +137,7 @@ class ChatbotRunner
         $retrievalQuestion = $hybridRetrieval
             ? $body
             : (($guarded || $knowledgeOnly)
-            ? $this->retrievalQuestion($body, $history)
+            ? $this->retrievalQuestion($bot, $body, $history)
             : $body);
         $retrieval = [
             'context' => '',
@@ -311,12 +315,15 @@ class ChatbotRunner
         $retrieval['customer_tokens'] = (int) ceil(mb_strlen($body) / 4);
 
         // 4. Call LLM
+        $idempotencyKey = $inboundMessage->exists
+            ? 'chatbot:message:'.$inboundMessage->getKey()
+            : 'chatbot:interactive:'.(string) Str::uuid();
         try {
             $response = $this->llmGateway->chat(
                 $workspaceId,
                 $messages,
                 [
-                    'max_tokens' => 320,
+                    'max_tokens' => $this->replyBudget(),
                     'temperature' => $bot->kb_exact_wording ? 0.2 : 0.4,
                     'json_object' => true,
                     'json_schema' => self::REPLY_SCHEMA,
@@ -330,9 +337,7 @@ class ChatbotRunner
                         'citation_count' => count($citations),
                     ]),
                     'feature' => 'chatbot_reply',
-                    'idempotency_key' => $inboundMessage->exists
-                        ? 'chatbot:message:'.$inboundMessage->getKey()
-                        : 'chatbot:interactive:'.(string) Str::uuid(),
+                    'idempotency_key' => $idempotencyKey,
                 ],
                 $bot->id,
                 $conversation->id,
@@ -374,6 +379,9 @@ class ChatbotRunner
 
             return $result;
         } catch (AiOutputRejectedException $e) {
+            if ($strictGrounding && ($guidance = $this->guidanceRetry($bot, $kb, $workspaceId, $revisionId, $messages, $body, $idempotencyKey, $conversation->id, $conversation->contact))) {
+                return $guidance;
+            }
             $this->recordFailedTurn($bot, $workspaceId, $revisionId, $retrieval, $e, $routing['intent'] ?? 'business_question');
             if ($knowledgeOnly) {
                 return $this->unsupportedResult($bot);
@@ -599,7 +607,7 @@ class ChatbotRunner
         $retrievalQuestion = $hybridRetrieval
             ? $message
             : (($guarded || $knowledgeOnly)
-            ? $this->retrievalQuestion($message, $promptHistory)
+            ? $this->retrievalQuestion($bot, $message, $promptHistory)
             : $message);
         $retrieval = [
             'context' => '',
@@ -763,12 +771,13 @@ class ChatbotRunner
         $retrieval['customer_tokens'] = (int) ceil(mb_strlen($message) / 4);
 
         // 4. Call LLM
+        $idempotencyKey ??= 'chatbot:api:'.(string) Str::uuid();
         try {
             $response = $this->llmGateway->chat(
                 $workspaceId,
                 $messages,
                 [
-                    'max_tokens' => 320,
+                    'max_tokens' => $this->replyBudget(),
                     'temperature' => $bot->kb_exact_wording ? 0.2 : 0.4,
                     'json_object' => true,
                     'json_schema' => self::REPLY_SCHEMA,
@@ -782,7 +791,7 @@ class ChatbotRunner
                         'citation_count' => count($citations),
                     ]),
                     'feature' => 'chatbot_reply',
-                    'idempotency_key' => $idempotencyKey ?? 'chatbot:api:'.(string) Str::uuid(),
+                    'idempotency_key' => $idempotencyKey,
                 ],
                 $bot->id,
             );
@@ -823,6 +832,9 @@ class ChatbotRunner
 
             return $result;
         } catch (AiOutputRejectedException $e) {
+            if ($strictGrounding && ($guidance = $this->guidanceRetry($bot, $kb, $workspaceId, $revisionId, $messages, $message, $idempotencyKey, null, null))) {
+                return $guidance;
+            }
             $this->recordFailedTurn($bot, $workspaceId, $revisionId, $retrieval, $e, $routing['intent'] ?? 'business_question');
             if ($knowledgeOnly) {
                 return $this->unsupportedResult($bot);
@@ -1439,6 +1451,98 @@ PROMPT;
             && ($bot->unsupported_answer_action ?? 'clarify_then_handoff') !== 'general';
     }
 
+    /**
+     * The model declined a business question because the passages did not
+     * answer it. On a Balanced bot (answer scope "business only") one more
+     * call asks for general guidance related to the business instead of a dead
+     * end. The guidance prompt forbids company-specific facts, and any figure
+     * not in the business profile or the customer's message fails the reply.
+     * It is a separate credit reservation; the declined call was refunded.
+     *
+     * @param  array<int,array{role:string,content:string}>  $messages
+     * @return array<string,mixed>|null
+     */
+    private function guidanceRetry(
+        AiChatbot $bot,
+        ?AiKnowledgeBase $kb,
+        int $workspaceId,
+        ?int $revisionId,
+        array $messages,
+        string $question,
+        string $idempotencyKey,
+        ?int $conversationId,
+        mixed $contact,
+    ): ?array {
+        if (! config('chatbot.guidance_retry_enabled', true)
+            || $this->rejection !== 'declined_empty'
+            || ($bot->answer_scope ?? 'business_only') !== 'business_only'
+            || ! $kb || ! $this->turnRouter->hasMeaningfulProfile($kb)) {
+            return null;
+        }
+        $declined = [$this->lastResponse, $this->rejection];
+        $evidence = $this->turnRouter->profileText($kb)."\n".$question;
+        $messages[0] = ['role' => 'system', 'content' => $this->systemPrompt($bot, $contact, false, 'business_guidance', $kb, 'answer')];
+
+        try {
+            $response = $this->llmGateway->chat($workspaceId, $messages, [
+                'max_tokens' => $this->replyBudget(),
+                'temperature' => 0.4,
+                'json_object' => true,
+                'json_schema' => self::REPLY_SCHEMA,
+                'response_validator' => function (LlmResponse $response) use ($evidence): bool {
+                    $this->lastResponse = $response;
+                    $this->rejection = null;
+                    $parsed = app(ChatReplyOptions::class)->parse($response->content);
+                    $reply = trim((string) (app(ChatReplyOptions::class)->structuredPayload($response->content)['reply'] ?? ''));
+                    if ($parsed === null || $reply === '') {
+                        $this->rejection = 'declined_empty';
+
+                        return false;
+                    }
+                    if ($this->hasUnsupportedFigures($reply.' '.implode(' ', array_column($parsed['quick_replies'], 'label')), $evidence)) {
+                        $this->rejection = 'unsupported_figures';
+
+                        return false;
+                    }
+
+                    return true;
+                },
+                'diagnostics' => ['intent' => 'business_question', 'answer_origin' => 'business_guidance', 'response_mode' => 'answer', 'guidance_retry' => true],
+                'feature' => 'chatbot_reply',
+                'idempotency_key' => $idempotencyKey.':guidance',
+            ], $bot->id, $conversationId);
+        } catch (\Throwable) {
+            [$this->lastResponse, $this->rejection] = $declined;
+
+            return null;
+        }
+
+        $result = array_merge(app(ChatReplyOptions::class)->parse($response->content, (bool) config('chatbot.quick_replies_enabled')) ?? [], [
+            'tokens_used' => $response->promptTokens + $response->completionTokens,
+            'resources' => [],
+            'answer_origin' => 'business_guidance',
+            'response_mode' => 'answer',
+            'citations' => [],
+        ]);
+        $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], $response->completionTokens, [
+            'reason_code' => 'answered_guidance',
+            'intent' => 'business_question',
+            'answer_origin' => 'business_guidance',
+            'response_mode' => 'answer',
+            'credit_result' => 'charged_once',
+            'model' => $response->model,
+            'finish_reason' => $response->finishReason,
+            'latency_ms' => $response->latencyMs,
+        ]);
+
+        return $this->withoutVideoLinks($result);
+    }
+
+    private function replyBudget(): int
+    {
+        return max(500, min(2000, (int) config('chatbot.reply_max_tokens', 600)));
+    }
+
     private function beginTurn(string $channel): void
     {
         $this->turnChannel = mb_substr($channel, 0, 32);
@@ -1484,7 +1588,12 @@ PROMPT;
         $replyOptions = app(ChatReplyOptions::class);
         $parsed = $replyOptions->parse($content);
         if ($parsed === null) {
-            $this->rejection = trim($content) === '' ? 'empty_reply' : 'unparseable_reply';
+            $declined = is_array($payload = $replyOptions->structuredPayload($content)) && trim((string) ($payload['reply'] ?? '')) === '';
+            $this->rejection = match (true) {
+                trim($content) === '' => 'empty_reply',
+                $declined => 'declined_empty',
+                default => 'unparseable_reply',
+            };
 
             return false;
         }
@@ -1529,6 +1638,15 @@ PROMPT;
         return true;
     }
 
+    /** Digits and separators of other scripts, mapped to ASCII for the figure check. */
+    private const DIGITS = [
+        '০' => '0', '১' => '1', '২' => '2', '৩' => '3', '৪' => '4', '৫' => '5', '৬' => '6', '৭' => '7', '৮' => '8', '৯' => '9',
+        '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+        '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+        '०' => '0', '१' => '1', '२' => '2', '३' => '3', '४' => '4', '५' => '5', '६' => '6', '७' => '7', '८' => '8', '९' => '9',
+        '٫' => '.', '٬' => ',',
+    ];
+
     /**
      * True when the text states a price, quantity, size or duration that does not
      * appear in the evidence. Single-digit counts (step numbers) are ignored
@@ -1537,9 +1655,13 @@ PROMPT;
     private function hasUnsupportedFigures(string $text, string $evidence): bool
     {
         $figures = function (string $value): array {
-            $value = strtr(mb_strtolower($value), ['০' => '0', '১' => '1', '২' => '2', '৩' => '3', '৪' => '4', '৫' => '5', '৬' => '6', '৭' => '7', '৮' => '8', '৯' => '9']);
-            $value = (string) preg_replace('/(?<=\d),(?=\d{3}\b)/u', '', $value);
-            preg_match_all('/([$€£৳₹]\s*)?(\d+(?:\.\d+)?)\s*(gb|mb|tb|kb|tk|taka|usd|bdt|eur|gbp|%|days?|hours?|weeks?|months?|years?|minutes?|mins?)?(?![\w])/u', $value, $matches, PREG_SET_ORDER);
+            $value = strtr(mb_strtolower($value), self::DIGITS);
+            // Thousands separators, including South Asian grouping (1,50,000).
+            $value = (string) preg_replace('/(?<=\d),(?=\d{2,3}\b)/u', '', $value);
+            // The same value written another way: "24/7" states 24 hours.
+            $value = (string) preg_replace('/\b24\s*(?:\/|x|×)\s*7\b/u', '24 hours', $value);
+            $value = (string) preg_replace('/(?<=\d)\s*(?:percent|per cent)\b/u', '%', $value);
+            preg_match_all('/([$€£৳₹¥₨₦₱₩₺₫₪₽﷼]\s*)?(\d+(?:\.\d+)?)\s*(gb|mb|tb|kb|tk|taka|usd|bdt|eur|gbp|inr|pkr|aed|sar|%|days?|hours?|hrs?|weeks?|months?|years?|minutes?|mins?)?(?![\w])/u', $value, $matches, PREG_SET_ORDER);
             $found = [];
             foreach ($matches as $match) {
                 $number = str_contains($match[2], '.') ? rtrim(rtrim($match[2], '0'), '.') : ltrim($match[2], '0');
@@ -1548,6 +1670,7 @@ PROMPT;
                 $unit = match (true) {
                     in_array($unit, ['tk', 'taka', 'bdt'], true) => 'bdt',
                     str_starts_with($unit, 'min') => 'minute',
+                    in_array($unit, ['hr', 'hrs'], true) => 'hour',
                     $unit !== '' && ! in_array($unit, ['gb', 'mb', 'tb', 'kb', 'usd', 'eur', 'gbp', '%'], true) => rtrim($unit, 's'),
                     default => $unit,
                 };
@@ -1610,16 +1733,25 @@ PROMPT;
      * the right passage. A substantive new topic must stand alone so an earlier
      * business conversation cannot make an unrelated request appear relevant.
      *
-     * @param  array<int,array{role?:string,content?:string}>  $history
+     * The bot's own fallback replies are left out: they share no words with the
+     * customer's topic and would steer the search toward nothing.
+     *
+     * @param  array<int,array{role?:string,content?:string,answer_origin?:mixed,response_mode?:mixed}>  $history
      */
-    private function retrievalQuestion(string $current, array $history): string
+    private function retrievalQuestion(AiChatbot $bot, string $current, array $history): string
     {
         if (count($this->meaningfulTerms($current)) >= 3 || mb_strlen(trim($current)) > 90 || $history === []) {
             return $current;
         }
 
+        $fallbacks = array_filter([self::HANDOFF_FALLBACK, self::CLARIFY_FALLBACK, trim((string) $bot->fallback_reply)]);
         $nearby = array_slice(array_values(array_filter($history, fn ($turn) => in_array($turn['role'] ?? null, ['user', 'assistant'], true)
             && trim((string) ($turn['content'] ?? '')) !== ''
+            && ! ($turn['role'] === 'assistant' && (
+                ($turn['answer_origin'] ?? null) === 'fallback'
+                || in_array($turn['response_mode'] ?? null, ['fallback', 'handoff'], true)
+                || in_array(trim((string) $turn['content']), $fallbacks, true)
+            ))
         )), -2);
         if ($nearby === []) {
             return $current;
@@ -1645,8 +1777,8 @@ PROMPT;
             ? ($bot->unsupported_fallback_action ?? 'clarify_then_handoff')
             : ($bot->unsupported_answer_action ?? 'clarify_then_handoff');
         $reply = match ($fallbackAction) {
-            'handoff' => $bot->fallback_reply ?: 'I do not have a verified answer for that yet. Would you like me to connect you with a person?',
-            default => 'I can help with questions about this business, but I could not find verified information for that. Could you share a relevant product or service detail, or would you like human help?',
+            'handoff' => $bot->fallback_reply ?: self::HANDOFF_FALLBACK,
+            default => self::CLARIFY_FALLBACK,
         };
 
         return $this->withAnswerMetadata(['reply' => $reply, 'tokens_used' => 0, 'resources' => []], 'fallback', [], 'fallback');

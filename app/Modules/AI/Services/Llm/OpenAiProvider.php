@@ -29,8 +29,11 @@ class OpenAiProvider implements LlmProviderInterface
             'model' => $model,
             'messages' => $messages,
         ];
-        if (str_starts_with($model, 'gpt-5')) {
+        if (($effort = $this->reasoningEffort($model)) !== null) {
+            // Reasoning tokens come out of the same budget as the reply, so a
+            // short reply budget is spent thinking unless the effort is kept low.
             $payload['max_completion_tokens'] = $opts['max_tokens'] ?? 1024;
+            $payload['reasoning_effort'] = $opts['reasoning_effort'] ?? $effort;
         } else {
             $payload['max_tokens'] = $opts['max_tokens'] ?? 1024;
             $payload['temperature'] = $opts['temperature'] ?? 0.7;
@@ -46,13 +49,22 @@ class OpenAiProvider implements LlmProviderInterface
         try {
             $resp = $send($payload);
         } catch (RequestException $e) {
-            // Some models (for example a client's own older model) reject
-            // structured outputs; plain JSON mode keeps them working.
-            if ($e->response->status() !== 400 || ($payload['response_format']['type'] ?? null) !== 'json_schema') {
+            if ($e->response->status() !== 400) {
                 throw $e;
             }
-            $payload['response_format'] = ['type' => 'json_object'];
-            $resp = $send($payload);
+            // A model that does not accept this reasoning effort still answers
+            // with its default one.
+            if (isset($payload['reasoning_effort']) && str_contains($e->response->body(), 'reasoning_effort')) {
+                unset($payload['reasoning_effort']);
+                $resp = $send($payload);
+            } elseif (($payload['response_format']['type'] ?? null) === 'json_schema') {
+                // Some models (for example a client's own older model) reject
+                // structured outputs; plain JSON mode keeps them working.
+                $payload['response_format'] = ['type' => 'json_object'];
+                $resp = $send($payload);
+            } else {
+                throw $e;
+            }
         }
 
         if (! $resp->successful()) {
@@ -70,6 +82,20 @@ class OpenAiProvider implements LlmProviderInterface
             latencyMs: $latency,
             finishReason: LlmResponse::normalizeFinishReason($json['choices'][0]['finish_reason'] ?? null),
         );
+    }
+
+    /**
+     * The lowest reasoning effort each reasoning model family accepts, or null
+     * for a model without reasoning (which takes max_tokens and temperature).
+     */
+    private function reasoningEffort(string $model): ?string
+    {
+        return match (true) {
+            (bool) preg_match('/^gpt-5(-mini|-nano)?(-\d{4}-\d{2}-\d{2})?$/', $model) => 'minimal',
+            str_starts_with($model, 'gpt-5') => 'none',
+            (bool) preg_match('/^o\d/', $model) => 'low',
+            default => null,
+        };
     }
 
     public function embed(array $texts): array

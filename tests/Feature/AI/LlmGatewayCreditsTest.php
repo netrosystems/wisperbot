@@ -68,6 +68,24 @@ class LlmGatewayCreditsTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_a_reply_cut_off_by_its_budget_is_retried_once_with_double_budget_and_charged_once(): void
+    {
+        $workspace = $this->workspaceWithCredits(5);
+        $this->managedOpenAi();
+        $cutOff = ['choices' => [['message' => ['content' => ''], 'finish_reason' => 'length']], 'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 300], 'model' => 'gpt-4o-mini'];
+        Http::fake(['api.openai.com/*' => Http::sequence()->push($cutOff)->push($this->openAiResponse('Hello'))]);
+
+        $response = app(LlmGateway::class)->chat($workspace->id, [['role' => 'user', 'content' => 'Hi']], [
+            'feature' => 'chatbot_reply', 'idempotency_key' => 'cut-off', 'max_tokens' => 300,
+        ]);
+
+        $this->assertSame('Hello', $response->content);
+        $budgets = collect(Http::recorded())->map(fn ($pair) => $pair[0]['max_tokens'] ?? $pair[0]['max_completion_tokens'])->all();
+        $this->assertSame([300, 600], $budgets);
+        $this->assertSame('succeeded', AiCreditLedger::sole()->status);
+        $this->assertSame(1, AiCreditLedger::sole()->credits);
+    }
+
     public function test_empty_generation_is_refunded_not_charged_as_success(): void
     {
         $workspace = $this->workspaceWithCredits(100);

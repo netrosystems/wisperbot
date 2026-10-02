@@ -17,16 +17,19 @@ class AnthropicProvider implements LlmProviderInterface
     {
         $start = microtime(true);
 
-        // Anthropic separates the system turn from the conversation turns
-        $system = null;
+        // Anthropic takes one system prompt separate from the turns. Every system
+        // message is kept, in order: a later one (such as a history summary)
+        // must add to the main instructions, never replace them.
+        $systemParts = [];
         $turns = [];
         foreach ($messages as $m) {
             if ($m['role'] === 'system') {
-                $system = $m['content'];
+                $systemParts[] = (string) $m['content'];
             } else {
                 $turns[] = ['role' => $m['role'], 'content' => $m['content']];
             }
         }
+        $system = $systemParts === [] ? null : implode("\n\n", $systemParts);
 
         $body = [
             'model' => $opts['model'] ?? $this->chatModel,
@@ -49,7 +52,10 @@ class AnthropicProvider implements LlmProviderInterface
 
         $json = $resp->json();
         $latency = (int) ((microtime(true) - $start) * 1000);
-        $content = $json['content'][0]['text'] ?? '';
+        $content = implode('', array_map(
+            fn (array $block): string => ($block['type'] ?? 'text') === 'text' ? (string) ($block['text'] ?? '') : '',
+            array_filter($json['content'] ?? [], 'is_array'),
+        ));
 
         return new LlmResponse(
             content: $content,
@@ -57,6 +63,7 @@ class AnthropicProvider implements LlmProviderInterface
             completionTokens: $json['usage']['output_tokens'] ?? 0,
             model: $json['model'] ?? $this->chatModel,
             latencyMs: $latency,
+            finishReason: LlmResponse::normalizeFinishReason($json['stop_reason'] ?? null),
         );
     }
 

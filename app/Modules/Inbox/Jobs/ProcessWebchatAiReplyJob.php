@@ -5,6 +5,8 @@ namespace App\Modules\Inbox\Jobs;
 use App\Events\MessageSent;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Services\ChatbotRunner;
+use App\Modules\Inbox\Services\AiHoldingReply;
+use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Shared\Models\Message;
 use App\Modules\Shared\Services\ChannelManager;
 use Illuminate\Bus\Queueable;
@@ -35,7 +37,7 @@ class ProcessWebchatAiReplyJob implements ShouldQueue
         $this->onQueue('ai');
     }
 
-    public function handle(ChatbotRunner $runner, ChannelManager $channels): void
+    public function handle(ChatbotRunner $runner, ChannelManager $channels, AiHoldingReply $holding, HumanHandoffService $handoff): void
     {
         $message = Message::with('conversation')->find($this->messageId);
         $conversation = $message?->conversation;
@@ -45,10 +47,24 @@ class ProcessWebchatAiReplyJob implements ShouldQueue
         }
 
         try {
-            $result = $runner->run($chatbot, $message);
-            $reply = $result['reply'] ?? null;
-            if ($reply === null) {
-                return;
+            // A turn the bot cannot answer is never left silent: the visitor is
+            // told a person will reply, and the conversation is handed over.
+            $handOver = false;
+            try {
+                $result = $runner->run($chatbot, $message);
+            } catch (\Throwable $e) {
+                Log::error('Webchat AI reply failed', [
+                    'message_id' => $message->id,
+                    'chatbot_id' => $chatbot->id,
+                    'error' => $e->getMessage(),
+                ]);
+                $result = null;
+            }
+            $reply = trim((string) ($result['reply'] ?? ''));
+            if ($result === null || $reply === '') {
+                $result = $holding->result((string) $message->body);
+                $reply = $result['reply'];
+                $handOver = true;
             }
 
             $botMessage = Message::create([
@@ -85,6 +101,9 @@ class ProcessWebchatAiReplyJob implements ShouldQueue
             $conversation->update(['last_message_at' => now()]);
             $botMessage->load('conversation');
             MessageSent::dispatch($botMessage);
+            if ($handOver) {
+                $handoff->request($conversation, AiHoldingReply::HANDOFF_REASON);
+            }
         } catch (\Throwable $e) {
             Log::error('Webchat AI reply failed', [
                 'message_id' => $message->id,

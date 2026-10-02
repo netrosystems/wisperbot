@@ -171,12 +171,12 @@ Legend: ☐ to do · ☑ done · ↻ port from Cerqle (path in Cerqle's `app/Mod
 
 **Fix the fallback bugs** (each with a test)
 - ☐ Recalibrate the retrieval cut-off (for example 0.60 → 0.45, clarification 0.30), confirmed against the baseline. Cerqle lowered its cut-off the same way (0.72 → 0.45), and the four test questions that had fallen back were then answered.
-- ☐ Reply budget at least 500 tokens (800 for detailed); handle `finish_reason` and retry an empty or cut-off reply once with double budget in the same reservation; `reasoning_effort: minimal` for `gpt-5*`/o-series; thinking budget for Gemini.
-- ☐ Anthropic and Gemini keep **every** system block (merge them instead of keeping the last).
-- ☐ An empty, ungrounded reply on a Balanced bot gets one retry with the guidance step, instead of an instant fallback.
-- ☐ The figure check accepts the same value written differently (digits in any script, "24/7", currency symbol versus code).
-- ☐ Follow-up queries never include the bot's own fallback text.
-- ☐ The channel reply job never drops a reply silently: a provider failure sends a holding reply in the customer's language and hands over.
+- ☑ (2026-10-02) Reply budget at least 500 tokens (800 for detailed); handle `finish_reason` and retry an empty or cut-off reply once with double budget in the same reservation; `reasoning_effort: minimal` for `gpt-5*`/o-series; thinking budget for Gemini.
+- ☑ (2026-10-02) Anthropic and Gemini keep **every** system block (merge them instead of keeping the last).
+- ☑ (2026-10-02, Balanced = answer scope Business only until Phase 1 adds the setting) An empty, ungrounded reply on a Balanced bot gets one retry with the guidance step, instead of an instant fallback.
+- ☑ (2026-10-02) The figure check accepts the same value written differently (digits in any script, "24/7", currency symbol versus code).
+- ☑ (2026-10-02) Follow-up queries never include the bot's own fallback text.
+- ☑ (2026-10-02, website chat too) The channel reply job never drops a reply silently: a provider failure sends a holding reply in the customer's language and hands over.
 
 **Acceptance:** fallback rate measured before and after; no increase in invented figures on the eval set (Phase 1 builds it, so use a hand-written list of 30 questions here).
 
