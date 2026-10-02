@@ -218,7 +218,7 @@
                     // Pixel; the SDK is only needed for Meta login dialogs.
                     autoLogAppEvents: false,
                     xfbml: false,
-                    version: 'v20.0',
+                    version: 'v25.0',
                 });
                 window.__fbSdkReady = true;
             };
