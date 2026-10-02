@@ -42,6 +42,8 @@ class MetaSocialOAuthScopeTest extends TestCase
                 'client_id' => 'meta-app-id',
                 'client_secret' => 'meta-app-secret',
             ]));
+        // Without a Login for Business configuration the personal-login scopes apply.
+        $resolver->shouldReceive('meta')->andReturn(null);
 
         $url = (new OAuthManager($resolver))->getAuthUrl(
             $network,
