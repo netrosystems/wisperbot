@@ -398,6 +398,29 @@ A second answer engine, after Cerqle's accepted engine v2. A bot answers with it
 
 **Diagnostics.** Rows carry `engine` (`v1`/`v2`) and, for v2, `trace` (mode, planner queries, answer kind, used sources, support check, shadow findings, second look, passages and scores). Extra reason codes: `answered_regenerated`, `model_clarification`, `model_handoff`, `clarified_twice`, `rejected_reply`, `account_specific`, `replayed`.
 
+## Answer-quality test set (Smart Bot 2.0 Phase 1.6, 2026-10-03)
+
+A per-bot set of test questions, scored the same way every run, so engine v1 and v2 (and any prompt or model change) can be compared before customers see the difference. After Cerqle's test set. Migration `2026_10_03_000200_create_ai_eval_tables` adds `ai_eval_cases`, `ai_eval_runs` and `ai_eval_results`.
+
+**Writing questions** (`php artisan ai:eval:synthesize {bot} [--count=60] [--languages=bn,bn-Latn,ar|none] [--fresh] [--dry-run]`, `EvalCaseSynthesizer`):
+- the bot's Knowledge Base tester questions (`ai_kb_test_cases`), with the facts the client listed;
+- real unanswered questions (`ai_kb_knowledge_gaps`, most asked first; ignored ones left out), labelled answerable or not from the passages the bot's search finds;
+- questions written from live passages, spread across documents, about one in four with a follow-up; each expected fact (at most 6 words) is kept only if it appears in its passage;
+- questions about the business the knowledge does not answer, kept only when the passages found do not answer them;
+- some answerable questions translated (romanised Bangla included), keeping only their figures as facts.
+
+`php artisan ai:eval:cases {bot} [--retire=ID ...] [--all]` lists and retires questions. A case is deleted with its bot, its gap or its tester question.
+
+**Running** (`php artisan ai:eval {bot} [--judge] [--byok] [--limit=N] [--json]`, `EvalRunner`): each question goes through the bot's real answer path (`ChatbotRunner::forEvaluation()->runForApi()`, engine v1 or v2 as set) inside `LlmGateway::evaluating()`, so no credit reservation, ledger row, `ai_runs` row, usage meter, diagnostics row, knowledge gap or cached answer is written. A workspace on its own AI key refuses to run without `--byok`, because the test would bill the client's provider. Writing questions and the optional judge use `LlmGateway::platformChat()` (WisperBot's managed model; only `chatbot.eval.platform_features`).
+
+**Scoring** (`EvalScorer`, deterministic):
+- an answerable question passes when the bot answered (not a fallback, clarification or handoff) and every expected fact is in the reply (figures by their digits, word facts by 80% of their key words);
+- an unanswerable one passes when the bot declined, asked, offered a person, or gave guidance with no figures;
+- any figure in the reply that is not in the knowledge, business profile, instructions or the customer's words fails the answer (`invented_figures`);
+- with `--judge`, a `missing_facts` answer the judge grades 4–5 passes.
+
+A run passes the Phase 1 targets (`chatbot.eval.targets`): ≥ 85% of answerable questions answered, ≥ 90% of unanswerable ones declined, 0 invented figures. `ai:eval` exits non-zero below them, so it can gate a release.
+
 ## Feature flags and rollout
 
 The experimental switches default off:
@@ -455,4 +478,5 @@ At minimum, cover:
 - Knowledge Base tester: `resources/js/Pages/AI/KnowledgeBases/Show.jsx`
 - Turn report: `app/Console/Commands/SmartBotReportCommand.php` (`ai:smart-bot-report`)
 - Holding reply when the bot produces nothing: `app/Modules/Inbox/Services/AiHoldingReply.php`
+- Answer-quality test set: `app/Modules/AI/Services/Eval/` (`EvalCaseSynthesizer`, `EvalRunner`, `EvalScorer`), `app/Console/Commands/Eval*Command.php`
 - Engine v2: `app/Modules/AI/Services/Agent/` (`AnswersWithEngineV2`, `PromptBuilder`, `ReplyContractV2`, `QueryPlanner`, `AnswerValidator`, `SupportCheck`, `FigureCheck`), `app/Modules/AI/Services/Llm/LlmTurn.php`, `app/Console/Commands/SmartBotEngineCommand.php` (`ai:engine`)
