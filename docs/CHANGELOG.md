@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- Channel Setup now starts Meta's JavaScript SDK at Graph API v25.0 (it was v20.0), matching the server and Meta's current Embedded Signup guide. A Coexistence attempt showed Meta's normal WhatsApp account picker instead of the "connect your existing WhatsApp Business app" option; this rules out the old SDK version as a cause. No migration.
+
 - **WhatsApp onboarding (Coexistence and WABA) attaches the right account and number.** The browser stopped listening for Meta's "account and number chosen" message after 15 seconds, before scanning the QR code or adding a number could finish, so the server guessed the account and could pick an older, empty one. It now listens while Meta's window is open. When it must guess, it picks the granted account that has phone numbers. A fallback key's "object does not exist" error no longer hides the real result. Sync from Meta now shows its result on the card, the card shows the account's name, and four untranslated WhatsApp health labels ("Health Delayed Hint" and similar) show real text. No migration.
 
 - **Client impersonation removed.** Admin → Clients no longer has "Login as client", the "Impersonating … / Return to Admin" banner is gone, and `admin.clients.impersonate` / `admin.impersonation.stop` no longer exist. A session that was mid-impersonation at deploy is signed out and sent to the admin login. Past `impersonation.*` audit-log rows are kept. No migration.
