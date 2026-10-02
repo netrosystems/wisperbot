@@ -73,9 +73,6 @@ trait AnswersWithEngineV2
         // Strict answers only from the knowledge: with nothing close enough,
         // there is nothing to send the model, and the fallback costs nothing.
         if ($mode === 'strict' && $results === []) {
-            if (config('knowledge_base.guarded_publishing') && $bot->ai_kb_id) {
-                $this->recordGap($bot, $workspaceId, $message, 0.0);
-            }
             $this->recordV2($bot, $workspaceId, $revisionId, 'handoff', $results, 'no_context', ['answer_origin' => 'fallback', 'credit_result' => 'not_charged']);
 
             return $this->unsupportedResult($bot);

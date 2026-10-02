@@ -4,6 +4,7 @@ namespace App\Modules\Inbox\Jobs;
 
 use App\Events\MessageSent;
 use App\Modules\AI\Models\AiChatbot;
+use App\Modules\AI\Services\AnswerReview;
 use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\Inbox\Services\AiHoldingReply;
 use App\Modules\Inbox\Services\HumanHandoffService;
@@ -66,6 +67,8 @@ class ProcessWebchatAiReplyJob implements ShouldQueue
                 $reply = $result['reply'];
                 $handOver = true;
             }
+            // "Why this answer" for the team; the widget never sends it to the visitor.
+            $review = app(AnswerReview::class)->summary($runner->lastTurnContext(), $chatbot, $message->id);
 
             $botMessage = Message::create([
                 'conversation_id' => $conversation->id,
@@ -81,6 +84,7 @@ class ProcessWebchatAiReplyJob implements ShouldQueue
                     'response_mode' => $result['response_mode'] ?? null,
                     'citations' => $result['citations'] ?? [],
                     'product_facts' => $result['product_facts'] ?? [],
+                    'ai_review' => $review,
                 ],
                 'status' => 'queued',
                 'sent_by' => 'bot',

@@ -53,6 +53,24 @@ An optional, client-approved paragraph beside the Knowledge Base's business prof
 
 Migration `2026_10_03_000300_add_company_brief_to_ai_knowledge_bases`.
 
+### Unanswered questions (2026-10-03)
+
+Questions customers asked that the Knowledge Base could not answer, kept in `ai_kb_knowledge_gaps` and shown on the Knowledge Base page ("Unanswered questions", above the sources; in guarded mode on the Sources step), most asked first (25 shown).
+
+- **Recorded** for every Smart Bot turn, in every publishing mode, whose diagnostics reason is `no_context`, `research_empty`, `declined_empty`, `ungrounded_reply`, `unsupported_figures`, `unparseable_reply`, `rejected_reply`, `model_handoff`, `clarified_twice` or `answered_guidance`, or an engine v2 answer of kind `partial` or `guidance`. Not from unrelated topics, small talk, account questions, provider failures, the bot playground (`ChatbotRunner::withoutKnowledgeGaps()`) or test runs. Before anything is stored, email addresses, phone numbers and long numbers are replaced (`[email]`, `[phone]`, `[number]`); the same question (normalised) increments its count and keeps its latest wording. Before 2026-10-03 gaps were recorded only with guarded publishing on.
+- **Write answer** adds the question and answer to one FAQ source per Knowledge Base, "Answers to customer questions" (`original_source_ref = wisperbot:answered-questions`, authoritative), reindexed on the `ai` queue; with guarded publishing it joins the draft and needs publishing. The question is marked resolved. **Dismiss** marks it ignored. Routes `client.ai.knowledge-bases.unanswered.answer` / `.dismiss`; a question from another Knowledge Base returns 404.
+- `UnansweredQuestionService` holds recording, scrubbing and the answers source.
+
+### Why this answer and team feedback (2026-10-03)
+
+- **Why this answer.** Each Smart Bot reply sent by the channel and website-chat jobs stores `payload.ai_review` (`AnswerReview`): bot and Knowledge Base IDs, the customer message it answered, engine, reason code, answer origin and mode, engine v2 answer kind, best match score, and up to five source titles (engine v2's used passages first; engine v1's passages shown to the model). It is staff-only: `WidgetPayloadBuilder` allow-lists payload fields, so visitors never receive it; the inbox and the mobile app (staff) do.
+- **👍 / 👎.** One shared rating per bot reply in `ai_answer_feedback` (unique per message; last rater kept), mirrored into `payload.ai_feedback`; the same rating again clears it. A 👎 opens Improve.
+- **Improve** writes the right answer for the customer's question into the bot's Knowledge Base answers source (same as Write answer) and marks the reply improved.
+- **Routes.** Inbox (JSON): `client.inbox.messages.ai-feedback` (POST `rating` up/down), `.ai-question` (GET), `.ai-improve` (POST `question`, `answer`). Mobile (Sanctum): `/api/v1/mobile/conversations/{uuid}/messages/{message}/ai-feedback`, `/ai-question`, `/ai-improve`, responses under `data`. Only bot replies with `ai_review` in the user's workspace; others return 403/404.
+- `ai:smart-bot-report` lists team feedback (up, down, improved).
+
+Migration `2026_10_03_000400_create_ai_answer_feedback_table`.
+
 ### Reply length (2026-10-03)
 
 `ai_chatbots.reply_length`, chosen on the bot page next to Tone (Short / Standard / Detailed), and read by both engines from `chatbot.reply_lengths`:
@@ -503,6 +521,7 @@ At minimum, cover:
 - Knowledge Base tester: `resources/js/Pages/AI/KnowledgeBases/Show.jsx`
 - Turn report: `app/Console/Commands/SmartBotReportCommand.php` (`ai:smart-bot-report`)
 - Holding reply when the bot produces nothing: `app/Modules/Inbox/Services/AiHoldingReply.php`
+- Unanswered questions and team feedback: `UnansweredQuestionService`, `AnswerReview`, `AnswerFeedbackService`, `app/Modules/Inbox/Http/Controllers/AiAnswerFeedbackController.php`, `app/Http/Controllers/Api/V1/MobileAiFeedbackController.php`, `resources/js/Components/UnansweredQuestionsCard.jsx`, `resources/js/Components/Inbox/BotReplyReview.jsx`
 - Company brief: `app/Modules/AI/Services/CompanyBriefService.php`, `app/Modules/AI/Jobs/DraftCompanyBriefJob.php`, `resources/js/Components/CompanyBriefCard.jsx`
 - Answer-quality test set: `app/Modules/AI/Services/Eval/` (`EvalCaseSynthesizer`, `EvalRunner`, `EvalScorer`), `app/Console/Commands/Eval*Command.php`
 - Engine v2: `app/Modules/AI/Services/Agent/` (`AnswersWithEngineV2`, `PromptBuilder`, `ReplyContractV2`, `QueryPlanner`, `AnswerValidator`, `SupportCheck`, `FigureCheck`), `app/Modules/AI/Services/Llm/LlmTurn.php`, `app/Console/Commands/SmartBotEngineCommand.php` (`ai:engine`)

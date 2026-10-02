@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\ContactApiController;
 use App\Http\Controllers\Api\V1\ConversationApiController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\MessageApiController;
+use App\Http\Controllers\Api\V1\MobileAiFeedbackController;
 use App\Http\Controllers\Api\V1\MobileAuthController;
 use App\Http\Controllers\Api\V1\MobileConversationController;
 use App\Http\Controllers\Api\V1\MobileEmailInboxController;
@@ -89,6 +90,9 @@ Route::prefix('v1/mobile')->middleware(['auth:sanctum', 'mobile.request_log', 't
     Route::get('/conversations', [MobileConversationController::class, 'index']);
     Route::get('/conversations/{uuid}', [MobileConversationController::class, 'show']);
     Route::get('/conversations/{uuid}/messages', [MobileConversationController::class, 'messages']);
+    Route::post('/conversations/{uuid}/messages/{message}/ai-feedback', [MobileAiFeedbackController::class, 'rate'])->middleware('throttle:60,1');
+    Route::get('/conversations/{uuid}/messages/{message}/ai-question', [MobileAiFeedbackController::class, 'question']);
+    Route::post('/conversations/{uuid}/messages/{message}/ai-improve', [MobileAiFeedbackController::class, 'improve'])->middleware('throttle:20,1');
     Route::get('/conversations/{uuid}/messages/{message}/media', [MobileConversationController::class, 'media'])
         ->name('api.v1.mobile.conversations.messages.media');
     Route::post('/conversations', [MobileConversationController::class, 'start']);

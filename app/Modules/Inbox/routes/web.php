@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Inbox\Http\Controllers\AiAnswerFeedbackController;
 use App\Modules\Inbox\Http\Controllers\AmazonSetupController;
 use App\Modules\Inbox\Http\Controllers\CannedReplyController;
 use App\Modules\Inbox\Http\Controllers\ChatWidgetController;
@@ -23,6 +24,9 @@ Route::middleware(['web', 'client-app'])->prefix('app/inbox')->name('client.inbo
     Route::post('/conversations/{conversation}/upload-media', [InboxController::class, 'uploadMedia'])->name('upload-media');
     Route::get('/conversations/{conversation}/messages/{message}/media', [InboxController::class, 'serveMedia'])->name('message-media');
     Route::get('/conversations/{conversation}/messages', [InboxController::class, 'messages'])->name('messages');
+    Route::post('/conversations/{conversation}/messages/{message}/ai-feedback', [AiAnswerFeedbackController::class, 'rate'])->name('messages.ai-feedback')->middleware('throttle:60,1');
+    Route::get('/conversations/{conversation}/messages/{message}/ai-question', [AiAnswerFeedbackController::class, 'question'])->name('messages.ai-question');
+    Route::post('/conversations/{conversation}/messages/{message}/ai-improve', [AiAnswerFeedbackController::class, 'improve'])->name('messages.ai-improve')->middleware('throttle:20,1');
     Route::post('/conversations/start', [InboxController::class, 'startConversation'])->name('start');
     Route::get('/conversations/{conversation}', [InboxController::class, 'show'])->name('show');
     Route::post('/conversations/{conversation}/reply', [InboxController::class, 'reply'])->name('reply')->middleware('limit:whatsapp_messages_per_month,whatsapp_messages');

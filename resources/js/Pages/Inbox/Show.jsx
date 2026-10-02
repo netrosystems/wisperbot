@@ -2,6 +2,7 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import InboxLayout from '@/Layouts/InboxLayout';
 import EmptyState from '@/Components/EmptyState';
 import NewConversationModal from '@/Components/Inbox/NewConversationModal';
+import BotReplyReview from '@/Components/Inbox/BotReplyReview';
 import {
     Send, AlertTriangle, Eye, StickyNote, MessageSquare, Phone, Globe,
     RefreshCw, Search, Inbox, User, CheckCircle, Clock, X, Smile,
@@ -878,7 +879,7 @@ function MessageBubble({ msg, conversationId }) {
     );
 
     return (
-        <div className={`flex ${isOut ? 'justify-end' : 'justify-start'} mb-2`}>
+        <div className={`flex flex-col ${isOut ? 'items-end' : 'items-start'} mb-2`}>
             <div className={bubbleBase}>
                 {/* Template header image/video/doc */}
                 {templateComponents && (
@@ -986,6 +987,7 @@ function MessageBubble({ msg, conversationId }) {
                     {timeRow}
                 </div>
             </div>
+            {isOut && msg.sent_by === 'bot' && p.ai_review && <BotReplyReview msg={msg} conversationId={conversationId} />}
         </div>
     );
 }

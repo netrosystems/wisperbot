@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Modules\AI\Models\AiAnswerFeedback;
 use App\Modules\AI\Models\AiCreditLedger;
 use App\Modules\AI\Models\AiKbRetrievalDiagnostic;
 use App\Modules\AI\Services\SmartBotRetrievalPolicy;
@@ -104,6 +105,11 @@ class SmartBotReportCommand extends Command
                 'p50' => $latencies->isEmpty() ? null : $latencies[(int) floor(($latencies->count() - 1) * 0.5)],
                 'p95' => $latencies->isEmpty() ? null : $latencies[(int) floor(($latencies->count() - 1) * 0.95)],
             ],
+            'team_feedback' => [
+                'up' => $this->feedback($since, $workspaceId)->where('rating', 'up')->count(),
+                'down' => $this->feedback($since, $workspaceId)->where('rating', 'down')->count(),
+                'improved' => $this->feedback($since, $workspaceId)->where('improved', true)->count(),
+            ],
             'credits' => [
                 'by_status' => (clone $ledger)->select('status', DB::raw('COUNT(*) as total'))->groupBy('status')->pluck('total', 'status')->map(fn ($n) => (int) $n)->all(),
                 'refund_reasons' => (clone $ledger)->where('status', 'refunded')->select('error_code', DB::raw('COUNT(*) as total'))->groupBy('error_code')->pluck('total', 'error_code')->map(fn ($n) => (int) $n)->all(),
@@ -132,6 +138,13 @@ class SmartBotReportCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /** @return Builder<AiAnswerFeedback> */
+    private function feedback(\DateTimeInterface $since, ?int $workspaceId): Builder
+    {
+        return AiAnswerFeedback::query()->where('updated_at', '>=', $since)
+            ->when($workspaceId !== null, fn (Builder $query) => $query->where('workspace_id', $workspaceId));
     }
 
     /** @param array<array-key, mixed> $values */
