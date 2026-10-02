@@ -361,3 +361,7 @@ Engine v2 core on `oris`, ported from Cerqle: `LlmTurn` (one charge per answer),
 3. Move the bot to v2 (`ai:engine {bot} v2`, with `SMART_BOT_ENGINE_V2=true`) and run `ai:eval {bot}` again. Compare answered %, declined %, invented figures and p50.
 
 Writing questions and runs need WisperBot's managed OpenAI integration (Admin → Integrations); they never spend client credits. Not verified against the real provider: tests fake OpenAI.
+
+## Smart Bot 2.0 Phase 1.4, answer controls (2026-10-03)
+
+Designed on WisperBot's existing bot page rather than Cerqle's cards: the existing answer scope cards are the v2 modes, and a Reply length select (Short / Standard / Detailed) sits next to Tone. Both engines read it; Standard is unchanged. Verified locally on the demo bot: saved, reloaded, phone width without horizontal scroll. Mobile apps may read `reply_length` from the chatbot API; no app change is required. English labels only, like the other recent Smart Bot labels (other languages fall back to English).

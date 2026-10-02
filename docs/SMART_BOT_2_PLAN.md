@@ -13,7 +13,7 @@
 | Phase | What it delivers | Effort | Status |
 |---|---|---|---|
 | **0** Measure and quick fixes | Every turn records why it ended; `ai:smart-bot-report`; reply budget and cut-off retry; reasoning kept low; all system messages kept; guidance retry; figure check; no silent turns | 3–5 days | ◐ **Code done** 2026-10-02 in PR #181 (`dev` → `main`, awaiting owner approval to merge and deploy). Then: 7-day baseline, threshold decision, 30-question check |
-| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) built 2026-10-03. Next: the canary with a v1-vs-v2 test run, then answer controls UI, company brief, unanswered questions, channels |
+| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) built 2026-10-03. Next: the canary with a v1-vs-v2 test run, then company brief, unanswered questions, channels |
 | **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times; 1 or 2 credits per answer | 3–4 weeks | ☐ Not started |
 | **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks | ☐ Not started |
 | **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks | ☐ Not started |
@@ -236,7 +236,8 @@ Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path i
 - ✚ Merge it with today's business profile (`brand`, `purpose`, `audience`) so there is one place to describe the company.
 
 **1.4 Answer controls** (bot page)
-- ↻ Strict / Balanced / Flexible cards and reply length (short / standard / detailed); Balanced is the default. ☑ The `reply_length` column and its budgets (2026-10-02); ☐ the bot-page UI.
+- ☑ (2026-10-03) ✚ Designed for WisperBot's bot page: the existing answer scope cards (Business only / Verified sources only / General assistant) are the modes, so no second control; "Staged rollout" shows only when the scope has no effect; a "New answer engine" badge marks v2 bots.
+- ☑ (2026-10-03) Reply length (Short ~40 / Standard ~70 / Detailed ~140 words) next to Tone, read by **both** engines; Standard is the old fixed length, so existing bots are unchanged.
 
 **1.5 Unanswered questions and feedback**
 - ↻ A list of unanswered questions on the bot page, most asked first, with "Write answer" (becomes a Q&A) and "Dismiss". ✚ Built on `ai_kb_knowledge_gaps`.

@@ -60,6 +60,21 @@ class AiChatbot extends Model
         ];
     }
 
+    public const REPLY_LENGTHS = ['short', 'standard', 'detailed'];
+
+    /**
+     * The words, sentences and output budget for this bot's reply length.
+     *
+     * @return array{words:int,sentences:int,max_tokens:int}
+     */
+    public function replyLength(): array
+    {
+        $lengths = (array) config('chatbot.reply_lengths');
+        $length = $lengths[$this->reply_length ?: 'standard'] ?? $lengths['standard'];
+
+        return ['words' => (int) $length['words'], 'sentences' => (int) $length['sentences'], 'max_tokens' => (int) $length['max_tokens']];
+    }
+
     /** Engine v2 answers only while the platform switch is on and the bot is moved to it. */
     public function usesEngineV2(): bool
     {

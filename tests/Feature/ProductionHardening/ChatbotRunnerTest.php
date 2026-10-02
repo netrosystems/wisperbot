@@ -152,6 +152,31 @@ class ChatbotRunnerTest extends TestCase
         $this->assertSame(600, $capturedMaxTokens);
     }
 
+    public function test_a_detailed_reply_length_reaches_the_prompt_and_the_budget(): void
+    {
+        $workspace = $this->createWorkspaceContext()['workspace'];
+        [$chatbot, $message] = $this->botWithKnowledge($workspace->id, 'clarify_then_handoff', 'How do returns work?');
+        $chatbot->update(['reply_length' => 'detailed']);
+        $captured = null;
+        Http::fake([
+            'api.openai.com/v1/embeddings' => Http::response(['data' => [['embedding' => [1.0, 0.0, 0.0]]]]),
+            'api.openai.com/v1/chat/completions' => function ($request) use (&$captured) {
+                $captured = json_decode($request->body(), true);
+
+                return Http::response([
+                    'choices' => [['message' => ['content' => json_encode(['reply' => 'Unopened products may be returned within 30 days of delivery.', 'quick_replies' => [], 'grounded' => true, 'response_type' => 'answer', 'show_video' => false])]]],
+                    'usage' => ['prompt_tokens' => 50, 'completion_tokens' => 20],
+                    'model' => 'gpt-4o-mini',
+                ]);
+            },
+        ]);
+
+        app(ChatbotRunner::class)->run($chatbot->fresh(), $message);
+
+        $this->assertStringContainsString('at most 8 short sentences and 140 words', $captured['messages'][0]['content']);
+        $this->assertSame(1000, $captured['max_tokens']);
+    }
+
     public function test_knowledge_only_bot_bypasses_an_unrelated_question_without_calling_chat(): void
     {
         $data = $this->createWorkspaceContext();

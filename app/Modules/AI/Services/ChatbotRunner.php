@@ -363,7 +363,7 @@ class ChatbotRunner
                 $workspaceId,
                 $messages,
                 [
-                    'max_tokens' => $this->replyBudget(),
+                    'max_tokens' => $this->replyBudget($bot),
                     'temperature' => $bot->kb_exact_wording ? 0.2 : 0.4,
                     'json_object' => true,
                     'json_schema' => self::REPLY_SCHEMA,
@@ -820,7 +820,7 @@ class ChatbotRunner
                 $workspaceId,
                 $messages,
                 [
-                    'max_tokens' => $this->replyBudget(),
+                    'max_tokens' => $this->replyBudget($bot),
                     'temperature' => $bot->kb_exact_wording ? 0.2 : 0.4,
                     'json_object' => true,
                     'json_schema' => self::REPLY_SCHEMA,
@@ -965,7 +965,7 @@ class ChatbotRunner
 Customer reply rules:
 - Reply like a helpful human: direct, warm, and personalized, without repetitive greetings.
 - Work like an experienced support agent: first resolve what the customer actually asked with the specific facts or steps they need, then, when it helps, guide them to the most useful next step.
-- Keep every answer to at most 4 short sentences and 70 words. Avoid long introductions and long lists.
+- {{REPLY_LENGTH}} Avoid long introductions and long lists.
 - Reply in the customer's language and writing style: if they write their language in Latin letters (for example romanized Bengali such as "kivabe pabo"), reply in Latin letters too. If they request another language or format, follow that request.
 - Treat the verified business context as authoritative for company-specific facts.
 - Use only context that directly answers the current question, and ignore duplicated or tangential passages.
@@ -980,6 +980,8 @@ Customer reply rules:
 - When suggesting a real URL from the context, order data, or the customer's message, format it as a Markdown link: [short label](https://example.com).
 - Include only links that are directly useful to the answer.
 PROMPT;
+        $length = $bot->replyLength();
+        $prompt = str_replace('{{REPLY_LENGTH}}', "Keep every answer to at most {$length['sentences']} short sentences and {$length['words']} words.", $prompt);
 
         $prompt .= $bot->kb_exact_wording ? <<<'PROMPT'
 
@@ -1528,7 +1530,7 @@ PROMPT;
 
         try {
             $response = $this->llmGateway->chat($workspaceId, $messages, [
-                'max_tokens' => $this->replyBudget(),
+                'max_tokens' => $this->replyBudget($bot),
                 'temperature' => 0.4,
                 'json_object' => true,
                 'json_schema' => self::REPLY_SCHEMA,
@@ -1581,9 +1583,12 @@ PROMPT;
         return $this->withoutVideoLinks($result);
     }
 
-    private function replyBudget(): int
+    /** The v1 output budget: the platform setting, raised for a bot set to detailed replies. */
+    private function replyBudget(?AiChatbot $bot = null): int
     {
-        return max(500, min(2000, (int) config('chatbot.reply_max_tokens', 600)));
+        $budget = max(500, min(2000, (int) config('chatbot.reply_max_tokens', 600)));
+
+        return $bot?->reply_length === 'detailed' ? max($budget, $bot->replyLength()['max_tokens']) : $budget;
     }
 
     private function beginTurn(string $channel): void

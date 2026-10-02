@@ -31,12 +31,14 @@ return [
     // Passages below this score are not shown to the model; a Strict bot with
     // nothing at or above it offers a person without a model call.
     'v2_min_score' => (float) env('SMART_BOT_V2_MIN_SCORE', 0.30),
-    // Reply length per bot (`ai_chatbots.reply_length`): words asked for and
-    // the output budget. Email replies may use twice the words.
+    // Reply length per bot (`ai_chatbots.reply_length`), chosen on the bot
+    // page and read by both engines: the words and sentences the prompt asks
+    // for, and the output budget. Standard is the length every bot used before
+    // the setting existed. Engine v2 allows twice the words for email.
     'reply_lengths' => [
-        'short' => ['words' => 50, 'max_tokens' => 500],
-        'standard' => ['words' => 90, 'max_tokens' => 700],
-        'detailed' => ['words' => 160, 'max_tokens' => 1000],
+        'short' => ['words' => 40, 'sentences' => 3, 'max_tokens' => 500],
+        'standard' => ['words' => 70, 'sentences' => 4, 'max_tokens' => 700],
+        'detailed' => ['words' => 140, 'sentences' => 8, 'max_tokens' => 1000],
     ],
     // The answer-quality test set (Phase 1.6): `ai:eval:synthesize`, `ai:eval`.
     'eval' => [
