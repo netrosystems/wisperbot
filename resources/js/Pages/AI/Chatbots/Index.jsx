@@ -8,6 +8,7 @@ import MarkdownLite from '@/Components/MarkdownLite';
 
 import { confirmDialog } from '@/Components/ConfirmDialog';
 const TONE_OPTIONS = ['professional', 'friendly', 'formal', 'casual'];
+const REPLY_LENGTH_OPTIONS = ['short', 'standard', 'detailed'];
 
 const TONE_COLORS = {
     professional: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -173,8 +174,10 @@ function PlaygroundPanel({ chatbot, aiCredits }) {
     );
 }
 
-function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingEnabled, liveProductFactsAvailable }) {
+function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingEnabled, engineV2Enabled, liveProductFactsAvailable }) {
     const { t } = useTranslation();
+    // Answer scope takes effect with business-aware routing or the new answer engine.
+    const usesEngineV2 = engineV2Enabled && chatbot.engine === 'v2';
     const [tab, setTab] = useState(null); // null | 'settings' | 'playground'
 
     const { data, setData, put, processing } = useForm({
@@ -186,6 +189,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
         trusted_research_enabled: Boolean(chatbot.trusted_research_enabled),
         live_product_facts_enabled: Boolean(chatbot.live_product_facts_enabled),
         kb_exact_wording: Boolean(chatbot.kb_exact_wording),
+        reply_length: chatbot.reply_length ?? 'standard',
         fallback_reply: chatbot.fallback_reply ?? '',
         ai_kb_id: chatbot.ai_kb_id ?? '',
     });
@@ -219,6 +223,11 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
                         {chatbot.tone && (
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_COLORS[chatbot.tone] ?? 'bg-neutral-100 text-neutral-500'}`}>
                                 {t(`ai.tone_${chatbot.tone}`)}
+                            </span>
+                        )}
+                        {usesEngineV2 && (
+                            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
+                                {t('ai.engine_v2_badge')}
                             </span>
                         )}
                     </div>
@@ -265,7 +274,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
             {tab === 'settings' && (
                 <div className="border-t border-neutral-100 dark:border-neutral-800 px-5 pb-5 pt-4">
                     <form onSubmit={save} className="space-y-4">
-                        <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="grid sm:grid-cols-3 gap-4">
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('common.name')}</label>
                                 <input
@@ -284,6 +293,18 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
                                 >
                                     {TONE_OPTIONS.map(tone => <option key={tone} value={tone}>{t(`ai.tone_${tone}`)}</option>)}
                                 </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label htmlFor={`reply-length-${chatbot.id}`} className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{t('ai.reply_length')}</label>
+                                <select
+                                    id={`reply-length-${chatbot.id}`}
+                                    value={data.reply_length}
+                                    onChange={e => setData('reply_length', e.target.value)}
+                                    className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition"
+                                >
+                                    {REPLY_LENGTH_OPTIONS.map(length => <option key={length} value={length}>{t(`ai.reply_length_${length}`)}</option>)}
+                                </select>
+                                <p className="text-xs text-neutral-400 dark:text-neutral-500">{t('ai.reply_length_hint')}</p>
                             </div>
                         </div>
 
@@ -326,7 +347,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
                             <div>
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{t('ai.answer_scope')}</p>
-                                    {!businessAwareRoutingEnabled && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{t('ai.staged_rollout')}</span>}
+                                    {!businessAwareRoutingEnabled && !usesEngineV2 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{t('ai.staged_rollout')}</span>}
                                 </div>
                                 <p className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{t('ai.answer_scope_hint')}</p>
                                 <p className="mt-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs leading-5 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
@@ -429,7 +450,7 @@ function ChatbotCard({ chatbot, knowledgeBases, aiCredits, businessAwareRoutingE
     );
 }
 
-export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null, businessAwareRoutingEnabled = false, liveProductFactsAvailable = false }) {
+export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = null, businessAwareRoutingEnabled = false, engineV2Enabled = false, liveProductFactsAvailable = false }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
@@ -492,7 +513,7 @@ export default function AiChatbotsIndex({ chatbots, knowledgeBases, aiCredits = 
                 {/* Chatbot list */}
                 <div className="space-y-3">
                     {chatbots.map(cb => (
-                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} businessAwareRoutingEnabled={businessAwareRoutingEnabled} liveProductFactsAvailable={liveProductFactsAvailable} />
+                        <ChatbotCard key={cb.id} chatbot={cb} knowledgeBases={knowledgeBases} aiCredits={aiCredits} businessAwareRoutingEnabled={businessAwareRoutingEnabled} engineV2Enabled={engineV2Enabled} liveProductFactsAvailable={liveProductFactsAvailable} />
                     ))}
                     {chatbots.length === 0 && (
                         <EmptyState

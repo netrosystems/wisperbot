@@ -31,6 +31,7 @@ class AiChatbotApiController extends WorkspaceScopedController
                 'answer_scope' => $b->unsupported_answer_action === 'general' ? 'general' : ($b->answer_scope ?? 'business_only'),
                 'trusted_research_enabled' => (bool) $b->trusted_research_enabled,
                 'kb_exact_wording' => (bool) $b->kb_exact_wording,
+                'reply_length' => $b->reply_length ?: 'standard',
                 'starter_questions_enabled' => (bool) $b->starter_questions_enabled,
                 'starter_questions' => array_values($b->starter_questions ?? []),
                 'live_product_facts_enabled' => (bool) $b->live_product_facts_enabled,

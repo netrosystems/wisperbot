@@ -40,6 +40,7 @@ class AiChatbotController extends Controller
             'knowledgeBases' => $knowledgeBases,
             'aiCredits' => app(AiCreditService::class)->usage($wid),
             'businessAwareRoutingEnabled' => (bool) config('chatbot.business_aware_routing_enabled'),
+            'engineV2Enabled' => (bool) config('chatbot.engine_v2_enabled'),
             'liveProductFactsAvailable' => (bool) config('knowledge_base.live_product_facts_enabled'),
         ]);
     }
@@ -79,6 +80,7 @@ class AiChatbotController extends Controller
             'trusted_research_enabled' => ['boolean'],
             'live_product_facts_enabled' => ['boolean'],
             'kb_exact_wording' => ['boolean'],
+            'reply_length' => ['nullable', 'in:'.implode(',', AiChatbot::REPLY_LENGTHS)],
             'unsupported_answer_action' => ['nullable', 'in:clarify_then_handoff,handoff,general'],
             'fallback_reply' => ['nullable', 'string', 'max:512'],
             'channels' => ['nullable', 'array'],

@@ -40,6 +40,20 @@ Business-aware mode requires a meaningful KB brand, purpose, and audience. If th
 
 The legacy `unsupported_answer_action` field remains a compatibility alias. New interfaces use `answer_scope` and `unsupported_fallback_action`. The migration maps legacy `general` bots to General assistant and other bots to Business only.
 
+These three cards are also engine v2's Strict / Balanced / Flexible modes (`verified_only` / `business_only` / `general`); there is no separate control. The answer scope takes effect when `SMART_BOT_BUSINESS_AWARE_ROUTING` is on (engine v1) or the bot answers with engine v2. The bot page shows "Staged rollout" on the cards only when neither applies, and a "New answer engine" badge on a bot that answers with engine v2 (2026-10-03).
+
+### Reply length (2026-10-03)
+
+`ai_chatbots.reply_length`, chosen on the bot page next to Tone (Short / Standard / Detailed), and read by both engines from `chatbot.reply_lengths`:
+
+| Value | Words | Sentences (v1 prompt) | Output budget |
+| :--- | :--- | :--- | :--- |
+| `short` | about 40 | 3 | 500 (v2) |
+| `standard` (default) | about 70 | 4 | 700 (v2); v1 keeps `SMART_BOT_REPLY_MAX_TOKENS` (600) |
+| `detailed` | about 140 | 8 | 1000 (both) |
+
+Standard is the length every bot used before the setting existed, so existing bots answer as before. Engine v2 allows twice the words for email and stops a reply at one and a half times the words, at a sentence end. The value is validated against `AiChatbot::REPLY_LENGTHS` and listed read-only on the AI chatbot API (`reply_length`). Facts stay checked at every length.
+
 ### Unsupported-answer behavior
 
 - `clarify_then_handoff`: ask one useful clarifying question, then offer a human if evidence remains insufficient.
@@ -386,7 +400,7 @@ A second answer engine, after Cerqle's accepted engine v2. A bot answers with it
 2. Search: up to `max_context_chunks` passages scoring at least `SMART_BOT_V2_MIN_SCORE` (0.30). A Strict bot with none offers the fallback without a model call.
 3. One credit reservation for the whole answer (`LlmGateway::beginTurn()` → `LlmTurn`). Each model call is a step, logged as its own `ai_runs` row with `metadata_json.step` (`plan`, `generate`, `verify`, `regenerate`). `finish()` charges once and stores the answer, so a retried job replays it; `abort()` refunds.
 4. A follow-up (four words or fewer after an earlier question, words like "it"/"that"/"what about", or any reply to the bot's clarifying question) is rewritten by `QueryPlanner` into a standalone question and up to three search queries.
-5. `PromptBuilder` writes the answer ladder for the bot's mode and its reply length (about 50 / 90 / 160 words; email twice that), keeping v1's reply rules (customer's language and script, choices, scripted flows, exact wording, no video links). The passages, order details and video instructions go in a second system message just before the customer's message.
+5. `PromptBuilder` writes the answer ladder for the bot's mode and its reply length (see Reply length), keeping v1's reply rules (customer's language and script, choices, scripted flows, exact wording, no video links). The passages, order details and video instructions go in a second system message just before the customer's message.
 6. The reply (`ReplyContractV2`) names its kind (`answer`, `partial`, `guidance`, `clarification`, `handoff`), the passages it used and word-for-word evidence quotes.
 7. Checks (`AnswerValidator`): figures (`FigureCheck`, shared with v1); no talk of "excerpts", "sources" or "language model"; a full answer needs a real quote of two or more words; a Strict bot never gives guidance. Links, emails, phone numbers and dates are recorded in `trace.validator_shadow` until `SMART_BOT_V2_VALIDATOR_ENFORCE=true`. Then `SupportCheck` (`SMART_BOT_V2_SUPPORT_CHECK`, on) asks whether the knowledge states what an `answer` or `partial` reply says. A rejected reply is written again once, told why; a second rejection sends the fallback, refunded.
 8. A `partial` or `handoff` reply with no planner run gets a second look: rewritten queries, up to three more passages, and a new answer kept only when it answers more.

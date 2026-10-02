@@ -43,6 +43,24 @@ class SmartBotManagedPolicyTest extends TestCase
         $this->assertTrue($bot->fresh()->kb_exact_wording);
     }
 
+    public function test_client_chooses_a_reply_length_from_the_allowed_set(): void
+    {
+        [$user, $workspace] = $this->clientWorkspace();
+        $bot = AiChatbot::create(['workspace_id' => $workspace->id, 'name' => 'Assistant']);
+        $this->assertSame('standard', $bot->fresh()->reply_length);
+
+        $this->actingAs($user)
+            ->put(route('client.ai.chatbots.update', $bot), ['name' => 'Assistant', 'reply_length' => 'detailed'])
+            ->assertRedirect();
+        $this->assertSame('detailed', $bot->fresh()->reply_length);
+        $this->assertSame(['words' => 140, 'sentences' => 8, 'max_tokens' => 1000], $bot->fresh()->replyLength());
+
+        $this->actingAs($user)
+            ->put(route('client.ai.chatbots.update', $bot), ['name' => 'Assistant', 'reply_length' => 'essay'])
+            ->assertSessionHasErrors('reply_length');
+        $this->assertSame('detailed', $bot->fresh()->reply_length);
+    }
+
     public function test_client_updates_ignore_raw_retrieval_tuning_fields(): void
     {
         [$user, $workspace] = $this->clientWorkspace();

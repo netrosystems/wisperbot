@@ -123,10 +123,10 @@ trait AnswersWithEngineV2
      */
     private function generateV2(LlmTurn $turn, AiChatbot $bot, ?AiKnowledgeBase $kb, string $mode, string $message, array $history, array $plain, array $results, int $workspaceId, ?int $revisionId, mixed $contact, ?string $orderSummary): array
     {
-        $length = config('chatbot.reply_lengths.'.($bot->reply_length ?: 'standard')) ?? config('chatbot.reply_lengths.standard');
+        $length = $bot->replyLength();
         $channel = $this->turnChannel === 'api' ? null : $this->turnChannel;
-        $words = (int) ($length['words'] ?? 90) * ($channel === 'email' ? 2 : 1);
-        $options = app(ReplyContractV2::class)->requestOptions((int) ($length['max_tokens'] ?? 700), $bot->kb_exact_wording ? 0.2 : 0.4);
+        $words = $length['words'] * ($channel === 'email' ? 2 : 1);
+        $options = app(ReplyContractV2::class)->requestOptions($length['max_tokens'], $bot->kb_exact_wording ? 0.2 : 0.4);
         $context = ['bot' => $bot, 'kb' => $kb, 'mode' => $mode, 'message' => $message, 'plain' => $plain, 'channel' => $channel, 'words' => $words,
             'options' => $options, 'workspace_id' => $workspaceId, 'contact' => $contact, 'order_summary' => $orderSummary];
 
