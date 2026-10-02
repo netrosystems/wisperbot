@@ -20,4 +20,22 @@ return [
     // a Balanced ("business only") bot asks once more for general guidance
     // related to the business instead of sending the fallback.
     'guidance_retry_enabled' => (bool) env('SMART_BOT_GUIDANCE_RETRY', true),
+
+    // Smart Bot 2.0 answer engine (Phase 1). A bot answers with it only while
+    // this switch is on and the bot is moved to it (`php artisan ai:engine`).
+    'engine_v2_enabled' => (bool) env('SMART_BOT_ENGINE_V2', false),
+    // A small model call that checks the knowledge states what the reply says.
+    'v2_support_check' => (bool) env('SMART_BOT_V2_SUPPORT_CHECK', true),
+    // Links, emails, phone numbers and dates: recorded only, until this is on.
+    'v2_validator_enforce' => (bool) env('SMART_BOT_V2_VALIDATOR_ENFORCE', false),
+    // Passages below this score are not shown to the model; a Strict bot with
+    // nothing at or above it offers a person without a model call.
+    'v2_min_score' => (float) env('SMART_BOT_V2_MIN_SCORE', 0.30),
+    // Reply length per bot (`ai_chatbots.reply_length`): words asked for and
+    // the output budget. Email replies may use twice the words.
+    'reply_lengths' => [
+        'short' => ['words' => 50, 'max_tokens' => 500],
+        'standard' => ['words' => 90, 'max_tokens' => 700],
+        'detailed' => ['words' => 160, 'max_tokens' => 1000],
+    ],
 ];

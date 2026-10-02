@@ -13,13 +13,13 @@
 | Phase | What it delivers | Effort | Status |
 |---|---|---|---|
 | **0** Measure and quick fixes | Every turn records why it ended; `ai:smart-bot-report`; reply budget and cut-off retry; reasoning kept low; all system messages kept; guidance retry; figure check; no silent turns | 3–5 days | ◐ **Code done** 2026-10-02 in PR #181 (`dev` → `main`, awaiting owner approval to merge and deploy). Then: 7-day baseline, threshold decision, 30-question check |
-| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ☐ Not started |
+| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) built 2026-10-02, off by default, canary on WisperBot's own bot next. Then: test set, answer controls UI, company brief, unanswered questions, channels |
 | **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times; 1 or 2 credits per answer | 3–4 weeks | ☐ Not started |
 | **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks | ☐ Not started |
 | **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks | ☐ Not started |
 | **5** Quality at scale | AI performance page, nightly quality gate, alerts | continuous | ☐ Not started; builds on Phase 1's test set |
 
-Next: merge PR #181, deploy, and take the baseline. Phases 0–2 (about 7–9 weeks) fix what clients notice; Phases 3–5 make it scale.
+Next: the Phase 0 baseline (about 2026-10-09) and the engine v2 canary on WisperBot's own bot. Phases 0–2 (about 7–9 weeks) fix what clients notice; Phases 3–5 make it scale.
 
 ---
 
@@ -214,27 +214,29 @@ Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path i
 
 **Acceptance:** fallback rate measured before and after; no increase in invented figures on the 30 questions (Phase 1 builds the full test set).
 
-### Phase 1 — smarter answer engine ☐ (3–4 weeks)
+### Phase 1 — smarter answer engine ◐ (3–4 weeks; increment 1 built 2026-10-02)
 
 **1.1 Metered turns**
-- ↻ `LlmTurn` (`Services/Llm/LlmTurn.php`): one reservation per answer; `step()` per model call; `finish()` charges once; `abort()` refunds. Rebuilt on WisperBot's `AiCreditLedger` / `AiCreditReservation`.
+- ☑ (2026-10-02) `LlmTurn` (`Services/Llm/LlmTurn.php`): one reservation per answer; `step()` per model call, each an `ai_runs` row; `finish()` charges once and stores the answer for replay; `abort()` refunds. Built on WisperBot's `AiCreditLedger` through `LlmGateway::beginTurn()` / `runStep()`.
 - ✚ Align the provider options (`json_schema` → `response_schema`, add `cache_prefix` for Anthropic) without breaking BYOK or Qwen.
 
 **1.2 Engine v2** (flag `SMART_BOT_ENGINE_V2` + per-bot `ai_chatbots.engine = v1|v2`, switched with `php artisan ai:engine {bot} v2`)
-- ↻ `PromptBuilder`: the answer ladder, Strict/Balanced/Flexible; static, cacheable system message.
-- ↻ `ReplyContractV2`: `reply`, `answer_kind` (answer / partial / guidance / clarification / handoff), `used_sources`, `evidence` quotes, `quick_replies`, `language`. The widget, SDK and API `response_mode` values stay as they are.
-- ↻ `QueryPlanner`: only for follow-ups and after a clarifying question.
-- ↻ `AnswerValidator` + `SupportCheck`: figures always enforced; links, dates and plan names in shadow mode first; a "second look" with rewritten queries when the first answer is partial.
-- ✚ A separate `AnswerEngineV2` class rather than Cerqle's trait, because WisperBot's `ChatbotRunner` is shaped differently. It reuses `KnowledgeRetrievalService`, `BusinessAwareTurnRouter` (greetings, offers), `ChatReplyOptions`, video answers and `orderSummary()`.
-- ↻ Full-context mode: knowledge up to ~20k tokens is sent whole.
-- ↻ Burst batching: quick consecutive messages answered once.
+- ☑ (2026-10-02) `PromptBuilder`: the answer ladder, Strict/Balanced/Flexible, reply length; static system message first, passages per turn. Keeps WisperBot's reply rules (language and script, dynamic choices, scripted flows, exact wording, no video links).
+- ☑ (2026-10-02) `ReplyContractV2`: `reply`, `answer_kind` (answer / partial / guidance / clarification / handoff), `used_sources`, `evidence` quotes, `quick_replies`, `show_video`, `language`. The widget, SDK and API `response_mode` values stay as they are.
+- ☑ (2026-10-02) `QueryPlanner`: only for follow-ups and after a clarifying question; planned queries skip translation.
+- ☑ (2026-10-02) `AnswerValidator` + `SupportCheck`: figures always enforced (`FigureCheck`, shared with v1); links, emails, phones and dates in shadow mode; a "second look" with rewritten queries when the first answer is partial. ☐ Plan and product names (`KnowledgeLexicon`) later.
+- ☑ (2026-10-02) Engine v2 is a trait of `ChatbotRunner` (`AnswersWithEngineV2`), like Cerqle's, after all: it needs the runner's retrieval, video, order details, fallbacks and diagnostics. It runs after v1's free gates; greetings are free; account questions without order details go to a person; a bare question back and an offer of a person are refunded.
+- ☑ (2026-10-02) `ai_chatbots.engine` + `reply_length`, `php artisan ai:engine {bot} v2 | --list`, flag `SMART_BOT_ENGINE_V2`; diagnostics `engine` and `trace`.
+- ☐ Canary on WisperBot's own bot (production), then pilot bots.
+- ☐ ↻ Full-context mode: knowledge up to ~20k tokens is sent whole.
+- ☐ ↻ Burst batching: quick consecutive messages answered once.
 
 **1.3 Company brief**
 - ↻ `BusinessBriefGenerator` + `GenerateBusinessBriefJob`: drafts a company summary from the home, about, pricing, contact and FAQ pages, with every sentence linked to its source. The client approves it. Only an approved brief is used.
 - ✚ Merge it with today's business profile (`brand`, `purpose`, `audience`) so there is one place to describe the company.
 
 **1.4 Answer controls** (bot page)
-- ↻ Strict / Balanced / Flexible cards and reply length (short / standard / detailed); Balanced is the default.
+- ↻ Strict / Balanced / Flexible cards and reply length (short / standard / detailed); Balanced is the default. ☑ The `reply_length` column and its budgets (2026-10-02); ☐ the bot-page UI.
 
 **1.5 Unanswered questions and feedback**
 - ↻ A list of unanswered questions on the bot page, most asked first, with "Write answer" (becomes a Q&A) and "Dismiss". ✚ Built on `ai_kb_knowledge_gaps`.

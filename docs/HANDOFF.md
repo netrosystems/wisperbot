@@ -336,3 +336,17 @@ Branch `feat/smart-bot-phase-0`, from `main` at v1.3.101. Plan: [`SMART_BOT_2_PL
 - **Fixes.** Reply budget 600 with a double-budget retry for cut-off replies, low reasoning effort for OpenAI reasoning models and Gemini, all system messages kept for Anthropic/Gemini, a guidance retry for declined questions on Business-only bots, broader figure equivalence, fallback text kept out of follow-up searches, and a holding reply plus hand-over instead of silence. Details: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#fewer-silent-and-needless-fallbacks-2026-10-02).
 - **Not verified against real providers.** Tests fake every provider. After deploy, check one live reply on each provider in use (finish reason and model appear in the report), and that a Gemini 3 / gpt-5 managed or BYOK model accepts the reasoning settings (a rejection is retried without them).
 - **Still open in Phase 0:** the 7-day baseline, the threshold decision, and the 30-question invented-figure check.
+
+## Smart Bot 2.0 Phase 1, increment 1 (2026-10-02)
+
+Engine v2 core on `oris`, ported from Cerqle: `LlmTurn` (one charge per answer), `PromptBuilder`, `ReplyContractV2`, `QueryPlanner`, `AnswerValidator`, `SupportCheck`, second look, `ai:engine`. Off by default (`SMART_BOT_ENGINE_V2=false`); no bot changes engine on deploy. Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#engine-v2-smart-bot-20-phase-1-canary-2026-10-02).
+
+**Canary steps (production, inside the `app` container):**
+1. Set `SMART_BOT_ENGINE_V2=true` in the production environment and refresh the config cache.
+2. `php artisan ai:engine {WisperBot's own bot ID} v2`, then `php artisan ai:engine --list`.
+3. Ask its known questions on the widget; read `php artisan ai:smart-bot-report --days=1 --workspace={ID}` (rows show `engine=v2`, reasons and traces).
+4. Roll back with `php artisan ai:engine {ID} v1`, or switch every moved bot off with `SMART_BOT_ENGINE_V2=false`.
+
+**Not verified against real providers:** tests fake OpenAI. Check one live v2 answer per provider in use, especially Gemini and Anthropic JSON replies (they use JSON mode, not the strict schema).
+
+**Next increments:** the quality test set (1.6) to compare v1 and v2, the answer-controls UI (1.4), the company brief (1.3), unanswered questions and feedback (1.5), native channel choices (1.7), full-context mode and burst batching.
