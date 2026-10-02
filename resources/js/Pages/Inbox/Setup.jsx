@@ -885,7 +885,7 @@ function TelegramAccountRow({ account, chatbots, canManageAi }) {
 function initFbSdk(appId) {
     if (typeof window.FB === 'undefined' || !appId) return false;
     try {
-        window.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: 'v20.0' });
+        window.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: 'v25.0' });
         window.__fbSdkReady = true;
         return true;
     } catch {
