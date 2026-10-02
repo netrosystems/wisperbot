@@ -228,6 +228,7 @@ class AiKnowledgeBaseApiController extends WorkspaceScopedController
             'language' => $kb->language,
             'brand' => $kb->brand,
             'audience' => $kb->audience,
+            'company_brief' => $kb->approvedBrief(),
             'embedding_model' => $kb->embedding_model,
             'status' => $kb->status,
             'workspace_id' => $kb->workspace_id,

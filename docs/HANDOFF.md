@@ -365,3 +365,7 @@ Writing questions and runs need WisperBot's managed OpenAI integration (Admin â†
 ## Smart Bot 2.0 Phase 1.4, answer controls (2026-10-03)
 
 Designed on WisperBot's existing bot page rather than Cerqle's cards: the existing answer scope cards are the v2 modes, and a Reply length select (Short / Standard / Detailed) sits next to Tone. Both engines read it; Standard is unchanged. Verified locally on the demo bot: saved, reloaded, phone width without horizontal scroll. Mobile apps may read `reply_length` from the chatbot API; no app change is required. English labels only, like the other recent Smart Bot labels (other languages fall back to English).
+
+## Smart Bot 2.0 Phase 1.3, company brief (2026-10-03)
+
+Designed for WisperBot's Knowledge Base page: a card beside the existing business profile (Step 1 with guarded publishing, above the sources without). Drafting runs on the `ai` queue (`DraftCompanyBriefJob`), so a production `ai` worker must be running. Verified locally with a seeded sample draft (review, approve, approved state); a real draft was not run locally to avoid a provider call, and tests fake OpenAI. English labels only.

@@ -20,6 +20,9 @@ Route::middleware(['web', 'client-app'])->prefix('app/ai')->name('client.ai.')->
     Route::delete('/knowledge-bases/{kb}', [AiKnowledgeBaseController::class, 'destroy'])->name('knowledge-bases.destroy');
     Route::post('/knowledge-bases/{kb}/documents', [AiKnowledgeBaseController::class, 'addDocument'])->name('knowledge-bases.documents.add');
     Route::post('/knowledge-bases/{kb}/publish', [AiKnowledgeBaseController::class, 'publish'])->name('knowledge-bases.publish');
+    Route::post('/knowledge-bases/{kb}/company-brief/draft', [AiKnowledgeBaseController::class, 'draftCompanyBrief'])->name('knowledge-bases.company-brief.draft')->middleware('throttle:6,1');
+    Route::post('/knowledge-bases/{kb}/company-brief', [AiKnowledgeBaseController::class, 'approveCompanyBrief'])->name('knowledge-bases.company-brief.approve');
+    Route::delete('/knowledge-bases/{kb}/company-brief', [AiKnowledgeBaseController::class, 'destroyCompanyBrief'])->name('knowledge-bases.company-brief.destroy');
     Route::post('/knowledge-bases/{kb}/rollback/{revision}', [AiKnowledgeBaseController::class, 'rollback'])->name('knowledge-bases.rollback');
     Route::post('/knowledge-bases/{kb}/test', [AiKnowledgeBaseController::class, 'testQuery'])->name('knowledge-bases.test');
     Route::post('/knowledge-bases/{kb}/test-cases', [AiKnowledgeBaseController::class, 'storeTestCase'])->name('knowledge-bases.test-cases.store');

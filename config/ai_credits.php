@@ -7,6 +7,7 @@ $actions = [
     'email_subject' => ['label' => 'Improve an email subject', 'credits' => 1],
     'short_rewrite' => ['label' => 'Short rewrite or correction', 'credits' => 1],
     'kb_quality_review' => ['label' => 'Knowledge Base quality review', 'credits' => 1],
+    'kb_company_brief' => ['label' => 'Draft a company brief', 'credits' => 2],
     'automation_ai_step' => ['label' => 'AI step inside an automation run', 'credits' => 1],
     'email_generate' => ['label' => 'Generate a complete email', 'credits' => 2],
     'social_post' => ['label' => 'Generate one social post', 'credits' => 2],

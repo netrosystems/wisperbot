@@ -3,12 +3,14 @@
 namespace App\Modules\AI\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\AI\Jobs\DraftCompanyBriefJob;
 use App\Modules\AI\Jobs\IndexDocumentJob;
 use App\Modules\AI\Models\AiKbChunk;
 use App\Modules\AI\Models\AiKbDocument;
 use App\Modules\AI\Models\AiKbRevision;
 use App\Modules\AI\Models\AiKbTestCase;
 use App\Modules\AI\Models\AiKnowledgeBase;
+use App\Modules\AI\Services\CompanyBriefService;
 use App\Modules\AI\Services\EmbeddingStore;
 use App\Modules\AI\Services\KnowledgeBaseTestService;
 use App\Modules\AI\Services\KnowledgeBaseWorkflowService;
@@ -75,6 +77,7 @@ class AiKnowledgeBaseController extends Controller
             'health' => $this->workflow->health($kb),
             'guardedPublishing' => (bool) config('knowledge_base.guarded_publishing'),
             'efficiency' => $this->efficiency($kb),
+            'hasBriefSources' => app(CompanyBriefService::class)->hasSources($kb),
         ]);
     }
 
@@ -480,6 +483,54 @@ class AiKnowledgeBaseController extends Controller
     private function videoIndexText(array $data): string
     {
         return trim("Title: {$data['title']}\nDescription or transcript:\n{$data['video_transcript']}\nTrigger phrases:\n".($data['trigger_phrases'] ?? ''));
+    }
+
+    /** Queues a company brief draft from this Knowledge Base's live sources (2 credits). */
+    public function draftCompanyBrief(Request $request, AiKnowledgeBase $kb, CompanyBriefService $briefs): RedirectResponse
+    {
+        $this->authorise($request, $kb);
+        if ($kb->company_brief_status === AiKnowledgeBase::BRIEF_DRAFTING) {
+            return back();
+        }
+        if (! $briefs->hasSources($kb)) {
+            return back()->with('error', 'Add and publish at least one source before drafting a company brief.');
+        }
+
+        $kb->forceFill(['company_brief_status' => AiKnowledgeBase::BRIEF_DRAFTING, 'company_brief_error' => null])->save();
+        DraftCompanyBriefJob::dispatch($kb->id, $request->user()->id)->onQueue('ai');
+
+        return back()->with('success', 'Drafting the company brief. It appears here in a moment.');
+    }
+
+    /**
+     * Approves the brief: the draft sentences the client kept, as edited, or
+     * the whole brief as rewritten. Nothing left removes the brief.
+     */
+    public function approveCompanyBrief(Request $request, AiKnowledgeBase $kb, CompanyBriefService $briefs): RedirectResponse
+    {
+        $this->authorise($request, $kb);
+        $validated = $request->validate([
+            'sentences' => ['required_without:text', 'array', 'max:'.CompanyBriefService::MAX_SENTENCES],
+            'sentences.*' => ['nullable', 'string', 'max:'.CompanyBriefService::MAX_SENTENCE_CHARS],
+            'text' => ['nullable', 'string', 'max:'.CompanyBriefService::MAX_BRIEF_CHARS],
+        ]);
+        $briefs->approve($kb, array_key_exists('text', $validated) ? [(string) $validated['text']] : array_values(array_map('strval', $validated['sentences'] ?? [])), $request->user());
+
+        return back()->with('success', 'Company brief saved. Your Smart Bots use it from now on.');
+    }
+
+    /** Removes the brief, or with ?draft=1 only the draft waiting for review. */
+    public function destroyCompanyBrief(Request $request, AiKnowledgeBase $kb, CompanyBriefService $briefs): RedirectResponse
+    {
+        $this->authorise($request, $kb);
+        if ($request->boolean('draft')) {
+            $briefs->discardDraft($kb);
+
+            return back()->with('success', 'Draft discarded.');
+        }
+        $briefs->remove($kb);
+
+        return back()->with('success', 'Company brief removed.');
     }
 
     private function authorise(Request $request, AiKnowledgeBase $kb): void

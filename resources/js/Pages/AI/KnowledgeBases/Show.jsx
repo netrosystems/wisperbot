@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 
 import { confirmDialog } from '@/Components/ConfirmDialog';
+import CompanyBriefCard from '@/Components/CompanyBriefCard';
 const SOURCE_TYPES = {
     url:     { icon: Globe,    labelKey: 'ai.source_url' },
     file:    { icon: Upload,   labelKey: 'ai.source_file' },
@@ -51,7 +52,7 @@ const STATUS_CONFIG = {
     error:    { color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',            icon: AlertCircle },
 };
 
-export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploadMaxMb = 20, health = {}, guardedPublishing = false, efficiency = {} }) {
+export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploadMaxMb = 20, health = {}, guardedPublishing = false, efficiency = {}, hasBriefSources = false }) {
     const { t } = useTranslation();
     const { props } = usePage();
     const flash = props.flash ?? {};
@@ -376,8 +377,11 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                             <label className="text-sm font-medium text-neutral-700 dark:text-neutral-200 sm:col-span-2">Purpose<textarea required rows={4} value={renameForm.data.purpose} onChange={e => renameForm.setData('purpose', e.target.value)} placeholder="Answer setup, billing, and troubleshooting questions for…" className="mt-1 w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800" />{renameForm.errors.purpose && <span className="mt-1 block text-xs text-red-500">{renameForm.errors.purpose}</span>}</label>
                             <div className="flex justify-end sm:col-span-2"><button disabled={renameForm.processing} className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{renameForm.processing ? 'Saving…' : 'Save and add sources'} <span aria-hidden="true">→</span></button></div>
                         </form>
+                        <div className="mt-6"><CompanyBriefCard kb={kb} hasSources={hasBriefSources} /></div>
                     </section>
                 )}
+
+                {!guardedPublishing && <CompanyBriefCard kb={kb} hasSources={hasBriefSources} />}
 
                 {/* Stats */}
                 {(activeStep === 2 || !guardedPublishing) && (kb.documents?.length ?? 0) > 0 && (

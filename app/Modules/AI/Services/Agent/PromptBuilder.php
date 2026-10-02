@@ -42,6 +42,11 @@ class PromptBuilder
             $parts[] = "Business profile (written by the business):\nName: ".($business ?: 'Not provided')
                 ."\nPurpose: ".(trim((string) $kb->purpose) ?: 'Not provided')
                 ."\nCustomers: ".(trim((string) $kb->audience) ?: 'Not provided');
+            // Approved by the business itself, so its facts may be stated like
+            // the knowledge's. The same every turn, so it stays in the cacheable part.
+            if ($brief = $kb->approvedBrief()) {
+                $parts[] = "Company brief (written and approved by the business):\n".$brief;
+            }
         }
         $parts[] = <<<PROMPT
 How you work (follow this for every reply):
