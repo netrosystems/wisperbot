@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\DB;
 class SmartBotReportCommand extends Command
 {
     /** Reason codes that mean the customer received a real answer. */
-    private const ANSWERED = ['answered', 'answered_guidance', 'answered_cached', 'live_product', 'conversation', 'offer'];
+    private const ANSWERED = ['answered', 'answered_regenerated', 'answered_guidance', 'answered_cached', 'live_product', 'conversation', 'offer', 'replayed', 'model_clarification'];
 
     protected $signature = 'ai:smart-bot-report
         {--days=14 : How many days back to look}
@@ -88,6 +88,7 @@ class SmartBotReportCommand extends Command
                 'clarifications' => $clarifications,
             ],
             'reasons' => $reasons,
+            'engines' => $countBy('engine'),
             'answer_origin' => $countBy('answer_origin'),
             'channels' => $countBy('channel'),
             'models' => $countBy('model'),

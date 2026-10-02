@@ -7,7 +7,9 @@ use App\Modules\AI\Exceptions\AiOutputRejectedException;
 use App\Modules\AI\Models\AiRun;
 use App\Modules\AI\Models\AiWorkspaceSetting;
 use App\Modules\AI\Services\Llm\LlmManager;
+use App\Modules\AI\Services\Llm\LlmProviderInterface;
 use App\Modules\AI\Services\Llm\LlmResponse;
+use App\Modules\AI\Services\Llm\LlmTurn;
 use App\Modules\Broadcasting\Models\UsageMeter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -30,8 +32,7 @@ class LlmGateway
         // Unknown or omitted feature keys fail closed before any provider request.
         $this->credits->creditsFor($feature);
 
-        $mode = AiWorkspaceSetting::modeFor($workspaceId);
-        $source = $mode === 'byok' ? 'byok' : 'managed';
+        $source = AiWorkspaceSetting::modeFor($workspaceId) === 'byok' ? 'byok' : 'managed';
         $reservation = null;
         $providerName = null;
         $model = $opts['model'] ?? null;
@@ -41,34 +42,15 @@ class LlmGateway
         unset($opts['diagnostics'], $opts['response_validator'], $opts['retry_rejected']);
 
         try {
-            if ($source === 'managed') {
-                try {
-                    $reservation = $this->credits->reserve($workspaceId, $feature, $idempotencyKey, $actorId);
-                    if ($reservation->replayedResponse) {
-                        return $reservation->replayedResponse;
-                    }
-                    $resolved = LlmManager::managedChat($feature);
-                    $opts['model'] = $resolved['model'];
-                } catch (\Throwable $managedFailure) {
-                    if ($mode !== 'auto_fallback') {
-                        throw $managedFailure;
-                    }
-                    if ($reservation) {
-                        $this->credits->refund($reservation->ledger, 'managed_provider_unavailable');
-                    }
-                    $source = 'byok';
-                    $reservation = $this->credits->recordByok($workspaceId, $feature, $idempotencyKey.':fallback', $actorId);
-                    if ($reservation->replayedResponse) {
-                        return $reservation->replayedResponse;
-                    }
-                    $resolved = LlmManager::forWorkspaceByok($workspaceId, requireSuccessfulTest: true);
-                }
-            } else {
-                $reservation = $this->credits->recordByok($workspaceId, $feature, $idempotencyKey, $actorId);
-                if ($reservation->replayedResponse) {
-                    return $reservation->replayedResponse;
-                }
-                $resolved = LlmManager::forWorkspaceByok($workspaceId);
+            $route = $this->openRoute($workspaceId, $feature, $idempotencyKey, $actorId);
+            $reservation = $route['reservation'];
+            $source = $route['source'];
+            if ($reservation->replayedResponse) {
+                return $reservation->replayedResponse;
+            }
+            $resolved = $route['resolved'];
+            if ($route['model'] !== null) {
+                $opts['model'] = $route['model'];
             }
             $providerName = $resolved['provider'];
             $model = $opts['model'] ?? $model;
@@ -146,6 +128,101 @@ class LlmGateway
         ]);
 
         return $response;
+    }
+
+    /**
+     * One customer-facing answer that may take several model calls (Smart Bot
+     * 2.0): one credit reservation, settled once by LlmTurn::finish() or
+     * returned by LlmTurn::abort(). A key that already finished replays its
+     * stored answer instead of calling the provider again.
+     */
+    public function beginTurn(int $workspaceId, string $feature, string $idempotencyKey, ?int $chatbotId = null, ?int $conversationId = null): LlmTurn
+    {
+        $this->credits->creditsFor($feature);
+        $route = $this->openRoute($workspaceId, $feature, $idempotencyKey, auth()->id() ?: null);
+        $reservation = $route['reservation'];
+        if ($reservation->replayedResponse) {
+            return new LlmTurn($this, $this->credits, null, null, null, null, $workspaceId, $feature, $chatbotId, $conversationId, LlmTurn::storedAnswer($reservation->replayedResponse));
+        }
+
+        return new LlmTurn($this, $this->credits, $reservation->ledger, $route['resolved']['client'], $route['resolved']['provider'], $route['model'], $workspaceId, $feature, $chatbotId, $conversationId);
+    }
+
+    /**
+     * One call of a turn: the provider call and the double-budget retry for a
+     * reply cut off before it was usable. No ledger of its own.
+     *
+     * @internal Used by LlmTurn.
+     *
+     * @param  array<int,array<string,mixed>>  $messages
+     * @param  array<string,mixed>  $opts
+     */
+    public function runStep(LlmProviderInterface $client, array $messages, array $opts): LlmResponse
+    {
+        $response = $client->chat($messages, $opts);
+        $json = ($opts['json_object'] ?? false) === true || isset($opts['json_schema']);
+        $unusable = trim($response->content) === '' || ($json && ! is_array(json_decode(trim((string) preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($response->content))), true)));
+        if ($response->truncated() && $unusable) {
+            $opts['max_tokens'] = min(4096, 2 * (int) ($opts['max_tokens'] ?? 1024));
+            $response = $client->chat($messages, $opts);
+        }
+
+        return $response;
+    }
+
+    /**
+     * Who pays and who answers: opens the credit reservation (managed, BYOK,
+     * or managed with BYOK fallback) and resolves the provider. A reservation
+     * that already succeeded carries its replayed response and no provider.
+     * A reservation opened here is refunded if the provider cannot be resolved.
+     *
+     * @return array{reservation:AiCreditReservation,resolved:array{provider:string,client:LlmProviderInterface,model?:string}|null,model:?string,source:string}
+     */
+    private function openRoute(int $workspaceId, string $feature, string $idempotencyKey, ?int $actorId): array
+    {
+        $mode = AiWorkspaceSetting::modeFor($workspaceId);
+        $source = $mode === 'byok' ? 'byok' : 'managed';
+        $reservation = null;
+
+        try {
+            if ($source === 'managed') {
+                try {
+                    $reservation = $this->credits->reserve($workspaceId, $feature, $idempotencyKey, $actorId);
+                    if ($reservation->replayedResponse) {
+                        return ['reservation' => $reservation, 'resolved' => null, 'model' => null, 'source' => $source];
+                    }
+                    $resolved = LlmManager::managedChat($feature);
+
+                    return ['reservation' => $reservation, 'resolved' => $resolved, 'model' => $resolved['model'], 'source' => $source];
+                } catch (\Throwable $managedFailure) {
+                    if ($mode !== 'auto_fallback') {
+                        throw $managedFailure;
+                    }
+                    if ($reservation) {
+                        $this->credits->refund($reservation->ledger, 'managed_provider_unavailable');
+                    }
+                    $source = 'byok';
+                    $reservation = $this->credits->recordByok($workspaceId, $feature, $idempotencyKey.':fallback', $actorId);
+                    if ($reservation->replayedResponse) {
+                        return ['reservation' => $reservation, 'resolved' => null, 'model' => null, 'source' => $source];
+                    }
+
+                    return ['reservation' => $reservation, 'resolved' => LlmManager::forWorkspaceByok($workspaceId, requireSuccessfulTest: true), 'model' => null, 'source' => $source];
+                }
+            }
+            $reservation = $this->credits->recordByok($workspaceId, $feature, $idempotencyKey, $actorId);
+            if ($reservation->replayedResponse) {
+                return ['reservation' => $reservation, 'resolved' => null, 'model' => null, 'source' => $source];
+            }
+
+            return ['reservation' => $reservation, 'resolved' => LlmManager::forWorkspaceByok($workspaceId), 'model' => null, 'source' => $source];
+        } catch (\Throwable $e) {
+            if ($reservation) {
+                $this->credits->refund($reservation->ledger, $e instanceof AiCreditsException ? $e->errorCode : 'provider_failed');
+            }
+
+            throw $e;
+        }
     }
 
     public function embed(int $workspaceId, array $texts): array

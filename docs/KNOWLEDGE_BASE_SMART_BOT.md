@@ -375,6 +375,29 @@ Do not store or expose provider secrets, hidden prompts, embeddings, complete re
 
 The Knowledge Base tester may show Answer/Clarification/Fallback, compact Meaning/Wording confidence, and selected passage summaries. It must not expose embeddings or hidden prompts.
 
+## Engine v2 (Smart Bot 2.0 Phase 1, canary, 2026-10-02)
+
+A second answer engine, after Cerqle's accepted engine v2. A bot answers with it only when `SMART_BOT_ENGINE_V2=true` **and** `ai_chatbots.engine = v2` (`php artisan ai:engine {bot} v2`; `--list` shows the moved bots). Every other bot keeps engine v1, described above. Migration `2026_10_03_000100_add_engine_v2_to_ai_chatbots` adds `ai_chatbots.engine` (default `v1`) and `reply_length` (`short` / `standard` / `detailed`, default `standard`), and `engine` and `trace` on `ai_kb_retrieval_diagnostics`.
+
+**Where it runs.** After v1's free gates (offer replies, business-aware greetings, live product facts, guarded exact FAQ and answer cache), in `ChatbotRunner::run()` and `runForApi()` through the `AnswersWithEngineV2` trait (`app/Modules/AI/Services/Agent/`). It reuses v1's retrieval (hybrid or vector), video answers, order details and fallbacks. Trusted research, the semantic answer cache and the guidance retry are v1 only.
+
+**One turn:**
+1. Greetings and thanks are answered free whatever `SMART_BOT_BUSINESS_AWARE_ROUTING` says. A question about the customer's own order or account, with no connected-store order details, gets a free offer of a person.
+2. Search: up to `max_context_chunks` passages scoring at least `SMART_BOT_V2_MIN_SCORE` (0.30). A Strict bot with none offers the fallback without a model call.
+3. One credit reservation for the whole answer (`LlmGateway::beginTurn()` → `LlmTurn`). Each model call is a step, logged as its own `ai_runs` row with `metadata_json.step` (`plan`, `generate`, `verify`, `regenerate`). `finish()` charges once and stores the answer, so a retried job replays it; `abort()` refunds.
+4. A follow-up (four words or fewer after an earlier question, words like "it"/"that"/"what about", or any reply to the bot's clarifying question) is rewritten by `QueryPlanner` into a standalone question and up to three search queries.
+5. `PromptBuilder` writes the answer ladder for the bot's mode and its reply length (about 50 / 90 / 160 words; email twice that), keeping v1's reply rules (customer's language and script, choices, scripted flows, exact wording, no video links). The passages, order details and video instructions go in a second system message just before the customer's message.
+6. The reply (`ReplyContractV2`) names its kind (`answer`, `partial`, `guidance`, `clarification`, `handoff`), the passages it used and word-for-word evidence quotes.
+7. Checks (`AnswerValidator`): figures (`FigureCheck`, shared with v1); no talk of "excerpts", "sources" or "language model"; a full answer needs a real quote of two or more words; a Strict bot never gives guidance. Links, emails, phone numbers and dates are recorded in `trace.validator_shadow` until `SMART_BOT_V2_VALIDATOR_ENFORCE=true`. Then `SupportCheck` (`SMART_BOT_V2_SUPPORT_CHECK`, on) asks whether the knowledge states what an `answer` or `partial` reply says. A rejected reply is written again once, told why; a second rejection sends the fallback, refunded.
+8. A `partial` or `handoff` reply with no planner run gets a second look: rewritten queries, up to three more passages, and a new answer kept only when it answers more.
+9. Charging: an answer, partial answer or guidance is charged once. A bare question back and an offer of a person are sent but refunded. A second clarifying question in a row becomes the fallback, refunded.
+
+**Modes** come from the existing `answer_scope`: `verified_only` → Strict, `business_only` → Balanced (Strict when the business profile is not meaningful), `general` → Flexible.
+
+**What clients see.** The same payload as v1: `response_mode` stays `answer` / `clarification` / `fallback` (a model handoff is `fallback`), `answer_origin` is `knowledge_base` or `business_guidance`, and `quick_replies` keep their shape. No SDK change is needed.
+
+**Diagnostics.** Rows carry `engine` (`v1`/`v2`) and, for v2, `trace` (mode, planner queries, answer kind, used sources, support check, shadow findings, second look, passages and scores). Extra reason codes: `answered_regenerated`, `model_clarification`, `model_handoff`, `clarified_twice`, `rejected_reply`, `account_specific`, `replayed`.
+
 ## Feature flags and rollout
 
 The experimental switches default off:
@@ -384,6 +407,7 @@ SMART_BOT_BUSINESS_AWARE_ROUTING=false
 KB_HYBRID_RETRIEVAL_ENABLED=false
 KB_LIVE_PRODUCT_FACTS_ENABLED=false
 KB_LIVE_PRODUCT_FRESHNESS_MINUTES=15
+SMART_BOT_ENGINE_V2=false
 ```
 
 Required migrations on promotion:
@@ -431,3 +455,4 @@ At minimum, cover:
 - Knowledge Base tester: `resources/js/Pages/AI/KnowledgeBases/Show.jsx`
 - Turn report: `app/Console/Commands/SmartBotReportCommand.php` (`ai:smart-bot-report`)
 - Holding reply when the bot produces nothing: `app/Modules/Inbox/Services/AiHoldingReply.php`
+- Engine v2: `app/Modules/AI/Services/Agent/` (`AnswersWithEngineV2`, `PromptBuilder`, `ReplyContractV2`, `QueryPlanner`, `AnswerValidator`, `SupportCheck`, `FigureCheck`), `app/Modules/AI/Services/Llm/LlmTurn.php`, `app/Console/Commands/SmartBotEngineCommand.php` (`ai:engine`)

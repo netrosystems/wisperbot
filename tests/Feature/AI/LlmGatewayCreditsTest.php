@@ -86,6 +86,33 @@ class LlmGatewayCreditsTest extends TestCase
         $this->assertSame(1, AiCreditLedger::sole()->credits);
     }
 
+    public function test_a_turn_of_several_calls_is_charged_once_and_an_aborted_turn_is_refunded(): void
+    {
+        $workspace = $this->workspaceWithCredits(5);
+        $this->managedOpenAi();
+        AiWorkspaceSetting::create(['workspace_id' => $workspace->id, 'provider_mode' => 'managed']);
+        Http::fake(['api.openai.com/*' => Http::response($this->openAiResponse('{"ok":true}'))]);
+        $gateway = app(LlmGateway::class);
+
+        $turn = $gateway->beginTurn($workspace->id, 'chatbot_reply', 'turn-one');
+        $turn->step([['role' => 'user', 'content' => 'plan']], [], 'plan');
+        $turn->step([['role' => 'user', 'content' => 'answer']], [], 'generate');
+        $turn->step([['role' => 'user', 'content' => 'check']], [], 'verify');
+        $turn->finish(['reply' => 'Done', 'response_mode' => 'answer']);
+
+        $ledger = AiCreditLedger::sole();
+        $this->assertSame('succeeded', $ledger->status);
+        $this->assertSame(1, $ledger->credits);
+        $this->assertSame(30, $ledger->prompt_tokens);
+        $this->assertSame(['reply' => 'Done', 'response_mode' => 'answer'], $gateway->beginTurn($workspace->id, 'chatbot_reply', 'turn-one')->replay);
+        Http::assertSentCount(3);
+
+        $aborted = $gateway->beginTurn($workspace->id, 'chatbot_reply', 'turn-two');
+        $aborted->step([['role' => 'user', 'content' => 'answer']], [], 'generate');
+        $aborted->abort('model_handoff');
+        $this->assertSame('refunded', AiCreditLedger::where('status', '!=', 'succeeded')->sole()->status);
+    }
+
     public function test_empty_generation_is_refunded_not_charged_as_success(): void
     {
         $workspace = $this->workspaceWithCredits(100);
