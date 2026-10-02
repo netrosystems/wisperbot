@@ -40,14 +40,39 @@ class AiKnowledgeBase extends Model
         'workspace_id', 'name', 'purpose', 'language', 'brand', 'audience',
         'embedding_model', 'dimensions', 'status', 'draft_revision_id',
         'published_revision_id', 'readiness_score', 'regression_status', 'last_published_at',
+        'company_brief', 'company_brief_draft', 'company_brief_status', 'company_brief_error',
+        'company_brief_drafted_at', 'company_brief_approved_at', 'company_brief_approved_by',
     ];
+
+    public const BRIEF_NONE = 'none';
+
+    public const BRIEF_DRAFTING = 'drafting';
+
+    public const BRIEF_DRAFT = 'draft';
+
+    public const BRIEF_FAILED = 'failed';
 
     protected function casts(): array
     {
         return [
             'readiness_score' => 'integer',
             'last_published_at' => 'datetime',
+            'company_brief_draft' => 'array',
+            'company_brief_drafted_at' => 'datetime',
+            'company_brief_approved_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The company brief the client approved, or null. A draft is never used;
+     * the approved brief stays in use while a new draft waits for review.
+     * `company_brief_status` follows the draft only (none, drafting, draft, failed).
+     */
+    public function approvedBrief(): ?string
+    {
+        $brief = trim((string) $this->company_brief);
+
+        return $this->company_brief_approved_at !== null && $brief !== '' ? $brief : null;
     }
 
     /** @return HasMany<AiKbDocument, $this> */

@@ -1170,6 +1170,7 @@ PROMPT;
             'Business' => trim((string) $knowledgeBase?->brand),
             'Purpose' => trim((string) $knowledgeBase?->purpose),
             'Customers' => trim((string) $knowledgeBase?->audience),
+            'Company brief' => (string) $knowledgeBase?->approvedBrief(),
         ]);
         $block = '';
         if ($profile !== []) {

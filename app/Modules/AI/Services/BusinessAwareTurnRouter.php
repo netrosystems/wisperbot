@@ -169,6 +169,7 @@ class BusinessAwareTurnRouter
             'Purpose: '.trim((string) $knowledgeBase->purpose),
             'Audience: '.trim((string) $knowledgeBase->audience),
             'Knowledge Base: '.trim((string) $knowledgeBase->name),
+            ...(($brief = $knowledgeBase->approvedBrief()) !== null ? ['Company brief (approved by the business): '.$brief] : []),
         ]);
     }
 

@@ -42,6 +42,17 @@ The legacy `unsupported_answer_action` field remains a compatibility alias. New 
 
 These three cards are also engine v2's Strict / Balanced / Flexible modes (`verified_only` / `business_only` / `general`); there is no separate control. The answer scope takes effect when `SMART_BOT_BUSINESS_AWARE_ROUTING` is on (engine v1) or the bot answers with engine v2. The bot page shows "Staged rollout" on the cards only when neither applies, and a "New answer engine" badge on a bot that answers with engine v2 (2026-10-03).
 
+### Company brief (2026-10-03)
+
+An optional, client-approved paragraph beside the Knowledge Base's business profile (brand, customers, purpose): what the business offers, who it serves, how customers buy or get help, and the policies they ask about. The profile says in a line what the business is; the brief gives the Smart Bot enough to answer "what do you do?" and to give business-aware guidance without a passage having to match.
+
+- **Where:** a "Company brief" card on the Knowledge Base page: in Step 1 with guarded publishing on, above the sources otherwise (`resources/js/Components/CompanyBriefCard.jsx`).
+- **Drafting** (`CompanyBriefService`, `DraftCompanyBriefJob` on the `ai` queue, one attempt): up to 8 live documents, about, home, pricing, services, contact, FAQ and policy pages first (authoritative sources before them), 2,000 characters each. The model writes 6–10 sentences, each naming its source. A sentence whose figures, links or emails are not in its source is flagged and starts unticked. Charged as `kb_company_brief` (2 credits) because the client asks for it; a draft with no usable sentence is refunded. Routes: `client.ai.knowledge-bases.company-brief.draft` (6 per minute), `.approve`, `.destroy` (`?draft=1` drops only the draft); workspace-checked like every Knowledge Base action.
+- **Approval:** the client keeps, edits or drops sentences and approves, or edits the approved brief as one text (up to 3,000 characters). Only `AiKnowledgeBase::approvedBrief()` (approved text with `company_brief_approved_at`) is ever used. A new draft or a failed attempt never switches the approved brief off; `company_brief_status` follows the draft only (`none`, `drafting`, `draft`, `failed`).
+- **Use:** engine v1 adds it to the business profile at the head of the verified context and to the business-guidance profile (`BusinessAwareTurnRouter::profileText()`); engine v2 puts it in the cacheable part of the prompt, and its facts count as support for the figure check and the support check. It does not replace brand, customers and purpose for the meaningful-profile check. The Knowledge Base API lists `company_brief` (approved text or null).
+
+Migration `2026_10_03_000300_add_company_brief_to_ai_knowledge_bases`.
+
 ### Reply length (2026-10-03)
 
 `ai_chatbots.reply_length`, chosen on the bot page next to Tone (Short / Standard / Detailed), and read by both engines from `chatbot.reply_lengths`:
@@ -492,5 +503,6 @@ At minimum, cover:
 - Knowledge Base tester: `resources/js/Pages/AI/KnowledgeBases/Show.jsx`
 - Turn report: `app/Console/Commands/SmartBotReportCommand.php` (`ai:smart-bot-report`)
 - Holding reply when the bot produces nothing: `app/Modules/Inbox/Services/AiHoldingReply.php`
+- Company brief: `app/Modules/AI/Services/CompanyBriefService.php`, `app/Modules/AI/Jobs/DraftCompanyBriefJob.php`, `resources/js/Components/CompanyBriefCard.jsx`
 - Answer-quality test set: `app/Modules/AI/Services/Eval/` (`EvalCaseSynthesizer`, `EvalRunner`, `EvalScorer`), `app/Console/Commands/Eval*Command.php`
 - Engine v2: `app/Modules/AI/Services/Agent/` (`AnswersWithEngineV2`, `PromptBuilder`, `ReplyContractV2`, `QueryPlanner`, `AnswerValidator`, `SupportCheck`, `FigureCheck`), `app/Modules/AI/Services/Llm/LlmTurn.php`, `app/Console/Commands/SmartBotEngineCommand.php` (`ai:engine`)
