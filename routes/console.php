@@ -17,6 +17,7 @@ Schedule::call(function () {
 use App\Http\Controllers\Admin\CronSetupController;
 use App\Modules\AI\Jobs\RefreshLiveProductDocumentJob;
 use App\Modules\AI\Models\AiKbDocument;
+use App\Modules\AI\Models\AiKbRetrievalDiagnostic;
 use App\Modules\AI\Services\AiCreditService;
 use App\Modules\Broadcasting\Jobs\LaunchScheduledCampaignsJob;
 use App\Modules\Broadcasting\Models\UsageMeter;
@@ -56,6 +57,11 @@ Schedule::call(function () {
     WhatsappConnectionOperation::where('created_at', '<', now()->subDays(config('channel_health.retention_days', 90)))
         ->whereNotNull('finished_at')->delete();
 })->daily()->name('prune-whatsapp-connection-health');
+
+// One row per Smart Bot turn; ai:smart-bot-report reads the recent ones.
+Schedule::call(function () {
+    AiKbRetrievalDiagnostic::where('created_at', '<', now()->subDays(90))->chunkById(1000, fn ($rows) => AiKbRetrievalDiagnostic::whereIn('id', $rows->modelKeys())->delete());
+})->dailyAt('03:10')->name('prune-smart-bot-diagnostics')->withoutOverlapping();
 
 // ─── Marketing Suite Scheduled Tasks ────────────────────────────────────────
 

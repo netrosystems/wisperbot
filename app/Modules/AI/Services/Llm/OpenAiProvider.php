@@ -68,6 +68,7 @@ class OpenAiProvider implements LlmProviderInterface
             completionTokens: $json['usage']['completion_tokens'] ?? 0,
             model: $json['model'] ?? $this->chatModel,
             latencyMs: $latency,
+            finishReason: LlmResponse::normalizeFinishReason($json['choices'][0]['finish_reason'] ?? null),
         );
     }
 

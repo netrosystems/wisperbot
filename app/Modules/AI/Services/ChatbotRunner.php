@@ -2,6 +2,7 @@
 
 namespace App\Modules\AI\Services;
 
+use App\Modules\AI\Exceptions\AiCreditsException;
 use App\Modules\AI\Exceptions\AiOutputRejectedException;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKbAnswerCache;
@@ -9,6 +10,7 @@ use App\Modules\AI\Models\AiKbEmbeddingCache;
 use App\Modules\AI\Models\AiKbKnowledgeGap;
 use App\Modules\AI\Models\AiKbRetrievalDiagnostic;
 use App\Modules\AI\Models\AiKnowledgeBase;
+use App\Modules\AI\Services\Llm\LlmResponse;
 use App\Modules\Shared\Models\Message;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Cache;
@@ -34,6 +36,14 @@ class ChatbotRunner
         ],
     ];
 
+    /** The last model reply this turn, kept so a rejected turn can say why. */
+    private ?LlmResponse $lastResponse = null;
+
+    /** Why the last model reply was rejected, for the turn's diagnostics row. */
+    private ?string $rejection = null;
+
+    private string $turnChannel = 'api';
+
     public function __construct(
         private LlmGateway $llmGateway,
         private EmbeddingStore $embedStore,
@@ -51,6 +61,7 @@ class ChatbotRunner
         $conversation = $inboundMessage->conversation;
         $body = $inboundMessage->body ?? '';
         $workspaceId = $conversation->workspace_id;
+        $this->beginTurn((string) ($inboundMessage->channel ?: 'webchat'));
         $guarded = (bool) config('knowledge_base.guarded_publishing');
         $knowledgeOnly = $this->restrictsToKnowledgeBase($bot);
         $kb = $bot->ai_kb_id
@@ -66,6 +77,7 @@ class ChatbotRunner
 
         if ($this->businessAwareEnabled() && ($conversationResult = $this->turnRouter->conversationalResult($body, $kb, $bot->tone))) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
+                'reason_code' => 'conversation',
                 'intent' => $conversationResult['intent'],
                 'answer_origin' => 'conversation',
                 'credit_result' => 'zero_cost',
@@ -75,10 +87,17 @@ class ChatbotRunner
         }
 
         if ($guarded && $bot->ai_kb_id && ! $revisionId) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, [], 0, [
+                'reason_code' => 'kb_unpublished',
+                'answer_origin' => 'fallback',
+                'credit_result' => 'not_charged',
+            ]);
+
             return $this->unsupportedResult($bot);
         }
         if ($productResult = $this->liveProducts->answer($bot, $workspaceId, $body, $history)) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, $productResult['response_mode'], 'live_product', [], 0, [
+                'reason_code' => 'live_product',
                 'intent' => $productResult['intent'],
                 'answer_origin' => 'live_product',
                 'response_mode' => $productResult['response_mode'],
@@ -91,6 +110,7 @@ class ChatbotRunner
         }
         if ($guarded && $revisionId && ($exact = $this->exactFaq($kb, $body, $revisionId))) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_faq', [], 0, [
+                'reason_code' => 'answered_cached',
                 'intent' => 'business_question',
                 'answer_origin' => 'knowledge_base',
                 'credit_result' => 'zero_cost',
@@ -100,6 +120,7 @@ class ChatbotRunner
         }
         if ($guarded && $revisionId && ($cached = $this->cachedAnswer($bot, $body, $revisionId))) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_cache', [], 0, [
+                'reason_code' => 'answered_cached',
                 'intent' => 'business_question',
                 'answer_origin' => 'knowledge_base',
                 'credit_result' => 'zero_cost',
@@ -123,6 +144,7 @@ class ChatbotRunner
             'response_mode' => 'fallback',
         ];
         $queryEmbedding = [];
+        $retrievalFailed = false;
         try {
             $searchTranslation = $bot->ai_kb_id ? $this->knowledgeRetrieval->englishSearchQuery($workspaceId, $body) : null;
             if ($hybridRetrieval) {
@@ -172,9 +194,11 @@ class ChatbotRunner
             if ($throwProviderErrors) {
                 throw $e;
             }
+            $retrievalFailed = true;
         }
         if ($guarded && $revisionId && $queryEmbedding !== [] && ($semantic = $this->semanticCachedAnswer($bot, $queryEmbedding, $revisionId))) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'semantic_cache', [], 0, [
+                'reason_code' => 'answered_cached',
                 'intent' => 'business_question',
                 'answer_origin' => 'knowledge_base',
                 'response_mode' => 'answer',
@@ -224,6 +248,7 @@ class ChatbotRunner
                         $this->recordGap($bot, $workspaceId, $body, (float) $retrieval['best_score']);
                     }
                     $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
+                        'reason_code' => $routing['mode'] === 'research' ? 'research_empty' : 'out_of_scope',
                         'intent' => $routing['intent'],
                         'answer_origin' => 'fallback',
                         'research_outcome' => $research['outcome'] ?? null,
@@ -240,8 +265,12 @@ class ChatbotRunner
             } else {
                 if ($guarded) {
                     $this->recordGap($bot, $workspaceId, $body, (float) $retrieval['best_score']);
-                    $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff');
                 }
+                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
+                    'reason_code' => $retrievalFailed ? 'retrieval_error' : 'no_context',
+                    'answer_origin' => 'fallback',
+                    'credit_result' => 'not_charged',
+                ]);
 
                 return $this->unsupportedResult($bot);
             }
@@ -291,7 +320,7 @@ class ChatbotRunner
                     'temperature' => $bot->kb_exact_wording ? 0.2 : 0.4,
                     'json_object' => true,
                     'json_schema' => self::REPLY_SCHEMA,
-                    'response_validator' => fn ($response) => $this->validChatResponse($response->content, $strictGrounding, $responseMode, $this->verifiedContext($kb, $retrieval['context'])."\n".$body),
+                    'response_validator' => fn (LlmResponse $response) => $this->acceptReply($response, $strictGrounding, $responseMode, $this->verifiedContext($kb, $retrieval['context'])."\n".$body),
                     'retry_rejected' => fn ($response): bool => trim((string) (app(ChatReplyOptions::class)->structuredPayload($response->content)['reply'] ?? '')) !== '',
                     'diagnostics' => array_merge($selection['diagnostics'], [
                         'intent' => $routing['intent'] ?? 'business_question',
@@ -329,20 +358,23 @@ class ChatbotRunner
             if ($guarded && $revisionId && $this->cacheableQuestion($body) && $this->anonymousContact($conversation->contact) && ! $this->retrievalTimeSensitive($retrieval)) {
                 $this->storeAnswerCache($bot, $body, $revisionId, $result);
             }
-            if ($guarded || $this->businessAwareEnabled()) {
-                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, $retrieval, $response->completionTokens, [
-                    'intent' => $routing['intent'] ?? 'business_question',
-                    'answer_origin' => $answerOrigin,
-                    'response_mode' => $responseMode,
-                    'research_outcome' => $research['outcome'] ?? null,
-                    'research_latency_ms' => $research['latency_ms'] ?? null,
-                    'citations' => $citations,
-                    'credit_result' => 'charged_once',
-                ]);
-            }
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, $retrieval, $response->completionTokens, [
+                'reason_code' => 'answered',
+                'intent' => $routing['intent'] ?? 'business_question',
+                'answer_origin' => $answerOrigin,
+                'response_mode' => $responseMode,
+                'research_outcome' => $research['outcome'] ?? null,
+                'research_latency_ms' => $research['latency_ms'] ?? null,
+                'citations' => $citations,
+                'credit_result' => 'charged_once',
+                'model' => $response->model,
+                'finish_reason' => $response->finishReason,
+                'latency_ms' => $response->latencyMs,
+            ]);
 
             return $result;
         } catch (AiOutputRejectedException $e) {
+            $this->recordFailedTurn($bot, $workspaceId, $revisionId, $retrieval, $e, $routing['intent'] ?? 'business_question');
             if ($knowledgeOnly) {
                 return $this->unsupportedResult($bot);
             }
@@ -352,6 +384,7 @@ class ChatbotRunner
 
             return $this->withAnswerMetadata(['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => []], 'fallback', [], 'fallback');
         } catch (\Throwable $e) {
+            $this->recordFailedTurn($bot, $workspaceId, $revisionId, $retrieval, $e, $routing['intent'] ?? 'business_question');
             if ($throwProviderErrors) {
                 throw $e;
             }
@@ -499,6 +532,7 @@ class ChatbotRunner
         ?string $idempotencyKey = null,
         bool $throwProviderErrors = false,
     ): array {
+        $this->beginTurn('api');
         $guarded = (bool) config('knowledge_base.guarded_publishing');
         $knowledgeOnly = $this->restrictsToKnowledgeBase($bot);
         $kb = $bot->ai_kb_id
@@ -511,6 +545,7 @@ class ChatbotRunner
         }
         if ($this->businessAwareEnabled() && ($conversationResult = $this->turnRouter->conversationalResult($message, $kb, $bot->tone))) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
+                'reason_code' => 'conversation',
                 'intent' => $conversationResult['intent'],
                 'answer_origin' => 'conversation',
                 'credit_result' => 'zero_cost',
@@ -519,11 +554,18 @@ class ChatbotRunner
             return $conversationResult;
         }
         if ($guarded && $bot->ai_kb_id && ! $revisionId) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, [], 0, [
+                'reason_code' => 'kb_unpublished',
+                'answer_origin' => 'fallback',
+                'credit_result' => 'not_charged',
+            ]);
+
             return $this->unsupportedResult($bot);
         }
         $promptHistory = ($guarded || $knowledgeOnly) ? $this->boundedHistory($history, $message) : $history;
         if ($productResult = $this->liveProducts->answer($bot, $workspaceId, $message, $promptHistory)) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, $productResult['response_mode'], 'live_product', [], 0, [
+                'reason_code' => 'live_product',
                 'intent' => $productResult['intent'],
                 'answer_origin' => 'live_product',
                 'response_mode' => $productResult['response_mode'],
@@ -535,9 +577,21 @@ class ChatbotRunner
             return $productResult;
         }
         if ($guarded && $revisionId && ($exact = $this->exactFaq($kb, $message, $revisionId))) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_faq', [], 0, [
+                'reason_code' => 'answered_cached',
+                'answer_origin' => 'knowledge_base',
+                'credit_result' => 'zero_cost',
+            ]);
+
             return $this->withAnswerMetadata(['reply' => $exact, 'tokens_used' => 0, 'resources' => []], 'knowledge_base');
         }
         if ($guarded && $revisionId && ($cached = $this->cachedAnswer($bot, $message, $revisionId))) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'exact_cache', [], 0, [
+                'reason_code' => 'answered_cached',
+                'answer_origin' => 'knowledge_base',
+                'credit_result' => 'zero_cost',
+            ]);
+
             return $this->withAnswerMetadata(['reply' => $cached->answer, 'tokens_used' => 0, 'resources' => $cached->resources ?? []], 'knowledge_base');
         }
 
@@ -556,6 +610,7 @@ class ChatbotRunner
             'response_mode' => 'fallback',
         ];
         $queryEmbedding = [];
+        $retrievalFailed = false;
         try {
             $searchTranslation = $bot->ai_kb_id ? $this->knowledgeRetrieval->englishSearchQuery($workspaceId, $message) : null;
             if ($hybridRetrieval) {
@@ -605,8 +660,16 @@ class ChatbotRunner
             if ($throwProviderErrors) {
                 throw $e;
             }
+            $retrievalFailed = true;
         }
         if ($guarded && $revisionId && $queryEmbedding !== [] && ($semantic = $this->semanticCachedAnswer($bot, $queryEmbedding, $revisionId))) {
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', 'semantic_cache', [], 0, [
+                'reason_code' => 'answered_cached',
+                'answer_origin' => 'knowledge_base',
+                'response_mode' => 'answer',
+                'credit_result' => 'zero_cost',
+            ]);
+
             return $this->withAnswerMetadata(['reply' => $semantic->answer, 'tokens_used' => 0, 'resources' => $semantic->resources ?? []], 'knowledge_base', [], 'answer');
         }
 
@@ -650,6 +713,7 @@ class ChatbotRunner
                         $this->recordGap($bot, $workspaceId, $message, (float) $retrieval['best_score']);
                     }
                     $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
+                        'reason_code' => $routing['mode'] === 'research' ? 'research_empty' : 'out_of_scope',
                         'intent' => $routing['intent'],
                         'answer_origin' => 'fallback',
                         'research_outcome' => $research['outcome'] ?? null,
@@ -667,6 +731,11 @@ class ChatbotRunner
                 if ($guarded) {
                     $this->recordGap($bot, $workspaceId, $message, (float) $retrieval['best_score']);
                 }
+                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
+                    'reason_code' => $retrievalFailed ? 'retrieval_error' : 'no_context',
+                    'answer_origin' => 'fallback',
+                    'credit_result' => 'not_charged',
+                ]);
 
                 return $this->unsupportedResult($bot);
             }
@@ -703,7 +772,7 @@ class ChatbotRunner
                     'temperature' => $bot->kb_exact_wording ? 0.2 : 0.4,
                     'json_object' => true,
                     'json_schema' => self::REPLY_SCHEMA,
-                    'response_validator' => fn ($response) => $this->validChatResponse($response->content, $strictGrounding, $responseMode, $this->verifiedContext($kb, $retrieval['context'])."\n".$message),
+                    'response_validator' => fn (LlmResponse $response) => $this->acceptReply($response, $strictGrounding, $responseMode, $this->verifiedContext($kb, $retrieval['context'])."\n".$message),
                     'retry_rejected' => fn ($response): bool => trim((string) (app(ChatReplyOptions::class)->structuredPayload($response->content)['reply'] ?? '')) !== '',
                     'diagnostics' => array_merge($selection['diagnostics'], [
                         'intent' => $routing['intent'] ?? 'business_question',
@@ -738,20 +807,23 @@ class ChatbotRunner
             if ($guarded && $revisionId && $this->cacheableQuestion($message) && ! $this->retrievalTimeSensitive($retrieval)) {
                 $this->storeAnswerCache($bot, $message, $revisionId, $result);
             }
-            if ($guarded || $this->businessAwareEnabled()) {
-                $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, $retrieval, $response->completionTokens, [
-                    'intent' => $routing['intent'] ?? 'business_question',
-                    'answer_origin' => $answerOrigin,
-                    'response_mode' => $responseMode,
-                    'research_outcome' => $research['outcome'] ?? null,
-                    'research_latency_ms' => $research['latency_ms'] ?? null,
-                    'citations' => $citations,
-                    'credit_result' => 'charged_once',
-                ]);
-            }
+            $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, $retrieval, $response->completionTokens, [
+                'reason_code' => 'answered',
+                'intent' => $routing['intent'] ?? 'business_question',
+                'answer_origin' => $answerOrigin,
+                'response_mode' => $responseMode,
+                'research_outcome' => $research['outcome'] ?? null,
+                'research_latency_ms' => $research['latency_ms'] ?? null,
+                'citations' => $citations,
+                'credit_result' => 'charged_once',
+                'model' => $response->model,
+                'finish_reason' => $response->finishReason,
+                'latency_ms' => $response->latencyMs,
+            ]);
 
             return $result;
         } catch (AiOutputRejectedException $e) {
+            $this->recordFailedTurn($bot, $workspaceId, $revisionId, $retrieval, $e, $routing['intent'] ?? 'business_question');
             if ($knowledgeOnly) {
                 return $this->unsupportedResult($bot);
             }
@@ -761,6 +833,7 @@ class ChatbotRunner
 
             return $this->withAnswerMetadata(['reply' => $bot->fallback_reply ?? null, 'tokens_used' => 0, 'resources' => []], 'fallback', [], 'fallback');
         } catch (\Throwable $e) {
+            $this->recordFailedTurn($bot, $workspaceId, $revisionId, $retrieval, $e, $routing['intent'] ?? 'business_question');
             if ($throwProviderErrors) {
                 throw $e;
             }
@@ -1016,6 +1089,7 @@ PROMPT;
         $result = $this->turnRouter->offerReplyResult($message, is_array($previous) ? (string) ($previous['content'] ?? '') : null, $kb, $bot->tone);
         if ($result !== null) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
+                'reason_code' => 'offer',
                 'intent' => $result['intent'],
                 'answer_origin' => 'conversation',
                 'credit_result' => 'zero_cost',
@@ -1365,11 +1439,53 @@ PROMPT;
             && ($bot->unsupported_answer_action ?? 'clarify_then_handoff') !== 'general';
     }
 
+    private function beginTurn(string $channel): void
+    {
+        $this->turnChannel = mb_substr($channel, 0, 32);
+        $this->lastResponse = null;
+        $this->rejection = null;
+    }
+
+    private function acceptReply(LlmResponse $response, bool $knowledgeOnly, string $responseMode, string $evidence): bool
+    {
+        $this->lastResponse = $response;
+        $this->rejection = null;
+
+        return $this->validChatResponse($response->content, $knowledgeOnly, $responseMode, $evidence);
+    }
+
+    /**
+     * A turn that reached the model but ended in the fallback records why, so
+     * an empty or cut-off reply is told apart from a provider outage.
+     *
+     * @param  array<string,mixed>  $retrieval
+     */
+    private function recordFailedTurn(AiChatbot $bot, int $workspaceId, ?int $revisionId, array $retrieval, \Throwable $e, string $intent): void
+    {
+        $reason = match (true) {
+            $e instanceof AiCreditsException => 'credits_unavailable',
+            $e instanceof AiOutputRejectedException && trim((string) $this->lastResponse?->content) === '' => 'empty_reply',
+            $e instanceof AiOutputRejectedException => $this->rejection ?? 'output_rejected',
+            default => 'provider_error',
+        };
+        $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'fallback', null, $retrieval, (int) $this->lastResponse?->completionTokens, [
+            'reason_code' => $reason,
+            'intent' => $intent,
+            'answer_origin' => 'fallback',
+            'credit_result' => $e instanceof AiCreditsException ? 'not_charged' : 'refunded',
+            'model' => $this->lastResponse?->model,
+            'finish_reason' => $this->lastResponse?->finishReason,
+            'latency_ms' => $this->lastResponse?->latencyMs,
+        ]);
+    }
+
     private function validChatResponse(string $content, bool $knowledgeOnly, string $responseMode = 'answer', string $evidence = ''): bool
     {
         $replyOptions = app(ChatReplyOptions::class);
         $parsed = $replyOptions->parse($content);
         if ($parsed === null) {
+            $this->rejection = trim($content) === '' ? 'empty_reply' : 'unparseable_reply';
+
             return false;
         }
         if (! $knowledgeOnly) {
@@ -1386,17 +1502,31 @@ PROMPT;
 
         $choices = implode(' ', array_column($parsed['quick_replies'], 'label'));
         if ($followUpQuestion) {
-            return $evidence === '' || ! $this->hasUnsupportedFigures($choices, $evidence);
+            if ($evidence !== '' && $this->hasUnsupportedFigures($choices, $evidence)) {
+                $this->rejection = 'unsupported_figures';
+
+                return false;
+            }
+
+            return true;
         }
         // Medium evidence may still fully answer the request; the model must then
         // vouch for it exactly as it would in answer mode.
         if (! is_array($decoded) || ($decoded['grounded'] ?? null) !== true || $reply === '') {
+            $this->rejection = $reply === '' ? 'declined_empty' : 'ungrounded_reply';
+
             return false;
         }
 
         // The model's own "grounded" claim is not enough: every figure it states,
         // in the reply or a choice, must appear in the evidence it was given.
-        return $evidence === '' || ! $this->hasUnsupportedFigures($reply.' '.$choices, $evidence);
+        if ($evidence !== '' && $this->hasUnsupportedFigures($reply.' '.$choices, $evidence)) {
+            $this->rejection = 'unsupported_figures';
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -1554,9 +1684,28 @@ PROMPT;
         int $completionTokens = 0,
         array $metadata = [],
     ): void {
-        if (! $bot->ai_kb_id) {
-            return;
+        // Measurement must never cost the customer their reply.
+        try {
+            $this->writeDiagnostic($bot, $workspaceId, $revisionId, $decision, $cacheSource, $retrieval, $completionTokens, $metadata);
+        } catch (\Throwable $e) {
+            report($e);
         }
+    }
+
+    /**
+     * @param  array<string,mixed>  $retrieval
+     * @param  array<string,mixed>  $metadata
+     */
+    private function writeDiagnostic(
+        AiChatbot $bot,
+        int $workspaceId,
+        ?int $revisionId,
+        string $decision,
+        ?string $cacheSource,
+        array $retrieval,
+        int $completionTokens,
+        array $metadata,
+    ): void {
         AiKbRetrievalDiagnostic::create([
             'workspace_id' => $workspaceId,
             'kb_id' => $bot->ai_kb_id,
@@ -1583,6 +1732,11 @@ PROMPT;
             'citations' => $metadata['citations'] ?? null,
             'product_diagnostics' => $metadata['product_diagnostics'] ?? null,
             'credit_result' => $metadata['credit_result'] ?? null,
+            'reason_code' => $metadata['reason_code'] ?? ($decision === 'answer' ? 'answered' : $decision),
+            'channel' => $this->turnChannel,
+            'model' => isset($metadata['model']) ? mb_substr((string) $metadata['model'], 0, 100) : null,
+            'finish_reason' => $metadata['finish_reason'] ?? null,
+            'latency_ms' => $metadata['latency_ms'] ?? null,
         ]);
     }
 

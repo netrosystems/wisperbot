@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Every Smart Bot turn now records why it ended.** Fallbacks on the default path, rejected or empty model replies, provider errors and bots without a Knowledge Base were not recorded, so the fallback rate could not be measured. Each turn now writes one diagnostics row with a reason code, channel, model, finish reason and latency, and `php artisan ai:smart-bot-report` summarises them. Rows are kept 90 days. Migration `2026_10_02_000100_add_turn_reasons_to_ai_kb_retrieval_diagnostics` is required. Replies are unchanged.
+
 - The Facebook SDK is now actually started at v25.0. Every page loads it from the layout (`app.blade.php`), which still said v20.0, so Channel Setup's own v25.0 setting was skipped and Meta's signup window kept opening at `/v20.0/`. No migration.
 
 - Channel Setup now starts Meta's JavaScript SDK at Graph API v25.0 (it was v20.0), matching the server and Meta's current Embedded Signup guide. A Coexistence attempt showed Meta's normal WhatsApp account picker instead of the "connect your existing WhatsApp Business app" option; this rules out the old SDK version as a cause. No migration.

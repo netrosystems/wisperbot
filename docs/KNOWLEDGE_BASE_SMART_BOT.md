@@ -336,6 +336,26 @@ One logical answer is charged once. Internal classification, provider retries, d
 
 Management diagnostics may record intent, answer origin, response mode, retrieval strategy, semantic/lexical score summaries, acceptance reason, research outcome, latency, citation URLs, and credit result.
 
+### Turn reasons (2026-10-02)
+
+Every `ChatbotRunner::run()` and `runForApi()` turn writes one `ai_kb_retrieval_diagnostics` row, whatever the flags, including bots without a Knowledge Base (`kb_id` is then null). Public comment replies are not included. Each row has a `reason_code`, the `channel` (the inbound message channel, or `api`), and, when the model was called, `model`, `finish_reason` (`stop`, `length`, `content_filter` or the provider's own value) and `latency_ms`. A failure to write the row is reported and never blocks the reply.
+
+| `reason_code` | Meaning |
+|---|---|
+| `answered` | The model's reply was sent (`response_mode` tells answer from clarification). |
+| `answered_cached` | Exact FAQ, exact cache or semantic cache answer; no model call. |
+| `conversation`, `offer` | Zero-credit greeting/thanks or offer reply. |
+| `live_product` | Live product fact reply. |
+| `no_context` | No passage passed the retrieval cut-off on a knowledge-only bot; the model was not called. `best_score` is kept. |
+| `retrieval_error` | Retrieval failed, then the turn fell back as above. |
+| `out_of_scope`, `research_empty` | Business-aware routing sent the turn to the fallback. |
+| `kb_unpublished` | Guarded publishing is on and the Knowledge Base has no published revision. |
+| `empty_reply` | The model returned nothing (often `finish_reason=length`). Refunded. |
+| `declined_empty`, `ungrounded_reply`, `unsupported_figures`, `unparseable_reply` | The reply failed validation. Refunded. |
+| `provider_error`, `credits_unavailable` | The provider call failed, or no credits could be reserved. |
+
+`php artisan ai:smart-bot-report [--days=14] [--workspace=ID] [--json]` reads these rows back (read-only): answered and fallback rates, reasons, answer origins, channels, models, finish reasons, p50/p95 model latency, the best scores of `no_context` turns (how many would pass a 0.45 cut-off), the `chatbot_reply` credit ledger, and the current flag values. Rows older than 90 days are deleted daily at 03:10 (`prune-smart-bot-diagnostics`).
+
 Do not store or expose provider secrets, hidden prompts, embeddings, complete retrieved/fetched context, generated customer content beyond normal message storage, or cross-tenant examples. Public widget responses receive only safe customer-facing metadata.
 
 The Knowledge Base tester may show Answer/Clarification/Fallback, compact Meaning/Wording confidence, and selected passage summaries. It must not expose embeddings or hidden prompts.
@@ -394,3 +414,4 @@ At minimum, cover:
 - JavaScript widget renderer: `public/widget/wisperbot-chat-widget.js`
 - Smart Bot client settings: `resources/js/Pages/AI/Chatbots/Index.jsx`
 - Knowledge Base tester: `resources/js/Pages/AI/KnowledgeBases/Show.jsx`
+- Turn report: `app/Console/Commands/SmartBotReportCommand.php` (`ai:smart-bot-report`)
