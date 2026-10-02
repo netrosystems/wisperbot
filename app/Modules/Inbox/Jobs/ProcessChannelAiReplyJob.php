@@ -5,6 +5,7 @@ namespace App\Modules\Inbox\Jobs;
 use App\Events\MessageSent;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Services\AiCreditService;
+use App\Modules\AI\Services\AnswerReview;
 use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\Inbox\Services\AiHoldingReply;
 use App\Modules\Inbox\Services\EmailAiMessageGuard;
@@ -118,10 +119,12 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
                 $reply = $result['reply'];
                 $handOver = true;
             }
+            // "Why this answer" for the team; never sent to the customer.
+            $review = app(AnswerReview::class)->summary($runner->lastTurnContext(), $chatbot, $message->id);
 
-            Cache::lock('conversation-ai-reply:'.$this->conversationId, 150)->block(10, function () use ($channels, $conversation, $credits, $message, $policy, $reply, $result, $handOver, $handoff): void {
+            Cache::lock('conversation-ai-reply:'.$this->conversationId, 150)->block(10, function () use ($channels, $conversation, $credits, $message, $policy, $reply, $result, $handOver, $handoff, $review): void {
                 $segment = $policy->segmentFor($conversation->channelAccount);
-                Cache::lock('workspace-ai-policy:'.$conversation->workspace_id.':'.$segment, 150)->block(10, function () use ($channels, $conversation, $credits, $message, $policy, $reply, $result, $handOver, $handoff): void {
+                Cache::lock('workspace-ai-policy:'.$conversation->workspace_id.':'.$segment, 150)->block(10, function () use ($channels, $conversation, $credits, $message, $policy, $reply, $result, $handOver, $handoff, $review): void {
                     $conversation->refresh()->load('channelAccount');
                     $latestInboundId = $conversation->messages()->where('direction', 'in')->max('id');
                     $reason = $this->conversationBlockReason($conversation) ?: $policy->decision($conversation->channelAccount);
@@ -156,6 +159,7 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
                                 'response_mode' => $result['response_mode'] ?? null,
                                 'citations' => $result['citations'] ?? [],
                                 'product_facts' => $result['product_facts'] ?? [],
+                                'ai_review' => $review,
                             ],
                             'status' => 'queued',
                             'sent_by' => 'bot',

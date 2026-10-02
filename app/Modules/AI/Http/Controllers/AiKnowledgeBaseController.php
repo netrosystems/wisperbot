@@ -7,6 +7,7 @@ use App\Modules\AI\Jobs\DraftCompanyBriefJob;
 use App\Modules\AI\Jobs\IndexDocumentJob;
 use App\Modules\AI\Models\AiKbChunk;
 use App\Modules\AI\Models\AiKbDocument;
+use App\Modules\AI\Models\AiKbKnowledgeGap;
 use App\Modules\AI\Models\AiKbRevision;
 use App\Modules\AI\Models\AiKbTestCase;
 use App\Modules\AI\Models\AiKnowledgeBase;
@@ -17,6 +18,7 @@ use App\Modules\AI\Services\KnowledgeBaseWorkflowService;
 use App\Modules\AI\Services\KnowledgeSourceUrlResolver;
 use App\Modules\AI\Services\KnowledgeUrlGuard;
 use App\Modules\AI\Services\LlmGateway;
+use App\Modules\AI\Services\UnansweredQuestionService;
 use App\Modules\AI\Services\VideoResourceService;
 use App\Services\StorageManager;
 use Illuminate\Http\JsonResponse;
@@ -65,7 +67,8 @@ class AiKnowledgeBaseController extends Controller
             'chatbots:id,name,ai_kb_id,enabled',
             'publishedRevision',
             'draftRevision',
-            'knowledgeGaps' => fn ($query) => $query->where('status', 'open')->latest('last_seen_at')->limit(25),
+            // Most asked first: the unanswered questions worth answering.
+            'knowledgeGaps' => fn ($query) => $query->where('status', 'open')->orderByDesc('occurrences')->latest('last_seen_at')->limit(25),
         ]);
 
         $kbUploadMaxKb = $this->kbUploadMaxKb();
@@ -531,6 +534,31 @@ class AiKnowledgeBaseController extends Controller
         $briefs->remove($kb);
 
         return back()->with('success', 'Company brief removed.');
+    }
+
+    /** Writes the answer to an unanswered question into the Knowledge Base's answers source. */
+    public function answerUnanswered(Request $request, AiKnowledgeBase $kb, AiKbKnowledgeGap $gap, UnansweredQuestionService $questions): RedirectResponse
+    {
+        $this->authorise($request, $kb);
+        abort_unless((int) $gap->kb_id === (int) $kb->id, 404);
+        $validated = $request->validate([
+            'question' => ['required', 'string', 'max:500'],
+            'answer' => ['required', 'string', 'max:'.UnansweredQuestionService::MAX_ANSWER_CHARS],
+        ]);
+        $questions->answer($kb, $gap, $validated['question'], $validated['answer'], $request->user());
+
+        return back()->with('success', config('knowledge_base.guarded_publishing')
+            ? 'Answer saved to the draft. Publish the Knowledge Base to use it.'
+            : 'Answer saved. Your Smart Bots use it once indexing finishes.');
+    }
+
+    public function dismissUnanswered(Request $request, AiKnowledgeBase $kb, AiKbKnowledgeGap $gap, UnansweredQuestionService $questions): RedirectResponse
+    {
+        $this->authorise($request, $kb);
+        abort_unless((int) $gap->kb_id === (int) $kb->id, 404);
+        $questions->dismiss($gap);
+
+        return back()->with('success', 'Question dismissed.');
     }
 
     private function authorise(Request $request, AiKnowledgeBase $kb): void

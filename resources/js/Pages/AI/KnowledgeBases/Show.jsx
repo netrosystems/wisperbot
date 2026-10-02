@@ -6,6 +6,7 @@ import { useTranslation, Trans } from 'react-i18next';
 
 import { confirmDialog } from '@/Components/ConfirmDialog';
 import CompanyBriefCard from '@/Components/CompanyBriefCard';
+import UnansweredQuestionsCard from '@/Components/UnansweredQuestionsCard';
 const SOURCE_TYPES = {
     url:     { icon: Globe,    labelKey: 'ai.source_url' },
     file:    { icon: Upload,   labelKey: 'ai.source_file' },
@@ -382,6 +383,8 @@ export default function AiKnowledgeBaseShow({ kb, kbUploadMaxKb = 20480, kbUploa
                 )}
 
                 {!guardedPublishing && <CompanyBriefCard kb={kb} hasSources={hasBriefSources} />}
+
+                {(activeStep === 2 || !guardedPublishing) && <UnansweredQuestionsCard kb={kb} guardedPublishing={guardedPublishing} />}
 
                 {/* Stats */}
                 {(activeStep === 2 || !guardedPublishing) && (kb.documents?.length ?? 0) > 0 && (

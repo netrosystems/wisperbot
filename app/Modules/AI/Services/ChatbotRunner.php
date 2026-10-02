@@ -7,7 +7,6 @@ use App\Modules\AI\Exceptions\AiOutputRejectedException;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiKbAnswerCache;
 use App\Modules\AI\Models\AiKbEmbeddingCache;
-use App\Modules\AI\Models\AiKbKnowledgeGap;
 use App\Modules\AI\Models\AiKbRetrievalDiagnostic;
 use App\Modules\AI\Models\AiKnowledgeBase;
 use App\Modules\AI\Services\Agent\AnswersWithEngineV2;
@@ -55,6 +54,21 @@ class ChatbotRunner
     /** A test run (Phase 1.6): no diagnostics rows, knowledge gaps or cached answers. */
     private bool $evaluating = false;
 
+    /** The playground does not fill the unanswered-questions list. */
+    private bool $recordsGaps = true;
+
+    private string $turnQuestion = '';
+
+    /**
+     * Turns that ended without an answer from the knowledge: the question
+     * joins the Knowledge Base's unanswered list. Unrelated topics, small
+     * talk, account questions and provider failures do not.
+     */
+    private const UNANSWERED_REASONS = [
+        'no_context', 'research_empty', 'declined_empty', 'ungrounded_reply', 'unsupported_figures', 'unparseable_reply',
+        'rejected_reply', 'model_handoff', 'clarified_twice', 'answered_guidance',
+    ];
+
     /** @var array<string,mixed> Why the last turn ended, as its diagnostics row would record it. */
     private array $lastTurn = [];
 
@@ -82,6 +96,15 @@ class ChatbotRunner
         return $runner;
     }
 
+    /** A copy whose turns are not added to the unanswered-questions list (the playground). */
+    public function withoutKnowledgeGaps(): static
+    {
+        $runner = clone $this;
+        $runner->recordsGaps = false;
+
+        return $runner;
+    }
+
     /**
      * Why the last turn ended and how: reason code, engine, trace, model.
      *
@@ -98,7 +121,7 @@ class ChatbotRunner
         $conversation = $inboundMessage->conversation;
         $body = $inboundMessage->body ?? '';
         $workspaceId = $conversation->workspace_id;
-        $this->beginTurn((string) ($inboundMessage->channel ?: 'webchat'));
+        $this->beginTurn((string) ($inboundMessage->channel ?: 'webchat'), $body);
         $guarded = (bool) config('knowledge_base.guarded_publishing');
         $knowledgeOnly = $this->restrictsToKnowledgeBase($bot);
         $kb = $bot->ai_kb_id
@@ -288,9 +311,6 @@ class ChatbotRunner
                     }
                 }
                 if ($routing['mode'] === 'fallback' || ($routing['mode'] === 'research' && $retrieval['context'] === '')) {
-                    if ($guarded) {
-                        $this->recordGap($bot, $workspaceId, $body, (float) $retrieval['best_score']);
-                    }
                     $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
                         'reason_code' => $routing['mode'] === 'research' ? 'research_empty' : 'out_of_scope',
                         'intent' => $routing['intent'],
@@ -307,9 +327,6 @@ class ChatbotRunner
                     $responseMode = 'answer';
                 }
             } else {
-                if ($guarded) {
-                    $this->recordGap($bot, $workspaceId, $body, (float) $retrieval['best_score']);
-                }
                 $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
                     'reason_code' => $retrievalFailed ? 'retrieval_error' : 'no_context',
                     'answer_origin' => 'fallback',
@@ -580,7 +597,7 @@ class ChatbotRunner
         ?string $idempotencyKey = null,
         bool $throwProviderErrors = false,
     ): array {
-        $this->beginTurn('api');
+        $this->beginTurn('api', $message);
         $guarded = (bool) config('knowledge_base.guarded_publishing');
         $knowledgeOnly = $this->restrictsToKnowledgeBase($bot);
         $kb = $bot->ai_kb_id
@@ -760,9 +777,6 @@ class ChatbotRunner
                     }
                 }
                 if ($routing['mode'] === 'fallback' || ($routing['mode'] === 'research' && $retrieval['context'] === '')) {
-                    if ($guarded) {
-                        $this->recordGap($bot, $workspaceId, $message, (float) $retrieval['best_score']);
-                    }
                     $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
                         'reason_code' => $routing['mode'] === 'research' ? 'research_empty' : 'out_of_scope',
                         'intent' => $routing['intent'],
@@ -779,9 +793,6 @@ class ChatbotRunner
                     $responseMode = 'answer';
                 }
             } else {
-                if ($guarded) {
-                    $this->recordGap($bot, $workspaceId, $message, (float) $retrieval['best_score']);
-                }
                 $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'handoff', null, $retrieval, 0, [
                     'reason_code' => $retrievalFailed ? 'retrieval_error' : 'no_context',
                     'answer_origin' => 'fallback',
@@ -1592,9 +1603,11 @@ PROMPT;
         return $bot?->reply_length === 'detailed' ? max($budget, $bot->replyLength()['max_tokens']) : $budget;
     }
 
-    private function beginTurn(string $channel): void
+    private function beginTurn(string $channel, string $question): void
     {
         $this->turnChannel = mb_substr($channel, 0, 32);
+        $this->turnQuestion = $question;
+        $this->lastTurn = [];
         $this->lastResponse = null;
         $this->rejection = null;
     }
@@ -1783,23 +1796,10 @@ PROMPT;
 
     private function recordGap(AiChatbot $bot, int $workspaceId, string $question, float $score): void
     {
-        if ($this->evaluating) {
+        if ($this->evaluating || ! $this->recordsGaps) {
             return;
         }
-        $normalized = $this->normalizeQuestion($question);
-        $gap = AiKbKnowledgeGap::firstOrNew([
-            'kb_id' => $bot->ai_kb_id,
-            'question_hash' => hash('sha256', $normalized),
-        ]);
-        $gap->fill([
-            'workspace_id' => $workspaceId,
-            'chatbot_id' => $bot->id,
-            'question_sample' => mb_substr($question, 0, 500),
-            'occurrences' => $gap->exists ? $gap->occurrences + 1 : 1,
-            'best_score' => $score,
-            'decision' => 'handoff',
-            'last_seen_at' => now(),
-        ])->save();
+        app(UnansweredQuestionService::class)->record($bot, $workspaceId, $question, $score);
     }
 
     /**
@@ -1870,11 +1870,19 @@ PROMPT;
             'finish_reason' => $metadata['finish_reason'] ?? null,
             'latency_ms' => $metadata['latency_ms'] ?? null,
             'engine' => $metadata['engine'] ?? 'v1',
-            'trace' => $metadata['trace'] ?? null,
+            // Engine v1 keeps which passages it showed the model, for "Why this answer".
+            'trace' => $metadata['trace'] ?? (! empty($retrieval['passage_chunk_ids'])
+                ? ['passages' => array_map(fn ($id) => ['chunk_id' => (int) $id], array_slice((array) $retrieval['passage_chunk_ids'], 0, 8))]
+                : null),
         ];
         $this->lastTurn = $attributes;
         if (! $this->evaluating) {
             AiKbRetrievalDiagnostic::create($attributes);
+        }
+        $kind = $attributes['trace']['answer_kind'] ?? null;
+        if (in_array($attributes['reason_code'], self::UNANSWERED_REASONS, true)
+            || (in_array($attributes['reason_code'], ['answered', 'answered_regenerated'], true) && in_array($kind, ['partial', 'guidance'], true))) {
+            $this->recordGap($bot, $workspaceId, $this->turnQuestion, (float) ($attributes['best_score'] ?? 0));
         }
     }
 

@@ -369,3 +369,7 @@ Designed on WisperBot's existing bot page rather than Cerqle's cards: the existi
 ## Smart Bot 2.0 Phase 1.3, company brief (2026-10-03)
 
 Designed for WisperBot's Knowledge Base page: a card beside the existing business profile (Step 1 with guarded publishing, above the sources without). Drafting runs on the `ai` queue (`DraftCompanyBriefJob`), so a production `ai` worker must be running. Verified locally with a seeded sample draft (review, approve, approved state); a real draft was not run locally to avoid a provider call, and tests fake OpenAI. English labels only.
+
+## Smart Bot 2.0 Phase 1.5, unanswered questions and feedback (2026-10-03)
+
+Designed for WisperBot: the unanswered list lives on the Knowledge Base page (where answers are written), built on the existing `ai_kb_knowledge_gaps`; written answers join one "Answers to customer questions" FAQ source per Knowledge Base. Bot replies carry a staff-only `payload.ai_review`; 👍/👎 and Improve are in the inbox and the mobile API. Verified locally with seeded samples (inbox review row, rating saved, Knowledge Base list); real customer traffic was not exercised. **Mobile app team:** new optional endpoints and payload fields are additive; the SDK and widget are unchanged. English labels only.

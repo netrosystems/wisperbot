@@ -13,7 +13,7 @@
 | Phase | What it delivers | Effort | Status |
 |---|---|---|---|
 | **0** Measure and quick fixes | Every turn records why it ended; `ai:smart-bot-report`; reply budget and cut-off retry; reasoning kept low; all system messages kept; guidance retry; figure check; no silent turns | 3–5 days | ◐ **Code done** 2026-10-02 in PR #181 (`dev` → `main`, awaiting owner approval to merge and deploy). Then: 7-day baseline, threshold decision, 30-question check |
-| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) live in v1.3.105. Company brief (1.3) built 2026-10-03. Next: the canary with a v1-vs-v2 test run, then unanswered questions and feedback, channels |
+| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) live in v1.3.105. Company brief (1.3) live in v1.3.106. Unanswered questions and feedback (1.5) built 2026-10-03. Next: the canary with a v1-vs-v2 test run, then native channel choices (1.7), full-context mode and burst batching |
 | **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times; 1 or 2 credits per answer | 3–4 weeks | ☐ Not started |
 | **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks | ☐ Not started |
 | **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks | ☐ Not started |
@@ -240,8 +240,8 @@ Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path i
 - ☑ (2026-10-03) Reply length (Short ~40 / Standard ~70 / Detailed ~140 words) next to Tone, read by **both** engines; Standard is the old fixed length, so existing bots are unchanged.
 
 **1.5 Unanswered questions and feedback**
-- ↻ A list of unanswered questions on the bot page, most asked first, with "Write answer" (becomes a Q&A) and "Dismiss". ✚ Built on `ai_kb_knowledge_gaps`.
-- ↻ "Why this answer" and 👍/👎 under bot messages in the inbox and the mobile API; "Improve" writes a Q&A.
+- ☑ (2026-10-03) ✚ Unanswered questions on the **Knowledge Base page** (where WisperBot clients write knowledge), most asked first, with Write answer (one "Answers to customer questions" FAQ source per Knowledge Base) and Dismiss. Built on `ai_kb_knowledge_gaps`, now recorded in every publishing mode from the diagnostics reason, scrubbed of personal details, never from the playground or test runs.
+- ☑ (2026-10-03) "Why this answer" (staff-only `payload.ai_review`), 👍/👎 (`ai_answer_feedback`, one per reply) and Improve under bot replies in the inbox and the mobile API; feedback in `ai:smart-bot-report`.
 
 **1.6 Quality test set**
 - ☑ (2026-10-03) `ai:eval:synthesize {bot}`, `ai:eval {bot} [--judge] [--byok]`, `ai:eval:cases {bot}`, `EvalScorer`: answered %, declined %, invented figures, p50. Platform-billed through `LlmGateway::evaluating()` / `platformChat()`, never charged to the client, and no diagnostics, gaps or cached answers.

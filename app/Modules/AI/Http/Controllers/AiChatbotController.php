@@ -132,7 +132,8 @@ class AiChatbotController extends Controller
         ]);
 
         try {
-            $result = app(ChatbotRunner::class)->runForApi(
+            // Tests in the playground are not customers' questions.
+            $result = app(ChatbotRunner::class)->withoutKnowledgeGaps()->runForApi(
                 $chatbot, $validated['message'], $this->workspaceId($request),
                 $validated['history'] ?? [], $request->header('Idempotency-Key'), true,
             );

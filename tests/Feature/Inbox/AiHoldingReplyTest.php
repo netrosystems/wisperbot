@@ -47,7 +47,9 @@ class AiHoldingReplyTest extends TestCase
             'conversation_id' => $conversation->id, 'direction' => 'in', 'channel' => 'messenger',
             'type' => 'text', 'body' => 'Do you deliver to Sylhet?', 'status' => 'delivered', 'sent_at' => now(),
         ]);
-        $this->mock(ChatbotRunner::class)->shouldReceive('run')->andThrow(new \RuntimeException('provider down'));
+        $runner = $this->mock(ChatbotRunner::class);
+        $runner->shouldReceive('run')->andThrow(new \RuntimeException('provider down'));
+        $runner->shouldReceive('lastTurnContext')->andReturn([]);
         $sent = $this->fakeDriver();
 
         app()->call([new ProcessChannelAiReplyJob($conversation->id), 'handle']);
@@ -74,7 +76,9 @@ class AiHoldingReplyTest extends TestCase
             'conversation_id' => $conversation->id, 'direction' => 'in', 'channel' => 'webchat',
             'type' => 'text', 'body' => 'ডেলিভারি চার্জ কত?', 'status' => 'delivered', 'sent_at' => now(),
         ]);
-        $this->mock(ChatbotRunner::class)->shouldReceive('run')->andReturn(['reply' => null, 'tokens_used' => 0, 'resources' => []]);
+        $runner = $this->mock(ChatbotRunner::class);
+        $runner->shouldReceive('run')->andReturn(['reply' => null, 'tokens_used' => 0, 'resources' => []]);
+        $runner->shouldReceive('lastTurnContext')->andReturn([]);
         $this->fakeDriver();
 
         app()->call([new ProcessWebchatAiReplyJob($inbound->id, $bot->id), 'handle']);
