@@ -9,6 +9,7 @@ use App\Modules\AI\Services\StarterQuestions;
 use App\Modules\Inbox\Jobs\ProcessChannelAiReplyJob;
 use App\Modules\Inbox\Jobs\ProcessWebchatAiReplyJob;
 use App\Modules\Inbox\Models\ChatWidget;
+use App\Modules\Inbox\Services\HandoverRequest;
 use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Shared\Models\Conversation;
@@ -21,20 +22,11 @@ use Illuminate\Support\Facades\Log;
 
 class AutoReplyListener
 {
-    /**
-     * Phrases that trigger AI-to-human handover.
-     * Case-insensitive substring matching.
-     */
-    public const HANDOVER_PHRASES = [
-        'talk to human', 'talk to agent', 'speak to agent', 'speak to human',
-        'human please', 'real person', 'live agent', 'live support',
-        'need a human', 'connect me to', 'transfer me',
-    ];
-
     public function __construct(
         private readonly ChannelManager $channelManager,
         private readonly HumanHandoffService $humanHandoff,
         private readonly SegmentAiPolicyService $aiPolicy,
+        private readonly HandoverRequest $handoverRequest,
     ) {}
 
     public function handle(MessageReceived $event): void
@@ -98,14 +90,18 @@ class AutoReplyListener
             return;
         }
 
-        // ── 3. Handover phrase detection ─────────────────────────────────────
-        $body = strtolower($message->body ?? '');
-        foreach (self::HANDOVER_PHRASES as $phrase) {
-            if (str_contains($body, $phrase)) {
-                $this->triggerHandover($conversation, 'user_request');
-
-                return;
+        // ── 3. A request for a person, or yes to the bot's offer of one ──────
+        if ($handover = $this->handoverRequest->reason($message, $conversation)) {
+            // On a channel the bot answers, the customer is told a person will
+            // reply; the website chat shows its own handover state.
+            $acknowledge = $message->channel !== 'webchat' && $conversation->assigned_to !== 'human'
+                && $this->aiPolicy->decision($channelAccount, $message->sent_at) === 'eligible';
+            $this->triggerHandover($conversation, $handover);
+            if ($acknowledge) {
+                $this->acknowledgeHandover($message, $conversation);
             }
+
+            return;
         }
 
         // ── 4. AI chatbot (only if one is linked to this channel account) ─────
@@ -309,6 +305,41 @@ class AutoReplyListener
         } catch (\Throwable $e) {
             Log::error('AutoReplyListener dispatchAutoReply failed', [
                 'rule_id' => $rule->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function acknowledgeHandover(Message $inbound, Conversation $conversation): void
+    {
+        $text = $this->handoverRequest->acknowledgement((string) $inbound->body);
+        try {
+            $reply = Message::create([
+                'conversation_id' => $conversation->id,
+                'direction' => 'out',
+                'channel' => $inbound->channel,
+                'type' => 'text',
+                'body' => $text,
+                'payload' => ['display_body' => $text, 'answer_origin' => 'conversation', 'response_mode' => 'handoff'],
+                'status' => 'queued',
+                'sent_by' => 'bot',
+                'sent_at' => now(),
+            ]);
+            try {
+                $providerId = $this->channelManager->driver($inbound->channel)->send($reply);
+                $reply->update(['status' => 'sent', 'provider_message_id' => $providerId]);
+            } catch (\Throwable $e) {
+                $reply->update(['status' => 'failed', 'error_json' => ['message' => $e->getMessage()]]);
+                Log::warning('AutoReplyListener handover acknowledgement send failed', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            $conversation->update(['last_message_at' => now()]);
+            MessageSent::dispatch($reply->load('conversation'));
+        } catch (\Throwable $e) {
+            Log::error('AutoReplyListener handover acknowledgement failed', [
+                'conversation_id' => $conversation->id,
                 'error' => $e->getMessage(),
             ]);
         }

@@ -389,6 +389,15 @@ One logical answer is charged once. Internal classification, provider retries, d
 - Public Social Comments retains stricter published-evidence and public-data rules; private-chat business guidance does not broaden it.
 - External providers may receive readable numbered text where native quick-reply UI is unavailable.
 
+### Asking for a person (2026-10-04)
+
+`AutoReplyListener` hands a conversation to the team, before any Smart Bot answer, when `HandoverRequest::reason()` finds either:
+
+- **A request for a person** in the customer's words (`user_request`). Recognised in English (the old phrase list and patterns such as "talk/speak/chat to a person, agent, representative, someone"), Bangla and romanized Bangla, Arabic, Hindi and Hinglish, Spanish, French, Portuguese, German and Indonesian. A bare question about, for example, a customer-care number is not a request.
+- **A yes to the bot's offer** (`accepted_offer`): the last outbound message was the bot's and offered a person (for example the default "Would you like me to connect you with a person?"), and the customer replied with a short yes ("yes", "ok", "ha", "জি", "نعم", "हाँ", "sí", up to five words starting with one).
+
+On WhatsApp, Messenger, Instagram, Telegram and email, when the channel's Smart Bot is answering, the customer then receives a short acknowledgement in their script ("Of course. A member of our team will reply here shortly.", `response_mode = handoff`). The website chat shows its own handover state instead. Starter questions are checked with the same `asks()` test. The handover itself (`HumanHandoffService`, team notifications) is unchanged.
+
 ### Formatting per channel (2026-10-04)
 
 Replies are written for the website chat, which renders Markdown. Before a bot reply goes to a channel, `ChannelTextFormatter` (called from `ProcessChannelAiReplyJob::providerBody()`, before the length limit) rewrites it for that channel: WhatsApp gets its own `*bold*`, `_italic_` and `~strike~`; Messenger, Instagram, Telegram (sent without a parse mode), eBay and email get plain text. On every one of them `[label](url)` becomes `label (url)`, headings become plain lines (bold on WhatsApp), bullets become `•` (`-` in email), table rows become `cell – cell`, and rules and code fences are dropped. Addresses are never altered. The stored body and `payload.display_body` hold the formatted text, so the inbox shows what the customer received. The website chat, the mobile/SDK API and the playground keep Markdown. Engine v1's prompt now asks for plain addresses on these channels, as engine v2's already did; the formatter still covers cached answers and models that ignore the instruction.

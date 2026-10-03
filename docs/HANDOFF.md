@@ -389,3 +389,7 @@ A customer's quick run of channel messages is answered once: the earlier text me
 ## Smart Bot 2.0 Phase 1.7, formatting per channel (2026-10-04)
 
 Bot replies on WhatsApp, Messenger, Instagram, Telegram, eBay and email are rewritten from Markdown into the channel's formatting before sending (`ChannelTextFormatter`). Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#formatting-per-channel-2026-10-04). Affects both engines; no switch (it only removes markers the channels cannot show). Tests fake the channels; check one reply with a link on WhatsApp and Messenger after deploy.
+
+## Smart Bot 2.0 Phase 1, asking for a person (2026-10-04)
+
+`HandoverRequest` recognises a request for a person in many languages and a yes to the bot's offer of one; channel customers get an acknowledgement. Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#asking-for-a-person-2026-10-04). `AutoReplyListener::HANDOVER_PHRASES` is gone (starter questions use `HandoverRequest::asks()`). Tests fake the channels; check one "Yes" after the bot's offer on a live channel after deploy.
