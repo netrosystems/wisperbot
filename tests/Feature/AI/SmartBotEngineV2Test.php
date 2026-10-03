@@ -31,6 +31,8 @@ class SmartBotEngineV2Test extends TestCase
     {
         parent::setUp();
         config()->set('chatbot.engine_v2_enabled', true);
+        // These tests cover the search path; full-context mode has its own tests.
+        config()->set('chatbot.v2_full_context_max_tokens', 0);
     }
 
     public function test_a_quoted_answer_is_checked_sent_and_charged_once(): void
@@ -194,6 +196,47 @@ class SmartBotEngineV2Test extends TestCase
 
         $this->assertSame('v1', AiKbRetrievalDiagnostic::sole()->engine);
         $this->assertStringNotContainsString('answer_kind', $this->chatRequests()[0]['messages'][0]['content']);
+    }
+
+    public function test_a_small_knowledge_base_is_read_whole_without_planning_or_refusing(): void
+    {
+        config()->set('chatbot.v2_full_context_max_tokens', 20000);
+        [$bot, $workspaceId] = $this->bot();
+        $bot->update(['answer_scope' => 'verified_only']);
+        // The search finds nothing close, but the knowledge is small enough to read whole.
+        $this->fake([0.0, 1.0, 0.0], [
+            $this->reply('The Japan plan costs 12 USD.', 'answer', [1], ['The Japan plan costs 12 USD']),
+            ['supported' => true, 'unsupported' => ''],
+        ]);
+
+        $result = app(ChatbotRunner::class)->runForApi($bot->fresh(), 'and Japan?', $workspaceId, [
+            ['role' => 'user', 'content' => 'How much is an eSIM?'],
+            ['role' => 'assistant', 'content' => 'Which country?'],
+        ]);
+
+        $this->assertSame('The Japan plan costs 12 USD.', $result['reply']);
+        $row = AiKbRetrievalDiagnostic::sole();
+        $this->assertSame(['passages' => 1, 'tokens' => 26], $row->trace['full_context']);
+        $this->assertArrayNotHasKey('planner', $row->trace);
+        $requests = $this->chatRequests();
+        $this->assertCount(2, $requests);
+        $this->assertStringContainsString('everything this business has written down', $requests[0]['messages'][0]['content']);
+        $this->assertStringContainsString('No knowledge excerpt stood out', $requests[0]['messages'][3]['content']);
+    }
+
+    public function test_a_knowledge_base_over_the_limit_is_searched(): void
+    {
+        config()->set('chatbot.v2_full_context_max_tokens', 10);
+        [$bot, $workspaceId] = $this->bot();
+        $this->fake([1.0, 0.0, 0.0], [
+            $this->reply('Open Settings, choose Mobile Data and scan the QR code.', 'answer', [1], ['choose Mobile Data and scan the QR code']),
+            ['supported' => true, 'unsupported' => ''],
+        ]);
+
+        app(ChatbotRunner::class)->runForApi($bot, 'How do I install the eSIM?', $workspaceId);
+
+        $this->assertArrayNotHasKey('full_context', AiKbRetrievalDiagnostic::sole()->trace);
+        $this->assertStringContainsString('found by searching', $this->chatRequests()[0]['messages'][1]['content']);
     }
 
     public function test_the_engine_command_moves_a_bot(): void

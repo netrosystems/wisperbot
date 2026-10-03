@@ -40,6 +40,12 @@ return [
         'standard' => ['words' => 70, 'sentences' => 4, 'max_tokens' => 700],
         'detailed' => ['words' => 140, 'sentences' => 8, 'max_tokens' => 1000],
     ],
+    // Engine v2 reads a knowledge base this small whole, in the cacheable part
+    // of the prompt, instead of searching it (0 turns this off). Estimated
+    // tokens: characters ÷ 4, one per non-ASCII character. On a client's own
+    // key their provider pays for these input tokens on every reply.
+    'v2_full_context_max_tokens' => (int) env('SMART_BOT_FULL_CONTEXT_MAX_TOKENS', 20000),
+
     // Reply choices as WhatsApp reply buttons and Messenger/Instagram quick
     // replies when they fit; numbered text otherwise (Phase 1.7).
     'native_choices' => (bool) env('SMART_BOT_NATIVE_CHOICES', true),

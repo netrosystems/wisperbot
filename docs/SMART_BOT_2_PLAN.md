@@ -13,7 +13,7 @@
 | Phase | What it delivers | Effort | Status |
 |---|---|---|---|
 | **0** Measure and quick fixes | Every turn records why it ended; `ai:smart-bot-report`; reply budget and cut-off retry; reasoning kept low; all system messages kept; guidance retry; figure check; no silent turns | 3–5 days | ◐ **Code done** 2026-10-02 in PR #181 (`dev` → `main`, awaiting owner approval to merge and deploy). Then: 7-day baseline, threshold decision, 30-question check |
-| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) live in v1.3.105. Company brief (1.3) live in v1.3.106. Unanswered questions and feedback (1.5) live in v1.3.107. Native channel buttons (1.7) built 2026-10-03. Next: full-context mode, burst batching, and the v1-vs-v2 canary |
+| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) live in v1.3.105. Company brief (1.3) live in v1.3.106. Unanswered questions and feedback (1.5) live in v1.3.107. Native channel buttons (1.7) and full-context mode built 2026-10-03. Next: burst batching and the v1-vs-v2 canary |
 | **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times; 1 or 2 credits per answer | 3–4 weeks | ☐ Not started |
 | **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks | ☐ Not started |
 | **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks | ☐ Not started |
@@ -228,7 +228,7 @@ Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path i
 - ☑ (2026-10-02) Engine v2 is a trait of `ChatbotRunner` (`AnswersWithEngineV2`), like Cerqle's, after all: it needs the runner's retrieval, video, order details, fallbacks and diagnostics. It runs after v1's free gates; greetings are free; account questions without order details go to a person; a bare question back and an offer of a person are refunded.
 - ☑ (2026-10-02) `ai_chatbots.engine` + `reply_length`, `php artisan ai:engine {bot} v2 | --list`, flag `SMART_BOT_ENGINE_V2`; diagnostics `engine` and `trace`.
 - ☐ Canary on WisperBot's own bot (production), then pilot bots.
-- ☐ ↻ Full-context mode: knowledge up to ~20k tokens is sent whole.
+- ☑ (2026-10-03) Full-context mode: live knowledge up to `SMART_BOT_FULL_CONTEXT_MAX_TOKENS` (20,000) is sent whole in the cacheable prompt part; no planner or second look; Strict asks the model; videos only from search results.
 - ☐ ↻ Burst batching: quick consecutive messages answered once.
 
 **1.3 Company brief**

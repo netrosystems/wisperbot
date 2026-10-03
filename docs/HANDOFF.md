@@ -377,3 +377,7 @@ Designed for WisperBot: the unanswered list lives on the Knowledge Base page (wh
 ## Smart Bot 2.0 Phase 1.7, native channel buttons (2026-10-03)
 
 Bot reply choices become WhatsApp reply buttons and Messenger/Instagram quick replies when they fit; numbered text otherwise. Also fixed: WhatsApp button taps (type `interactive`) were skipped by the channel reply job and missing from Smart Bot history. Spec: [`CHAT_REPLY_OPTIONS.md`](CHAT_REPLY_OPTIONS.md#native-channel-buttons-2026-10-03). **Needs a live check** on one WhatsApp number and one Messenger page (tests fake Meta). Roll back with `SMART_BOT_NATIVE_CHOICES=false`.
+
+## Smart Bot 2.0 Phase 1, full-context mode (2026-10-03)
+
+Engine v2 bots read a knowledge base of up to `SMART_BOT_FULL_CONTEXT_MAX_TOKENS` (20,000) whole. Only affects bots moved to engine v2 (`ai:engine`). For a BYOK client this raises input tokens per reply on their own provider: check with the client before moving a BYOK bot to v2, or lower the limit.

@@ -70,6 +70,13 @@ trait AnswersWithEngineV2
         }
 
         $results = $this->v2Search($kb, $workspaceId, $message, $revisionId, $history, $throwProviderErrors);
+        $searched = $results;
+        // A small knowledge base is read whole: the answer never depends on the
+        // search finding the right passage.
+        $whole = $this->wholeKnowledge($kb, $workspaceId, $revisionId, $results);
+        if ($whole !== null) {
+            $results = $whole['results'];
+        }
         // Strict answers only from the knowledge: with nothing close enough,
         // there is nothing to send the model, and the fallback costs nothing.
         if ($mode === 'strict' && $results === []) {
@@ -91,13 +98,14 @@ trait AnswersWithEngineV2
             $planner = app(QueryPlanner::class);
             // After a clarifying question, the reply only makes sense with the
             // question it answers: always fold the two together.
-            if ($kb && ($planner->needsPlanning($message, $plain) || ($this->lastReplyAskedQuestion($history) && $plain !== []))) {
+            // With the whole knowledge in the prompt there is nothing left to search for.
+            if ($kb && $whole === null && ($planner->needsPlanning($message, $plain) || ($this->lastReplyAskedQuestion($history) && $plain !== []))) {
                 $plan = $planner->plan($turn, $message, $plain);
                 $this->v2Trace['planner'] = ['planned' => $plan['planned'], 'queries' => $plan['queries']];
                 $results = $this->v2SearchMany($kb, $workspaceId, $plan['queries'], $results, $revisionId, $history);
             }
 
-            return $this->generateV2($turn, $bot, $kb, $mode, $message, $history, $plain, $results, $workspaceId, $revisionId, $contact, $orderSummary);
+            return $this->generateV2($turn, $bot, $kb, $mode, $message, $history, $plain, $results, $workspaceId, $revisionId, $contact, $orderSummary, $searched, $whole['closest'] ?? null);
         } catch (\Throwable $error) {
             $turn?->abort($error instanceof AiCreditsException ? $error->errorCode : 'provider_failed');
             $this->recordV2($bot, $workspaceId, $revisionId, 'fallback', $results, $error instanceof AiCreditsException ? 'credits_unavailable' : 'provider_error', [
@@ -116,16 +124,19 @@ trait AnswersWithEngineV2
      * @param  array<int,array<string,mixed>>  $history
      * @param  array<int,array{role:string,content:string}>  $plain
      * @param  array<int,array{chunk:AiKbChunk,score:float}>  $results
+     * @param  array<int,array{chunk:AiKbChunk,score:float}>  $searched  What the search found (the same as $results unless the whole knowledge is read)
+     * @param  list<int>|null  $closest  With the whole knowledge: the numbers of the passages the search placed closest
      * @return array<string,mixed>
      */
-    private function generateV2(LlmTurn $turn, AiChatbot $bot, ?AiKnowledgeBase $kb, string $mode, string $message, array $history, array $plain, array $results, int $workspaceId, ?int $revisionId, mixed $contact, ?string $orderSummary): array
+    private function generateV2(LlmTurn $turn, AiChatbot $bot, ?AiKnowledgeBase $kb, string $mode, string $message, array $history, array $plain, array $results, int $workspaceId, ?int $revisionId, mixed $contact, ?string $orderSummary, array $searched = [], ?array $closest = null): array
     {
         $length = $bot->replyLength();
         $channel = $this->turnChannel === 'api' ? null : $this->turnChannel;
         $words = $length['words'] * ($channel === 'email' ? 2 : 1);
         $options = app(ReplyContractV2::class)->requestOptions($length['max_tokens'], $bot->kb_exact_wording ? 0.2 : 0.4);
         $context = ['bot' => $bot, 'kb' => $kb, 'mode' => $mode, 'message' => $message, 'plain' => $plain, 'channel' => $channel, 'words' => $words,
-            'options' => $options, 'workspace_id' => $workspaceId, 'contact' => $contact, 'order_summary' => $orderSummary];
+            'options' => $options, 'workspace_id' => $workspaceId, 'contact' => $contact, 'order_summary' => $orderSummary,
+            'searched' => $searched, 'closest' => $closest];
 
         $attempt = $this->attemptV2($turn, $context, $results);
         if ($attempt['parsed'] === null) {
@@ -148,6 +159,8 @@ trait AnswersWithEngineV2
         }
         $this->v2Trace['answer_kind'] = $parsed['answer_kind'];
         $this->v2Trace['used_sources'] = $parsed['used_sources'];
+        $usedChunks = array_values(array_filter(array_map(fn (int $number) => $results[$number - 1] ?? null, $parsed['used_sources'])));
+        $this->v2Trace['used_chunk_ids'] = array_map(fn (array $result) => (int) $result['chunk']->id, $usedChunks);
 
         // Never two clarifying questions in a row: the second time, the fallback.
         if ($parsed['answer_kind'] === 'clarification' && $this->lastReplyAskedQuestion($history)) {
@@ -175,7 +188,7 @@ trait AnswersWithEngineV2
         $responseMode = $parsed['answer_kind'] === 'clarification' ? 'clarification' : 'answer';
         $result = $this->withAnswerMetadata($shaped + ['tokens_used' => $turn->tokensUsed(), 'resources' => []], $origin, [], $responseMode);
         $video = $attempt['video'];
-        $videoLeads = $video['chunk_id'] !== null && $video['chunk_id'] === (int) (($used[0] ?? $results[0] ?? null)['chunk']->id ?? 0)
+        $videoLeads = $video['chunk_id'] !== null && $video['chunk_id'] === (int) (($used[0] ?? $searched[0] ?? $results[0] ?? null)['chunk']->id ?? 0)
             && $video['score'] >= $this->retrievalPolicy->privateAnswering()['video_match_threshold'];
         $result['resources'] = $this->resourcesForReply($video['resources'], $attempt['raw'], $result, $responseMode, $videoLeads);
         $result = $this->withoutVideoLinks($result);
@@ -210,9 +223,11 @@ trait AnswersWithEngineV2
     {
         /** @var AiChatbot $bot */
         $bot = $context['bot'];
+        // Videos are offered from what the search found, never from the whole knowledge.
+        $videoCandidates = $context['closest'] !== null ? $context['searched'] : $results;
         $video = $this->selectVideoResource(
-            array_map(fn (array $result) => ['chunk' => $result['chunk'], 'rank_score' => $result['score']], $results),
-            array_map(fn (array $result) => (int) $result['chunk']->id, $results),
+            array_map(fn (array $result) => ['chunk' => $result['chunk'], 'rank_score' => $result['score']], $videoCandidates),
+            array_map(fn (array $result) => (int) $result['chunk']->id, $videoCandidates),
             $bot,
             $context['workspace_id'],
         );
@@ -220,7 +235,7 @@ trait AnswersWithEngineV2
             ."\n\n".($video['resources'] !== [] ? trim($video['instructions']) : ''));
         $name = trim((string) (($context['contact']->first_name ?? '').' '.($context['contact']->last_name ?? '')));
         $prompt = app(PromptBuilder::class)->build($bot, $context['kb'], $context['mode'], $results, $context['channel'], $context['words'],
-            $this->anonymousContact($context['contact']) ? null : $name, $notes);
+            $this->anonymousContact($context['contact']) ? null : $name, $notes, $context['closest']);
         $messages = array_merge(
             [['role' => 'system', 'content' => $prompt['static']]],
             $context['plain'],
@@ -308,7 +323,7 @@ trait AnswersWithEngineV2
      */
     private function worthASecondLook(?AiKnowledgeBase $kb, array $parsed, array $results): bool
     {
-        if (! $kb || ! in_array($parsed['answer_kind'], ['partial', 'handoff'], true) || isset($this->v2Trace['planner'])) {
+        if (! $kb || ! in_array($parsed['answer_kind'], ['partial', 'handoff'], true) || isset($this->v2Trace['planner']) || isset($this->v2Trace['full_context'])) {
             return false;
         }
 
@@ -449,6 +464,62 @@ trait AnswersWithEngineV2
         return $kept;
     }
 
+    /**
+     * Every live passage of a knowledge base small enough to send whole, in
+     * document order, each with its search score (0 when the search did not
+     * find it), and the numbers of the passages the search placed closest.
+     * Null when it is larger than `chatbot.v2_full_context_max_tokens`
+     * (0 turns this off).
+     *
+     * @param  array<int,array{chunk:AiKbChunk,score:float}>  $searched
+     * @return array{results:array<int,array{chunk:AiKbChunk,score:float}>,closest:list<int>}|null
+     */
+    private function wholeKnowledge(?AiKnowledgeBase $kb, int $workspaceId, ?int $revisionId, array $searched): ?array
+    {
+        $max = (int) config('chatbot.v2_full_context_max_tokens', 0);
+        if ($max <= 0 || ! $kb || (int) $kb->workspace_id !== $workspaceId) {
+            return null;
+        }
+        // The stored counts are characters ÷ 4: a cheap first test before any content is read.
+        if ((int) $this->embedStore->liveChunks((int) $kb->id, $revisionId)->sum('tokens') > $max) {
+            return null;
+        }
+        $chunks = $this->embedStore->liveChunks((int) $kb->id, $revisionId)->with('document')
+            ->orderBy('document_id')->orderBy('ord')->orderBy('id')->limit(2000)->get();
+        $tokens = (int) $chunks->sum(fn (AiKbChunk $chunk) => $this->estimatedTokens((string) $chunk->content));
+        if ($chunks->isEmpty() || $tokens > $max) {
+            return null;
+        }
+
+        $scores = [];
+        foreach ($searched as $result) {
+            $scores[(int) $result['chunk']->id] = (float) $result['score'];
+        }
+        $results = [];
+        $closest = [];
+        foreach ($chunks->values() as $index => $chunk) {
+            $results[] = ['chunk' => $chunk, 'score' => $scores[(int) $chunk->id] ?? 0.0];
+            if (isset($scores[(int) $chunk->id])) {
+                $closest[$index + 1] = $scores[(int) $chunk->id];
+            }
+        }
+        arsort($closest);
+        $this->v2Trace['full_context'] = ['passages' => count($results), 'tokens' => $tokens];
+
+        return ['results' => $results, 'closest' => array_slice(array_keys($closest), 0, $this->v2Limit())];
+    }
+
+    /**
+     * Characters ÷ 4 fits English, but Bangla, Arabic or Chinese take about a
+     * token per character or two: every character outside ASCII counts as one.
+     */
+    private function estimatedTokens(string $text): int
+    {
+        $wide = (int) preg_match_all('/[^\x00-\x7F]/u', $text);
+
+        return (int) ceil((mb_strlen($text) - $wide) / 4) + $wide;
+    }
+
     private function v2Limit(): int
     {
         return $this->retrievalPolicy->privateAnswering()['max_context_chunks'];
@@ -534,10 +605,14 @@ trait AnswersWithEngineV2
      */
     private function recordV2(AiChatbot $bot, int $workspaceId, ?int $revisionId, string $decision, array $results, string $reason, array $metadata, ?LlmTurn $turn = null): void
     {
+        // The closest passages only: with the whole knowledge read, that is
+        // what the search found, not every passage.
+        $closestFirst = $results;
+        usort($closestFirst, fn (array $a, array $b) => $b['score'] <=> $a['score']);
         $this->v2Trace['passages'] = array_map(fn (array $result) => [
             'chunk_id' => (int) $result['chunk']->id,
             'score' => round((float) $result['score'], 4),
-        ], $results);
+        ], array_slice(array_filter($closestFirst, fn (array $result) => $result['score'] > 0 || ! isset($this->v2Trace['full_context'])), 0, 10));
         $this->recordDiagnostic($bot, $workspaceId, $revisionId, $decision, null, [
             'best_score' => $results[0]['score'] ?? null,
             'passages_used' => count($results),

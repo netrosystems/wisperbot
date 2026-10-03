@@ -29,9 +29,10 @@ class PromptBuilder
     /**
      * @param  array<int,array{chunk:AiKbChunk,score:float}>  $results
      * @param  string  $turnNotes  Per-turn extras: order details, video instructions
+     * @param  list<int>|null  $closest  With the whole knowledge: the numbers of the passages the search placed closest
      * @return array{static:string,excerpts:string}
      */
-    public function build(AiChatbot $bot, ?AiKnowledgeBase $kb, string $mode, array $results, ?string $channel, int $words, ?string $customerName, string $turnNotes = ''): array
+    public function build(AiChatbot $bot, ?AiKnowledgeBase $kb, string $mode, array $results, ?string $channel, int $words, ?string $customerName, string $turnNotes = '', ?array $closest = null): array
     {
         $business = trim((string) $kb?->brand) ?: null;
         $subject = $business ?: 'this business';
@@ -80,6 +81,16 @@ PROMPT;
             $parts[] = $this->choices();
         }
         $parts[] = app(ReplyContractV2::class)->promptInstruction();
+        if ($closest !== null) {
+            // The whole knowledge is the same every turn, so it joins the part
+            // providers can cache; the turn only says which passages are closest.
+            $parts[] = $this->excerpts($results, whole: true);
+
+            return [
+                'static' => implode("\n\n", array_filter($parts)),
+                'excerpts' => trim($this->closest($closest)."\n\n".trim($turnNotes)),
+            ];
+        }
 
         return [
             'static' => implode("\n\n", array_filter($parts)),
@@ -96,8 +107,16 @@ PROMPT;
         };
     }
 
+    /** @param list<int> $numbers */
+    private function closest(array $numbers): string
+    {
+        return $numbers === []
+            ? 'No knowledge excerpt stood out for this question; read them all before answering.'
+            : 'The knowledge excerpts closest to this question are Source '.implode(', Source ', $numbers).'. The answer may still be in any excerpt.';
+    }
+
     /** @param array<int,array{chunk:AiKbChunk,score:float}> $results */
-    private function excerpts(array $results): string
+    private function excerpts(array $results, bool $whole = false): string
     {
         if ($results === []) {
             return 'Knowledge excerpts: none matched this question.';
@@ -113,7 +132,9 @@ PROMPT;
             return '[Source '.($index + 1).' — '.$label."]\n".trim((string) $chunk->content);
         })->implode("\n\n---\n\n");
 
-        return "Knowledge excerpts (found by searching this business's own knowledge; use the ones that answer the question, ignore the rest):\n".$context;
+        return $whole
+            ? "Knowledge excerpts (everything this business has written down; use the ones that answer the question, ignore the rest):\n".$context
+            : "Knowledge excerpts (found by searching this business's own knowledge; use the ones that answer the question, ignore the rest):\n".$context;
     }
 
     /** WisperBot's dynamic reply choices, unchanged in meaning from engine v1. */
