@@ -13,7 +13,7 @@
 | Phase | What it delivers | Effort | Status |
 |---|---|---|---|
 | **0** Measure and quick fixes | Every turn records why it ended; `ai:smart-bot-report`; reply budget and cut-off retry; reasoning kept low; all system messages kept; guidance retry; figure check; no silent turns | 3–5 days | ◐ **Code done** 2026-10-02 in PR #181 (`dev` → `main`, awaiting owner approval to merge and deploy). Then: 7-day baseline, threshold decision, 30-question check |
-| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) live in v1.3.105. Company brief (1.3) live in v1.3.106. Unanswered questions and feedback (1.5) live in v1.3.107. Native channel buttons (1.7) live in v1.3.110, full-context mode in v1.3.111. Burst batching live in v1.3.112. Per-channel formatting built 2026-10-04. Next: the v1-vs-v2 canary |
+| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) live in v1.3.105. Company brief (1.3) live in v1.3.106. Unanswered questions and feedback (1.5) live in v1.3.107. Native channel buttons (1.7) live in v1.3.110, full-context mode in v1.3.111. Burst batching live in v1.3.112. Per-channel formatting live in v1.3.113; handover in any language built 2026-10-04. Next: the v1-vs-v2 canary |
 | **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times; 1 or 2 credits per answer | 3–4 weeks | ☐ Not started |
 | **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks | ☐ Not started |
 | **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks | ☐ Not started |
@@ -250,6 +250,7 @@ Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path i
 
 **1.7 Channels**
 - ☑ (2026-10-03) ✚ Native WhatsApp reply buttons and Messenger/Instagram quick replies for bot reply choices (`NativeReplyChoices`, used by the existing channel drivers; the stored message stays `text`). Numbered text when they do not fit or are refused. WhatsApp button taps are now answered. WhatsApp lists (4–10 choices) are not needed: replies carry at most 3 choices.
+- ☑ (2026-10-04) ✚ Handover in any language: `HandoverRequest` replaces the English-only phrase list in `AutoReplyListener` (patterns for English, Bangla and romanized Bangla, Arabic, Hindi, Spanish, French, Portuguese, German, Indonesian); a short "yes" right after the bot offered a person hands over too. On a channel the bot answers, the customer gets an acknowledgement in their script.
 - ☑ (2026-10-04) ✚ Per-channel formatting: `ChannelTextFormatter` turns Markdown into WhatsApp formatting or plain text before sending (links keep their address); engine v1's prompt asks for plain addresses on chat channels and email.
 
 **Acceptance** (50–100 test questions per pilot bot; Cerqle's bar):
@@ -340,15 +341,15 @@ Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path i
 
 | Need | Status |
 |---|---|
-| Widget/SDK/API keep their `response_mode` values; new answer kinds are additive | ☐ Phase 1 (Phase 0 adds `response_mode=handoff` only on holding replies) |
+| Widget/SDK/API keep their `response_mode` values; new answer kinds are additive | ✅ Phase 1 (engine v2 maps its answer kinds to the existing values; `handoff` only on holding replies and handover acknowledgements) |
 | SDK changes are the app team's to build and release; server tests never claim SDK delivery | Standing rule (`AGENTS.md`) |
 | No silent turns on channels and website chat | ✅ Phase 0 code |
 | BYOK providers (OpenAI, Anthropic, Gemini, Qwen, DeepSeek): budgets, finish reasons, all system messages | ✅ Phase 0 code; contract tests per provider in Phase 1 |
 | Measurement: every turn's reason; diagnostics pruned after 90 days | ✅ Phase 0 code |
 | WhatsApp buttons/lists, Messenger/Instagram quick replies, per-channel length | ✅ Phase 1.7 (buttons 2026-10-03, formatting 2026-10-04) |
-| Handover in any language; "yes" to the bot's offer hands over | ☐ Phase 1 |
+| Handover in any language; "yes" to the bot's offer hands over | ✅ Phase 1 (`HandoverRequest`, 2026-10-04) |
 | Plan limits on connectors, price sheets, crawl pages | ☐ Phase 2 and 3 |
-| Privacy: gaps scrubbed of emails and phone numbers; Qdrant data deleted with the workspace | ☐ Phase 1.5 and 3 |
+| Privacy: gaps scrubbed of emails and phone numbers; Qdrant data deleted with the workspace | ◐ Gaps scrubbed (Phase 1.5, 2026-10-03); Qdrant in Phase 3 |
 | Bangla and other Indic scripts in search and figure checks | ◐ Figure check in Phase 0; tokenising in Phase 3 |
 
 ---

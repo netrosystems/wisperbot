@@ -2,8 +2,8 @@
 
 namespace App\Modules\AI\Services;
 
-use App\Listeners\AutoReplyListener;
 use App\Modules\Inbox\Models\ChatWidget;
+use App\Modules\Inbox\Services\HandoverRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -114,13 +114,8 @@ class StarterQuestions
                 $errors["starter_questions.{$index}.question"] = 'Use words or numbers in the question.';
             } elseif (isset($seen[$normalized])) {
                 $errors["starter_questions.{$index}.question"] = 'This question is already in the list.';
-            } else {
-                foreach (AutoReplyListener::HANDOVER_PHRASES as $phrase) {
-                    if (str_contains(mb_strtolower($question), $phrase)) {
-                        $errors["starter_questions.{$index}.question"] = 'This wording asks for a person, so it would open a handover instead of your answer.';
-                        break;
-                    }
-                }
+            } elseif (app(HandoverRequest::class)->asks($question)) {
+                $errors["starter_questions.{$index}.question"] = 'This wording asks for a person, so it would open a handover instead of your answer.';
             }
             $seen[$normalized] = true;
             if (trim((string) ($item['answer'] ?? '')) === '') {
