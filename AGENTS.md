@@ -6,28 +6,7 @@ These instructions apply to every file in this repository and to every person or
 
 The running code and database migrations are authoritative. Documentation explains the intended system. If code and documentation disagree, investigate the discrepancy; do not silently preserve contradictory behavior.
 
-Start work by reading `docs/README.md`, `docs/HANDOFF.md`, and the authoritative domain specification for your change from the table below:
-
----
-
-## 🧭 Domain specification & documentation impact matrix
-
-Read the authoritative document for your task domain before writing code, and update it in the same commit if your changes affect that domain:
-
-| Task / Change domain | Authoritative document | What it guarantees & when to update |
-| :--- | :--- | :--- |
-| **UI, Styling, Colors, Layouts & Components** | [`DESIGNSYSTEM.md`](DESIGNSYSTEM.md) | Pixel-perfect UI using Space Grotesk & Fraunces, exact WisperBot Orange (`#FF762E`) & Amber (`#FFBF00`) tokens, `.page` vs `.viewport-table-page` (InboxLayout 100vh) layouts, XYFlow canvas, and accessible Radix/Headless UI components. |
-| **Backend, APIs, Modules, Queues & Tenancy** | [`ARCHITECTURE.md`](ARCHITECTURE.md) and `docs/ARCHITECTURE.md` | Correct modular monolith patterns (`app/Modules/*`), strict `workspace_id` query scoping, queue assignments (`whatsapp`, `ai`, `social`, `automation`, `broadcast`), Reverb/Pusher WebSockets, and health probes. |
-| **Features, Workflows, State Machines & Roadmap** | [`PLAN.md`](PLAN.md) | Complete business logic compliance across all 10 modules (Omni-Channel Inbox, Master Email Inbox, Widget with HMAC, WhatsApp Cloud API, AI Knowledge Bases, XYFlow Automations, Social Publishing, SMS Campaigns, Billing). |
-| **Smart Bot questions, CTA choices, Widget & SDK parity** | [`docs/PRODUCT_DECISIONS.md`](docs/PRODUCT_DECISIONS.md) and [`docs/CHAT_REPLY_OPTIONS.md`](docs/CHAT_REPLY_OPTIONS.md) | Industry-independent conversational choices, KB-grounded follow-ups, safe shared payloads, generic rendering, and separate SDK release ownership. Read both before changing or diagnosing this existing feature. |
-| **Knowledge Base indexing, retrieval, answer scope, research & grounding** | [`docs/KNOWLEDGE_BASE_SMART_BOT.md`](docs/KNOWLEDGE_BASE_SMART_BOT.md) | Business-aware routing, semantic retrieval, approved-source boundaries, atomic index generations, evidence requirements, credits, diagnostics, feature flags, and rollout gates. |
-| **External Integrations & OAuth Credentials** | [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) and provider guides | Correct Meta OAuth scopes, Instagram limitations, Google/Microsoft OAuth, Telegram, SMS Gateways, SP-API / eBay, and Qdrant vectors. |
-| **Operations, Workers, Deployment & Crons** | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) and/or [`DEPLOYMENT.md`](DEPLOYMENT.md) | Scheduler setup, worker commands, deployment checklist, Vite production bundle builds, and log diagnostics. |
-| **Security, Secrets & Threat Boundaries** | [`docs/SECURITY.md`](docs/SECURITY.md) | `Crypt::encryptString` secret storage, Sanctum bearer tokens, CSRF, webhook signatures, and widget HMAC secrets. |
-| **Product Decisions & Terminology** | [`docs/PRODUCT_DECISIONS.md`](docs/PRODUCT_DECISIONS.md) | Enforces intentional product choices (Omni-Channel vs Master Email Inbox separation, social deletion capabilities). |
-| **Known Issues & Technical Debt** | [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) | Active queue name quirks, external platform review states, and historical workarounds. |
-| **Current Repository Status & Next Steps** | [`docs/HANDOFF.md`](docs/HANDOFF.md) | Baseline commit status, active development focus, and immediate checklist. |
-| **User-Visible Releases & Milestones** | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Documentation-level release notes for user-visible or operationally significant changes. |
+Start work by reading `docs/README.md`, `docs/HANDOFF.md`, and the authoritative domain specification for your change. The domain specification & documentation impact matrix lives in [docs/map/DOCS.md](docs/map/DOCS.md): read the authoritative document for your task domain before writing code, and update it in the same commit if your changes affect that domain.
 
 If a code change has no documentation impact, say so in the commit/hand-off summary. Do not bump the application version manually for ordinary commits; production deployment finalization owns patch-version increments.
 
@@ -72,3 +51,26 @@ composer analyse
 ```
 
 For route, config, or deployment changes, also clear/rebuild relevant caches in a safe environment. Never claim an external integration works merely because a unit test passes; identify what still requires provider-side verification.
+
+---
+
+## Workflow and release
+
+- Work on a feature branch, merge it into `dev`, then open a GitHub pull request from `dev` to `main`.
+- **Merging a `dev` → `main` pull request deploys production** through `.github/workflows/deploy-production.yml`. Never merge one without the owner's approval. Pushes to `dev` or directly to `main` do not deploy.
+- Never run a local environment against production credentials or data, and never commit `.env` files.
+
+---
+
+## Project map
+
+Before opening files, read the router for the task, then only the files it points to:
+
+- [docs/map/PRODUCT.md](docs/map/PRODUCT.md): where the code for each area lives
+- [docs/map/OPERATIONS.md](docs/map/OPERATIONS.md): local setup, checks, CI, deploy, release, rollback, health, configuration
+- [docs/map/DOCS.md](docs/map/DOCS.md): which specification answers which question, and which to update
+
+The map guides what to read first. It never replaces the rules above or a release gate.
+
+**Keep the map true.** A change that adds, moves or removes a file a router names updates that router in the same change. Each code area keeps its own short README router (`app/Modules/README.md`, `resources/js/README.md`), linked from PRODUCT.md. Routers stay about 15–35 lines, link only to files that exist, and never hold secrets. Reference material goes in `docs/`, not here; keep this file under about 8 KB.
+

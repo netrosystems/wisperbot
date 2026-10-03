@@ -11,7 +11,8 @@ Start with the [documentation index](docs/README.md) or explore the master speci
 - [**Technical Architecture Specification (`ARCHITECTURE.md`)**](ARCHITECTURE.md) — System boundaries, modules, request paths, tenancy, queues, and real-time events.
 - [**UI/UX Design System (`DESIGNSYSTEM.md`)**](DESIGNSYSTEM.md) — Space Grotesk & Fraunces typography, Orange & Amber brand palette, layout archetypes, and UI components.
 - [**Feature Plan & Specifications (`PLAN.md`)**](PLAN.md) — Core user journeys, feature module breakdowns, and UI state machines.
-- [**Agent Routing Guide (`AGENTS.md`)**](AGENTS.md) — Fast-lookup routing instructions for AI coding agents and repository maintenance rules.
+- [**Agent Routing Guide (`AGENTS.md`)**](AGENTS.md) — Rules for every change by people and coding agents; `CLAUDE.md` imports it.
+- [**Project map (`docs/map/`)**](docs/map/PRODUCT.md) — Task routers for code, operations and documentation.
 
 ### Detailed Domain Documentation (`docs/`)
 
