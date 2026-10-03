@@ -400,5 +400,5 @@ One bot page with steps, and each bot owns its knowledge. Spec: [`KNOWLEDGE_BASE
 
 - **Deploy gate:** production must have `KB_GUARDED_PUBLISHING=false`, because the publish screens are gone. Check the Settings section of `php artisan ai:smart-bot-report --days=1` before merging.
 - **App team:** the API (`/api/v1/ai/chatbots*`, `/ai/knowledge-bases*`) is unchanged.
-- **Next:** the "Where it answers" step.
+- **"Where it answers" (built 2026-10-04):** switches the website chat, inbox channels and email from the bot page, using the settings Widget Setup and Channel Setup already save. Checked locally: inbox channels on (Channel Setup then showed the same bot), then off again.
 - **Checked locally:** in the browser with the demo workspace (create, business details, a text source, how it answers, phone width). Indexing locally fails on the demo OpenAI key, which is expected.

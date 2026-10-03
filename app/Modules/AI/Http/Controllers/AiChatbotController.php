@@ -15,6 +15,7 @@ use App\Modules\AI\Services\KnowledgeBaseWorkflowService;
 use App\Modules\AI\Services\KnowledgeUploadLimit;
 use App\Modules\AI\Services\ProviderErrorPresenter;
 use App\Modules\AI\Services\SmartBotRetrievalPolicy;
+use App\Modules\Inbox\Services\SmartBotPlacements;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,8 +36,10 @@ class AiChatbotController extends Controller
     public function index(Request $request): Response
     {
         $wid = $this->workspaceId($request);
+        $places = app(SmartBotPlacements::class)->summary($wid);
         $chatbots = AiChatbot::where('workspace_id', $wid)->latest()->get()
             ->map(fn (AiChatbot $bot): array => [
+                'places' => $places[$bot->id] ?? [],
                 'id' => $bot->id, 'uuid' => $bot->uuid, 'name' => $bot->name, 'tone' => $bot->tone,
                 'engine' => $bot->engine, 'system_prompt' => $bot->system_prompt,
                 'knowledge' => $this->knowledgeStatus($bot->ai_kb_id),
@@ -150,6 +153,8 @@ class AiChatbotController extends Controller
             // Settings that only act while their rollout flag is on are shown only then.
             'researchAvailable' => (bool) config('chatbot.business_aware_routing_enabled'),
             'liveProductFactsAvailable' => (bool) config('knowledge_base.live_product_facts_enabled'),
+            'placements' => app(SmartBotPlacements::class)->forBot($chatbot),
+            'canManagePlacements' => app(SmartBotPlacements::class)->canManage($request->user()),
         ]);
     }
 

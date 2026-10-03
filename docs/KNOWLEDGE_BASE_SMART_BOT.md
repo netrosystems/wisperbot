@@ -40,8 +40,15 @@ The bot page (`client.ai.chatbots.show`, `resources/js/Pages/AI/Chatbots/Show.js
 | Business details | Business name (`brand`), What you do (`purpose`), Who you serve (`audience`), then the Company brief card | brand and purpose set |
 | Knowledge | Sources (Website, Page, File, Text, Q&A; video records stay editable) and an "Official source" checkbox (`authoritative`); a source is used once it is read | one source indexed |
 | How it answers | Strict / Balanced / Flexible (`verified_only` / `business_only` / `general`), reply length, when no answer is verified, what to say when it cannot answer, use my wording exactly. Approved-source research and live product prices appear only while `SMART_BOT_BUSINESS_AWARE_ROUTING` / `KB_LIVE_PRODUCT_FACTS_ENABLED` is on. | saved once (`ai_chatbots.answers_configured_at`; bots older than 2026-10-04 count as done) |
+| Where it answers | Website chat, inbox channels (WhatsApp, Messenger, Instagram, Telegram, eBay) and email, each with Answer here / Stop answering / Use this bot instead, and a link to that place's settings | this bot answers somewhere |
 
 Unanswered questions sit under the steps.
+
+**Where it answers** writes the same settings as Widget Setup and Channel Setup, read through `SmartBotPlacements`:
+- **Website chat.** `PUT client.ai.chatbots.placements.widget` (`AiChatbotPlacementController`) sets the widget's `ai_enabled` and `ai_chatbot_id`, and the webchat account's `meta_json.ai_chatbot_id`, through `WidgetAiPlacement`. Widget Setup uses the same rule. The widget's AI hours are kept, and turning one bot off never stops another bot's widget.
+- **Inbox channels and email.** These call Channel Setup's `PATCH client.inbox.ai-answering.update`. A place on a schedule keeps its schedule with the new bot.
+- **Permissions and guards.** Only owners and administrators can switch a place. Taking a place from another bot asks first.
+- **Smart Bots list.** Each bot shows where it answers.
 
 The **Knowledge Bases menu entry and pages are gone**:
 - `client.ai.knowledge-bases.index` redirects to the Smart Bots list.

@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { put, routerPost } = vi.hoisted(() => ({ put: vi.fn(), routerPost: vi.fn() }));
+const { put, routerPost, routerPatch, routerPut } = vi.hoisted(() => {
+    // Like Inertia, a visit ends with onFinish.
+    const visit = () => vi.fn((url, data, options) => options?.onFinish?.());
+
+    return { put: vi.fn(), routerPost: vi.fn(), routerPatch: visit(), routerPut: visit() };
+});
 
 vi.mock('@inertiajs/react', () => ({
     Head: () => null,
     Link: ({ href, children, ...props }) => <a href={href} {...props}>{children}</a>,
-    router: { post: routerPost, delete: vi.fn(), reload: vi.fn(), visit: vi.fn() },
+    router: { post: routerPost, patch: routerPatch, put: routerPut, delete: vi.fn(), reload: vi.fn(), visit: vi.fn() },
     usePage: () => ({ props: { flash: {} } }),
     // A small stand-in for Inertia's form state, so fields really change.
     useForm: (initial) => {
@@ -38,9 +43,11 @@ vi.mock('@/Layouts/ClientLayout', () => ({ default: ({ children }) => <main>{chi
 vi.mock('@/Components/CompanyBriefCard', () => ({ default: () => <div>company-brief</div> }));
 vi.mock('@/Components/UnansweredQuestionsCard', () => ({ default: () => <div>unanswered</div> }));
 vi.mock('@/Components/SmartBot/TestPanel', () => ({ default: () => <div>test-panel</div> }));
+vi.mock('@/Components/ConfirmDialog', () => ({ confirmDialog: vi.fn(() => Promise.resolve(true)) }));
 
 import SmartBotShow from '@/Pages/AI/Chatbots/Show';
 import AiChatbotsIndex from '@/Pages/AI/Chatbots/Index';
+import WhereItAnswers from '@/Components/SmartBot/WhereItAnswers';
 
 const kb = (overrides = {}) => ({ id: 7, uuid: 'kb-7', brand: 'Telzen', purpose: 'Travel eSIM data plans', audience: '', documents: [{ id: 1, uuid: 'doc-1', source_type: 'url', status: 'indexed', title: 'Pricing', source_ref: 'https://example.com/pricing' }], knowledge_gaps: [], ...overrides });
 const bot = (overrides = {}) => ({ id: 3, uuid: 'bot-3', name: 'Support Bot', tone: 'friendly', answer_scope: 'business_only', reply_length: 'standard', engine: 'v1', answers_configured_at: '2026-10-04T00:00:00Z', ...overrides });
@@ -104,5 +111,31 @@ describe('Smart Bots list', () => {
         expect(screen.getByText('smart_bot.list_no_knowledge')).toBeInTheDocument();
         fireEvent.click(screen.getByText('smart_bot.create_bot_from'));
         expect(routerPost).toHaveBeenCalledWith('/client.ai.chatbots.store', { name: 'Old help centre', from_kb: 'kb-9' });
+    });
+});
+
+describe('Where it answers', () => {
+    const placements = {
+        widget: { id: 5, name: 'Website chat', on: true, other_bot: null },
+        segments: {
+            omni: { segment: 'omni', mode: 'scheduled', chatbot_id: 9, schedule: { timezone: 'Asia/Dhaka' }, on: false, other_bot: 'Support', connected: ['whatsapp'], runtime_state: 'scheduled' },
+            email: { segment: 'email', mode: 'off', chatbot_id: null, schedule: null, on: false, other_bot: null, connected: [], runtime_state: 'off' },
+        },
+    };
+
+    it('takes over a place on its schedule and stops the website chat', async () => {
+        render(<WhereItAnswers chatbot={bot()} placements={placements} canManage />);
+
+        fireEvent.click(screen.getByText('smart_bot.place_use_instead'));
+        await waitFor(() => expect(routerPatch).toHaveBeenCalledWith('/client.inbox.ai-answering.update/{"segment":"omni"}', { mode: 'scheduled', chatbot_id: 3, schedule: { timezone: 'Asia/Dhaka' } }, expect.anything()));
+
+        fireEvent.click(screen.getByText('smart_bot.place_stop'));
+        expect(routerPut).toHaveBeenCalledWith('/client.ai.chatbots.placements.widget/{"chatbot":"bot-3","chatWidget":5}', { on: false }, expect.anything());
+    });
+
+    it('lets only owners and admins switch places', () => {
+        render(<WhereItAnswers chatbot={bot()} placements={placements} />);
+        expect(screen.queryByText('smart_bot.place_stop')).not.toBeInTheDocument();
+        expect(screen.getAllByText('smart_bot.place_admin_only').length).toBeGreaterThan(0);
     });
 });
