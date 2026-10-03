@@ -10,6 +10,7 @@ Pages are resolved by name from `Pages/` in `app.jsx`; controllers render them w
 | `Pages/marketing/`, `Components/marketing/` | Public website (home, pillar pages, pricing, blog, FAQ, contact); styles in `resources/css/marketing.css` | [docs/DESIGN.md](../../docs/DESIGN.md) |
 | `Pages/Auth/`, `Pages/Install/`, `Pages/Profile/` | Sign-in and registration, installer wizard, profile | [SECURITY](../../docs/SECURITY.md) |
 | `Layouts/` | `AdminLayout`, `ClientLayout`, `InboxLayout` (100vh), `LandingLayout`, `AuthLayout`, `InstallLayout` | [DESIGNSYSTEM.md](../../DESIGNSYSTEM.md) |
+| `Components/SmartBot/` | Smart Bot setup page pieces: setup steps, knowledge sources, answer settings, Test panel | [KNOWLEDGE_BASE_SMART_BOT](../../docs/KNOWLEDGE_BASE_SMART_BOT.md) |
 | `Components/ui/` | Shared primitives (Button, Input, Modal, Dropdown…); reuse before adding new ones | [DESIGNSYSTEM.md](../../DESIGNSYSTEM.md) |
 | `Components/` (other) | Inbox, dashboard, charts, social, email editor and app-wide pieces (sidebar, topbar, command palette) | [DESIGNSYSTEM.md](../../DESIGNSYSTEM.md) |
 | `locales/*.json`, `i18n.js` | UI translations. `TranslationSeeder` regenerates these files; commit them only when the change is intended. | — |

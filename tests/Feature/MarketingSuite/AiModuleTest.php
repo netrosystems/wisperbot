@@ -93,7 +93,7 @@ class AiModuleTest extends TestCase
 
         $response = $this->actingAs($user)->delete("/app/ai/knowledge-bases/{$kb->uuid}");
 
-        $response->assertRedirect('/app/ai/knowledge-bases');
+        $response->assertRedirect('/app/ai/chatbots');
         $this->assertDatabaseMissing('ai_knowledge_bases', ['id' => $kb->id]);
         $this->assertDatabaseMissing('ai_kb_documents', ['id' => $document->id]);
         $this->assertDatabaseMissing('ai_kb_chunks', ['id' => $chunk->id]);

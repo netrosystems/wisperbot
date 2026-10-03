@@ -156,7 +156,7 @@ class ChatbotRunnerTest extends TestCase
     {
         $workspace = $this->createWorkspaceContext()['workspace'];
         [$chatbot, $message] = $this->botWithKnowledge($workspace->id, 'clarify_then_handoff', 'How do returns work?');
-        $chatbot->update(['reply_length' => 'detailed']);
+        $chatbot->update(['reply_length' => 'detailed', 'tone' => 'formal']);
         $captured = null;
         Http::fake([
             'api.openai.com/v1/embeddings' => Http::response(['data' => [['embedding' => [1.0, 0.0, 0.0]]]]),
@@ -174,6 +174,7 @@ class ChatbotRunnerTest extends TestCase
         app(ChatbotRunner::class)->run($chatbot->fresh(), $message);
 
         $this->assertStringContainsString('at most 8 short sentences and 140 words', $captured['messages'][0]['content']);
+        $this->assertStringContainsString('Keep a formal tone.', $captured['messages'][0]['content']);
         $this->assertSame(1000, $captured['max_tokens']);
     }
 

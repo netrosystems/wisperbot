@@ -28,6 +28,30 @@ Client examples such as eSIM, ecommerce, healthcare, fintech, or SaaS are fixtur
 
 Each private Smart Bot selects one focused Knowledge Base and has two independent decisions.
 
+### Setting up a Smart Bot (2026-10-04)
+
+A Smart Bot owns its knowledge. **New Smart Bot** (`client.ai.chatbots.create`) asks for Name, Tone and "Anything it should always do" (`system_prompt`). `AiChatbotController::store` then creates the bot and its own Knowledge Base (named after the bot, initial draft revision) in one transaction, under the `knowledge_bases` plan limit, and opens the bot page.
+
+The bot page (`client.ai.chatbots.show`, `resources/js/Pages/AI/Chatbots/Show.jsx`) is one stepper. Each step saves on its own, and the page opens on the first step not done. A Test panel sits beside the steps on wide screens and behind a Test button below `xl`.
+
+| Step | Contents | Done when |
+|---|---|---|
+| Smart Bot | Name, Tone (Friendly, Professional, Formal, Casual; both engines' prompts read it), Anything it should always do | always |
+| Business details | Business name (`brand`), What you do (`purpose`), Who you serve (`audience`), then the Company brief card | brand and purpose set |
+| Knowledge | Sources (Website, Page, File, Text, Q&A; video records stay editable) and an "Official source" checkbox (`authoritative`); a source is used once it is read | one source indexed |
+| How it answers | Strict / Balanced / Flexible (`verified_only` / `business_only` / `general`), reply length, when no answer is verified, what to say when it cannot answer, use my wording exactly. Approved-source research and live product prices appear only while `SMART_BOT_BUSINESS_AWARE_ROUTING` / `KB_LIVE_PRODUCT_FACTS_ENABLED` is on. | saved once (`ai_chatbots.answers_configured_at`; bots older than 2026-10-04 count as done) |
+
+Unanswered questions sit under the steps.
+
+The **Knowledge Bases menu entry and pages are gone**:
+- `client.ai.knowledge-bases.index` redirects to the Smart Bots list.
+- `client.ai.knowledge-bases.show` redirects to the first bot using that knowledge.
+- The other Knowledge Base routes (sources, company brief, unanswered questions) and the public API are unchanged.
+
+Deleting a bot keeps its knowledge, which the list then shows under "Knowledge not used by a bot", with **Create a bot from it** (`store` with `from_kb`) and **Delete**. A bot made before this change without knowledge gets **Create its knowledge** (`client.ai.chatbots.knowledge`). When two bots share one Knowledge Base, the bot page says so.
+
+The source **Priority** select and the Knowledge Base **Language** field were removed from the UI. Existing values are kept. Priority still applies its small ranking bias, and new sources use normal priority. The guarded-publishing screens (Review, Test, Publish, Monitor, rollback) were removed from the UI as well. Their backend stays behind `KB_GUARDED_PUBLISHING` until a later clean-up, and production must run with it off: with it on, a new bot's knowledge would never be published.
+
 ### Answer scope
 
 | Client label | Stored value | Behavior |
@@ -40,13 +64,13 @@ Business-aware mode requires a meaningful KB brand, purpose, and audience. If th
 
 The legacy `unsupported_answer_action` field remains a compatibility alias. New interfaces use `answer_scope` and `unsupported_fallback_action`. The migration maps legacy `general` bots to General assistant and other bots to Business only.
 
-These three cards are also engine v2's Strict / Balanced / Flexible modes (`verified_only` / `business_only` / `general`); there is no separate control. The answer scope takes effect when `SMART_BOT_BUSINESS_AWARE_ROUTING` is on (engine v1) or the bot answers with engine v2. The bot page shows "Staged rollout" on the cards only when neither applies, and a "New answer engine" badge on a bot that answers with engine v2 (2026-10-03).
+These three cards are also engine v2's Strict / Balanced / Flexible modes (`verified_only` / `business_only` / `general`); there is no separate control. The answer scope takes effect when `SMART_BOT_BUSINESS_AWARE_ROUTING` is on (engine v1) or the bot answers with engine v2. The bot page no longer shows a "Staged rollout" label (2026-10-04): without either, Strict still differs from Balanced by skipping the general-guidance retry. A bot that answers with engine v2 shows a "New answer engine" badge.
 
 ### Company brief (2026-10-03)
 
 An optional, client-approved paragraph beside the Knowledge Base's business profile (brand, customers, purpose): what the business offers, who it serves, how customers buy or get help, and the policies they ask about. The profile says in a line what the business is; the brief gives the Smart Bot enough to answer "what do you do?" and to give business-aware guidance without a passage having to match.
 
-- **Where:** a "Company brief" card on the Knowledge Base page: in Step 1 with guarded publishing on, above the sources otherwise (`resources/js/Components/CompanyBriefCard.jsx`).
+- **Where:** a "Company brief" card in the bot page's Business details step (`resources/js/Components/CompanyBriefCard.jsx`; until 2026-10-04 on the Knowledge Base page).
 - **Drafting** (`CompanyBriefService`, `DraftCompanyBriefJob` on the `ai` queue, one attempt): up to 8 live documents, about, home, pricing, services, contact, FAQ and policy pages first (authoritative sources before them), 2,000 characters each. The model writes 6–10 sentences, each naming its source. A sentence whose figures, links or emails are not in its source is flagged and starts unticked. Charged as `kb_company_brief` (2 credits) because the client asks for it; a draft with no usable sentence is refunded. Routes: `client.ai.knowledge-bases.company-brief.draft` (6 per minute), `.approve`, `.destroy` (`?draft=1` drops only the draft); workspace-checked like every Knowledge Base action.
 - **Approval:** the client keeps, edits or drops sentences and approves, or edits the approved brief as one text (up to 3,000 characters). Only `AiKnowledgeBase::approvedBrief()` (approved text with `company_brief_approved_at`) is ever used. A new draft or a failed attempt never switches the approved brief off; `company_brief_status` follows the draft only (`none`, `drafting`, `draft`, `failed`).
 - **Use:** engine v1 adds it to the business profile at the head of the verified context and to the business-guidance profile (`BusinessAwareTurnRouter::profileText()`); engine v2 puts it in the cacheable part of the prompt, and its facts count as support for the figure check and the support check. It does not replace brand, customers and purpose for the meaningful-profile check. The Knowledge Base API lists `company_brief` (approved text or null).
@@ -55,7 +79,7 @@ Migration `2026_10_03_000300_add_company_brief_to_ai_knowledge_bases`.
 
 ### Unanswered questions (2026-10-03)
 
-Questions customers asked that the Knowledge Base could not answer, kept in `ai_kb_knowledge_gaps` and shown on the Knowledge Base page ("Unanswered questions", above the sources; in guarded mode on the Sources step), most asked first (25 shown).
+Questions customers asked that the Knowledge Base could not answer, kept in `ai_kb_knowledge_gaps` and shown under the steps on the bot page ("Unanswered questions"; until 2026-10-04 on the Knowledge Base page), most asked first (25 shown).
 
 - **Recorded** for every Smart Bot turn, in every publishing mode, whose diagnostics reason is `no_context`, `research_empty`, `declined_empty`, `ungrounded_reply`, `unsupported_figures`, `unparseable_reply`, `rejected_reply`, `model_handoff`, `clarified_twice` or `answered_guidance`, or an engine v2 answer of kind `partial` or `guidance`. Not from unrelated topics, small talk, account questions, provider failures, the bot playground (`ChatbotRunner::withoutKnowledgeGaps()`) or test runs. Before anything is stored, email addresses, phone numbers and long numbers are replaced (`[email]`, `[phone]`, `[number]`); the same question (normalised) increments its count and keeps its latest wording. Before 2026-10-03 gaps were recorded only with guarded publishing on.
 - **Write answer** adds the question and answer to one FAQ source per Knowledge Base, "Answers to customer questions" (`original_source_ref = wisperbot:answered-questions`, authoritative), reindexed on the `ai` queue; with guarded publishing it joins the draft and needs publishing. The question is marked resolved. **Dismiss** marks it ignored. Routes `client.ai.knowledge-bases.unanswered.answer` / `.dismiss`; a question from another Knowledge Base returns 404.
@@ -73,7 +97,7 @@ Migration `2026_10_03_000400_create_ai_answer_feedback_table`.
 
 ### Reply length (2026-10-03)
 
-`ai_chatbots.reply_length`, chosen on the bot page next to Tone (Short / Standard / Detailed), and read by both engines from `chatbot.reply_lengths`:
+`ai_chatbots.reply_length`, chosen in the bot page's "How it answers" step (Short / Standard / Detailed), and read by both engines from `chatbot.reply_lengths`:
 
 | Value | Words | Sentences (v1 prompt) | Output budget |
 | :--- | :--- | :--- | :--- |

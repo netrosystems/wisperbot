@@ -39,7 +39,11 @@ Route::middleware(['web', 'client-app'])->prefix('app/ai')->name('client.ai.')->
 
     // Chatbots
     Route::get('/chatbots', [AiChatbotController::class, 'index'])->name('chatbots.index');
-    Route::post('/chatbots', [AiChatbotController::class, 'store'])->name('chatbots.store');
+    Route::get('/chatbots/create', [AiChatbotController::class, 'create'])->name('chatbots.create');
+    // A new bot creates its own knowledge base, so the knowledge base plan limit applies.
+    Route::post('/chatbots', [AiChatbotController::class, 'store'])->name('chatbots.store')->middleware('limit:knowledge_bases,knowledge_bases');
+    Route::get('/chatbots/{chatbot}', [AiChatbotController::class, 'show'])->name('chatbots.show');
+    Route::post('/chatbots/{chatbot}/knowledge', [AiChatbotController::class, 'createKnowledge'])->name('chatbots.knowledge')->middleware('limit:knowledge_bases,knowledge_bases');
     Route::put('/chatbots/{chatbot}', [AiChatbotController::class, 'update'])->name('chatbots.update');
     Route::delete('/chatbots/{chatbot}', [AiChatbotController::class, 'destroy'])->name('chatbots.destroy');
     Route::post('/chatbots/{chatbot}/playground', [AiChatbotController::class, 'playground'])->name('chatbots.playground');

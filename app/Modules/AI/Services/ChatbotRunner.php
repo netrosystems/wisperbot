@@ -995,7 +995,7 @@ class ChatbotRunner
         $prompt .= <<<'PROMPT'
 
 Customer reply rules:
-- Reply like a helpful human: direct, warm, and personalized, without repetitive greetings.
+- Reply like a helpful human: direct, warm, and personalized, without repetitive greetings. {{TONE}}
 - Work like an experienced support agent: first resolve what the customer actually asked with the specific facts or steps they need, then, when it helps, guide them to the most useful next step.
 - {{REPLY_LENGTH}} Avoid long introductions and long lists.
 - Reply in the customer's language and writing style: if they write their language in Latin letters (for example romanized Bengali such as "kivabe pabo"), reply in Latin letters too. If they request another language or format, follow that request.
@@ -1012,6 +1012,9 @@ Customer reply rules:
 - {{LINK_RULE}}
 - Include only links that are directly useful to the answer.
 PROMPT;
+        // The tone chosen on the bot page; engine v2 reads the same setting.
+        $tone = mb_substr(trim((string) $bot->tone), 0, 32);
+        $prompt = str_replace('{{TONE}}', $tone !== '' ? "Keep a {$tone} tone." : '', $prompt);
         $length = $bot->replyLength();
         $prompt = str_replace('{{REPLY_LENGTH}}', "Keep every answer to at most {$length['sentences']} short sentences and {$length['words']} words.", $prompt);
         // Chat channels and email show text as written; the website chat and apps render Markdown.

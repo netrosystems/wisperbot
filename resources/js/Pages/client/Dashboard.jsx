@@ -18,7 +18,6 @@ import {
     Sparkles,
     AlertCircle,
     Bot,
-    Database,
 } from 'lucide-react';
 import { LineChart, BarChart, DonutChart } from '@/Components/Charts';
 import { RangeFilter, StatTile, WidgetCard, EmptyState } from '@/Components/Dashboard';
@@ -167,7 +166,6 @@ export default function Dashboard({
         { label: t('nav.omni_channel_inbox'), description: t('client.shortcut_inbox', { defaultValue: 'Read and reply to customers' }), href: route('client.inbox.index'), icon: Inbox },
         { label: t('nav.inbox_channel_setup'), description: t('client.shortcut_channels', { defaultValue: 'Connect your first channel' }), href: route('client.inbox.setup'), icon: MessageSquare },
         { label: t('nav.smart_bots'), description: t('client.shortcut_smart_bots', { defaultValue: 'Configure AI answering' }), href: route('client.ai.chatbots.index'), icon: Bot },
-        { label: t('nav.knowledge_bases'), description: t('client.shortcut_knowledge', { defaultValue: 'Add trusted business knowledge' }), href: route('client.ai.knowledge-bases.index'), icon: Database },
         ...(isClientAdministrator ? [{ label: t('nav.team'), description: t('client.shortcut_team', { defaultValue: 'Invite and manage teammates' }), href: route('client.team.index'), icon: Users }] : []),
     ];
 
