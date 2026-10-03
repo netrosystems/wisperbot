@@ -62,6 +62,9 @@ export default function SmartBotShow({
     const documents = kb?.documents ?? [];
     const indexed = documents.filter(doc => doc.status === 'indexed').length;
     const businessDone = Boolean(kb?.brand?.trim() && kb?.purpose?.trim());
+    // What Balanced needs to give guidance (BusinessAwareTurnRouter::hasMeaningfulProfile).
+    const purpose = kb?.purpose?.trim() ?? '';
+    const profileReady = (kb?.brand?.trim().length ?? 0) >= 2 && purpose.length >= 12 && purpose.split(/\s+/).length >= 2;
     const steps = [
         { id: 'bot', title: t('smart_bot.step_bot'), done: true },
         { id: 'business', title: t('smart_bot.step_business'), done: businessDone },
@@ -195,7 +198,7 @@ export default function SmartBotShow({
                                         data={answers.data}
                                         setData={answers.setData}
                                         errors={answers.errors}
-                                        profileComplete={businessDone}
+                                        profileComplete={profileReady}
                                         researchAvailable={researchAvailable}
                                         liveProductFactsAvailable={liveProductFactsAvailable}
                                     />

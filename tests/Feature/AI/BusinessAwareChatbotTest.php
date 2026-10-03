@@ -5,6 +5,7 @@ namespace Tests\Feature\AI;
 use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Models\AiCreditLedger;
 use App\Modules\AI\Models\AiKnowledgeBase;
+use App\Modules\AI\Services\BusinessAwareTurnRouter;
 use App\Modules\AI\Services\ChatbotRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -87,5 +88,32 @@ class BusinessAwareChatbotTest extends TestCase
         $this->assertSame(0, $result['tokens_used']);
         $this->assertSame(0, AiCreditLedger::count());
         Http::assertNothingSent();
+    }
+
+    public function test_a_greeting_is_answered_even_with_routing_off(): void
+    {
+        // Production on 2026-10-04: routing off, a Balanced bot answered "hello" with its fallback.
+        config(['chatbot.business_aware_routing_enabled' => false]);
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        $kb = AiKnowledgeBase::create(['workspace_id' => $workspace->id, 'name' => 'Telzen', 'status' => 'active']);
+        $bot = AiChatbot::create([
+            'workspace_id' => $workspace->id, 'name' => 'Telzen AI', 'ai_kb_id' => $kb->id, 'answer_scope' => 'business_only',
+            'unsupported_answer_action' => 'clarify_then_handoff', 'fallback_reply' => 'Sorry, I do not have a proper answer for it.',
+        ]);
+        Http::fake();
+
+        $result = app(ChatbotRunner::class)->runForApi($bot, 'hello', $workspace->id);
+
+        $this->assertSame('conversation', $result['answer_origin']);
+        $this->assertStringNotContainsString('proper answer', $result['reply']);
+        Http::assertNothingSent();
+    }
+
+    public function test_a_business_name_and_purpose_are_enough_for_balanced_guidance(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        $kb = AiKnowledgeBase::create(['workspace_id' => $workspace->id, 'name' => 'Telzen', 'brand' => 'Telzen', 'purpose' => 'Travel eSIM data plans for travellers', 'status' => 'active']);
+
+        $this->assertTrue(app(BusinessAwareTurnRouter::class)->hasMeaningfulProfile($kb));
     }
 }

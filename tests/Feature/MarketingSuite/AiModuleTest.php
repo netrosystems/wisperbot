@@ -268,7 +268,7 @@ class AiModuleTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->postJson("/app/ai/chatbots/{$chatbot->uuid}/playground", [
-            'message' => 'Hello',
+            'message' => 'What plans do you offer?',
         ]);
 
         $response
