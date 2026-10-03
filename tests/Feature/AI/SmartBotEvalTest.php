@@ -92,6 +92,8 @@ class SmartBotEvalTest extends TestCase
     {
         [$bot, $workspaceId] = $this->bot();
         config()->set('chatbot.engine_v2_enabled', true);
+        // The search path: a Strict bot declines the unanswerable question without a model call.
+        config()->set('chatbot.v2_full_context_max_tokens', 0);
         $bot->update(['engine' => 'v2', 'answer_scope' => 'verified_only']);
         $this->cases($bot, $workspaceId);
         $this->fakeOpenAi([

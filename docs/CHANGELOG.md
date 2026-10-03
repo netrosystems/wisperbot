@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Engine v2 reads small knowledge bases whole.** For bots on the new answer engine, a knowledge base up to about 20,000 tokens (`SMART_BOT_FULL_CONTEXT_MAX_TOKENS`, 0 turns it off) is sent to the model in full instead of searched, so an answer never depends on the search finding the right passage. The checks before sending are unchanged. Bots on engine v1 are not affected. No migration.
+
 - **Smart Bot choices as real buttons on WhatsApp, Messenger and Instagram.** When a bot reply offers two or three short choices (each up to 20 characters), customers now get WhatsApp reply buttons or Messenger/Instagram quick replies instead of a numbered list. Longer choices, Telegram and email keep the numbered list, and a refused button message is resent as numbered text. A tap is answered like typed text; WhatsApp button taps were previously not answered by the Smart Bot at all. Switch: `SMART_BOT_NATIVE_CHOICES`. No migration.
 
 - **Unanswered questions and team feedback for Smart Bots.** Questions a Smart Bot could not answer from its Knowledge Base are now recorded in every publishing mode (personal details removed, never from the playground) and listed on the Knowledge Base page, most asked first, with Write answer (added to an "Answers to customer questions" FAQ source) and Dismiss. In the inbox, each bot reply shows 👍/👎, "Why this answer" (outcome, sources, match score, engine) and Improve, which writes the right answer into the Knowledge Base. The mobile API has matching endpoints, and `ai:smart-bot-report` counts the feedback. Visitors never see the review data. Migration `2026_10_03_000400_create_ai_answer_feedback_table`.

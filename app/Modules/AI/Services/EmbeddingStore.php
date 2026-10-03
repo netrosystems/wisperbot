@@ -337,9 +337,9 @@ class EmbeddingStore
      *
      * @return Builder<AiKbChunk>
      */
-    public function liveChunks(int $kbId): Builder
+    public function liveChunks(int $kbId, ?int $revisionId = null): Builder
     {
-        return $this->eligibleChunks(AiKbChunk::query()->where('kb_id', $kbId), null);
+        return $this->eligibleChunks(AiKbChunk::query()->where('kb_id', $kbId), $revisionId);
     }
 
     /**

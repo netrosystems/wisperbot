@@ -26,7 +26,9 @@ class AnswerReview
         $trace = is_array($turn['trace'] ?? null) ? $turn['trace'] : [];
         $passageIds = array_values(array_filter(array_map(fn ($passage) => is_array($passage) ? (int) ($passage['chunk_id'] ?? 0) : 0, (array) ($trace['passages'] ?? []))));
         // Engine v2 says which passages it used; show those first.
-        $used = array_values(array_filter(array_map(fn ($number) => $passageIds[(int) $number - 1] ?? null, (array) ($trace['used_sources'] ?? []))));
+        $used = isset($trace['used_chunk_ids'])
+            ? array_values(array_map('intval', (array) $trace['used_chunk_ids']))
+            : array_values(array_filter(array_map(fn ($number) => $passageIds[(int) $number - 1] ?? null, (array) ($trace['used_sources'] ?? []))));
 
         return array_filter([
             'chatbot_id' => $bot->id,
