@@ -4,10 +4,16 @@ This directory and the root specification files form the durable project memory 
 
 ## Core Specifications (Root)
 
-- [**Agent Routing Guide (`AGENTS.md`)**](../AGENTS.md) — Lightweight instructions & decision routing table for AI coding agents to minimize token burn.
+- [**Agent Routing Guide (`AGENTS.md`)**](../AGENTS.md) — Hard rules, required checks and workflow for every change; imported by `CLAUDE.md`.
 - [**Technical Architecture Specification (`ARCHITECTURE.md`)**](../ARCHITECTURE.md) — System boundaries, modular monolith architecture, multi-tenancy, queue pipelines, WebSocket events, and quality gates.
 - [**UI/UX Design System (`DESIGNSYSTEM.md`)**](../DESIGNSYSTEM.md) — Space Grotesk & Fraunces typography, Orange & Amber brand tokens, layout archetypes, border-driven surfaces, and UI component primitives.
 - [**Feature Plan & Specifications (`PLAN.md`)**](../PLAN.md) — Core user journeys, feature module breakdowns, UI state machines, and testing verification matrices.
+
+## Project map (`docs/map/`)
+
+- [Product code map](map/PRODUCT.md) — which folder owns each area, with area routers in `app/Modules/README.md` and `resources/js/README.md`.
+- [Operations map](map/OPERATIONS.md) — local setup, checks, CI, deploy, release, rollback, health and configuration.
+- [Documentation map](map/DOCS.md) — the domain specification & documentation impact matrix.
 
 ## Detailed Domain Guides (`docs/`)
 
@@ -18,7 +24,7 @@ This directory and the root specification files form the durable project memory 
 5. [Security](SECURITY.md) — Trust boundaries and required safeguards.
 6. [Known Issues](KNOWN_ISSUES.md) — Unfinished or fragile areas.
 7. [Changelog](CHANGELOG.md) — Documentation-level release history.
-8. [Knowledge Base and Smart Bot Answering](KNOWLEDGE_BASE_SMART_BOT.md) — Authoritative routing, retrieval, research, grounding, credits, chatbot identity, rollout, and SDK contract.
+8. [Knowledge Base and Smart Bot Answering](KNOWLEDGE_BASE_SMART_BOT.md) — Authoritative routing, retrieval, research, grounding, credits, chatbot identity, rollout, and SDK contract. Its plan, status and owner decisions for Smart Bot 2.0 are in [Smart Bot 2.0 plan](SMART_BOT_2_PLAN.md).
 9. [Public Website Design](DESIGN.md) — Full public-site content architecture, 14 product/solution/channel/developer routes, mega navigation, motion, content ownership, proof standards, and rollout.
 10. [Marketing Visual Audit](MARKETING_VISUAL_AUDIT.md) — Homepage placeholder inventory, actual UI capture provenance, official app imagery, and photography direction.
 
@@ -40,4 +46,4 @@ For any work on Knowledge Base ingestion/indexing, answer scope, relevance, retr
 
 ## Maintenance rule
 
-Documentation updates are part of the definition of done. See [AGENTS.md](../AGENTS.md) for the required documentation impact matrix. `docs/HANDOFF.md` is a status snapshot, while the other documents describe durable system behavior.
+Documentation updates are part of the definition of done. See [the documentation map](map/DOCS.md) for the required documentation impact matrix and [AGENTS.md](../AGENTS.md) for the rules. `docs/HANDOFF.md` is a status snapshot, while the other documents describe durable system behavior.
