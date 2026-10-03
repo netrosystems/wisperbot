@@ -278,7 +278,8 @@ class AiKnowledgeBaseController extends Controller
         $target->update([
             'status' => $hasActiveIndex ? 'indexed' : 'pending',
             'error_message' => null,
-            'review_status' => 'needs_review',
+            // Without guarded publishing there is no review: keep the source live while it is re-read.
+            'review_status' => config('knowledge_base.guarded_publishing') ? 'needs_review' : 'auto_approved',
         ]);
 
         try {
@@ -338,7 +339,7 @@ class AiKnowledgeBaseController extends Controller
         $target->update($willEnable ? [
             'enabled' => true,
             'status' => 'pending',
-            'review_status' => 'needs_review',
+            'review_status' => config('knowledge_base.guarded_publishing') ? 'needs_review' : 'auto_approved',
             'error_message' => null,
         ] : [
             'enabled' => false,
