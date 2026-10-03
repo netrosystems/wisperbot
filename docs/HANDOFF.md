@@ -373,3 +373,7 @@ Designed for WisperBot's Knowledge Base page: a card beside the existing busines
 ## Smart Bot 2.0 Phase 1.5, unanswered questions and feedback (2026-10-03)
 
 Designed for WisperBot: the unanswered list lives on the Knowledge Base page (where answers are written), built on the existing `ai_kb_knowledge_gaps`; written answers join one "Answers to customer questions" FAQ source per Knowledge Base. Bot replies carry a staff-only `payload.ai_review`; 👍/👎 and Improve are in the inbox and the mobile API. Verified locally with seeded samples (inbox review row, rating saved, Knowledge Base list); real customer traffic was not exercised. **Mobile app team:** new optional endpoints and payload fields are additive; the SDK and widget are unchanged. English labels only.
+
+## Smart Bot 2.0 Phase 1.7, native channel buttons (2026-10-03)
+
+Bot reply choices become WhatsApp reply buttons and Messenger/Instagram quick replies when they fit; numbered text otherwise. Also fixed: WhatsApp button taps (type `interactive`) were skipped by the channel reply job and missing from Smart Bot history. Spec: [`CHAT_REPLY_OPTIONS.md`](CHAT_REPLY_OPTIONS.md#native-channel-buttons-2026-10-03). **Needs a live check** on one WhatsApp number and one Messenger page (tests fake Meta). Roll back with `SMART_BOT_NATIVE_CHOICES=false`.

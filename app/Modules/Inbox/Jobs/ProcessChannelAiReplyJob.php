@@ -160,6 +160,8 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
                                 'citations' => $result['citations'] ?? [],
                                 'product_facts' => $result['product_facts'] ?? [],
                                 'ai_review' => $review,
+                                // The text without numbered choices, for channels that show them as buttons.
+                                'native_body' => ($result['quick_replies'] ?? []) !== [] ? $this->providerBody((string) ($result['display_body'] ?? $reply), $resources, $message->channel) : null,
                             ],
                             'status' => 'queued',
                             'sent_by' => 'bot',
@@ -237,7 +239,8 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
 
     private function supportedMessage(Message $message): bool
     {
-        return $message->type === 'text' && trim((string) $message->body) !== '';
+        // A tapped reply button arrives as an `interactive` message whose text is its label.
+        return in_array($message->type, ['text', 'interactive'], true) && trim((string) $message->body) !== '';
     }
 
     /** @param array<int, array<string, mixed>> $resources */

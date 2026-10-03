@@ -54,6 +54,18 @@ class InstagramDriver implements ChannelDriverInterface
             return $messageId;
         }
 
+        if ($native = app(NativeReplyChoices::class)->for($message)) {
+            try {
+                return $this->postMessage($accessToken, $igAccountId, $recipientId, [
+                    'text' => $native['body'],
+                    'quick_replies' => array_map(fn (array $choice) => ['content_type' => 'text', 'title' => $choice['label'], 'payload' => $choice['id']], $native['choices']),
+                ]);
+            } catch (\RuntimeException $error) {
+                // Refused quick replies: the same answer once more as text with numbered choices.
+                Log::warning('instagram.native_choices_refused', ['message_id' => $message->id, 'error' => $error->getMessage()]);
+            }
+        }
+
         return $this->postMessage($accessToken, $igAccountId, $recipientId, ['text' => $message->body]);
     }
 

@@ -13,7 +13,7 @@
 | Phase | What it delivers | Effort | Status |
 |---|---|---|---|
 | **0** Measure and quick fixes | Every turn records why it ended; `ai:smart-bot-report`; reply budget and cut-off retry; reasoning kept low; all system messages kept; guidance retry; figure check; no silent turns | 3–5 days | ◐ **Code done** 2026-10-02 in PR #181 (`dev` → `main`, awaiting owner approval to merge and deploy). Then: 7-day baseline, threshold decision, 30-question check |
-| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) live in v1.3.105. Company brief (1.3) live in v1.3.106. Unanswered questions and feedback (1.5) built 2026-10-03. Next: the canary with a v1-vs-v2 test run, then native channel choices (1.7), full-context mode and burst batching |
+| **1** Smarter answer engine (engine v2) | Answer ladder, Strict/Balanced/Flexible, company brief, self-check, unanswered questions, 👍/👎, quality test set, native channel buttons | 3–4 weeks | ◐ **In progress.** Increment 1 (engine v2 core: metered turns, planner, prompt, reply contract, validator, support check, second look, `ai:engine`) live in v1.3.103, off by default. Test set (1.6) live in v1.3.104. Answer controls (1.4) live in v1.3.105. Company brief (1.3) live in v1.3.106. Unanswered questions and feedback (1.5) live in v1.3.107. Native channel buttons (1.7) built 2026-10-03. Next: full-context mode, burst batching, and the v1-vs-v2 canary |
 | **2** Live data (tools) | Store products, price sheets, the client's own API, opening hours; "as of" times; 1 or 2 credits per answer | 3–4 weeks | ☐ Not started |
 | **3** Knowledge ingestion and retrieval | Clean page extraction (tables, JS sites), scheduled refresh, keyword + meaning search | 4–6 weeks | ☐ Not started |
 | **4** Procedures and memory | Plain-language playbooks, customer memory, handover summaries | 3–4 weeks | ☐ Not started |
@@ -249,7 +249,8 @@ Legend: ☐ to do · ☑ done · ◐ in progress · ↻ port from Cerqle (path i
 - ☐ First runs on WisperBot's own bot: v1 baseline, then v2.
 
 **1.7 Channels**
-- ↻ Native WhatsApp reply buttons and lists, Messenger and Instagram quick replies (`NativeChoices`), per-channel formatting and length (`ChannelFormatter`).
+- ☑ (2026-10-03) ✚ Native WhatsApp reply buttons and Messenger/Instagram quick replies for bot reply choices (`NativeReplyChoices`, used by the existing channel drivers; the stored message stays `text`). Numbered text when they do not fit or are refused. WhatsApp button taps are now answered. WhatsApp lists (4–10 choices) are not needed: replies carry at most 3 choices.
+- ☐ Per-channel formatting (Markdown removal for chat channels) beyond today's length limits.
 
 **Acceptance** (50–100 test questions per pilot bot; Cerqle's bar):
 - ≥ 85% of answerable questions answered;

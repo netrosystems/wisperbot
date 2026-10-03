@@ -40,6 +40,10 @@ return [
         'standard' => ['words' => 70, 'sentences' => 4, 'max_tokens' => 700],
         'detailed' => ['words' => 140, 'sentences' => 8, 'max_tokens' => 1000],
     ],
+    // Reply choices as WhatsApp reply buttons and Messenger/Instagram quick
+    // replies when they fit; numbered text otherwise (Phase 1.7).
+    'native_choices' => (bool) env('SMART_BOT_NATIVE_CHOICES', true),
+
     // The answer-quality test set (Phase 1.6): `ai:eval:synthesize`, `ai:eval`.
     'eval' => [
         // Only these may use LlmGateway::platformChat() (platform-billed).

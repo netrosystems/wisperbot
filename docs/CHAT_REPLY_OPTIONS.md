@@ -72,7 +72,17 @@ Trace `ChatbotRunner` → `ChatReplyOptions` → `AutoReplyListener` message pay
 
 Before claiming completion, verify multiple unrelated client domains and languages, tenant-specific KB facts, open questions without buttons, arbitrary choice labels, several consecutive selections, an unsupported branch, stale options, and an unchanged text composer. Compare raw message JSON with what the widget and released SDK render. Tests using constructed provider responses establish contracts, not model reliability or production rollout. The narrow English recovery cannot satisfy arbitrary missing model choices; investigate generation/configuration/deployment rather than adding client-specific label lists as the primary mechanism.
 
-External WhatsApp/Messenger/Instagram messages retain the numbered text fallback in this release; native provider interactive-button support is not claimed. Selecting a choice does not trigger payment, booking, cancellation, or human handoff.
+Selecting a choice does not trigger payment, booking, cancellation, or human handoff.
+
+## Native channel buttons (2026-10-03)
+
+Smart Bot replies on WhatsApp, Messenger and Instagram show their choices as the channel's own buttons when they fit (`NativeReplyChoices`, switch `SMART_BOT_NATIVE_CHOICES`, default on):
+
+- **WhatsApp:** an interactive message of type `button` (up to 3 reply buttons, title ≤ 20 characters, body ≤ 1,024). **Messenger and Instagram:** the text message with `quick_replies` (`content_type: text`, title ≤ 20 characters; body ≤ 2,000 / 1,000).
+- Only bot replies (`sent_by = bot`, type `text`) with two or three choices, every label within the title limit unchanged, and text within the body limit. A choice is never cut short: otherwise the numbered text is sent as before. If the provider refuses the buttons, the same answer is sent once more as numbered text.
+- The stored message is unchanged (`type = text`, numbered `body`, `quick_replies`); the reply job adds `payload.native_body`, the provider text without the numbered list. Button ids are `ai:{message id}:{choice id}` (Messenger/Instagram `payload`); they identify the offer only.
+- A tap arrives as an ordinary customer message whose text is the label (WhatsApp `interactive` button replies included, which the channel reply job now answers and Smart Bot history now reads). The answer path is the same as for typed text.
+- Telegram and email keep numbered text. Not verified against live Meta accounts: tests fake the Graph API.
 
 ## Joined-agent handoff state
 
