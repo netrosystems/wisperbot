@@ -89,7 +89,7 @@ class UnansweredQuestionsTest extends TestCase
         $this->actingAs($user)->post(route('client.ai.knowledge-bases.unanswered.dismiss', ['kb' => $kb->uuid, 'gap' => $gap->id]))->assertRedirect();
 
         $this->assertSame('ignored', $gap->fresh()->status);
-        $this->actingAs($user)->get(route('client.ai.knowledge-bases.show', $kb->uuid))
+        $this->actingAs($user)->get(route('client.ai.chatbots.show', AiChatbot::where('ai_kb_id', $kb->id)->first()->uuid))
             ->assertInertia(fn ($page) => $page->where('kb.knowledge_gaps', []));
     }
 

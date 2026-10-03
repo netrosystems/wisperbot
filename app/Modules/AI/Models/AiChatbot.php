@@ -40,7 +40,7 @@ class AiChatbot extends Model
         'workspace_id', 'name', 'ai_kb_id', 'system_prompt', 'tone', 'max_context_chunks',
         'retrieval_match_threshold', 'max_context_tokens', 'video_match_threshold',
         'answer_scope', 'trusted_research_enabled', 'live_product_facts_enabled', 'kb_exact_wording', 'starter_questions_enabled', 'starter_questions', 'unsupported_fallback_action',
-        'unsupported_answer_action', 'fallback_reply', 'channels', 'enabled', 'engine', 'reply_length',
+        'unsupported_answer_action', 'fallback_reply', 'channels', 'enabled', 'engine', 'reply_length', 'answers_configured_at',
     ];
 
     protected function casts(): array
@@ -57,6 +57,7 @@ class AiChatbot extends Model
             'starter_questions_enabled' => 'boolean',
             'starter_questions' => 'array',
             'live_product_facts_enabled' => 'boolean',
+            'answers_configured_at' => 'datetime',
         ];
     }
 

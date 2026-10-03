@@ -16,6 +16,7 @@ use App\Modules\AI\Services\EmbeddingStore;
 use App\Modules\AI\Services\KnowledgeBaseTestService;
 use App\Modules\AI\Services\KnowledgeBaseWorkflowService;
 use App\Modules\AI\Services\KnowledgeSourceUrlResolver;
+use App\Modules\AI\Services\KnowledgeUploadLimit;
 use App\Modules\AI\Services\KnowledgeUrlGuard;
 use App\Modules\AI\Services\LlmGateway;
 use App\Modules\AI\Services\UnansweredQuestionService;
@@ -26,8 +27,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class AiKnowledgeBaseController extends Controller
 {
@@ -42,46 +41,18 @@ class AiKnowledgeBaseController extends Controller
         private LlmGateway $llm,
     ) {}
 
-    public function index(Request $request): Response
+    /** Knowledge is set up on its Smart Bot's page (2026-10-04); the old pages redirect there. */
+    public function index(): RedirectResponse
     {
-        $workspaceId = $request->user()->current_workspace_id ?? $request->user()->workspace_id;
-        $kbs = AiKnowledgeBase::where('workspace_id', $workspaceId)
-            ->with(['documents', 'publishedRevision', 'chatbots:id,name,ai_kb_id'])
-            ->withCount('documents')->latest()->get()
-            ->each(fn (AiKnowledgeBase $kb) => $kb->setAttribute('health', $this->workflow->health($kb)));
-
-        return Inertia::render('AI/KnowledgeBases/Index', ['knowledgeBases' => $kbs]);
+        return to_route('client.ai.chatbots.index');
     }
 
-    public function show(Request $request, AiKnowledgeBase $kb): Response
+    public function show(Request $request, AiKnowledgeBase $kb): RedirectResponse
     {
         $this->authorise($request, $kb);
-        $revisionId = $kb->draft_revision_id ?: $kb->published_revision_id;
-        $visibleDocumentIds = $revisionId
-            ? AiKbRevision::where('kb_id', $kb->id)->whereKey($revisionId)->first()?->documents()->pluck('ai_kb_documents.id')->all()
-            : $kb->documents()->pluck('id')->all();
-        $kb->load([
-            'documents' => fn ($query) => $query->whereIn('id', $visibleDocumentIds)->withCount('chunks')->latest(),
-            'revisions' => fn ($query) => $query->latest('version'),
-            'testCases',
-            'chatbots:id,name,ai_kb_id,enabled',
-            'publishedRevision',
-            'draftRevision',
-            // Most asked first: the unanswered questions worth answering.
-            'knowledgeGaps' => fn ($query) => $query->where('status', 'open')->orderByDesc('occurrences')->latest('last_seen_at')->limit(25),
-        ]);
+        $bot = $kb->chatbots()->oldest('id')->first();
 
-        $kbUploadMaxKb = $this->kbUploadMaxKb();
-
-        return Inertia::render('AI/KnowledgeBases/Show', [
-            'kb' => $kb,
-            'kbUploadMaxKb' => $kbUploadMaxKb,
-            'kbUploadMaxMb' => round($kbUploadMaxKb / 1024, 1),
-            'health' => $this->workflow->health($kb),
-            'guardedPublishing' => (bool) config('knowledge_base.guarded_publishing'),
-            'efficiency' => $this->efficiency($kb),
-            'hasBriefSources' => app(CompanyBriefService::class)->hasSources($kb),
-        ]);
+        return $bot ? to_route('client.ai.chatbots.show', $bot) : to_route('client.ai.chatbots.index');
     }
 
     public function store(Request $request): RedirectResponse
@@ -97,14 +68,16 @@ class AiKnowledgeBaseController extends Controller
         $kb = AiKnowledgeBase::create(array_merge($validated, ['workspace_id' => $workspaceId]));
         $this->workflow->createInitialDraft($kb, $request->user()->id);
 
-        return to_route('client.ai.knowledge-bases.show', $kb)->with('success', 'Knowledge Base created. Add your first trusted source.');
+        // Listed under "Knowledge not used by a bot" until a bot is made from it.
+        return to_route('client.ai.chatbots.index')->with('success', 'Knowledge base created.');
     }
 
     public function update(Request $request, AiKnowledgeBase $kb): RedirectResponse
     {
         $this->authorise($request, $kb);
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:128'],
+            // The bot page edits the business details only; the name follows the bot.
+            'name' => ['sometimes', 'required', 'string', 'max:128'],
             'purpose' => ['nullable', 'string', 'max:2000'],
             'language' => ['nullable', 'string', 'max:16'],
             'brand' => ['nullable', 'string', 'max:128'],
@@ -112,7 +85,7 @@ class AiKnowledgeBaseController extends Controller
         ]);
         $kb->update($validated);
 
-        return back()->with('success', 'Knowledge base updated.');
+        return back()->with('success', 'Business details saved.');
     }
 
     public function destroy(Request $request, AiKnowledgeBase $kb): RedirectResponse
@@ -151,7 +124,7 @@ class AiKnowledgeBaseController extends Controller
 
         $this->deleteStoredFiles($filePaths);
 
-        return to_route('client.ai.knowledge-bases.index')
+        return to_route('client.ai.chatbots.index')
             ->with('success', 'Knowledge base deleted.');
     }
 
@@ -469,20 +442,6 @@ class AiKnowledgeBaseController extends Controller
         }
     }
 
-    private function efficiency(AiKnowledgeBase $kb): array
-    {
-        $diagnostics = $kb->retrievalDiagnostics()->where('created_at', '>=', now()->subDays(30));
-        $total = (clone $diagnostics)->count();
-        $cached = (clone $diagnostics)->whereNotNull('cache_source')->count();
-
-        return [
-            'queries' => $total,
-            'cache_hit_rate' => $total > 0 ? (int) round(($cached / $total) * 100) : 0,
-            'context_tokens' => (int) (clone $diagnostics)->sum('context_tokens'),
-            'handoffs' => (int) (clone $diagnostics)->where('decision', 'handoff')->count(),
-        ];
-    }
-
     private function videoIndexText(array $data): string
     {
         return trim("Title: {$data['title']}\nDescription or transcript:\n{$data['video_transcript']}\nTrigger phrases:\n".($data['trigger_phrases'] ?? ''));
@@ -569,35 +528,7 @@ class AiKnowledgeBaseController extends Controller
 
     private function kbUploadMaxKb(): int
     {
-        $appMaxKb = 20 * 1024;
-        $serverMaxKb = min(
-            $this->iniSizeToKb(ini_get('upload_max_filesize')),
-            $this->iniSizeToKb(ini_get('post_max_size')),
-        );
-
-        // Leave room for multipart form overhead so a file at the exact PHP
-        // limit does not get rejected by the web server before Laravel sees it.
-        $serverMaxKb = max(1024, $serverMaxKb - 512);
-
-        return min($appMaxKb, $serverMaxKb);
-    }
-
-    private function iniSizeToKb(string|false $value): int
-    {
-        if ($value === false || trim($value) === '') {
-            return PHP_INT_MAX;
-        }
-
-        $value = trim($value);
-        $unit = strtolower(substr($value, -1));
-        $number = (float) $value;
-
-        return match ($unit) {
-            'g' => (int) ($number * 1024 * 1024),
-            'm' => (int) ($number * 1024),
-            'k' => (int) $number,
-            default => (int) ceil($number / 1024),
-        };
+        return app(KnowledgeUploadLimit::class)->maxKb();
     }
 
     private function sourceRefRules(string $sourceType): array

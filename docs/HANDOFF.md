@@ -393,3 +393,12 @@ Bot replies on WhatsApp, Messenger, Instagram, Telegram, eBay and email are rewr
 ## Smart Bot 2.0 Phase 1, asking for a person (2026-10-04)
 
 `HandoverRequest` recognises a request for a person in many languages and a yes to the bot's offer of one; channel customers get an acknowledgement. Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#asking-for-a-person-2026-10-04). `AutoReplyListener::HANDOVER_PHRASES` is gone (starter questions use `HandoverRequest::asks()`). Tests fake the channels; check one "Yes" after the bot's offer on a live channel after deploy.
+
+## Smart Bot setup redesign (2026-10-04)
+
+One bot page with steps, and each bot owns its knowledge. Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#setting-up-a-smart-bot-2026-10-04).
+
+- **Deploy gate:** production must have `KB_GUARDED_PUBLISHING=false`, because the publish screens are gone. Check the Settings section of `php artisan ai:smart-bot-report --days=1` before merging.
+- **App team:** the API (`/api/v1/ai/chatbots*`, `/ai/knowledge-bases*`) is unchanged.
+- **Next:** the "Where it answers" step.
+- **Checked locally:** in the browser with the demo workspace (create, business details, a text source, how it answers, phone width). Indexing locally fails on the demo OpenAI key, which is expected.

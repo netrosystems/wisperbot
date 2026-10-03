@@ -23,13 +23,13 @@ class ModuleRoutesMiddlewareTest extends TestCase
         $admin = $this->adminUser();
 
         $this->actingAs($admin)
-            ->get('/app/ai/knowledge-bases')
+            ->get('/app/ai/chatbots')
             ->assertRedirect();
     }
 
     public function test_unauthenticated_user_is_redirected_from_module_routes(): void
     {
-        $this->get('/app/ai/knowledge-bases')
+        $this->get('/app/ai/chatbots')
             ->assertRedirect(route('login'));
     }
 
@@ -38,7 +38,7 @@ class ModuleRoutesMiddlewareTest extends TestCase
         ['user' => $user] = $this->createWorkspaceContext();
 
         $this->actingAs($user)
-            ->get('/app/ai/knowledge-bases')
+            ->get('/app/ai/chatbots')
             ->assertOk();
     }
 

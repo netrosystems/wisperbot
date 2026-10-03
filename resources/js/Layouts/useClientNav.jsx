@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ChannelBrandIcon } from '@/Components/BrandIcons';
 import {
     LayoutDashboard, CreditCard, Package, FileText, Users, Settings,
-    Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot, Database,
+    Layers, Webhook, Key, BookOpen, Image, Radio, Inbox, Bot,
     Zap, Share2, Tag, LifeBuoy, ExternalLink, MessageSquare, MessagesSquare,
     ShoppingBag, Mail, CalendarClock,
 } from 'lucide-react';
@@ -123,7 +123,6 @@ export default function useClientNav() {
 
     const aiItems = [
         { label: t('nav.smart_bots'),       href: safeRoute('client.ai.chatbots.index'),        icon: <Bot className={iconClass} />,      activePattern: 'client.ai.chatbots.*' },
-        { label: t('nav.knowledge_bases'), href: safeRoute('client.ai.knowledge-bases.index'), icon: <Database className={iconClass} />, activePattern: 'client.ai.knowledge-bases.*' },
         { label: t('nav.ai_providers'),    href: safeRoute('client.ai.providers.index'),        icon: <Bot className={iconClass} />,      activePattern: 'client.ai.providers.*' },
     ];
 
