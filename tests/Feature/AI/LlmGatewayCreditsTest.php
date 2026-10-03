@@ -152,7 +152,7 @@ class LlmGatewayCreditsTest extends TestCase
         $workspace = $this->workspaceWithCredits(100);
         $this->managedOpenAi();
         $bot = AiChatbot::create(['workspace_id' => $workspace->id, 'name' => 'Support', 'enabled' => true]);
-        Http::fake(['api.openai.com/*' => Http::response($this->openAiResponse('{"reply":"Which app do you need?","quick_replies":["iOS app","Android app"]}'))]);
+        Http::fake(['api.openai.com/*' => Http::response($this->openAiResponse('{"reply":"Do you need the iOS app or the Android app?","quick_replies":["iOS app","Android app"]}'))]);
         $runner = app(ChatbotRunner::class);
         $first = $runner->runForApi($bot, 'I need an app', $workspace->id, [], 'choice-test', true);
         $second = $runner->runForApi($bot, 'I need an app', $workspace->id, [], 'choice-test', true);

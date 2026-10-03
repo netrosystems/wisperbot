@@ -126,7 +126,8 @@ class SmartBotEngineV2Test extends TestCase
         ]);
 
         $this->assertSame('clarification', $first['response_mode']);
-        $this->assertSame(['Japan', 'Italy'], array_column($first['quick_replies'], 'label'));
+        // The customer types the country: no sample countries as buttons.
+        $this->assertSame([], $first['quick_replies']);
         $this->assertSame('fallback', $second['response_mode']);
         $this->assertSame(['refunded', 'refunded'], AiCreditLedger::orderBy('id')->pluck('status')->all());
         $this->assertSame(['model_clarification', 'clarified_twice'], AiKbRetrievalDiagnostic::orderBy('id')->pluck('reason_code')->all());

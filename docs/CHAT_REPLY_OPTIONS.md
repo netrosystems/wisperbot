@@ -22,6 +22,17 @@ The web widget renders compact wrapping buttons. The customer SDK must implement
 
 Knowledge-only answer scope also applies to choice follow-ups. A short selected label may use the nearest two conversation turns to retrieve the business topic that produced it, while a substantive new customer topic is evaluated on its own. Choices and history never become verified evidence. If the Knowledge Base cannot support the next branch, the Smart Bot uses its fallback rather than answering from general knowledge; enabling general answers is an explicit per-bot choice.
 
+### Open questions are typed (2026-10-04)
+
+A question with many possible answers gets no buttons, and the customer types the answer. `ChatReplyOptions::fitToQuestion()` applies this to every reply from both engines before it is stored:
+
+- **Choices dropped as questions.** A choice that is itself a question ("Yes, which country?") is removed.
+- **Open question about free-text information.** If the reply's last question is open (which, what, where, when, how, or the Bangla, romanized Bangla, Arabic and Hindi equivalents) and asks about a country, place, date, order, name, number, size or price, all choices are dropped.
+- **Other open questions.** These keep their choices only when the set is complete: the question names the options ("iPhone or Android?"), or one choice is a catch-all ("Something else", "Another device", "Not sure", "Both").
+- **Too few left.** Fewer than two choices means none.
+
+Both engines' prompts say the same thing. This followed a test bot asking "Which country?" with USA / UK / India buttons.
+
 ## Additive contract
 
 Outbound message type remains `text`. `body` (or AI API `reply`) retains numbered choices for older clients and external messaging channels:

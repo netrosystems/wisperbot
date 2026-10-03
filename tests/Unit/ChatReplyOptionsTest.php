@@ -11,6 +11,7 @@ class ChatReplyOptionsTest extends TestCase
     {
         $result = (new ChatReplyOptions)->parse('{"reply":"Which platform?","quick_replies":["iOS app","Android app","Both"]}');
         $this->assertSame('Which platform?', $result['display_body']);
+        // "Both" covers every answer, so an open question keeps its buttons.
         $this->assertStringContainsString('1. iOS app', $result['reply']);
         $this->assertSame(['id' => 'qr_2', 'label' => 'Android app'], $result['quick_replies'][1]);
     }
@@ -36,7 +37,7 @@ class ChatReplyOptionsTest extends TestCase
     public function test_valid_json_is_recovered_when_a_provider_adds_surrounding_prose(): void
     {
         $content = 'Here is the response: '.json_encode([
-            'reply' => 'Which option do you need?',
+            'reply' => 'Which option do you need, the first or the second?',
             'quick_replies' => ['First option', 'Second option'],
             'grounded' => true,
             'response_type' => 'clarification',
@@ -44,7 +45,7 @@ class ChatReplyOptionsTest extends TestCase
 
         $result = (new ChatReplyOptions)->parse($content);
 
-        $this->assertSame('Which option do you need?', $result['display_body']);
+        $this->assertSame('Which option do you need, the first or the second?', $result['display_body']);
         $this->assertSame(['First option', 'Second option'], array_column($result['quick_replies'], 'label'));
     }
 
@@ -85,9 +86,9 @@ class ChatReplyOptionsTest extends TestCase
     {
         $cases = [
             ['Which device are you using?', ['iPhone', 'Samsung', 'Another device']],
-            ['How did you try to install it?', ['QR code', 'Manual entry', 'In-app installation']],
-            ['Where does the setup stop?', ['Before scanning', 'During installation', 'After activation']],
-            ['What do you need help with?', ['Design a website', 'Build an app', 'Improve existing software']],
+            ['How did you try to install it?', ['QR code', 'Manual entry', 'Something else']],
+            ['Where does the setup stop?', ['Before scanning', 'During installation', 'Not sure']],
+            ['Do you need a new website, an app, or help with existing software?', ['Design a website', 'Build an app', 'Improve existing software']],
             ['আপনি কোন ডিভাইস ব্যবহার করছেন?', ['আইফোন', 'অ্যান্ড্রয়েড', 'অন্য ডিভাইস']],
         ];
         foreach ($cases as [$question, $choices]) {

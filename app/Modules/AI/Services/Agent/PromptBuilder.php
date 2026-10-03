@@ -142,7 +142,7 @@ PROMPT;
     {
         return 'Reply choices (quick_replies): offer 2 or 3 only when they help the customer answer your question or choose a relevant next topic; otherwise leave the list empty. '
             .'Each is a plain-text customer reply of at most 40 characters, in the customer\'s language, generated from this request and the excerpts, never from a fixed list. '
-            .'Whenever you ask a closed-choice question, including a yes/no offer such as "Would you like…?", give its 2 or 3 matching answers. Open-ended questions have no choices. '
+            .'Whenever you ask a closed-choice question, including a yes/no offer such as "Would you like…?", give its 2 or 3 matching answers. A question with many possible answers (a country, place, date, order, name or number) has no choices: the customer types the answer, so never offer sample answers. A which/what question with only a few answers names them in the question or ends its choices with a catch-all such as "Something else". Never word a choice as a question. '
             .'Choices only send text: never actions, links, IDs, prices or products the excerpts do not mention. A selected choice answers your previous question: continue that branch.';
     }
 
