@@ -7,6 +7,7 @@ use App\Modules\AI\Models\AiChatbot;
 use App\Modules\AI\Services\StarterQuestions;
 use App\Modules\Inbox\Models\ChatWidget;
 use App\Modules\Inbox\Services\WeeklySchedule;
+use App\Modules\Inbox\Services\WidgetAiPlacement;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Services\StorageManager;
 use Illuminate\Http\RedirectResponse;
@@ -345,9 +346,7 @@ class ChatWidgetController extends Controller
      */
     private function metaFor(array $data): array
     {
-        return ! empty($data['ai_enabled']) && ! empty($data['ai_chatbot_id'])
-            ? ['ai_chatbot_id' => (int) $data['ai_chatbot_id']]
-            : [];
+        return WidgetAiPlacement::meta(! empty($data['ai_enabled']), $data['ai_chatbot_id'] ?? null);
     }
 
     private function chatbots(Request $request)

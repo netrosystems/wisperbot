@@ -40,6 +40,7 @@ export default function SmartBotCreate({ tones = [] }) {
                         { id: 'business', title: t('smart_bot.step_business'), done: false },
                         { id: 'knowledge', title: t('smart_bot.step_knowledge'), done: false },
                         { id: 'answers', title: t('smart_bot.step_answers'), done: false },
+                        { id: 'live', title: t('smart_bot.step_live'), done: false },
                     ]}
                 />
 

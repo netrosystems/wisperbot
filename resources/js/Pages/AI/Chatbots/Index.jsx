@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { BookOpen, Bot, Database, Play, Plus, Settings, Trash2, X } from 'lucide-react';
+import { BookOpen, Bot, Database, Play, Plus, Radio, Settings, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ClientLayout from '@/Layouts/ClientLayout';
@@ -71,8 +71,9 @@ export default function AiChatbotsIndex({ chatbots = [], unusedKnowledge = [], a
                                             {bot.tone && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_COLORS[bot.tone] ?? 'bg-neutral-100 text-neutral-500'}`}>{t(`ai.tone_${bot.tone}`)}</span>}
                                             {engineV2Enabled && bot.engine === 'v2' && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">{t('ai.engine_v2_badge')}</span>}
                                         </span>
-                                        <span className="mt-0.5 flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
-                                            <BookOpen className="h-3 w-3 shrink-0" /> <KnowledgeLine knowledge={bot.knowledge} />
+                                        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                            <span className="flex items-center gap-1"><BookOpen className="h-3 w-3 shrink-0" /> <KnowledgeLine knowledge={bot.knowledge} /></span>
+                                            <span className="flex items-center gap-1"><Radio className="h-3 w-3 shrink-0" /> {bot.places?.length ? bot.places.map(place => t(`smart_bot.list_place_${place}`)).join(' · ') : t('smart_bot.list_not_live')}</span>
                                         </span>
                                     </span>
                                 </Link>

@@ -10,6 +10,7 @@ import SetupSteps from '@/Components/SmartBot/SetupSteps';
 import TestPanel from '@/Components/SmartBot/TestPanel';
 import KnowledgeSources from '@/Components/SmartBot/KnowledgeSources';
 import AnswerSettings from '@/Components/SmartBot/AnswerSettings';
+import WhereItAnswers from '@/Components/SmartBot/WhereItAnswers';
 
 const inputCls = 'w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
 
@@ -52,6 +53,7 @@ function SaveButton({ processing, label }) {
 export default function SmartBotShow({
     chatbot, kb = null, sharedWith = [], hasBriefSources = false, kbUploadMaxKb, kbUploadMaxMb, tones = [],
     aiCredits = null, engineV2Enabled = false, researchAvailable = false, liveProductFactsAvailable = false,
+    placements = null, canManagePlacements = false,
 }) {
     const { t } = useTranslation();
     const flash = usePage().props.flash ?? {};
@@ -65,6 +67,7 @@ export default function SmartBotShow({
         { id: 'business', title: t('smart_bot.step_business'), done: businessDone },
         { id: 'knowledge', title: t('smart_bot.step_knowledge'), done: indexed > 0 },
         { id: 'answers', title: t('smart_bot.step_answers'), done: Boolean(chatbot.answers_configured_at) },
+        { id: 'live', title: t('smart_bot.step_live'), done: Boolean(placements?.widget?.on || Object.values(placements?.segments ?? {}).some(place => place.on)) },
     ];
     const [open, setOpen] = useState(() => (steps.find(step => !step.done)?.id ?? 'knowledge'));
 
@@ -198,6 +201,12 @@ export default function SmartBotShow({
                                     />
                                     <SaveButton processing={answers.processing} label={t('common.save')} />
                                 </form>
+                            </Panel>
+                        )}
+
+                        {open === 'live' && (
+                            <Panel title={t('smart_bot.step_live')} description={t('smart_bot.live_description')}>
+                                <WhereItAnswers chatbot={chatbot} placements={placements} canManage={canManagePlacements} />
                             </Panel>
                         )}
 
