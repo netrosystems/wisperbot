@@ -354,8 +354,14 @@ class EmbeddingStore
             ->whereHas('document', fn ($documents) => $documents
                 ->where('enabled', true)
                 ->whereColumn('ai_kb_documents.active_index_generation', 'ai_kb_chunks.index_generation')
-                ->when($revisionId === null, fn ($builder) => $builder->where('publication_status', 'published'))
-                ->whereIn('review_status', ['auto_approved', 'approved'])
+                // Review and publishing only exist under guarded publishing. Without
+                // it a source is live once read: a re-read that failed or is still
+                // queued left a source "needs_review" and silently hid every passage
+                // (2026-10-04).
+                // Public comment replies search a published revision and stay strict.
+                ->when($revisionId !== null || (bool) config('knowledge_base.guarded_publishing'), fn ($builder) => $builder
+                    ->when($revisionId === null, fn ($inner) => $inner->where('publication_status', 'published'))
+                    ->whereIn('review_status', ['auto_approved', 'approved']))
                 ->where('status', 'indexed'));
     }
 

@@ -57,7 +57,7 @@ The **Knowledge Bases menu entry and pages are gone**:
 
 Deleting a bot keeps its knowledge, which the list then shows under "Knowledge not used by a bot", with **Create a bot from it** (`store` with `from_kb`) and **Delete**. A bot made before this change without knowledge gets **Create its knowledge** (`client.ai.chatbots.knowledge`). When two bots share one Knowledge Base, the bot page says so.
 
-The source **Priority** select and the Knowledge Base **Language** field were removed from the UI. Existing values are kept. Priority still applies its small ranking bias, and new sources use normal priority. The guarded-publishing screens (Review, Test, Publish, Monitor, rollback) were removed from the UI as well. Their backend stays behind `KB_GUARDED_PUBLISHING` until a later clean-up, and production must run with it off: with it on, a new bot's knowledge would never be published.
+The source **Priority** select and the Knowledge Base **Language** field were removed from the UI. Existing values are kept. Priority still applies its small ranking bias, and new sources use normal priority. Without guarded publishing, a source is searched once it is enabled and read, whatever its review or publication state (`EmbeddingStore::eligibleChunks`; searches of a published revision, as public comment replies use, stay strict). The guarded-publishing screens (Review, Test, Publish, Monitor, rollback) were removed from the UI as well. Their backend stays behind `KB_GUARDED_PUBLISHING` until a later clean-up, and production must run with it off: with it on, a new bot's knowledge would never be published.
 
 ### Answer scope
 
