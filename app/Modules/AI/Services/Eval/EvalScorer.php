@@ -11,8 +11,11 @@ use App\Modules\AI\Services\Agent\FigureCheck;
  * 2.0, Phase 1.6; after Cerqle's EvalScorer). Deterministic: the same answer
  * always gets the same verdict, so a run can gate a release.
  *
- * - An answerable question passes when the bot answered it and every expected
- *   fact is in the reply (figures compared by their digits: "$40" = "40 USD").
+ * - An answerable question passes when the bot answered it, every expected
+ *   figure is in the reply (compared by digits: "$40" = "40 USD") and at
+ *   least half of the expected word facts are mentioned. A translated
+ *   question is checked on figures only: its reply is in another language
+ *   than the facts (2026-10-04; requiring every phrase failed correct answers).
  * - An unanswerable one passes when the bot declined, offered a person, asked
  *   a question, or gave general guidance that states no figures.
  * - Any figure that is in neither the knowledge, the business details, the
@@ -43,7 +46,9 @@ class EvalScorer
         $answered = $this->answered($answer, $kind, $reply);
         $conversation = $case->question."\n".collect($case->history ?? [])->where('role', 'user')->pluck('content')->implode("\n");
         $invented = $reply === '' ? [] : $this->figures->unsupportedFigures($reply, $supporting."\n".$conversation);
-        $missing = $case->expected === AiEvalCase::EXPECT_ANSWER ? $this->missingFacts((array) ($case->expected_facts ?? []), $reply) : [];
+        $missing = $case->expected === AiEvalCase::EXPECT_ANSWER
+            ? $this->missingFacts((array) ($case->expected_facts ?? []), $reply, $case->source === AiEvalCase::SOURCE_TRANSLATION)
+            : [];
 
         $failure = match (true) {
             $invented !== [] => 'invented_figures',
@@ -131,19 +136,27 @@ class EvalScorer
      * @param  list<string>  $facts
      * @return list<string>
      */
-    public function missingFacts(array $facts, string $reply): array
+    public function missingFacts(array $facts, string $reply, bool $figuresOnly = false): array
     {
         $text = $this->normalise($reply);
         $replyNumbers = $this->numbers($reply);
-
-        return array_values(array_filter($facts, function (string $fact) use ($text, $replyNumbers): bool {
+        $missingFigures = [];
+        $words = [];
+        foreach ($facts as $fact) {
             $numbers = $this->numbers($fact);
             if ($numbers !== []) {
-                return array_diff($numbers, $replyNumbers) !== [];
+                if (array_diff($numbers, $replyNumbers) !== []) {
+                    $missingFigures[] = $fact;
+                }
+            } elseif (! $figuresOnly) {
+                $words[] = $fact;
             }
+        }
+        // Every figure, and at least half of the word facts.
+        $missingWords = array_values(array_filter($words, fn (string $fact): bool => ! $this->mentions($text, $fact)));
+        $enough = count($words) - count($missingWords) >= (int) ceil(count($words) / 2);
 
-            return ! $this->mentions($text, $fact);
-        }));
+        return [...$missingFigures, ...($enough ? [] : $missingWords)];
     }
 
     /** @param array<string,mixed> $answer */
