@@ -385,3 +385,7 @@ Engine v2 bots read a knowledge base of up to `SMART_BOT_FULL_CONTEXT_MAX_TOKENS
 ## Smart Bot 2.0 Phase 1.5, burst batching (2026-10-03)
 
 A customer's quick run of channel messages is answered once: the earlier text messages since the last reply (within `INBOX_AI_BURST_WINDOW_SECONDS`, default 90) join the latest one's question. Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#quick-consecutive-messages-2026-10-03). Affects both engines on WhatsApp, Messenger, Instagram and Telegram; email and the website chat are unchanged. Roll back with `INBOX_AI_BURST_MAX_MESSAGES=1`. Tests fake the channel; check a real three-message run on one channel after deploy.
+
+## Smart Bot 2.0 Phase 1.7, formatting per channel (2026-10-04)
+
+Bot replies on WhatsApp, Messenger, Instagram, Telegram, eBay and email are rewritten from Markdown into the channel's formatting before sending (`ChannelTextFormatter`). Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#formatting-per-channel-2026-10-04). Affects both engines; no switch (it only removes markers the channels cannot show). Tests fake the channels; check one reply with a link on WhatsApp and Messenger after deploy.

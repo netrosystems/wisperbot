@@ -8,6 +8,7 @@ use App\Modules\AI\Services\AiCreditService;
 use App\Modules\AI\Services\AnswerReview;
 use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\Inbox\Services\AiHoldingReply;
+use App\Modules\Inbox\Services\ChannelTextFormatter;
 use App\Modules\Inbox\Services\EmailAiMessageGuard;
 use App\Modules\Inbox\Services\HumanHandoffService;
 use App\Modules\Inbox\Services\MessageBurst;
@@ -162,7 +163,8 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
                             'payload' => [
                                 'resources' => $resources,
                                 'quick_replies' => $result['quick_replies'] ?? [],
-                                'display_body' => $result['display_body'] ?? $reply,
+                                // As the customer sees it, for the inbox.
+                                'display_body' => app(ChannelTextFormatter::class)->format((string) ($result['display_body'] ?? $reply), $message->channel),
                                 'answer_origin' => $result['answer_origin'] ?? null,
                                 'response_mode' => $result['response_mode'] ?? null,
                                 'citations' => $result['citations'] ?? [],
@@ -254,6 +256,8 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
     /** @param array<int, array<string, mixed>> $resources */
     private function providerBody(string $reply, array $resources, string $channel): string
     {
+        // Markdown written for the website chat, in the channel's own formatting.
+        $reply = app(ChannelTextFormatter::class)->format($reply, $channel);
         $limits = ['instagram' => 1000, 'messenger' => 2000, 'ebay' => 2000, 'whatsapp' => 4096, 'telegram' => 4096, 'email' => 12000];
         $limit = $limits[$channel] ?? 4000;
         $url = $channel !== 'webchat' ? ($resources[0]['canonical_url'] ?? null) : null;

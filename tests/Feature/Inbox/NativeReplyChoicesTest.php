@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Inbox;
 
+use App\Modules\AI\Models\AiChatbot;
+use App\Modules\AI\Services\ChatbotRunner;
+use App\Modules\Inbox\Jobs\ProcessChannelAiReplyJob;
+use App\Modules\Inbox\Models\WorkspaceAiAnsweringPolicy;
 use App\Modules\Inbox\Services\InstagramDriver;
 use App\Modules\Inbox\Services\MessengerDriver;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -76,6 +80,38 @@ class NativeReplyChoicesTest extends TestCase
             Http::assertSent(fn (Request $request) => ($request['message']['text'] ?? null) === 'Would you like the Japan plan?'
                 && array_column($request['message']['quick_replies'] ?? [], 'title') === ['Yes, please', 'No, thanks']);
         }
+    }
+
+    public function test_markdown_in_a_bot_reply_reaches_messenger_as_plain_text(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        $bot = AiChatbot::factory()->create(['workspace_id' => $workspace->id]);
+        WorkspaceAiAnsweringPolicy::create([
+            'workspace_id' => $workspace->id, 'segment' => 'omni', 'mode' => 'always_on', 'chatbot_id' => $bot->id, 'enabled_at' => now()->subMinute(),
+        ]);
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id, 'channel' => 'messenger', 'status' => 'active', 'display_name' => 'Page',
+            'credentials' => ['page_access_token' => 'page-token'], 'ai_eligible_from_at' => now()->subMinute(),
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id, 'channel_account_id' => $account->id, 'status' => 'open', 'assigned_to' => 'bot',
+            'contact_id' => Contact::create(['workspace_id' => $workspace->id, 'phone_e164' => '+447700900112'])->id, 'external_thread_id' => 'PSID-9',
+        ]);
+        Message::create([
+            'conversation_id' => $conversation->id, 'direction' => 'in', 'channel' => 'messenger', 'type' => 'text',
+            'body' => 'Where is the guide?', 'status' => 'delivered', 'sent_at' => now(),
+        ]);
+        $runner = $this->mock(ChatbotRunner::class);
+        $runner->shouldReceive('run')->andReturn(['reply' => 'It is **free**: [setup guide](https://example.com/setup).', 'tokens_used' => 5, 'resources' => []]);
+        $runner->shouldReceive('lastTurnContext')->andReturn([]);
+        Http::fake(['graph.facebook.com/*' => Http::response(['message_id' => 'mid.7'])]);
+
+        app()->call([new ProcessChannelAiReplyJob($conversation->id), 'handle']);
+
+        $reply = Message::where('direction', 'out')->sole();
+        $this->assertSame('It is free: setup guide (https://example.com/setup).', $reply->body);
+        $this->assertSame($reply->body, $reply->payload['display_body']);
+        Http::assertSent(fn (Request $request) => ($request['message']['text'] ?? null) === 'It is free: setup guide (https://example.com/setup).');
     }
 
     public function test_human_replies_and_the_switch_keep_plain_text(): void

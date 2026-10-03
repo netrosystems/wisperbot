@@ -84,6 +84,8 @@ Smart Bot replies on WhatsApp, Messenger and Instagram show their choices as the
 - A tap arrives as an ordinary customer message whose text is the label (WhatsApp `interactive` button replies included, which the channel reply job now answers and Smart Bot history now reads). The answer path is the same as for typed text.
 - Telegram and email keep numbered text. Not verified against live Meta accounts: tests fake the Graph API.
 
+Reply text is formatted for each channel as well (`ChannelTextFormatter`, 2026-10-04): Markdown becomes WhatsApp formatting or plain text, and links keep their address. See [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#formatting-per-channel-2026-10-04).
+
 ## Joined-agent handoff state
 
 The private customer contract may additionally return `handoff.status` as `bot`, `waiting`, or `connected`, with public `agent` fields `{name, avatar_url}` and `joined_at` only when connected. `waiting` means a human was requested but no teammate has joined and must never be rendered as connected. Native SDKs should use a compact status treatment and ignore internal user IDs, email, roles, and schedules. The server and JavaScript widget release does not publish a native SDK update.
