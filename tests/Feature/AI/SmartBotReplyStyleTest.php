@@ -39,7 +39,8 @@ class SmartBotReplyStyleTest extends TestCase
         $result = $this->answer(['reply' => 'Which country are you travelling to?', 'quick_replies' => ['Japan', 'Thailand'], 'grounded' => false]);
 
         $this->assertSame('Which country are you travelling to?', $result['display_body']);
-        $this->assertSame(['Japan', 'Thailand'], array_column($result['quick_replies'], 'label'));
+        // The customer types the country: sample countries are never offered as buttons.
+        $this->assertSame([], $result['quick_replies']);
         $this->assertSame('knowledge_base', $result['answer_origin']);
     }
 
@@ -93,7 +94,7 @@ class SmartBotReplyStyleTest extends TestCase
 
     public function test_follow_up_question_with_invented_figure_choices_is_rejected(): void
     {
-        $result = $this->answer(['reply' => 'Which plan size would you like?', 'quick_replies' => ['10GB plan', '20GB plan'], 'grounded' => true]);
+        $result = $this->answer(['reply' => 'Would you like the bigger or the smaller plan?', 'quick_replies' => ['10GB plan', '20GB plan'], 'grounded' => true]);
 
         $this->assertNotNull($this->systemPrompt, 'The model must have been asked.');
         $this->assertStringNotContainsString('GB', json_encode($result['quick_replies'] ?? []));

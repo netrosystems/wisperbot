@@ -413,3 +413,8 @@ Fix:
 - The profile no longer requires an audience.
 
 Production `.env` must not set the flag to false, and the app containers must be recreated to pick up an `.env` change.
+
+Same day:
+- **Open-question buttons.** A test showed "Which country?" with USA / UK / India buttons. Open questions now get no buttons ([`CHAT_REPLY_OPTIONS.md`](CHAT_REPLY_OPTIONS.md#open-questions-are-typed-2026-10-04)).
+- **Tiny messages.** "ow", "he" and similar get a free "didn't catch that".
+- **Still open: romanized Bangla.** "kivabe esim pabo" still got the fallback after the routing fix, while the same question in English was answered. The cause needs the turn's diagnostics row (`ai_kb_retrieval_diagnostics.reason_code`, `best_score`).

@@ -124,4 +124,22 @@ class BusinessAwareTurnRouterTest extends TestCase
             'audience' => 'Mobile customers',
         ]);
     }
+
+    public function test_a_tiny_unclear_message_is_asked_again_but_answers_and_choices_are_not(): void
+    {
+        $router = new BusinessAwareTurnRouter;
+        $kb = new AiKnowledgeBase(['brand' => 'Telzen']);
+
+        foreach (['ow', 'he', 'hm'] as $message) {
+            $this->assertSame('unclear', $router->unclearResult($message, 'To buy an eSIM, download the Telzen app.', $kb)['intent'] ?? null, $message);
+        }
+        $this->assertSame('greeting', $router->conversationalResult('oi', $kb)['intent'] ?? null);
+        // An answer to the bot's own question, a numbered choice, or a real word goes on to the bot.
+        $this->assertNull($router->unclearResult('ow', "Which country?\n\n1. Japan\n2. Italy", $kb));
+        $this->assertNull($router->unclearResult('no', null, $kb));
+        $this->assertNull($router->unclearResult('3', null, $kb));
+        $this->assertNull($router->unclearResult('esim', null, $kb));
+        $this->assertNull($router->unclearResult('App', null, $kb));
+        $this->assertNull($router->unclearResult('বই', null, $kb));
+    }
 }

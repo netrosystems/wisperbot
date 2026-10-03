@@ -49,6 +49,33 @@ class BusinessAwareTurnRouter
     }
 
     /**
+     * A one-word message of one or two letters that is neither small talk nor
+     * an answer ("ow", "he", "hm"; three letters can be "app" or "vpn"): asked again for free instead of handing a
+     * person a chat with nothing in it. Not right after the bot asked a
+     * question, where "no" or "ya" can be the answer, never for digits, which
+     * may pick one of the bot's numbered choices, and only in Latin letters:
+     * a two-letter word in another script ("বই", "书") can be a whole question.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function unclearResult(string $message, ?string $previousAssistant, ?AiKnowledgeBase $knowledgeBase, ?string $tone = null): ?array
+    {
+        $normalized = $this->normalizeSocialTurn($message);
+        if ($normalized === '' || str_contains($normalized, ' ') || mb_strlen($normalized) > 2 || preg_match('/\P{Latin}/u', $normalized)) {
+            return null;
+        }
+        if (in_array($normalized, [...self::DECLINE_REPLIES, ...self::ACCEPT_REPLIES], true) || $this->socialIntent($normalized) !== null) {
+            return null;
+        }
+        $previous = trim((string) preg_replace('/\n\s*\n(?:\s*\d+\.\s[^\n]*\n?)+\s*$/u', '', (string) $previousAssistant));
+        if (preg_match('/[?؟？]\s*$/u', $previous)) {
+            return null;
+        }
+
+        return $this->socialResult('unclear', $message, $knowledgeBase, $tone);
+    }
+
+    /**
      * A reply to the assistant's own "anything else?" offer closes or continues
      * the chat politely instead of being searched in the Knowledge Base. A bare
      * "no"/"yes" counts only right after such an offer, so it still answers a
@@ -207,6 +234,7 @@ class BusinessAwareTurnRouter
                 'hallo', 'namaste', 'नमस्ते', 'halo', 'ciao', 'こんにちは', '안녕하세요', 'olá', 'ola', 'привет', 'merhaba', '你好',
                 'kemon acho', 'kemon achen', 'kemon asen', 'kemon aso', 'assalamu alaikum', 'assalamualaikum', 'salam alaikum', 'salam',
                 'adab', 'nomoskar', 'hi bhai', 'hello bhai', 'hi vai', 'hello vai', 'ki obostha', 'কেমন আছেন', 'কেমন আছো',
+                'oi', 'hlw', 'hlo', 'helo', 'hii', 'hiii', 'heyy', 'hellow', 'ওই', 'হাই ভাই',
             ],
             'thanks' => [
                 'thanks', 'thank you', 'thank you very much', 'thx', 'ধন্যবাদ', 'شكرا', 'gracias', 'merci', 'danke',
@@ -245,6 +273,7 @@ class BusinessAwareTurnRouter
             'goodbye' => 'Goodbye! Feel free to return whenever you need help.',
             'closing' => $friendly ? 'Thanks for chatting with '.($brand ?: 'us').'! Have a great day.' : 'Thank you for contacting '.($brand ?: 'us').'. Have a good day.',
             'more_help' => $friendly ? 'Sure! What else can I help you with?' : 'Certainly. What else may I help you with?',
+            'unclear' => 'Sorry, I didn’t quite catch that. What would you like to know?',
             default => 'How can I help?',
         };
 
@@ -256,6 +285,7 @@ class BusinessAwareTurnRouter
                 'goodbye' => 'বিদায়! প্রয়োজন হলে আবার যোগাযোগ করুন।',
                 'closing' => 'আমাদের সাথে কথা বলার জন্য ধন্যবাদ! আপনার দিনটি শুভ হোক।',
                 'more_help' => 'অবশ্যই! আর কী বিষয়ে সাহায্য করতে পারি?',
+                'unclear' => 'দুঃখিত, ঠিক বুঝতে পারিনি। আপনি কী জানতে চান?',
             ],
             'ar' => [
                 'greeting' => 'مرحبًا! كيف يمكنني مساعدتك اليوم؟',

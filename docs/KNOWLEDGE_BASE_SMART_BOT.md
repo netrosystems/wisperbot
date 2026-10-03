@@ -146,7 +146,7 @@ The customer contract is in [Suggested customer replies](CHAT_REPLY_OPTIONS.md#s
 
 ## Turn-routing contract
 
-`BusinessAwareTurnRouter` runs before strict retrieval when `SMART_BOT_BUSINESS_AWARE_ROUTING=true` (the default since 2026-10-04). Conversational turns (greetings, thanks, goodbyes) are answered for free whatever the flag says (2026-10-04).
+`BusinessAwareTurnRouter` runs before strict retrieval when `SMART_BOT_BUSINESS_AWARE_ROUTING=true` (the default since 2026-10-04). Conversational turns (greetings, thanks, goodbyes, including chat spellings such as "oi", "hlw", "hii") are answered for free whatever the flag says (2026-10-04). A one-word message of one or two Latin letters that is not small talk or a yes/no ("ow", "he") gets a free "Sorry, I didn't quite catch that" instead of the fallback (`BusinessAwareTurnRouter::unclearResult()`). This does not happen right after the bot asked a question, for digits, or in other scripts.
 
 ### 1. Conversational turn
 

@@ -1185,10 +1185,16 @@ PROMPT;
     private function offerReply(AiChatbot $bot, ?AiKnowledgeBase $kb, int $workspaceId, ?int $revisionId, string $message, array $history): ?array
     {
         $previous = collect($history)->last(fn (array $turn): bool => ($turn['role'] ?? null) === 'assistant');
-        $result = $this->turnRouter->offerReplyResult($message, is_array($previous) ? (string) ($previous['content'] ?? '') : null, $kb, $bot->tone);
+        $previousText = is_array($previous) ? (string) ($previous['content'] ?? '') : null;
+        $result = $this->turnRouter->offerReplyResult($message, $previousText, $kb, $bot->tone);
+        $reason = 'offer';
+        // "ow", "he": asked again for free rather than handed to a person.
+        if ($result === null && ($result = $this->turnRouter->unclearResult($message, $previousText, $kb, $bot->tone)) !== null) {
+            $reason = 'conversation';
+        }
         if ($result !== null) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
-                'reason_code' => 'offer',
+                'reason_code' => $reason,
                 'intent' => $result['intent'],
                 'answer_origin' => 'conversation',
                 'credit_result' => 'zero_cost',
