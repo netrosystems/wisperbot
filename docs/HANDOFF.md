@@ -414,7 +414,6 @@ Fix:
 
 Production `.env` must not set the flag to false, and the app containers must be recreated to pick up an `.env` change.
 
-
 Same day:
 - **Open-question buttons.** A test showed "Which country?" with USA / UK / India buttons. Open questions now get no buttons ([`CHAT_REPLY_OPTIONS.md`](CHAT_REPLY_OPTIONS.md#open-questions-are-typed-2026-10-04)).
 - **Tiny messages.** "ow", "he" and similar get a free "didn't catch that".
