@@ -389,6 +389,10 @@ One logical answer is charged once. Internal classification, provider retries, d
 - Public Social Comments retains stricter published-evidence and public-data rules; private-chat business guidance does not broaden it.
 - External providers may receive readable numbered text where native quick-reply UI is unavailable.
 
+### Quick consecutive messages (2026-10-03)
+
+Customers on WhatsApp, Messenger, Instagram and Telegram often split one question over several messages. The channel reply job (`ProcessChannelAiReplyJob`, debounced by `INBOX_AI_REPLY_DEBOUNCE_SECONDS`) answers the latest inbound message; `MessageBurst` folds in the earlier text messages sent since the last outbound reply and within `INBOX_AI_BURST_WINDOW_SECONDS` (90) of it, up to `INBOX_AI_BURST_MAX_MESSAGES` (5, including the latest). Greetings, thanks and other small talk among the earlier ones are left out. The combined text is the turn's question for both engines (in memory; stored messages are unchanged), the folded messages are removed from the history the model reads (`ChatbotRunner::answeringTogether()`), one reply is sent and charged, and the diagnostics `trace.messages_answered` records how many were answered together. A message arriving while a reply is being written still supersedes it (refunded) and the next run includes it. Email and the website chat (one job per visitor message) are not batched. `INBOX_AI_BURST_MAX_MESSAGES=1` turns it off.
+
 ## Diagnostics and privacy
 
 Management diagnostics may record intent, answer origin, response mode, retrieval strategy, semantic/lexical score summaries, acceptance reason, research outcome, latency, citation URLs, and credit result.

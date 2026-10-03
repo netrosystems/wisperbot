@@ -40,6 +40,14 @@ class BusinessAwareTurnRouter
         return $this->socialResult($intent, $message, $knowledgeBase, $tone);
     }
 
+    /** A greeting, thanks, acknowledgement or goodbye with nothing else in it. */
+    public function isSmallTalk(string $message): bool
+    {
+        $normalized = $this->normalizeSocialTurn($message);
+
+        return $normalized !== '' && $this->socialIntent($normalized) !== null;
+    }
+
     /**
      * A reply to the assistant's own "anything else?" offer closes or continues
      * the chat politely instead of being searched in the Knowledge Base. A bare

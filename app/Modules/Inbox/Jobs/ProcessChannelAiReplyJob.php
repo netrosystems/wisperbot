@@ -10,6 +10,7 @@ use App\Modules\AI\Services\ChatbotRunner;
 use App\Modules\Inbox\Services\AiHoldingReply;
 use App\Modules\Inbox\Services\EmailAiMessageGuard;
 use App\Modules\Inbox\Services\HumanHandoffService;
+use App\Modules\Inbox\Services\MessageBurst;
 use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Shared\Models\ChannelAccount;
 use App\Modules\Shared\Models\Conversation;
@@ -51,6 +52,7 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
         AiCreditService $credits,
         AiHoldingReply $holding,
         HumanHandoffService $handoff,
+        MessageBurst $bursts,
     ): void {
         $lock = Cache::lock('conversation-ai-generation:'.$this->conversationId, 150);
         if (! $lock->get()) {
@@ -97,6 +99,12 @@ class ProcessChannelAiReplyJob implements ShouldBeUniqueUntilProcessing, ShouldQ
 
             if ($message->channel === 'email') {
                 $message->body = $emailGuard->promptBody($message);
+            }
+            // Quick consecutive messages are one question: answer them together.
+            $earlier = $bursts->earlier($conversation, $message);
+            if ($earlier !== []) {
+                $message->body = $bursts->question($earlier, $message);
+                $runner = $runner->answeringTogether(array_map(fn (Message $m): int => $m->id, $earlier));
             }
             $message->setRelation('conversation', $conversation);
             // A turn the bot cannot answer is never left silent: the customer is

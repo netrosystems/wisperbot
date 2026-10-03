@@ -381,3 +381,7 @@ Bot reply choices become WhatsApp reply buttons and Messenger/Instagram quick re
 ## Smart Bot 2.0 Phase 1, full-context mode (2026-10-03)
 
 Engine v2 bots read a knowledge base of up to `SMART_BOT_FULL_CONTEXT_MAX_TOKENS` (20,000) whole. Only affects bots moved to engine v2 (`ai:engine`). For a BYOK client this raises input tokens per reply on their own provider: check with the client before moving a BYOK bot to v2, or lower the limit.
+
+## Smart Bot 2.0 Phase 1.5, burst batching (2026-10-03)
+
+A customer's quick run of channel messages is answered once: the earlier text messages since the last reply (within `INBOX_AI_BURST_WINDOW_SECONDS`, default 90) join the latest one's question. Spec: [`KNOWLEDGE_BASE_SMART_BOT.md`](KNOWLEDGE_BASE_SMART_BOT.md#quick-consecutive-messages-2026-10-03). Affects both engines on WhatsApp, Messenger, Instagram and Telegram; email and the website chat are unchanged. Roll back with `INBOX_AI_BURST_MAX_MESSAGES=1`. Tests fake the channel; check a real three-message run on one channel after deploy.
