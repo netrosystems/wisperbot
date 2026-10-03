@@ -84,7 +84,7 @@ class SmartBotMeasurementTest extends TestCase
         $bot->update(['ai_kb_id' => null]);
         $this->fakeOpenAi([1.0, 0.0, 0.0], $this->reply('Hello! How can I help?'));
 
-        app(ChatbotRunner::class)->runForApi($bot->fresh(), 'Hello there', $workspaceId);
+        app(ChatbotRunner::class)->runForApi($bot->fresh(), 'What can you do for me?', $workspaceId);
 
         $row = AiKbRetrievalDiagnostic::sole();
         $this->assertNull($row->kb_id);

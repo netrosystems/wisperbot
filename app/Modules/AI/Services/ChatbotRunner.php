@@ -156,7 +156,9 @@ class ChatbotRunner
             return $offerReply;
         }
 
-        if ($this->businessAwareEnabled() && ($conversationResult = $this->turnRouter->conversationalResult($body, $kb, $bot->tone))) {
+        // A greeting, thanks or goodbye is answered for free on every bot: a
+        // knowledge search can never match it, so it would only reach the fallback.
+        if ($conversationResult = $this->turnRouter->conversationalResult($body, $kb, $bot->tone)) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
                 'reason_code' => 'conversation',
                 'intent' => $conversationResult['intent'],
@@ -629,7 +631,8 @@ class ChatbotRunner
         if ($offerReply = $this->offerReply($bot, $kb, $workspaceId, $revisionId, $message, $history)) {
             return $offerReply;
         }
-        if ($this->businessAwareEnabled() && ($conversationResult = $this->turnRouter->conversationalResult($message, $kb, $bot->tone))) {
+        // Greetings are free on every bot, as in run().
+        if ($conversationResult = $this->turnRouter->conversationalResult($message, $kb, $bot->tone)) {
             $this->recordDiagnostic($bot, $workspaceId, $revisionId, 'answer', null, [], 0, [
                 'reason_code' => 'conversation',
                 'intent' => $conversationResult['intent'],

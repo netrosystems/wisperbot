@@ -402,3 +402,14 @@ One bot page with steps, and each bot owns its knowledge. Spec: [`KNOWLEDGE_BASE
 - **App team:** the API (`/api/v1/ai/chatbots*`, `/ai/knowledge-bases*`) is unchanged.
 - **"Where it answers" (built 2026-10-04):** switches the website chat, inbox channels and email from the bot page, using the settings Widget Setup and Channel Setup already save. Checked locally: inbox channels on (Channel Setup then showed the same bot), then off again.
 - **Checked locally:** in the browser with the demo workspace (create, business details, a text source, how it answers, phone width). Indexing locally fails on the demo OpenAI key, which is expected.
+
+## Smart Bot fallback on every message (2026-10-04)
+
+The Telzen AI test bot answered "hello", "can you help me" and "kivabe esim pabo" with its fallback. Cause: production ran engine v1 with `SMART_BOT_BUSINESS_AWARE_ROUTING` off. In that mode, a Strict or Balanced bot sends the fallback whenever no passage reaches 0.60, without asking the model. The setup redesign had removed the "Staged rollout" label and described Balanced as giving guidance, which is true only with routing on.
+
+Fix:
+- Greetings are free on every bot.
+- Routing defaults on.
+- The profile no longer requires an audience.
+
+Production `.env` must not set the flag to false, and the app containers must be recreated to pick up an `.env` change.

@@ -160,14 +160,13 @@ class BusinessAwareTurnRouter
             return false;
         }
 
+        // Business name and what it does; who it serves is optional (2026-10-04).
         $brand = trim((string) $knowledgeBase->brand);
         $purpose = trim((string) $knowledgeBase->purpose);
-        $audience = trim((string) $knowledgeBase->audience);
 
         return mb_strlen($brand) >= 2
             && mb_strlen($purpose) >= 12
-            && count($this->words($purpose)) >= 2
-            && mb_strlen($audience) >= 3;
+            && count($this->words($purpose)) >= 2;
     }
 
     public function profileText(AiKnowledgeBase $knowledgeBase): string

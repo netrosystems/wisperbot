@@ -67,11 +67,11 @@ The source **Priority** select and the Knowledge Base **Language** field were re
 | Verified sources only | `verified_only` | Conversational replies remain available, but substantive factual answers require KB or approved-source evidence. |
 | General assistant | `general` | Broad model knowledge is allowed, while client-specific claims still require evidence. |
 
-Business-aware mode requires a meaningful KB brand, purpose, and audience. If that profile is incomplete, Business only safely behaves like Verified sources only rather than guessing the client's domain.
+Business-aware mode requires a meaningful KB brand and purpose (at least 12 characters, two words); the audience is optional since 2026-10-04. If that profile is incomplete, Business only safely behaves like Verified sources only rather than guessing the client's domain.
 
 The legacy `unsupported_answer_action` field remains a compatibility alias. New interfaces use `answer_scope` and `unsupported_fallback_action`. The migration maps legacy `general` bots to General assistant and other bots to Business only.
 
-These three cards are also engine v2's Strict / Balanced / Flexible modes (`verified_only` / `business_only` / `general`); there is no separate control. The answer scope takes effect when `SMART_BOT_BUSINESS_AWARE_ROUTING` is on (engine v1) or the bot answers with engine v2. The bot page no longer shows a "Staged rollout" label (2026-10-04): without either, Strict still differs from Balanced by skipping the general-guidance retry. A bot that answers with engine v2 shows a "New answer engine" badge.
+These three cards are also engine v2's Strict / Balanced / Flexible modes (`verified_only` / `business_only` / `general`); there is no separate control. The answer scope takes effect when `SMART_BOT_BUSINESS_AWARE_ROUTING` is on (engine v1) or the bot answers with engine v2. Routing is on by default since 2026-10-04, so the bot page's descriptions hold. With `SMART_BOT_BUSINESS_AWARE_ROUTING=false` on engine v1, Strict and Balanced both send the fallback whenever no passage reaches the cut-off, without asking the model. Production ran that way until 2026-10-04, and a Balanced test bot answered "hello" and every other question with its fallback. A bot that answers with engine v2 shows a "New answer engine" badge.
 
 ### Company brief (2026-10-03)
 
@@ -146,7 +146,7 @@ The customer contract is in [Suggested customer replies](CHAT_REPLY_OPTIONS.md#s
 
 ## Turn-routing contract
 
-`BusinessAwareTurnRouter` runs before strict retrieval when `SMART_BOT_BUSINESS_AWARE_ROUTING=true`.
+`BusinessAwareTurnRouter` runs before strict retrieval when `SMART_BOT_BUSINESS_AWARE_ROUTING=true` (the default since 2026-10-04). Conversational turns (greetings, thanks, goodbyes) are answered for free whatever the flag says (2026-10-04).
 
 ### 1. Conversational turn
 
@@ -516,10 +516,10 @@ A run passes the Phase 1 targets (`chatbot.eval.targets`): ≥ 85% of answerable
 
 ## Feature flags and rollout
 
-The experimental switches default off:
+Business-aware routing is on by default (2026-10-04). The other experimental switches default off:
 
 ```dotenv
-SMART_BOT_BUSINESS_AWARE_ROUTING=false
+SMART_BOT_BUSINESS_AWARE_ROUTING=true
 KB_HYBRID_RETRIEVAL_ENABLED=false
 KB_LIVE_PRODUCT_FACTS_ENABLED=false
 KB_LIVE_PRODUCT_FRESHNESS_MINUTES=15
