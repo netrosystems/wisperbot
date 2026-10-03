@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Smart Bot replies look right on WhatsApp, Messenger, Instagram, Telegram and email.** Replies are written in Markdown for the website chat, so channel customers could receive raw `**bold**`, `## headings` and `[label](https://…)` links (engine v1 even asked the model for Markdown links on every channel). Bot replies are now rewritten for each channel before sending: WhatsApp gets its own *bold* and _italic_, the other channels plain text, and links show as "label (address)". The website chat, apps and API are unchanged. No migration.
+
 - **Quick consecutive messages get one Smart Bot answer.** On WhatsApp, Messenger, Instagram and Telegram, when a customer sends a question over several quick messages, the bot now answers them together instead of only the last one. Earlier text messages since the bot's last reply and within 90 seconds count (`INBOX_AI_BURST_WINDOW_SECONDS`, up to 5 messages with `INBOX_AI_BURST_MAX_MESSAGES`; 1 turns it off); greetings and thanks among them are left out. One reply, one charge. Email and the website chat are unchanged. No migration.
 
 - **Engine v2 reads small knowledge bases whole.** For bots on the new answer engine, a knowledge base up to about 20,000 tokens (`SMART_BOT_FULL_CONTEXT_MAX_TOKENS`, 0 turns it off) is sent to the model in full instead of searched, so an answer never depends on the search finding the right passage. The checks before sending are unchanged. Bots on engine v1 are not affected. No migration.

@@ -177,6 +177,31 @@ class ChatbotRunnerTest extends TestCase
         $this->assertSame(1000, $captured['max_tokens']);
     }
 
+    public function test_a_chat_channel_turn_asks_for_plain_addresses_not_markdown_links(): void
+    {
+        $workspace = $this->createWorkspaceContext()['workspace'];
+        [$chatbot, $message] = $this->botWithKnowledge($workspace->id, 'clarify_then_handoff', 'How do returns work?');
+        $message->channel = 'whatsapp';
+        $captured = null;
+        Http::fake([
+            'api.openai.com/v1/embeddings' => Http::response(['data' => [['embedding' => [1.0, 0.0, 0.0]]]]),
+            'api.openai.com/v1/chat/completions' => function ($request) use (&$captured) {
+                $captured = json_decode($request->body(), true);
+
+                return Http::response([
+                    'choices' => [['message' => ['content' => json_encode(['reply' => 'Unopened products may be returned within 30 days of delivery.', 'quick_replies' => [], 'grounded' => true, 'response_type' => 'answer', 'show_video' => false])]]],
+                    'usage' => ['prompt_tokens' => 50, 'completion_tokens' => 20],
+                    'model' => 'gpt-4o-mini',
+                ]);
+            },
+        ]);
+
+        app(ChatbotRunner::class)->run($chatbot, $message);
+
+        $this->assertStringContainsString('as the plain address', $captured['messages'][0]['content']);
+        $this->assertStringNotContainsString('Markdown link', $captured['messages'][0]['content']);
+    }
+
     public function test_knowledge_only_bot_bypasses_an_unrelated_question_without_calling_chat(): void
     {
         $data = $this->createWorkspaceContext();
