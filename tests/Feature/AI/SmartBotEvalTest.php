@@ -136,6 +136,20 @@ class SmartBotEvalTest extends TestCase
         $this->assertSame('pass', $scorer->score($unanswerable, $answer('We sell online; our team can tell you about shops.', 'business_guidance'), ['trace' => ['answer_kind' => 'guidance']], self::PASSAGE)['verdict']);
     }
 
+    public function test_word_facts_need_half_and_translated_questions_are_checked_on_figures(): void
+    {
+        // From the first production run (2026-10-04): correct answers failed for one vague phrase.
+        $scorer = app(EvalScorer::class);
+        $answer = fn (string $reply) => ['reply' => $reply, 'answer_origin' => 'knowledge_base', 'response_mode' => 'answer'];
+        $bkash = new AiEvalCase(['question' => 'Can I pay with Bkash or Nagad?', 'expected' => 'answer', 'expected_facts' => ['Bkash', 'Nagad', 'payment method from Bangladesh']]);
+        $roaming = new AiEvalCase(['question' => 'Japan-e roaming-er dam koto?', 'expected' => 'answer', 'source' => 'translation', 'expected_facts' => ['$1.2', 'Japan roaming price']]);
+
+        $this->assertSame('pass', $scorer->score($bkash, $answer('Yes, you can pay with Bkash or Nagad.'), [], self::PASSAGE.' $1.2')['verdict']);
+        $this->assertSame('missing_facts', $scorer->score($bkash, $answer('Yes, several wallets work.'), [], self::PASSAGE)['failure']);
+        $this->assertSame('pass', $scorer->score($roaming, $answer('Japan-e roaming $1.2 theke shuru.'), [], self::PASSAGE.' $1.2')['verdict']);
+        $this->assertSame('missing_facts', $scorer->score($roaming, $answer('Package-er upor nirbhor kore.'), [], self::PASSAGE)['failure']);
+    }
+
     /** @return array{0:AiChatbot,1:int} */
     private function bot(): array
     {

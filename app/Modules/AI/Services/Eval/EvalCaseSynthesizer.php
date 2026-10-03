@@ -46,6 +46,26 @@ class EvalCaseSynthesizer
 
     private const MAX_FACT_WORDS = 6;
 
+    /**
+     * The question's own language: a model tagged English questions about a
+     * Bangla source "bn" (2026-10-04). A Latin-script question with a tag for
+     * a non-Latin script is English; a non-Latin question keeps its script.
+     */
+    private function scriptLanguage(string $question, ?string $tag): ?string
+    {
+        $script = match (true) {
+            (bool) preg_match('/\p{Bengali}/u', $question) => 'bn',
+            (bool) preg_match('/\p{Arabic}/u', $question) => 'ar',
+            (bool) preg_match('/\p{Devanagari}/u', $question) => 'hi',
+            default => null,
+        };
+        if ($script !== null) {
+            return $script;
+        }
+
+        return in_array($tag, ['bn', 'ar', 'hi'], true) ? 'en' : $tag;
+    }
+
     /** Models sometimes name the language instead of tagging it. */
     private const LANGUAGE_NAMES = ['english' => 'en', 'bangla' => 'bn', 'bengali' => 'bn', 'arabic' => 'ar', 'spanish' => 'es', 'french' => 'fr', 'hindi' => 'hi', 'urdu' => 'ur'];
 
@@ -211,7 +231,7 @@ class EvalCaseSynthesizer
                     continue;
                 }
                 $content = (string) $chunk->content;
-                $language = $this->language($item['language'] ?? null);
+                $language = $this->scriptLanguage($question, $this->language($item['language'] ?? null));
                 $cases[] = [
                     'question' => mb_substr($question, 0, 500),
                     'expected' => AiEvalCase::EXPECT_ANSWER,
