@@ -59,6 +59,9 @@ class ChatbotRunner
 
     private string $turnQuestion = '';
 
+    /** @var list<int> Earlier customer messages folded into this turn's question. */
+    private array $answeredTogether = [];
+
     /**
      * Turns that ended without an answer from the knowledge: the question
      * joins the Knowledge Base's unanswered list. Unrelated topics, small
@@ -101,6 +104,21 @@ class ChatbotRunner
     {
         $runner = clone $this;
         $runner->recordsGaps = false;
+
+        return $runner;
+    }
+
+    /**
+     * A copy that answers the given earlier messages together with the inbound
+     * one, whose body already holds them all: they leave the history so the
+     * model does not read them twice.
+     *
+     * @param  list<int>  $messageIds
+     */
+    public function answeringTogether(array $messageIds): static
+    {
+        $runner = clone $this;
+        $runner->answeredTogether = array_values(array_map('intval', $messageIds));
 
         return $runner;
     }
@@ -1717,6 +1735,7 @@ PROMPT;
             // `interactive`: a tapped WhatsApp reply button, whose text is its label.
             ->whereIn('type', ['text', 'template', 'interactive'])
             ->where('id', '!=', $inboundMessage->id)
+            ->when($this->answeredTogether !== [], fn ($query) => $query->whereNotIn('id', $this->answeredTogether))
             ->orderByDesc('sent_at')
             ->take(20)
             ->get()
@@ -1876,6 +1895,9 @@ PROMPT;
                 ? ['passages' => array_map(fn ($id) => ['chunk_id' => (int) $id], array_slice((array) $retrieval['passage_chunk_ids'], 0, 8))]
                 : null),
         ];
+        if ($this->answeredTogether !== []) {
+            $attributes['trace'] = [...($attributes['trace'] ?? []), 'messages_answered' => count($this->answeredTogether) + 1];
+        }
         $this->lastTurn = $attributes;
         if (! $this->evaluating) {
             AiKbRetrievalDiagnostic::create($attributes);

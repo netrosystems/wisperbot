@@ -4,6 +4,8 @@ This is a documentation-level changelog for user-visible and operationally signi
 
 ## Unreleased
 
+- **Quick consecutive messages get one Smart Bot answer.** On WhatsApp, Messenger, Instagram and Telegram, when a customer sends a question over several quick messages, the bot now answers them together instead of only the last one. Earlier text messages since the bot's last reply and within 90 seconds count (`INBOX_AI_BURST_WINDOW_SECONDS`, up to 5 messages with `INBOX_AI_BURST_MAX_MESSAGES`; 1 turns it off); greetings and thanks among them are left out. One reply, one charge. Email and the website chat are unchanged. No migration.
+
 - **Engine v2 reads small knowledge bases whole.** For bots on the new answer engine, a knowledge base up to about 20,000 tokens (`SMART_BOT_FULL_CONTEXT_MAX_TOKENS`, 0 turns it off) is sent to the model in full instead of searched, so an answer never depends on the search finding the right passage. The checks before sending are unchanged. Bots on engine v1 are not affected. No migration.
 
 - **Smart Bot choices as real buttons on WhatsApp, Messenger and Instagram.** When a bot reply offers two or three short choices (each up to 20 characters), customers now get WhatsApp reply buttons or Messenger/Instagram quick replies instead of a numbered list. Longer choices, Telegram and email keep the numbered list, and a refused button message is resent as numbered text. A tap is answered like typed text; WhatsApp button taps were previously not answered by the Smart Bot at all. Switch: `SMART_BOT_NATIVE_CHOICES`. No migration.
