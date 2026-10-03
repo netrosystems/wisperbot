@@ -56,9 +56,12 @@ For route, config, or deployment changes, also clear/rebuild relevant caches in 
 
 ## Workflow and release
 
-- Work on a feature branch, merge it into `dev`, then open a GitHub pull request from `dev` to `main`.
-- **Merging a `dev` → `main` pull request deploys production** through `.github/workflows/deploy-production.yml`. Never merge one without the owner's approval. Pushes to `dev` or directly to `main` do not deploy.
+- Do all work on the `oris` branch and push it to `dev` (fast-forward). Then open a GitHub pull request from `dev` to `main`.
+- **Merging a `dev` → `main` pull request deploys production** through `.github/workflows/deploy-production.yml`. Pushes to `dev` or directly to `main` do not deploy.
+- The owner has given standing approval (2026-10-02) for the agent to merge the `dev` → `main` pull request itself, so CI deploys, once all of these hold: GitHub reports no conflicts; `main` has no changes missing from `dev`; the required checks show no new failures compared with `main`; documentation is updated. Otherwise stop and ask.
+- Never add AI attribution to commits or pull requests (no `Co-Authored-By: Claude`, no "Generated with Claude Code").
 - Never run a local environment against production credentials or data, and never commit `.env` files.
+- Smart Bot 2.0 ([plan](docs/SMART_BOT_2_PLAN.md)) borrows ideas from the sister codebase Cerqle. Design each piece for WisperBot's own architecture, settings, screens and data; use Cerqle only as a reference, never copy it file by file.
 
 ---
 
