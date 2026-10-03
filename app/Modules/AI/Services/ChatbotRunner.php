@@ -1714,7 +1714,8 @@ PROMPT;
     {
         $history = [];
         $recentMessages = $conversation->messages()
-            ->whereIn('type', ['text', 'template'])
+            // `interactive`: a tapped WhatsApp reply button, whose text is its label.
+            ->whereIn('type', ['text', 'template', 'interactive'])
             ->where('id', '!=', $inboundMessage->id)
             ->orderByDesc('sent_at')
             ->take(20)

@@ -63,6 +63,43 @@ class AiHoldingReplyTest extends TestCase
         $this->assertNotNull($conversation->fresh()->ai_paused_at);
     }
 
+    public function test_a_tapped_reply_button_is_answered_and_the_reply_keeps_text_for_buttons(): void
+    {
+        ['workspace' => $workspace] = $this->createWorkspaceContext();
+        $bot = AiChatbot::factory()->create(['workspace_id' => $workspace->id]);
+        WorkspaceAiAnsweringPolicy::create([
+            'workspace_id' => $workspace->id, 'segment' => 'omni', 'mode' => 'always_on',
+            'chatbot_id' => $bot->id, 'enabled_at' => now()->subMinute(),
+        ]);
+        $account = ChannelAccount::create([
+            'workspace_id' => $workspace->id, 'channel' => 'messenger', 'provider' => 'test',
+            'display_name' => 'Messenger account', 'status' => 'active', 'ai_eligible_from_at' => now()->subMinute(),
+        ]);
+        $conversation = Conversation::create([
+            'workspace_id' => $workspace->id, 'channel_account_id' => $account->id,
+            'contact_id' => Contact::factory()->create(['workspace_id' => $workspace->id])->id,
+            'status' => 'open', 'assigned_to' => 'bot',
+        ]);
+        // A WhatsApp-style button tap: type interactive, text = the label.
+        Message::create([
+            'conversation_id' => $conversation->id, 'direction' => 'in', 'channel' => 'messenger',
+            'type' => 'interactive', 'body' => 'Yes, please', 'status' => 'delivered', 'sent_at' => now(),
+        ]);
+        $runner = $this->mock(ChatbotRunner::class);
+        $runner->shouldReceive('run')->once()->andReturn([
+            'reply' => "Which country?\n\n1. Japan\n2. Italy", 'display_body' => 'Which country?', 'tokens_used' => 5, 'resources' => [],
+            'quick_replies' => [['id' => 'a', 'label' => 'Japan'], ['id' => 'b', 'label' => 'Italy']],
+        ]);
+        $runner->shouldReceive('lastTurnContext')->andReturn([]);
+        $this->fakeDriver();
+
+        app()->call([new ProcessChannelAiReplyJob($conversation->id), 'handle']);
+
+        $reply = Message::where('direction', 'out')->sole();
+        $this->assertSame('Which country?', $reply->payload['native_body']);
+        $this->assertStringContainsString('1. Japan', $reply->body);
+    }
+
     public function test_an_empty_webchat_reply_becomes_a_holding_reply_in_the_customers_script(): void
     {
         ['workspace' => $workspace] = $this->createWorkspaceContext();

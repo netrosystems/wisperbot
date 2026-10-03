@@ -7,6 +7,7 @@ use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Modules\Broadcasting\Models\CampaignRecipient;
 use App\Modules\Inbox\Services\ConversationOwnershipService;
+use App\Modules\Inbox\Services\NativeReplyChoices;
 use App\Modules\Inbox\Services\SegmentAiPolicyService;
 use App\Modules\Shared\Contracts\ChannelDriverInterface;
 use App\Modules\Shared\Models\ChannelAccount;
@@ -45,6 +46,18 @@ class WhatsappDriver implements ChannelDriverInterface
         }
 
         $payload = $message->payload ?? [];
+        if ($native = app(NativeReplyChoices::class)->for($message)) {
+            $resp = $client->sendInteractive($phone, [
+                'type' => 'button',
+                'body' => ['text' => $native['body']],
+                'action' => ['buttons' => array_map(fn (array $choice) => ['type' => 'reply', 'reply' => ['id' => $choice['id'], 'title' => $choice['label']]], $native['choices'])],
+            ]);
+            if ($resp->successful()) {
+                return $resp->json('messages.0.id', '');
+            }
+            // Refused buttons: the same answer once more as text with numbered choices.
+            Log::warning('whatsapp.native_choices_refused', ['message_id' => $message->id, 'status' => $resp->status()]);
+        }
 
         $resp = match ($message->type) {
             'template' => $client->sendTemplate($phone, $payload['template']['name'] ?? '', $payload['template']['language'] ?? 'en', $payload['template']['components'] ?? []),
